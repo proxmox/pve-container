@@ -1,0 +1,48 @@
+PACKAGE=pve-container
+
+PREFIX=${DESTDIR}/usr
+BINDIR=${PREFIX}/bin
+SBINDIR=${PREFIX}/sbin
+MANDIR=${PREFIX}/share/man
+DOCDIR=${PREFIX}/share/doc/${PACKAGE}
+LXCTMPLDIR=${PREFIX}/share/lxc/templates
+PODDIR=${DOCDIR}/pod
+MAN1DIR=${MANDIR}/man1/
+export PERLDIR=${PREFIX}/share/perl5
+
+all:
+
+%.1.gz: %.1.pod
+	rm -f $@
+	cat $<|pod2man -n $* -s 1 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@
+
+pct.1.pod: pct
+	perl -I.. -T ./pct printmanpod >$@
+
+lxc-pve.1.pod: lxc-pve
+	perl -I.. -T ./lxc-pve printmanpod >$@
+
+.PHONY: install
+install: pct lxc-pve pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
+	perl -T -I. ./pct verifyapi
+	perl -T -I. ./lxc-pve verifyapi
+	install -d ${SBINDIR}
+	install -m 0755 pct ${SBINDIR}
+	install -d ${LXCTMPLDIR}
+	install -m 0755 lxc-pve ${LXCTMPLDIR}
+	make -C PVE install
+	install -d ${MAN1DIR}
+	install -d ${PODDIR}
+	install -m 0644 pct.1.gz ${MAN1DIR}
+	install -m 0644 lxc-pve.1.gz ${MAN1DIR}
+	install -m 0644 pct.1.pod ${PODDIR}
+	install -m 0644 lxc-pve.1.pod ${PODDIR}
+
+.PHONY: clean
+clean: 	
+	rm -rf *.1.pod *.1.gz
+	find . -name '*~' -exec rm {} ';'
+
+.PHONY: distclean
+distclean: clean
+

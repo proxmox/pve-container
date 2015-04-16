@@ -1,0 +1,105 @@
+#!/usr/bin/perl -T
+
+use strict;
+use warnings;
+use lib qw(. ..);
+
+use PVE::SafeSyslog;
+use PVE::Cluster;
+use PVE::INotify;
+use PVE::RPCEnvironment;
+use PVE::JSONSchema qw(get_standard_option);
+use PVE::CLIHandler;
+use PVE::API2::LXC;
+
+use Data::Dumper;
+
+use base qw(PVE::CLIHandler);
+
+$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin';
+
+initlog ('pct');
+
+die "please run as root\n" if $> != 0;
+
+PVE::INotify::inotify_init();
+
+my $rpcenv = PVE::RPCEnvironment->init('cli');
+$rpcenv->init_request();
+$rpcenv->set_language($ENV{LANG});
+$rpcenv->set_user('root@pam');
+
+my $nodename = PVE::INotify::nodename();
+
+my $upid_exit = sub {
+    my $upid = shift;
+    my $status = PVE::Tools::upid_read_status($upid);
+    exit($status eq 'OK' ? 0 : -1);
+};
+
+__PACKAGE__->register_method ({
+    name => 'test',
+    path => 'test',
+    method => 'GET',
+    description => "Test only",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+	print "TEST\n";
+	
+	return undef;
+    }});
+
+
+my $cmddef = {
+    test => [ __PACKAGE__, 'test', [], {}, sub {} ],
+    list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
+	my $res = shift;
+	print Dumper($res);
+	     }],
+    config => [ "PVE::API2::LXC", 'vm_config', ['vmid'], 
+		{ node => $nodename }, sub {
+		    my $config = shift;
+		    foreach my $k (sort (keys %$config)) {
+			next if $k eq 'digest';
+			my $v = $config->{$k};
+			if ($k eq 'description') {
+			    $v = PVE::Tools::encode_text($v);
+			}
+			print "$k: $v\n";
+		    }
+		}],
+
+    destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
+		 { node => $nodename }, $upid_exit ],
+
+};
+			      
+my $cmd = shift;
+
+PVE::CLIHandler::handle_cmd($cmddef, "pct", $cmd, \@ARGV, undef, $0);
+
+exit 0;
+
+__END__
+
+=head1 NAME
+
+pct - Tool to manage Linux Containers on Proxmox VE
+
+=head1 SYNOPSIS
+
+=include synopsis
+
+=head1 DESCRIPTION
+
+Tool to manage linux containers.
+
+=include pve_copyright
