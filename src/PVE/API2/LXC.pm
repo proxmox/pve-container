@@ -273,6 +273,11 @@ __PACKAGE__->register_method({
 	    {
 		node => get_standard_option('pve-node'),
 		vmid => get_standard_option('pve-vmid'),
+		delete => {
+		    type => 'string', format => 'pve-configid-list',
+		    description => "A list of settings you want to delete.",
+		    optional => 1,
+		},
 		digest => {
 		    type => 'string',
 		    description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
@@ -297,6 +302,21 @@ __PACKAGE__->register_method({
 
 	die "no options specified\n" if !scalar(keys %$param);
 
+	my $delete_str = extract_param($param, 'delete');
+	my @delete = PVE::Tools::split_list($delete_str);
+	
+	&$check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, [@delete]);
+	
+	foreach my $opt (@delete) {
+	    raise_param_exc({ delete => "you can't use '-$opt' and " .
+				  "-delete $opt' at the same time" })
+		if defined($param->{$opt});
+	    
+	    if (!PVE::LXC::option_exists($opt)) {
+		raise_param_exc({ delete => "unknown option '$opt'" });
+	    }
+	}
+
 	&$check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, [keys %$param]);
 
 	my $code = sub {
@@ -305,7 +325,26 @@ __PACKAGE__->register_method({
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
-	    die "implement me"
+	    # die if running
+
+	    foreach my $opt (@delete) {
+		if ($opt eq 'hostname') {
+		    die "unable to delete required option '$opt'\n";
+		} else {
+		    die "implement me"
+		}
+	    }
+
+	    foreach my $opt (keys %$param) {
+		my $value = $param->{$opt};
+		if ($opt eq 'hostname') {
+		    $conf->{'lxc.utsname'} = $value;
+		} else {
+		    die "implement me"
+		}
+	    }
+
+	    PVE::LXC::write_config($vmid, $conf);
 	};
 
 	PVE::LXC::lock_container($vmid, undef, $code);

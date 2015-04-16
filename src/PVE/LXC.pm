@@ -325,12 +325,22 @@ my $confdesc = {
 	type => 'string',
 	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
     },
-    net0 => {
+};
+
+my $MAX_LXC_NETWORKS = 10;
+for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
+    $confdesc->{"net$i"} = {
 	optional => 1,
 	type => 'string', format => 'pve-lxc-network',
 	description => "Specifies network interfaces for the container.",
-    },
-};
+    };	
+}
+
+sub option_exists {
+    my ($name) = @_;
+
+    return defined($confdesc->{$name});
+}
 
 # add JSON properties for create and set function
 sub json_config_properties {

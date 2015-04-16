@@ -76,6 +76,8 @@ my $cmddef = {
 			print "$k: $v\n";
 		    }
 		}],
+    set => [ 'PVE::API2::LXC', 'update_vm', ['vmid'], { node => $nodename }],
+    
     create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
 
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
