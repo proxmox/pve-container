@@ -378,9 +378,25 @@ sub vmstatus {
 
 	my $cfspath = cfs_config_path($vmid);
 	if (my $conf = PVE::Cluster::cfs_read_file($cfspath)) {
-	    print Dumper($conf);
 	    $d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
 	    $d->{name} =~ s/[\s]//g;
+	    
+	    $d->{cpus} = 1;
+
+	    $d->{disk} = 0;
+	    $d->{maxdisk} = 1;
+
+	    $d->{mem} = 0;
+	    $d->{maxmem} = 1024;
+
+	    $d->{uptime} = 0;
+	    $d->{cpu} = 0;
+
+	    $d->{netout} = 0;
+	    $d->{netin} = 0;
+
+	    $d->{diskread} = 0;
+	    $d->{diskwrite} = 0;
 
 	}
     }
