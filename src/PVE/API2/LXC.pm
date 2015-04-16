@@ -7,6 +7,7 @@ use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param run_command);
 use PVE::Exception qw(raise raise_param_exc);
 use PVE::INotify;
+use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
 use PVE::Storage;
 use PVE::RESTHandler;
@@ -95,6 +96,157 @@ __PACKAGE__->register_method({
 
 	return $res;
   
+    }});
+
+__PACKAGE__->register_method({
+    name => 'create_vm', 
+    path => '', 
+    method => 'POST',
+    description => "Create or restore a container.",
+    permissions => {
+	user => 'all', # check inside
+ 	description => "You need 'VM.Allocate' permissions on /vms/{vmid} or on the VM pool /pool/{pool}. " .
+	    "For restore, it is enough if the user has 'VM.Backup' permission and the VM already exists. " .
+	    "You also need 'Datastore.AllocateSpace' permissions on the storage.",
+    },
+    protected => 1,
+    proxyto => 'node',
+    parameters => {
+    	additionalProperties => 0,
+	properties => PVE::LXC::json_config_properties({
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    ostemplate => {
+		description => "The OS template or backup file.",
+		type => 'string', 
+		maxLength => 255,
+	    },
+	    password => { 
+		optional => 1, 
+		type => 'string',
+		description => "Sets root password inside container.",
+	    },
+	    storage => get_standard_option('pve-storage-id', {
+		description => "Target storage.",
+		default => 'local',
+		optional => 1,
+	    }),
+	    force => {
+		optional => 1, 
+		type => 'boolean',
+		description => "Allow to overwrite existing container.",
+	    },
+	    restore => {
+		optional => 1, 
+		type => 'boolean',
+		description => "Mark this as restore task.",
+	    },
+	    pool => { 
+		optional => 1,
+		type => 'string', format => 'pve-poolid',
+		description => "Add the VM to the specified pool.",
+	    },
+	}),
+    },
+    returns => { 
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $basecfg_fn = PVE::LXC::config_file($vmid);
+
+	my $same_container_exists = -f $basecfg_fn;
+
+	my $restore = extract_param($param, 'restore');
+
+	my $force = extract_param($param, 'force');
+
+	if (!($same_container_exists && $restore && $force)) {
+	    PVE::Cluster::check_vmid_unused($vmid);
+	}
+	
+	my $password = extract_param($param, 'password');
+
+	my $storage = extract_param($param, 'storage') || 'local';
+
+	my $pool = extract_param($param, 'pool');
+	
+	my $storage_cfg = cfs_read_file("storage.cfg");
+
+	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
+
+	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
+	    if !$scfg->{content}->{rootdir};
+
+	my $private = PVE::Storage::get_private_dir($storage_cfg, $storage, $vmid);
+
+	if (defined($pool)) {
+	    $rpcenv->check_pool_exist($pool);
+	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
+	} 
+
+	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
+	    # OK
+	} elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
+	    # OK
+	} elsif ($restore && $force && $same_container_exists &&
+		 $rpcenv->check($authuser, "/vms/$vmid", ['VM.Backup'], 1)) {
+	    # OK: user has VM.Backup permissions, and want to restore an existing VM
+	} else {
+	    raise_perm_exc();
+	}
+
+	&$check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, [ keys %$param]);
+
+	PVE::Storage::activate_storage($storage_cfg, $storage);
+
+	my $ostemplate = extract_param($param, 'ostemplate');
+	
+	my $archive;
+
+	if ($ostemplate eq '-') {
+	    die "archive pipe not implemented\n" 
+	    # $archive = '-';
+	} else {
+	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
+	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
+	}
+
+	my $memory = $param->{memory} || 512;
+	my $hostname = $param->{hostname} || "T$vmid";
+	my $conf = {};
+	
+	$conf->{'lxc.utsname'} = $param->{hostname} || "CT$vmid";
+	$conf->{'lxc.cgroup.memory.limit_in_bytes'} = "${memory}M";
+
+	my $code = sub {
+	    my $temp_conf_fn = PVE::LXC::write_temp_config($vmid, $conf);
+
+	    my $cmd = ['lxc-create', '-f', $temp_conf_fn, '-t', 'pve', '-n', $vmid,
+		       '--', '--archive', $archive];
+
+	    eval { PVE::Tools::run_command($cmd); };
+	    my $err = $@;
+
+	    unlink $temp_conf_fn;
+
+	    die $err if $err;
+	};
+	
+	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
+
+	return $rpcenv->fork_worker($param->{restore} ? 'vzrestore' : 'vzcreate', 
+				    $vmid, $authuser, $realcmd);
+ 	    
     }});
 
 my $vm_config_perm_list = [

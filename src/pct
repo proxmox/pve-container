@@ -59,7 +59,7 @@ __PACKAGE__->register_method ({
 
 
 my $cmddef = {
-    test => [ __PACKAGE__, 'test', [], {}, sub {} ],
+    #test => [ __PACKAGE__, 'test', [], {}, sub {} ],
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
 	print Dumper($res);
@@ -76,6 +76,7 @@ my $cmddef = {
 			print "$k: $v\n";
 		    }
 		}],
+    create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
 
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],

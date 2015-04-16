@@ -50,7 +50,10 @@ __PACKAGE__->register_method ({
 		description => "The path to the container's rootfs (LXC internal argument - do not pass manually!)",
 		type => 'string',
 	    },
-	    storage => get_standard_option('pve-storage-id'),
+	    archive => {
+		description => "Path to the template tar file.",
+		type => 'string',		
+	    },
 	    'mapped-uid' => {
 		description => " A uid map (user namespaces - LXC internal argument - do not pass manually!)",
 		type => 'string',
@@ -68,12 +71,7 @@ __PACKAGE__->register_method ({
     code => sub {
 	my ($param) = @_;
 
-	# check that we have all variables we need
-	if (!(defined($ENV{LXC_NAME}) && defined($ENV{LXC_PATH}) && defined($ENV{LXC_ROOTFS}))) {
-	    die "ERROR: Not running through LXC.\n"
-	}
-
-	# only orinial user can access /etc/pve
+	# set UID and GUI, because only original user can access /etc/pve
 	$< = $param->{'mapped-uid'} if defined($param->{'mapped-uid'});
 	$( = $param->{'mapped-gid'} if defined($param->{'mapped-gid'});
 
@@ -93,17 +91,11 @@ __PACKAGE__->register_method ({
 	my $conf = PVE::LXC::load_config($param->{name});
 	print Dumper($conf);
 
-	my $storage_cfg = PVE::Cluster::cfs_read_file("storage.cfg");
-
-	my $ostemplate = "local:vztmpl/debian-7.0-standard_7.0-2_i386.tar.gz";
-	print "Template: $ostemplate\n";
-	
-	my $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
-
 	#$< = $( = 0; # switch back to container root
 	#print "TEST $< $(\n";
       
-	my $cmd = ['tar', 'xpf', $archive, '--numeric-owner', '--totals', '--sparse', '-C', $private];
+	my $cmd = ['tar', 'xpf', $param->{archive}, '--numeric-owner', '--totals', 
+		   '--sparse', '-C', $private];
 	push @$cmd, '--anchored';
 	push @$cmd, '--exclude' , '/dev/*';
 #	push @$cmd, '--exclude' , '/dev/loop*';
@@ -122,7 +114,7 @@ __PACKAGE__->register_method ({
 #	push @$cmd, '--exclude' , '/dev/kmem';
 #	push @$cmd, '--exclude' , '/dev/full';
 	
-	print "extracting archive '$archive' to '$private'\n";
+	print "extracting archive '$param->{archive}' to '$private'\n";
 	PVE::Tools::run_command($cmd);
 
 	File::Path::make_path("$private/dev/pts");

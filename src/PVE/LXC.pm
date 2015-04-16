@@ -80,8 +80,6 @@ sub write_lxc_config {
 	die "found un-written value in config - implement this!";
     }
 
-    print $raw;
-    
     return $raw;
 }
 
@@ -208,6 +206,13 @@ sub cfs_config_path {
     return "nodes/$node/lxc/$vmid/config";
 }
 
+sub config_file {
+    my ($vmid, $node) = @_;
+
+    my $cfspath = cfs_config_path($vmid, $node);
+    return "/etc/pve/$cfspath";
+}
+
 sub load_config {
     my ($vmid) = @_;
 
@@ -225,6 +230,20 @@ sub write_config {
     my $cfspath = cfs_config_path($vmid);
 
     PVE::Cluster::cfs_write_file($cfspath, $conf);
+}
+
+my $tempcounter = 0;
+sub write_temp_config {
+    my ($vmid, $conf) = @_;
+    
+    $tempcounter++;
+    my $filename = "/tmp/temp-lxc-conf-$vmid-$$-$tempcounter.conf";
+
+    my $raw =  write_lxc_config($filename, $conf);
+
+    PVE::Tools::file_set_contents($filename, $raw);
+    
+    return $filename;
 }
 
 sub lock_container {

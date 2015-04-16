@@ -16,7 +16,7 @@ all: ${DEB}
 dinstall: ${DEB}
 	dpkg -i ${DEB}
 
-.PHONY: deb
+.PHONY: deb ${DEB}
 deb ${DEB}:
 	rm -rf build
 	mkdir build
