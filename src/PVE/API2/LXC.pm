@@ -330,6 +330,8 @@ __PACKAGE__->register_method({
 	    foreach my $opt (@delete) {
 		if ($opt eq 'hostname') {
 		    die "unable to delete required option '$opt'\n";
+		} elsif ($opt =~ m/^net\d$/) {
+		    delete $conf->{$opt};
 		} else {
 		    die "implement me"
 		}
@@ -339,6 +341,11 @@ __PACKAGE__->register_method({
 		my $value = $param->{$opt};
 		if ($opt eq 'hostname') {
 		    $conf->{'lxc.utsname'} = $value;
+		} if ($opt =~ m/^net(\d+)$/) {
+		    my $netid = $1;
+		    my $net = PVE::LXC::parse_lxc_network($value);
+		    $net->{'veth.pair'} = "veth${vmid}.$netid";
+		    $conf->{$opt} = $net;
 		} else {
 		    die "implement me"
 		}
@@ -544,7 +551,7 @@ __PACKAGE__->register_method({
 	    } elsif ($k =~ m/^net\d$/) {
 		my $net = $lxc_conf->{$k};
 		next if !$net;
-		$conf->{$k} = PVE::LXC::print_netif($net);
+		$conf->{$k} = PVE::LXC::print_lxc_network($net);
 	    }
 	}
 

@@ -14,6 +14,17 @@ use Data::Dumper;
 
 cfs_register_file('/lxc/', \&parse_lxc_config, \&write_lxc_config);
 
+PVE::JSONSchema::register_format('pve-lxc-network', \&verify_lxc_network);
+sub verify_lxc_network {
+    my ($value, $noerr) = @_;
+
+    return $value if parse_lxc_network($value);
+
+    return undef if $noerr;
+
+    die "unable to parse network setting\n";
+}
+
 my $nodename = PVE::INotify::nodename();
 
 my $valid_lxc_keys = {
@@ -57,13 +68,13 @@ sub write_lxc_config {
     return $raw if !$data;
 
     my $done_hash = { digest => 1};
-    
+
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^lxc\./;
 	$done_hash->{$k} = 1;
 	$raw .= "$k = $data->{$k}\n";
     }
-    
+
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^net\d+$/;
 	$done_hash->{$k} = 1;
@@ -112,7 +123,7 @@ sub parse_lxc_config {
 
 	die "unable to find free host_ifname"; # should not happen
     };
-   
+
     my $push_network = sub {
 	my ($netconf) = @_;
 	return if !$netconf;
@@ -129,7 +140,7 @@ sub parse_lxc_config {
     };
 
     my $network;
-    
+
     while ($raw && $raw =~ s/^(.*?)(\n|$)//) {
 	my $line = $1;
 
@@ -146,7 +157,7 @@ sub parse_lxc_config {
 	    } else {
 		die "unable to parse config line: $line\n";
 	    }
-	    
+
 	    next;
 	}
 	if ($line =~ m/^(pve.comment)\s*=\s*(\S.*)\s*$/) {
@@ -157,7 +168,7 @@ sub parse_lxc_config {
 	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S+)\s*$/) {
 	    my ($name, $value) = ($1, $2);
 
-	    die "inavlid key '$name'\n" if !$valid_lxc_keys->{$name};	    
+	    die "inavlid key '$name'\n" if !$valid_lxc_keys->{$name};
 
 	    die "multiple definitions for $name\n" if defined($data->{$name});
 
@@ -178,9 +189,9 @@ sub parse_lxc_config {
 	if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
 	    $data->{"net$1"} = $net;
 	}
-    } 
-    
-    return $data;   
+    }
+
+    return $data;
 }
 
 sub config_list {
@@ -235,14 +246,14 @@ sub write_config {
 my $tempcounter = 0;
 sub write_temp_config {
     my ($vmid, $conf) = @_;
-    
+
     $tempcounter++;
     my $filename = "/tmp/temp-lxc-conf-$vmid-$$-$tempcounter.conf";
 
     my $raw =  write_lxc_config($filename, $conf);
 
     PVE::Tools::file_set_contents($filename, $raw);
-    
+
     return $filename;
 }
 
@@ -333,7 +344,7 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
 	optional => 1,
 	type => 'string', format => 'pve-lxc-network',
 	description => "Specifies network interfaces for the container.",
-    };	
+    };
 }
 
 sub option_exists {
@@ -377,18 +388,41 @@ sub vmstatus {
     return $list;
 }
 
-sub print_netif {
+
+sub print_lxc_network {
     my $net = shift;
 
-    my $res = "pair=$net->{pair}";
+    die "no network link defined\n" if !$net->{link};
 
-    foreach my $k (qw(link hwaddr mtu name ipv4 ipv4.gateway ipv6 ipv6.gateway)) {
+    my $res = "link=$net->{link}";
+
+    foreach my $k (qw(hwaddr mtu name ipv4 ipv4.gateway ipv6 ipv6.gateway)) {
 	next if !defined($net->{$k});
 	$res .= ",$k=$net->{$k}";
     }
-    
+
     return $res;
 }
 
+sub parse_lxc_network {
+    my ($data) = @_;
+
+    my $res = {};
+
+    return $res if !$data;
+
+    foreach my $pv (split (/,/, $data)) {
+	if ($pv =~ m/^(link|hwaddr|mtu|name|ipv4|ipv6|ipv4\.gateway|ipv6\.gateway)=(\S+)$/) {
+	    $res->{$1} = $2;
+	} else {
+	    return undef;
+	}
+    }
+
+    $res->{type} = 'veth';
+    $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{mac};
+   
+    return $res;
+}
 
 1;
