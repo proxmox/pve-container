@@ -468,6 +468,17 @@ sub list_active_containers {
     return $res;
 }
 
+# warning: this is slow
+sub check_running {
+    my ($vmid) = @_;
+
+    my $active_hash = list_active_containers();
+
+    return 1 if defined($active_hash->{$vmid});
+    
+    return undef;
+}
+
 sub vmstatus {
     my ($opt_vmid) = @_;
 

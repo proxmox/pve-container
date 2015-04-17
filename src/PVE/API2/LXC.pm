@@ -13,6 +13,7 @@ use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
+use PVE::HA::Config;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
 
@@ -29,7 +30,7 @@ my $get_container_storage = sub {
 
 my $check_ct_modify_config_perm = sub {
     my ($rpcenv, $authuser, $vmid, $pool, $key_list) = @_;
-    
+
     return 1 if $authuser ne 'root@pam';
 
     foreach my $opt (@$key_list) {
@@ -40,7 +41,7 @@ my $check_ct_modify_config_perm = sub {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
-	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' || 
+	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
 		 $opt eq 'searchdomain' || $opt eq 'hostname') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	} else {
@@ -53,8 +54,8 @@ my $check_ct_modify_config_perm = sub {
 
 
 __PACKAGE__->register_method({
-    name => 'vmlist', 
-    path => '', 
+    name => 'vmlist',
+    path => '',
     method => 'GET',
     description => "LXC container index (per node).",
     permissions => {
@@ -95,12 +96,12 @@ __PACKAGE__->register_method({
 	}
 
 	return $res;
-  
+
     }});
 
 __PACKAGE__->register_method({
-    name => 'create_vm', 
-    path => '', 
+    name => 'create_vm',
+    path => '',
     method => 'POST',
     description => "Create or restore a container.",
     permissions => {
@@ -118,11 +119,11 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid'),
 	    ostemplate => {
 		description => "The OS template or backup file.",
-		type => 'string', 
+		type => 'string',
 		maxLength => 255,
 	    },
-	    password => { 
-		optional => 1, 
+	    password => {
+		optional => 1,
 		type => 'string',
 		description => "Sets root password inside container.",
 	    },
@@ -132,23 +133,23 @@ __PACKAGE__->register_method({
 		optional => 1,
 	    }),
 	    force => {
-		optional => 1, 
+		optional => 1,
 		type => 'boolean',
 		description => "Allow to overwrite existing container.",
 	    },
 	    restore => {
-		optional => 1, 
+		optional => 1,
 		type => 'boolean',
 		description => "Mark this as restore task.",
 	    },
-	    pool => { 
+	    pool => {
 		optional => 1,
 		type => 'string', format => 'pve-poolid',
 		description => "Add the VM to the specified pool.",
 	    },
 	}),
     },
-    returns => { 
+    returns => {
 	type => 'string',
     },
     code => sub {
@@ -173,13 +174,13 @@ __PACKAGE__->register_method({
 	if (!($same_container_exists && $restore && $force)) {
 	    PVE::Cluster::check_vmid_unused($vmid);
 	}
-	
+
 	my $password = extract_param($param, 'password');
 
 	my $storage = extract_param($param, 'storage') || 'local';
 
 	my $pool = extract_param($param, 'pool');
-	
+
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
@@ -192,7 +193,7 @@ __PACKAGE__->register_method({
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
 	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
-	} 
+	}
 
 	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
 	    # OK
@@ -210,11 +211,11 @@ __PACKAGE__->register_method({
 	PVE::Storage::activate_storage($storage_cfg, $storage);
 
 	my $ostemplate = extract_param($param, 'ostemplate');
-	
+
 	my $archive;
 
 	if ($ostemplate eq '-') {
-	    die "archive pipe not implemented\n" 
+	    die "archive pipe not implemented\n"
 	    # $archive = '-';
 	} else {
 	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
@@ -224,7 +225,7 @@ __PACKAGE__->register_method({
 	my $memory = $param->{memory} || 512;
 	my $hostname = $param->{hostname} || "T$vmid";
 	my $conf = {};
-	
+
 	$conf->{'lxc.utsname'} = $param->{hostname} || "CT$vmid";
 	$conf->{'lxc.cgroup.memory.limit_in_bytes'} = "${memory}M";
 
@@ -241,25 +242,25 @@ __PACKAGE__->register_method({
 
 	    die $err if $err;
 	};
-	
+
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
 
-	return $rpcenv->fork_worker($param->{restore} ? 'vzrestore' : 'vzcreate', 
+	return $rpcenv->fork_worker($param->{restore} ? 'vzrestore' : 'vzcreate',
 				    $vmid, $authuser, $realcmd);
- 	    
+
     }});
 
 my $vm_config_perm_list = [
-	    'VM.Config.Disk', 
-	    'VM.Config.CPU', 
-	    'VM.Config.Memory', 
-	    'VM.Config.Network', 
+	    'VM.Config.Disk',
+	    'VM.Config.CPU',
+	    'VM.Config.Memory',
+	    'VM.Config.Network',
 	    'VM.Config.Options',
     ];
 
 __PACKAGE__->register_method({
-    name => 'update_vm', 
-    path => '{vmid}/config', 
+    name => 'update_vm',
+    path => '{vmid}/config',
     method => 'PUT',
     protected => 1,
     proxyto => 'node',
@@ -282,7 +283,7 @@ __PACKAGE__->register_method({
 		    type => 'string',
 		    description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
 		    maxLength => 40,
-		    optional => 1,		    
+		    optional => 1,
 		}
 	    }),
     },
@@ -304,14 +305,14 @@ __PACKAGE__->register_method({
 
 	my $delete_str = extract_param($param, 'delete');
 	my @delete = PVE::Tools::split_list($delete_str);
-	
+
 	&$check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, [@delete]);
-	
+
 	foreach my $opt (@delete) {
 	    raise_param_exc({ delete => "you can't use '-$opt' and " .
 				  "-delete $opt' at the same time" })
 		if defined($param->{$opt});
-	    
+
 	    if (!PVE::LXC::option_exists($opt)) {
 		raise_param_exc({ delete => "unknown option '$opt'" });
 	    }
@@ -328,8 +329,10 @@ __PACKAGE__->register_method({
 	    # die if running
 
 	    foreach my $opt (@delete) {
-		if ($opt eq 'hostname') {
+		if ($opt eq 'hostname' || $opt eq 'memory') {
 		    die "unable to delete required option '$opt'\n";
+		} elsif ($opt eq 'swap') {
+		    delete $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'};
 		} elsif ($opt =~ m/^net\d$/) {
 		    delete $conf->{$opt};
 		} else {
@@ -364,13 +367,13 @@ __PACKAGE__->register_method({
     }});
 
 __PACKAGE__->register_method ({
-    subclass => "PVE::API2::Firewall::CT",  
+    subclass => "PVE::API2::Firewall::CT",
     path => '{vmid}/firewall',
 });
 
 __PACKAGE__->register_method({
     name => 'vmdiridx',
-    path => '{vmid}', 
+    path => '{vmid}',
     method => 'GET',
     proxyto => 'node',
     description => "Directory index",
@@ -411,13 +414,13 @@ __PACKAGE__->register_method({
 	    { subdir => 'rrddata' },
 	    { subdir => 'firewall' },
 	    ];
-	
+
 	return $res;
     }});
 
 __PACKAGE__->register_method({
-    name => 'rrd', 
-    path => '{vmid}/rrd', 
+    name => 'rrd',
+    path => '{vmid}/rrd',
     method => 'GET',
     protected => 1, # fixme: can we avoid that?
     permissions => {
@@ -456,14 +459,14 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	return PVE::Cluster::create_rrd_graph(
-	    "pve2-vm/$param->{vmid}", $param->{timeframe}, 
+	    "pve2-vm/$param->{vmid}", $param->{timeframe},
 	    $param->{ds}, $param->{cf});
-					      
+
     }});
 
 __PACKAGE__->register_method({
-    name => 'rrddata', 
-    path => '{vmid}/rrddata', 
+    name => 'rrddata',
+    path => '{vmid}/rrddata',
     method => 'GET',
     protected => 1, # fixme: can we avoid that?
     permissions => {
@@ -504,8 +507,8 @@ __PACKAGE__->register_method({
 
 
 __PACKAGE__->register_method({
-    name => 'vm_config', 
-    path => '{vmid}/config', 
+    name => 'vm_config',
+    path => '{vmid}/config',
     method => 'GET',
     proxyto => 'node',
     description => "Get container configuration.",
@@ -519,7 +522,7 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid'),
 	},
     },
-    returns => { 
+    returns => {
 	type => "object",
 	properties => {
 	    digest => {
@@ -534,7 +537,7 @@ __PACKAGE__->register_method({
 	my $lxc_conf = PVE::LXC::load_config($param->{vmid});
 
 	# NOTE: we only return selected/converted values
-	
+
 	my $conf = { digest => $lxc_conf->{digest} };
 
 	my $stcfg = PVE::Cluster::cfs_read_file("storage.cfg");
@@ -555,7 +558,7 @@ __PACKAGE__->register_method({
 	    } elsif ($k eq 'memory') {
 		if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
 		    $conf->{$k} = int($value / (1024*1024));
-		} 
+		}
 	    } elsif ($k eq 'swap') {
 		if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}) {
 		    $conf->{$k} = int($value / (1024*1024));
@@ -571,8 +574,8 @@ __PACKAGE__->register_method({
     }});
 
 __PACKAGE__->register_method({
-    name => 'destroy_vm', 
-    path => '{vmid}', 
+    name => 'destroy_vm',
+    path => '{vmid}',
     method => 'DELETE',
     protected => 1,
     proxyto => 'node',
@@ -587,7 +590,7 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid'),
 	},
     },
-    returns => { 
+    returns => {
 	type => 'string',
     },
     code => sub {
@@ -611,6 +614,494 @@ __PACKAGE__->register_method({
 	};
 
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
+    }});
+
+
+__PACKAGE__->register_method({
+    name => 'vmcmdidx',
+    path => '{vmid}/status',
+    method => 'GET',
+    proxyto => 'node',
+    description => "Directory index",
+    permissions => {
+	user => 'all',
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => {
+	type => 'array',
+	items => {
+	    type => "object",
+	    properties => {
+		subdir => { type => 'string' },
+	    },
+	},
+	links => [ { rel => 'child', href => "{subdir}" } ],
+    },
+    code => sub {
+	my ($param) = @_;
+
+	# test if VM exists
+	my $conf = PVE::OpenVZ::load_config($param->{vmid});
+
+	my $res = [
+	    { subdir => 'current' },
+	    { subdir => 'start' },
+	    { subdir => 'stop' },
+	    { subdir => 'shutdown' },
+	    { subdir => 'migrate' },
+	    ];
+
+	return $res;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_status',
+    path => '{vmid}/status/current',
+    method => 'GET',
+    proxyto => 'node',
+    protected => 1, # openvz /proc entries are only readable by root
+    description => "Get virtual machine status.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => { type => 'object' },
+    code => sub {
+	my ($param) = @_;
+
+	# test if VM exists
+	my $conf = PVE::LXC::load_config($param->{vmid});
+
+	my $vmstatus =  PVE::LXC::vmstatus($param->{vmid});
+	my $status = $vmstatus->{$param->{vmid}};
+
+	$status->{ha} = PVE::HA::Config::vm_is_ha_managed($param->{vmid}) ? 1 : 0;
+
+	return $status;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_start',
+    path => '{vmid}/status/start',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Start the container.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => {
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
+
+	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
+
+	    my $hacmd = sub {
+		my $upid = shift;
+
+		my $service = "ct:$vmid";
+
+		my $cmd = ['ha-manager', 'enable', $service];
+
+		print "Executing HA start for CT $vmid\n";
+
+		PVE::Tools::run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('hastart', $vmid, $authuser, $hacmd);
+
+	} else {
+
+	    my $realcmd = sub {
+		my $upid = shift;
+
+		syslog('info', "starting CT $vmid: $upid\n");
+
+		my $conf = PVE::LXC::load_config($vmid);
+		my $stcfg = cfs_read_file("storage.cfg");
+		if (my $sid = &$get_container_storage($stcfg, $vmid, $conf)) {
+		    PVE::Storage::activate_storage($stcfg, $sid);
+		}
+
+		my $cmd = ['lxc-start', '-n', $vmid];
+
+		run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
+	}
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_stop',
+    path => '{vmid}/status/stop',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Stop the container.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => {
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
+
+	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
+
+	    my $hacmd = sub {
+		my $upid = shift;
+
+		my $service = "ct:$vmid";
+
+		my $cmd = ['ha-manager', 'disable', $service];
+
+		print "Executing HA stop for CT $vmid\n";
+
+		PVE::Tools::run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('hastop', $vmid, $authuser, $hacmd);
+
+	} else {
+
+	    my $realcmd = sub {
+		my $upid = shift;
+
+		syslog('info', "stoping CT $vmid: $upid\n");
+
+		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
+
+		run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
+	}
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_shutdown',
+    path => '{vmid}/status/shutdown',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Shutdown the container.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    timeout => {
+		description => "Wait maximal timeout seconds.",
+		type => 'integer',
+		minimum => 0,
+		optional => 1,
+		default => 60,
+	    },
+	    forceStop => {
+		description => "Make sure the Container stops.",
+		type => 'boolean',
+		optional => 1,
+		default => 0,
+	    }
+	},
+    },
+    returns => {
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $timeout = extract_param($param, 'timeout');
+
+	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
+
+	my $realcmd = sub {
+	    my $upid = shift;
+
+	    syslog('info', "shutdown CT $vmid: $upid\n");
+
+	    my $cmd = ['lxc-stop', '-n', $vmid];
+
+	    $timeout = 60 if !defined($timeout);
+
+	    push @$cmd, '--timeout', $timeout;
+
+	    eval { run_command($cmd, timeout => $timeout+5); };
+	    my $err = $@;
+	    return if !$err;
+
+	    die $err if !$param->{forceStop};
+
+	    warn "shutdown failed - forcing stop now\n";
+
+	    push @$cmd, '--kill';
+	    run_command($cmd);
+
+	    return;
+	};
+
+	my $upid = $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
+
+	return $upid;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_suspend',
+    path => '{vmid}/status/suspend',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Suspend the container.",
+    permissions => {
+        check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+        },
+    },
+    returns => {
+        type => 'string',
+    },
+    code => sub {
+        my ($param) = @_;
+
+        my $rpcenv = PVE::RPCEnvironment::get();
+
+        my $authuser = $rpcenv->get_user();
+
+        my $node = extract_param($param, 'node');
+
+        my $vmid = extract_param($param, 'vmid');
+
+        die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
+
+        my $realcmd = sub {
+            my $upid = shift;
+
+            syslog('info', "suspend CT $vmid: $upid\n");
+
+	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/liv/vz/dump'];
+
+	    run_command($cmd);
+
+            return;
+        };
+
+        my $upid = $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
+
+        return $upid;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_resume',
+    path => '{vmid}/status/resume',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Resume the container.",
+    permissions => {
+        check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+        },
+    },
+    returns => {
+        type => 'string',
+    },
+    code => sub {
+        my ($param) = @_;
+
+        my $rpcenv = PVE::RPCEnvironment::get();
+
+        my $authuser = $rpcenv->get_user();
+
+        my $node = extract_param($param, 'node');
+
+        my $vmid = extract_param($param, 'vmid');
+
+        die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
+
+        my $realcmd = sub {
+            my $upid = shift;
+
+            syslog('info', "resume CT $vmid: $upid\n");
+
+	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-r', '--foreground',
+		       '-D', '/var/liv/vz/dump'];
+
+	    run_command($cmd);
+
+            return;
+        };
+
+        my $upid = $rpcenv->fork_worker('vzresume', $vmid, $authuser, $realcmd);
+
+        return $upid;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'migrate_vm',
+    path => '{vmid}/migrate',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Migrate the container to another node. Creates a new migration task.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Migrate' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    target => get_standard_option('pve-node', { description => "Target node." }),
+	    online => {
+		type => 'boolean',
+		description => "Use online/live migration.",
+		optional => 1,
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $target = extract_param($param, 'target');
+
+	my $localnode = PVE::INotify::nodename();
+	raise_param_exc({ target => "target is local node."}) if $target eq $localnode;
+
+	PVE::Cluster::check_cfs_quorum();
+
+	PVE::Cluster::check_node_exists($target);
+
+	my $targetip = PVE::Cluster::remote_node_ip($target);
+
+	my $vmid = extract_param($param, 'vmid');
+
+	# test if VM exists
+	PVE::LXC::load_config($vmid);
+
+	# try to detect errors early
+	if (PVE::LXC::check_running($vmid)) {
+	    die "cant migrate running container without --online\n"
+		if !$param->{online};
+	}
+
+	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
+
+	    my $hacmd = sub {
+		my $upid = shift;
+
+		my $service = "ct:$vmid";
+
+		my $cmd = ['ha-manager', 'migrate', $service, $target];
+
+		print "Executing HA migrate for CT $vmid to node $target\n";
+
+		PVE::Tools::run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('hamigrate', $vmid, $authuser, $hacmd);
+
+	} else {
+
+	    my $realcmd = sub {
+		my $upid = shift;
+
+		# fixme: implement lxc container migration
+		die "lxc container migration not implemented\n";
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('vzmigrate', $vmid, $authuser, $realcmd);
+	}
     }});
 
 1;
