@@ -34,8 +34,51 @@ my $valid_lxc_keys = {
     'lxc.mount' => 1,
     'lxc.utsname' => 1,
 
+    'lxc.id_map' => 1,
     'lxc.cgroup.memory.limit_in_bytes' => 1,
 
+    # mount related
+    'lxc.mount' => 1,
+    'lxc.mount.entry' => 1,
+    'lxc.mount.auto' => 1,
+
+    # not used by pve
+    'lxc.tty' => 1,
+    'lxc.pts' => 1,
+    'lxc.haltsignal' => 1,
+    'lxc.rebootsignal' => 1,	
+    'lxc.stopsignal' => 1,
+    'lxc.init_cmd' => 1,
+    'lxc.console' => 1,
+    'lxc.console.logfile' => 1,
+    'lxc.devttydir' => 1,
+    'lxc.autodev' => 1,
+    'lxc.kmsg' => 1,
+    'lxc.cap.drop' => 1,
+    'lxc.cap.keep' => 1,
+    'lxc.aa_profile' => 1,
+    'lxc.aa_allow_incomplete' => 1,
+    'lxc.se_context' => 1,
+    'lxc.loglevel' => 1,
+    'lxc.logfile' => 1,
+    'lxc.environment' => 1,
+    
+
+    # autostart
+    'lxc.start.auto' => 1,
+    'lxc.start.delay' => 1,
+    'lxc.start.order' => 1,
+    'lxc.group' => 1,
+
+    # hooks
+    'lxc.hook.pre-start' => 1,
+    'lxc.hook.pre-mount' => 1,
+    'lxc.hook.mount' => 1,
+    'lxc.hook.autodev' => 1,
+    'lxc.hook.start' => 1,
+    'lxc.hook.post-stop' => 1,
+    'lxc.hook.clone' => 1,
+    
     # pve related keys
     'pve.comment' => 1,
 };
@@ -165,7 +208,7 @@ sub parse_lxc_config {
 	    $data->{$name} = $value;
 	    next;
 	}
-	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S+)\s*$/) {
+	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
 	    my ($name, $value) = ($1, $2);
 
 	    die "inavlid key '$name'\n" if !$valid_lxc_keys->{$name};
