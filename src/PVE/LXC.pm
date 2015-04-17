@@ -27,16 +27,33 @@ sub verify_lxc_network {
 
 my $nodename = PVE::INotify::nodename();
 
+sub parse_lxc_size {
+    my ($name, $value) = @_;
+
+    if ($value =~ m/^(\d+)(b|k|m|g)?$/i) {
+	my ($res, $unit) = ($1, lc($2 || 'b'));
+
+	return $res if $unit eq 'b';
+	return $res*1024 if $unit eq 'k';
+	return $res*1024*1024 if $unit eq 'm';
+	return $res*1024*1024*1024 if $unit eq 'g';
+    }
+
+    return undef;
+}
+
 my $valid_lxc_keys = {
-    'lxc.arch' => 1,
+    'lxc.arch' => 'i386|x86|i686|x86_64|amd64',
     'lxc.include' => 1,
     'lxc.rootfs' => 1,
     'lxc.mount' => 1,
     'lxc.utsname' => 1,
 
     'lxc.id_map' => 1,
-    'lxc.cgroup.memory.limit_in_bytes' => 1,
-
+    
+    'lxc.cgroup.memory.limit_in_bytes' => \&parse_lxc_size,
+    'lxc.cgroup.memory.memsw.usage_in_bytes' => \&parse_lxc_size,
+    
     # mount related
     'lxc.mount' => 1,
     'lxc.mount.entry' => 1,
@@ -137,6 +154,26 @@ sub write_lxc_config {
     return $raw;
 }
 
+sub parse_lxc_option {
+    my ($name, $value) = @_;
+
+    my $parser = $valid_lxc_keys->{$name};
+
+    die "inavlid key '$name'\n" if !defined($parser);
+
+    if ($parser eq '1') {
+	return $value;		
+    } elsif (ref($parser)) {
+	my $res = &$parser($name, $value);
+	return $res if defined($res);
+    } else {
+	# assume regex
+	return $value if $value =~ m/^$parser$/;
+    }
+    
+    die "unable to parse value '$value' for option '$name'\n";
+}
+
 sub parse_lxc_config {
     my ($filename, $raw) = @_;
 
@@ -211,11 +248,9 @@ sub parse_lxc_config {
 	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
 	    my ($name, $value) = ($1, $2);
 
-	    die "inavlid key '$name'\n" if !$valid_lxc_keys->{$name};
-
 	    die "multiple definitions for $name\n" if defined($data->{$name});
 
-	    $data->{$name} = $value;
+	    $data->{$name} = parse_lxc_option($name, $value);		    
 	    next;
 	}
 
@@ -407,17 +442,44 @@ sub json_config_properties {
     return $prop;
 }
 
+# container status helpers
+
+sub list_active_containers {
+    
+    my $filename = "/proc/net/unix";
+
+    # similar test is used by lcxcontainers.c: list_active_containers
+    my $res = {};
+    
+    my $fh = IO::File->new ($filename, "r");
+    return $res if !$fh;
+
+    while (defined(my $line = <$fh>)) {
+ 	if ($line =~ m/^[a-f0-9]+:\s\S+\s\S+\s\S+\s\S+\s\S+\s\d+\s(\S+)$/) {
+	    my $path = $1;
+	    if ($path =~ m!^@/etc/pve/lxc/(\d+)/command$!) {
+		$res->{$1} = 1;
+	    }
+	}
+    }
+
+    close($fh);
+    
+    return $res;
+}
 
 sub vmstatus {
     my ($opt_vmid) = @_;
 
     my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc' }} : config_list();
 
+    my $active_hash = list_active_containers();
+    
     foreach my $vmid (keys %$list) {
 	next if $opt_vmid && ($vmid ne $opt_vmid);
 
 	my $d = $list->{$vmid};
-	$d->{status} = 'stopped';
+	$d->{status} = $active_hash->{$vmid} ? 'running' : 'stopped';
 
 	my $cfspath = cfs_config_path($vmid);
 	if (my $conf = PVE::Cluster::cfs_read_file($cfspath)) {
@@ -430,7 +492,9 @@ sub vmstatus {
 	    $d->{maxdisk} = 1;
 
 	    $d->{mem} = 0;
-	    $d->{maxmem} = 1024;
+	    $d->{swap} = 0;
+	    $d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
+		($conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}||0);
 
 	    $d->{uptime} = 0;
 	    $d->{cpu} = 0;

@@ -341,7 +341,11 @@ __PACKAGE__->register_method({
 		my $value = $param->{$opt};
 		if ($opt eq 'hostname') {
 		    $conf->{'lxc.utsname'} = $value;
-		} if ($opt =~ m/^net(\d+)$/) {
+		} elsif ($opt eq 'memory') {
+		    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
+		} elsif ($opt eq 'swap') {
+		    $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'} = $value*1024*1024;
+		} elsif ($opt =~ m/^net(\d+)$/) {
 		    my $netid = $1;
 		    my $net = PVE::LXC::parse_lxc_network($value);
 		    $net->{'veth.pair'} = "veth${vmid}.$netid";
@@ -548,6 +552,14 @@ __PACKAGE__->register_method({
 		}
 	    } elsif ($k eq 'hostname') {
 		$conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
+	    } elsif ($k eq 'memory') {
+		if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
+		    $conf->{$k} = int($value / (1024*1024));
+		} 
+	    } elsif ($k eq 'swap') {
+		if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}) {
+		    $conf->{$k} = int($value / (1024*1024));
+		}
 	    } elsif ($k =~ m/^net\d$/) {
 		my $net = $lxc_conf->{$k};
 		next if !$net;
