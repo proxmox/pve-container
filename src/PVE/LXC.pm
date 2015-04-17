@@ -476,38 +476,48 @@ sub vmstatus {
     my $active_hash = list_active_containers();
     
     foreach my $vmid (keys %$list) {
-	next if $opt_vmid && ($vmid ne $opt_vmid);
-
 	my $d = $list->{$vmid};
 	$d->{status} = $active_hash->{$vmid} ? 'running' : 'stopped';
 
 	my $cfspath = cfs_config_path($vmid);
-	if (my $conf = PVE::Cluster::cfs_read_file($cfspath)) {
-	    $d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
-	    $d->{name} =~ s/[\s]//g;
+	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
+	
+	$d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
+	$d->{name} =~ s/[\s]//g;
 	    
-	    $d->{cpus} = 1;
-
-	    $d->{disk} = 0;
-	    $d->{maxdisk} = 1;
-
-	    $d->{mem} = 0;
-	    $d->{swap} = 0;
-	    $d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
-		($conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}||0);
-
-	    $d->{uptime} = 0;
-	    $d->{cpu} = 0;
-
-	    $d->{netout} = 0;
-	    $d->{netin} = 0;
-
-	    $d->{diskread} = 0;
-	    $d->{diskwrite} = 0;
-
+	$d->{cpus} = 1; # fixme:
+	
+	$d->{disk} = 0;
+	$d->{maxdisk} = 1;
+	if (my $private = $conf->{'lxc.rootfs'}) {
+	    my $res = PVE::Tools::df($private, 2);
+	    $d->{disk} = $res->{used};
+	    $d->{maxdisk} = $res->{total};
 	}
-    }
+	
+	$d->{mem} = 0;
+	$d->{swap} = 0;
+	$d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
+	    ($conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}||0);
 
+	$d->{uptime} = 0;
+	$d->{cpu} = 0;
+
+	$d->{netout} = 0;
+	$d->{netin} = 0;
+
+	$d->{diskread} = 0;
+	$d->{diskwrite} = 0;
+    }
+    
+    foreach my $vmid (keys %$list) {
+	my $d = $list->{$vmid};
+	next if $d->{status} ne 'running';
+
+	$d->{mem} = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
+	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $d->{mem};
+    }
+    
     return $list;
 }
 
@@ -548,4 +558,15 @@ sub parse_lxc_network {
     return $res;
 }
 
+sub read_cgroup_value {
+    my ($group, $vmid, $name, $full) = @_;
+
+    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/$name";
+
+    return PVE::Tools::file_get_contents($path) if $full;
+
+    return PVE::Tools::file_read_firstline($path);
+}
+
+    
 1;
