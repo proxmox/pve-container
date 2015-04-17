@@ -136,6 +136,12 @@ sub write_lxc_config {
     }
 
     foreach my $k (sort keys %$data) {
+	next if $k !~ m/^pve\./;
+	$done_hash->{$k} = 1;
+	$raw .= "$k = $data->{$k}\n";
+    }
+
+    foreach my $k (sort keys %$data) {
 	next if $k !~ m/^net\d+$/;
 	$done_hash->{$k} = 1;
 	my $net = $data->{$k};

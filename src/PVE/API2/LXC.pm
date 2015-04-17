@@ -333,6 +333,8 @@ __PACKAGE__->register_method({
 		    die "unable to delete required option '$opt'\n";
 		} elsif ($opt eq 'swap') {
 		    delete $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'};
+		} elsif ($opt eq 'description') {
+		    delete $conf->{'pve.comment'};
 		} elsif ($opt =~ m/^net\d$/) {
 		    delete $conf->{$opt};
 		} else {
@@ -348,6 +350,8 @@ __PACKAGE__->register_method({
 		    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 		} elsif ($opt eq 'swap') {
 		    $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'} = $value*1024*1024;
+		} elsif ($opt eq 'description') {
+		    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
 		} elsif ($opt =~ m/^net(\d+)$/) {
 		    my $netid = $1;
 		    my $net = PVE::LXC::parse_lxc_network($value);
@@ -405,10 +409,11 @@ __PACKAGE__->register_method({
 
 	my $res = [
 	    { subdir => 'config' },
-#	    { subdir => 'status' },
-#	    { subdir => 'vncproxy' },
-#	    { subdir => 'spiceproxy' },
-#	    { subdir => 'migrate' },
+	    { subdir => 'status' },
+	    { subdir => 'vncproxy' },
+	    { subdir => 'vncwebsocket' },
+	    { subdir => 'spiceproxy' },
+	    { subdir => 'migrate' },
 #	    { subdir => 'initlog' },
 	    { subdir => 'rrd' },
 	    { subdir => 'rrddata' },
@@ -616,6 +621,197 @@ __PACKAGE__->register_method({
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
     }});
 
+my $sslcert;
+
+__PACKAGE__->register_method ({
+    name => 'vncproxy', 
+    path => '{vmid}/vncproxy', 
+    method => 'POST',
+    protected => 1,
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Console' ]],
+    },
+    description => "Creates a TCP VNC proxy connections.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    websocket => {
+		optional => 1,
+		type => 'boolean',
+		description => "use websocket instead of standard VNC.",
+	    },
+	},
+    },
+    returns => { 
+    	additionalProperties => 0,
+	properties => {
+	    user => { type => 'string' },
+	    ticket => { type => 'string' },
+	    cert => { type => 'string' },
+	    port => { type => 'integer' },
+	    upid => { type => 'string' },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $vmid = $param->{vmid};
+	my $node = $param->{node};
+
+	my $authpath = "/vms/$vmid";
+
+	my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath);
+
+	$sslcert = PVE::Tools::file_get_contents("/etc/pve/pve-root-ca.pem", 8192)
+	    if !$sslcert;
+
+	my $port = PVE::Tools::next_vnc_port();
+
+	my $remip;
+	
+	if ($node ne PVE::INotify::nodename()) {
+	    $remip = PVE::Cluster::remote_node_ip($node);
+	}
+
+	# NOTE: vncterm VNC traffic is already TLS encrypted,
+	# so we select the fastest chipher here (or 'none'?)
+	my $remcmd = $remip ? 
+	    ['/usr/bin/ssh', '-t', $remip] : [];
+
+	my $shcmd = [ '/usr/bin/dtach', '-A', 
+		      "/var/run/dtach/vzctlconsole$vmid", 
+		      '-r', 'winch', '-z', 
+		      'lxc-console', '-n', $vmid ];
+
+	my $realcmd = sub {
+	    my $upid = shift;
+
+	    syslog ('info', "starting openvz vnc proxy $upid\n");
+
+	    my $timeout = 10; 
+
+	    my $cmd = ['/usr/bin/vncterm', '-rfbport', $port,
+		       '-timeout', $timeout, '-authpath', $authpath, 
+		       '-perm', 'VM.Console'];
+
+	    if ($param->{websocket}) {
+		$ENV{PVE_VNC_TICKET} = $ticket; # pass ticket to vncterm 
+		push @$cmd, '-notls', '-listen', 'localhost';
+	    }
+
+	    push @$cmd, '-c', @$remcmd, @$shcmd;
+
+	    run_command($cmd);
+
+	    return;
+	};
+
+	my $upid = $rpcenv->fork_worker('vncproxy', $vmid, $authuser, $realcmd);
+
+	PVE::Tools::wait_for_vnc_port($port);
+
+	return {
+	    user => $authuser,
+	    ticket => $ticket,
+	    port => $port, 
+	    upid => $upid, 
+	    cert => $sslcert, 
+	};
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vncwebsocket',
+    path => '{vmid}/vncwebsocket',
+    method => 'GET',
+    permissions => { 
+	description => "You also need to pass a valid ticket (vncticket).",
+	check => ['perm', '/vms/{vmid}', [ 'VM.Console' ]],
+    },
+    description => "Opens a weksocket for VNC traffic.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    vncticket => {
+		description => "Ticket from previous call to vncproxy.",
+		type => 'string',
+		maxLength => 512,
+	    },
+	    port => {
+		description => "Port number returned by previous vncproxy call.",
+		type => 'integer',
+		minimum => 5900,
+		maximum => 5999,
+	    },
+	},
+    },
+    returns => {
+	type => "object",
+	properties => {
+	    port => { type => 'string' },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $authpath = "/vms/$param->{vmid}";
+
+	PVE::AccessControl::verify_vnc_ticket($param->{vncticket}, $authuser, $authpath);
+
+	my $port = $param->{port};
+	
+	return { port => $port };
+    }});
+
+__PACKAGE__->register_method ({
+    name => 'spiceproxy', 
+    path => '{vmid}/spiceproxy', 
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Console' ]],
+    },
+    description => "Returns a SPICE configuration to connect to the CT.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    proxy => get_standard_option('spice-proxy', { optional => 1 }),
+	},
+    },
+    returns => get_standard_option('remote-viewer-config'),
+    code => sub {
+	my ($param) = @_;
+
+	my $vmid = $param->{vmid};
+	my $node = $param->{node};
+	my $proxy = $param->{proxy};
+
+	my $authpath = "/vms/$vmid";
+	my $permissions = 'VM.Console';
+
+	my $shcmd = ['/usr/bin/dtach', '-A', 
+		     "/var/run/dtach/vzctlconsole$vmid", 
+		     '-r', 'winch', '-z', 
+		     'lxc-console', '-n', $vmid];
+
+	my $title = "CT $vmid";
+
+	return PVE::API2Tools::run_spiceterm($authpath, $permissions, $vmid, $node, $proxy, $title, $shcmd);
+    }});
 
 __PACKAGE__->register_method({
     name => 'vmcmdidx',
