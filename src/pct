@@ -62,8 +62,13 @@ my $cmddef = {
     #test => [ __PACKAGE__, 'test', [], {}, sub {} ],
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
-	print Dumper($res);
-	     }],
+	return if !scalar(@$res);
+	my $format = "%-10s %-10s %-20s\n";
+	printf($format, 'VMID', 'Status', 'Name');
+	foreach my $d (sort {$a->{vmid} <=> $b->{vmid} } @$res) {
+	    printf($format, $d->{vmid}, $d->{status}, $d->{name});
+	}
+    }],
     config => [ "PVE::API2::LXC", 'vm_config', ['vmid'], 
 		{ node => $nodename }, sub {
 		    my $config = shift;
