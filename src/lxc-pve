@@ -86,10 +86,8 @@ __PACKAGE__->register_method ({
 
 	$rpcenv->init_request();
 
-	print "TEST2\n";
-	
 	my $conf = PVE::LXC::load_config($param->{name});
-	print Dumper($conf);
+	# print Dumper($conf);
 
 	#$< = $( = 0; # switch back to container root
 	#print "TEST $< $(\n";
