@@ -14,6 +14,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::LXC;
+use PVE::LXCSetup;
 use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
@@ -129,6 +130,10 @@ __PACKAGE__->register_method ({
 
 	PVE::LXC::write_config($param->{name}, $conf);
 
+	# fixme: use correct dist
+	my $lxc_setup = PVE::LXCSetup->new('debian', $conf);
+	$lxc_setup->post_create();
+	
 	return undef;
     }});
 

@@ -17,10 +17,10 @@ all:
 	cat $<|pod2man -n $* -s 1 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@
 
 pct.1.pod: pct
-	perl -I.. -T ./pct printmanpod >$@
+	perl -I. -T ./pct printmanpod >$@
 
 lxc-pve.1.pod: lxc-pve
-	perl -I.. -T ./lxc-pve printmanpod >$@
+	perl -I. -T ./lxc-pve printmanpod >$@
 
 .PHONY: install
 install: pct lxc-pve pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
