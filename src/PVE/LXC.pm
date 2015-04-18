@@ -585,5 +585,31 @@ sub read_cgroup_value {
     return PVE::Tools::file_read_firstline($path);
 }
 
+sub find_lxc_console_pids {
+
+    my $res = {};
+
+    PVE::Tools::dir_glob_foreach('/proc', '\d+', sub {
+	my ($pid) = @_;
+
+	my $cmdline = PVE::Tools::file_read_firstline("/proc/$pid/cmdline");
+	return if !$cmdline;
+
+	my @args = split(/\0/, $cmdline);
+
+	# serach for lxc-console -n <vmid>
+	return if scalar(@args) != 3; 
+	return if $args[1] ne '-n';
+	return if $args[2] !~ m/^\d+$/;
+	return if $args[0] !~ m|^(/usr/bin/)?lxc-console$|;
+	
+	my $vmid = $args[2];
+	
+	push @{$res->{$vmid}}, $pid;
+    });
+
+    return $res;
+}
+
     
 1;
