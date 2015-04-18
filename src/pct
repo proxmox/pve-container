@@ -38,13 +38,14 @@ my $upid_exit = sub {
 };
 
 __PACKAGE__->register_method ({
-    name => 'test',
-    path => 'test',
+    name => 'console',
+    path => 'console',
     method => 'GET',
-    description => "Test only",
+    description => "Launch a console for the specified container.",
     parameters => {
     	additionalProperties => 0,
 	properties => {
+	    vmid => get_standard_option('pve-vmid'),
 	},
     },
     returns => { type => 'null' },
@@ -52,9 +53,32 @@ __PACKAGE__->register_method ({
     code => sub {
 	my ($param) = @_;
 
-	print "TEST\n";
-	
-	return undef;
+	# test if container exists on this node
+	PVE::LXC::load_config($param->{vmid});
+
+	exec('lxc-console', '-n',  $param->{vmid});
+    }});
+
+__PACKAGE__->register_method ({
+    name => 'enter',
+    path => 'enter',
+    method => 'GET',
+    description => "Launch a shell for the specified container.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+	# test if container exists on this node
+	PVE::LXC::load_config($param->{vmid});
+
+	exec('lxc-attach', '-n',  $param->{vmid});
     }});
 
 
@@ -85,6 +109,16 @@ my $cmddef = {
     
     create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
 
+    start => [ 'PVE::API2::LXC', 'vm_start', ['vmid'], { node => $nodename }, $upid_exit],
+    suspend => [ 'PVE::API2::LXC', 'vm_suspend', ['vmid'], { node => $nodename }, $upid_exit],
+    resume => [ 'PVE::API2::LXC', 'vm_resume', ['vmid'], { node => $nodename }, $upid_exit],
+    shutdown => [ 'PVE::API2::LXC', 'vm_shutdown', ['vmid'], { node => $nodename }, $upid_exit],
+    stop => [ 'PVE::API2::LXC', 'vm_stop', ['vmid'], { node => $nodename }, $upid_exit],
+    migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
+    
+    console => [ __PACKAGE__, 'console', ['vmid']],
+    enter => [ __PACKAGE__, 'enter', ['vmid']],
+    
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
 
