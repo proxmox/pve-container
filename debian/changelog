@@ -1,3 +1,9 @@
+pve-container (0.2-1) unstable; urgency=medium
+
+  * improved CLI
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 18 Apr 2015 10:38:52 +0200
+
 pve-container (0.1-1) unstable; urgency=medium
 
   * first try
