@@ -57,6 +57,18 @@ sub change_hostname  {
 	}	
     }
 
+    my $found_localhost = 0;
+    foreach my $line (@lines) {
+	if ($line =~ m/^127.0.0.1\s/) {
+	    $found_localhost = 1;
+	    last;
+	}
+    }
+
+    if (!$found_localhost) {
+	unshift @lines, "127.0.0.1 localhost.localnet localhost";
+    }
+    
     $etc_hosts_data = join("\n", @lines) . "\n";
     
     return $etc_hosts_data;

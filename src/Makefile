@@ -38,8 +38,13 @@ install: pct lxc-pve pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
 	install -m 0644 pct.1.pod ${PODDIR}
 	install -m 0644 lxc-pve.1.pod ${PODDIR}
 
+.PHONY: test
+test:
+	make -C test test
+
 .PHONY: clean
 clean: 	
+	make -C test clean
 	rm -rf *.1.pod *.1.gz
 	find . -name '*~' -exec rm {} ';'
 
