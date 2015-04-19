@@ -9,6 +9,7 @@ use Fcntl ':flock';
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
 use PVE::SafeSyslog;
 use PVE::INotify;
+use PVE::Tools qw($IPV6RE $IPV4RE);
 
 use Data::Dumper;
 
@@ -613,5 +614,55 @@ sub find_lxc_console_pids {
     return $res;
 }
 
+my $ipv4_reverse_mask = [
+    '0.0.0.0',
+    '128.0.0.0',
+    '192.0.0.0',
+    '224.0.0.0',
+    '240.0.0.0',
+    '248.0.0.0',
+    '252.0.0.0',
+    '254.0.0.0',
+    '255.0.0.0',
+    '255.128.0.0',
+    '255.192.0.0',
+    '255.224.0.0',
+    '255.240.0.0',
+    '255.248.0.0',
+    '255.252.0.0',
+    '255.254.0.0',
+    '255.255.0.0',
+    '255.255.128.0',
+    '255.255.192.0',
+    '255.255.224.0',
+    '255.255.240.0',
+    '255.255.248.0',
+    '255.255.252.0',
+    '255.255.254.0',
+    '255.255.255.0',
+    '255.255.255.128',
+    '255.255.255.192',
+    '255.255.255.224',
+    '255.255.255.240',
+    '255.255.255.248',
+    '255.255.255.252',
+    '255.255.255.254',
+    '255.255.255.255',
+];
+ 
+# Note: we cannot use Net:IP, because that only allows strict 
+# CIDR networks
+sub parse_ipv4_cidr {
+    my ($cidr, $noerr) = @_;
+
+    if ($cidr =~ m!^($IPV4RE)(?:/(\d+))$! && ($2 > 7) &&  ($2 < 32)) {
+	return { address => $1, netmask => $ipv4_reverse_mask->[$2] };
+    }
+    
+    return undef if $noerr;
+    
+    die "unable to parse ipv4 address/mask\n";
+}
+    
     
 1;

@@ -12,7 +12,7 @@ use PVE::LXCSetup;
 sub test_file {
     my ($exp_fn, $real_fn) = @_;
 
-    return if system("diff '$exp_fn' '$real_fn'") == 0;
+    return if system("diff -u '$exp_fn' '$real_fn'") == 0;
 
     die "files does not match\n";
 }
@@ -35,11 +35,18 @@ sub run_test {
     
     my $lxc_setup = PVE::LXCSetup->new($conf);
 
-    $lxc_setup->set_hostname();
+    for (my $i = 0; $i < 2; $i++) {
+	# run tests twice, to make sure scripts are idempotent
+	
+	$lxc_setup->post_create();
 
-    test_file("$testdir/etc/hostname.exp", "$rootfs/etc/hostname");
-    test_file("$testdir/etc/hosts.exp", "$rootfs/etc/hosts");
-
+	my @testfiles = qw(/etc/hostname /etc/hosts /etc/network/interfaces);
+	foreach my $fn (@testfiles) {
+	    next if !-f "$testdir/$fn.exp";
+	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
+	}
+    }
+    
     print "TEST $testdir => OK\n";
 }
 

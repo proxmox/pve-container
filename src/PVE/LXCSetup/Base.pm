@@ -3,6 +3,8 @@ package PVE::LXCSetup::Base;
 use strict;
 use warnings;
 
+use PVE::Tools;
+
 sub change_hostname  {
     my ($etc_hosts_data, $hostip, $oldname, $newname) = @_;
 
@@ -102,12 +104,19 @@ sub set_hostname {
     PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
 }
 
+sub setup_network {
+    my ($class, $conf) = @_;
+
+    die "please implement this inside subclass"
+}
+
 sub post_create {
     my ($class, $conf) = @_;
 
+    $class->setup_network($conf);
     $class->set_hostname($conf);
 
-    # fixme: what else (network, ...)
+    # fixme: what else ?
 }
 
 1;

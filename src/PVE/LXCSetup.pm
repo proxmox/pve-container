@@ -37,8 +37,9 @@ sub new {
 }
 
 sub setup_network {
+    my ($self) = @_;
 
-
+    $self->{plugin}->setup_network($self->{conf});
 }
 
 sub set_hostname {

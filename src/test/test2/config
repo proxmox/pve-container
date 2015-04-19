@@ -1,0 +1,16 @@
+lxc.utsname = test1
+lxc.network.type = veth
+lxc.network.link = vmbr0
+lxc.network.name = eth0
+lxc.network.veth.pair = veth100i0
+lxc.network.ipv4 = 1.2.3.4/24
+lxc.network.ipv4.gateway = 1.2.3.1
+lxc.network.type = veth
+lxc.network.link = vmbr0
+lxc.network.name = eth1
+lxc.network.veth.pair = veth100i1
+lxc.network.ipv4 = 10.2.3.4/24
+lxc.network.type = veth
+lxc.network.link = vmbr0
+lxc.network.name = eth2
+lxc.network.veth.pair = veth100i2
