@@ -9,11 +9,27 @@ my $plugins = {
     debian =>  'PVE::LXCSetup::Debian',
 };
 
+my $autodetect_type = sub {
+    my ($conf) = @_;
+    
+    my $rootfs = $conf->{'lxc.rootfs'};
+    if (-f "$rootfs/etc/debian_version") {
+
+	return "debian";
+    }
+    die "unable to detect OS disribution\n";
+};
+
 sub new {
-    my ($class, $type, $conf) = @_;
+    my ($class, $conf, $type) = @_;
 
     my $self = bless { conf => $conf };
 
+    if (!defined($type)) {
+	# try to autodetect type
+	$type = &$autodetect_type($conf);
+    }
+    
     $self->{plugin} = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 

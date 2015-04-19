@@ -131,7 +131,7 @@ __PACKAGE__->register_method ({
 	PVE::LXC::write_config($param->{name}, $conf);
 
 	# fixme: use correct dist
-	my $lxc_setup = PVE::LXCSetup->new('debian', $conf);
+	my $lxc_setup = PVE::LXCSetup->new($conf);
 	$lxc_setup->post_create();
 	
 	return undef;

@@ -33,7 +33,7 @@ sub run_test {
 
     $conf->{'lxc.rootfs'} = $rootfs;
     
-    my $lxc_setup = PVE::LXCSetup->new('debian', $conf);
+    my $lxc_setup = PVE::LXCSetup->new($conf);
 
     $lxc_setup->set_hostname();
 
