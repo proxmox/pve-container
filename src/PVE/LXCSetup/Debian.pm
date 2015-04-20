@@ -11,6 +11,70 @@ use PVE::LXCSetup::Base;
 
 use base qw(PVE::LXCSetup::Base);
 
+my $default_inittab = <<__EOD__;
+
+# The default runlevel.
+id:2:initdefault:
+
+# Boot-time system configuration/initialization script.
+# This is run first except when booting in emergency (-b) mode.
+si::sysinit:/etc/init.d/rcS
+
+# /etc/init.d executes the S and K scripts upon change
+# of runlevel.
+#
+# Runlevel 0 is halt.
+# Runlevel 1 is single-user.
+# Runlevels 2-5 are multi-user.
+# Runlevel 6 is reboot.
+
+l0:0:wait:/etc/init.d/rc 0
+l1:1:wait:/etc/init.d/rc 1
+l2:2:wait:/etc/init.d/rc 2
+l3:3:wait:/etc/init.d/rc 3
+l4:4:wait:/etc/init.d/rc 4
+l5:5:wait:/etc/init.d/rc 5
+l6:6:wait:/etc/init.d/rc 6
+# Normally not reached, but fallthrough in case of emergency.
+z6:6:respawn:/sbin/sulogin
+
+# What to do when CTRL-ALT-DEL is pressed.
+ca:12345:ctrlaltdel:/sbin/shutdown -t1 -a -r now
+
+# What to do when the power fails/returns.
+p0::powerfail:/sbin/init 0
+
+# /sbin/getty invocations for the runlevels.
+#
+# The "id" field MUST be the same as the last
+# characters of the device (after "tty").
+#
+# Format:
+#  <id>:<runlevels>:<action>:<process>
+#
+__EOD__
+
+sub setup_init {
+    my ($class, $conf) = @_;
+
+    my $rootfs = $conf->{'lxc.rootfs'};
+
+    my $filename = "$rootfs/etc/inittab";
+
+    if (-f $filename) {
+	my $inittab = $default_inittab;
+
+	my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
+	for (my $i = 1; $i <= $ttycount; $i++) {
+	    next if $i == 7; # reserved for X11
+	    my $levels = ($i == 1) ? '2345' : '23';
+	    $inittab .= "$i:$levels:respawn:/sbin/getty --noclear 38400 tty$i\n";
+	}
+	
+	PVE::Tools::file_set_contents($filename, $inittab);
+    }
+}
+
 sub setup_network {
     my ($class, $conf) = @_;
 

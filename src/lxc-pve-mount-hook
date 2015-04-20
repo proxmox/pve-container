@@ -69,8 +69,7 @@ __PACKAGE__->register_method ({
 	my $conf = PVE::LXC::parse_lxc_config($param->{path}, $raw);
 
 	my $lxc_setup = PVE::LXCSetup->new($conf);
-	$lxc_setup->set_hostname();
-	$lxc_setup->setup_network();
+	$lxc_setup->pre_start_hook();
 	
 	return undef;
     }});

@@ -133,7 +133,7 @@ __PACKAGE__->register_method ({
 
 	# fixme: use correct dist
 	my $lxc_setup = PVE::LXCSetup->new($conf);
-	$lxc_setup->post_create();
+	$lxc_setup->post_create_hook();
 	
 	return undef;
     }});

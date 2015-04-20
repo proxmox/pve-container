@@ -48,14 +48,26 @@ sub set_hostname {
     $self->{plugin}->set_hostname($self->{conf});
 }
 
+sub setup_init {
+    my ($self) = @_;
+
+    $self->{plugin}->setup_init($self->{conf});
+}
+
 sub set_user_passwort {
 
 }
 
-sub post_create {
+sub pre_start_hook {
     my ($self) = @_;
 
-    $self->{plugin}->post_create($self->{conf});
+    $self->{plugin}->pre_start_hook($self->{conf});
+}
+
+sub post_create_hook {
+    my ($self) = @_;
+
+    $self->{plugin}->post_create_hook($self->{conf});
 }
 
 1;

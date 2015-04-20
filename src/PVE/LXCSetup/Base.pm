@@ -110,9 +110,26 @@ sub setup_network {
     die "please implement this inside subclass"
 }
 
-sub post_create {
+sub setup_init {
     my ($class, $conf) = @_;
 
+    die "please implement this inside subclass"
+}
+
+sub pre_start_hook {
+    my ($class, $conf) = @_;
+
+    $class->setup_init($conf);
+    $class->setup_network($conf);
+    $class->set_hostname($conf);
+
+    # fixme: what else ?
+}
+
+sub post_create_hook {
+    my ($class, $conf) = @_;
+
+    $class->setup_init($conf);
     $class->setup_network($conf);
     $class->set_hostname($conf);
 

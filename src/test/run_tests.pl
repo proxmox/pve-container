@@ -40,9 +40,9 @@ sub run_test {
     for (my $i = 0; $i < 2; $i++) {
 	# run tests twice, to make sure scripts are idempotent
 	
-	$lxc_setup->post_create();
+	$lxc_setup->post_create_hook();
 
-	my @testfiles = qw(/etc/hostname /etc/hosts /etc/network/interfaces);
+	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
@@ -52,9 +52,18 @@ sub run_test {
     print "TEST $testdir => OK\n";
 }
 
-PVE::Tools::dir_glob_foreach('.', 'test\d+', sub {
-    my ($testdir) = @_;
-    run_test($testdir);     
-});
+if (scalar(@ARGV)) {
+
+    foreach my $testdir (@ARGV) {
+	run_test($testdir);  
+    }
+
+} else {
+
+    PVE::Tools::dir_glob_foreach('.', 'test\d+', sub {
+	my ($testdir) = @_;
+	run_test($testdir);     
+    });
+}
 
 exit(0);
