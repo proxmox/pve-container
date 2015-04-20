@@ -1,0 +1,121 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use POSIX;
+use File::Path;
+
+use PVE::SafeSyslog;
+use PVE::Tools;
+use PVE::Cluster;
+use PVE::INotify;
+use PVE::RPCEnvironment;
+use PVE::JSONSchema qw(get_standard_option);
+use PVE::CLIHandler;
+use PVE::Storage;
+use PVE::LXC;
+use PVE::LXCSetup;
+use Data::Dumper;
+
+use base qw(PVE::CLIHandler);
+
+$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin';
+
+initlog ('lxc-pve-mount-hook');
+
+die "please run as root\n" if $> != 0;
+
+PVE::INotify::inotify_init();
+
+my $rpcenv = PVE::RPCEnvironment->init('cli');
+$rpcenv->set_language($ENV{LANG});
+$rpcenv->set_user('root@pam');
+
+# we cannot use cfs_read here (permission problem)
+#$rpcenv->init_request();
+
+my $nodename = PVE::INotify::nodename();
+
+__PACKAGE__->register_method ({
+    name => 'lxc-pve-mount-hook',
+    path => 'lxc-pve-mount-hook',
+    method => 'GET',
+    description => "Create a new container root directory.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    name => get_standard_option('pve-vmid'),
+	    path => {
+		description => "The path to the container configuration directory (LXC internal argument - do not pass manually!).",
+		type => 'string',
+	    },
+	    rootfs => {
+		description => "The path to the container's rootfs (LXC internal argument - do not pass manually!)",
+		type => 'string',
+	    },
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+	my $private = $param->{rootfs};
+
+	die "got strange path '$param->{path}'\n"
+	    if $param->{path} !~ m!^/etc/pve/lxc/$param->{name}/config$!;
+
+	my $raw = PVE::Tools::file_get_contents($param->{path});
+	my $conf = PVE::LXC::parse_lxc_config($param->{path}, $raw);
+
+	my $lxc_setup = PVE::LXCSetup->new($conf);
+	$lxc_setup->set_hostname();
+	$lxc_setup->setup_network();
+	
+	return undef;
+    }});
+
+
+push @ARGV, 'help' if !scalar(@ARGV);
+
+my $param = {};
+
+if ((scalar(@ARGV) == 1) && ($ARGV[0] eq 'printmanpod') ||
+    ($ARGV[0] eq 'verifyapi')) {
+    # OK
+} elsif ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'mount')) {
+    $param->{name} = $ENV{'LXC_NAME'};
+    die "got wrong name" if $param->{name} ne $ARGV[0];
+    
+    $param->{path} = $ENV{'LXC_CONFIG_FILE'};
+    $param->{rootfs} = $ENV{'LXC_ROOTFS_PATH'};
+    @ARGV = ();
+} else {
+    @ARGV = ('help');
+}
+
+my $cmddef = [ __PACKAGE__, 'lxc-pve-mount-hook', [], $param];
+
+PVE::CLIHandler::handle_simple_cmd($cmddef, \@ARGV, undef, $0);
+
+exit 0;
+
+__END__
+
+=head1 NAME
+
+lxc-pve - LXC mount hook for Proxmox VE
+
+=head1 SYNOPSIS
+
+=include synopsis
+
+=head1 DESCRIPTION
+
+This mount hook sets the network and hostname for the container.
+
+=head1 SEE ALSO
+
+lct(1)
+
+=include pve_copyright

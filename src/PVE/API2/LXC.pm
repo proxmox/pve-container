@@ -222,13 +222,23 @@ __PACKAGE__->register_method({
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
 	}
 
-	my $memory = $param->{memory} || 512;
-	my $hostname = $param->{hostname} || "T$vmid";
 	my $conf = {};
 
-	$conf->{'lxc.utsname'} = $param->{hostname} || "CT$vmid";
-	$conf->{'lxc.cgroup.memory.limit_in_bytes'} = "${memory}M";
+	$param->{hostname} ||= "CT$vmid";
+	$param->{memory} ||= 512;
+	# swap does not work ?!
+	#$param->{swap} = 512 if !defined($param->{swap});
+	
+	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param); 
 
+	# assigng default names, so that we can configure network with LXCSetup
+	foreach my $k (keys %$conf) {
+	    next if $k !~ m/^net(\d+)$/;
+	    my $d = $conf->{$k};
+	    my $ind = $1;
+	    $d->{name} = "eth$ind";
+	}
+	
 	my $code = sub {
 	    my $temp_conf_fn = PVE::LXC::write_temp_config($vmid, $conf);
 
@@ -326,41 +336,9 @@ __PACKAGE__->register_method({
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
-	    # die if running
+	    my $running = PVE::LXC::check_running($vmid);
 
-	    foreach my $opt (@delete) {
-		if ($opt eq 'hostname' || $opt eq 'memory') {
-		    die "unable to delete required option '$opt'\n";
-		} elsif ($opt eq 'swap') {
-		    delete $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'};
-		} elsif ($opt eq 'description') {
-		    delete $conf->{'pve.comment'};
-		} elsif ($opt =~ m/^net\d$/) {
-		    delete $conf->{$opt};
-		} else {
-		    die "implement me"
-		}
-	    }
-
-	    foreach my $opt (keys %$param) {
-		my $value = $param->{$opt};
-		if ($opt eq 'hostname') {
-		    $conf->{'lxc.utsname'} = $value;
-		} elsif ($opt eq 'memory') {
-		    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
-		} elsif ($opt eq 'swap') {
-		    $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'} = $value*1024*1024;
-		} elsif ($opt eq 'description') {
-		    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
-		} elsif ($opt =~ m/^net(\d+)$/) {
-		    my $netid = $1;
-		    my $net = PVE::LXC::parse_lxc_network($value);
-		    $net->{'veth.pair'} = "veth${vmid}.$netid";
-		    $conf->{$opt} = $net;
-		} else {
-		    die "implement me"
-		}
-	    }
+	    PVE::LXC::update_lxc_config($vmid, $conf, $running, $param, \@delete); 
 
 	    PVE::LXC::write_config($vmid, $conf);
 	};

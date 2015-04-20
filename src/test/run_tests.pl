@@ -20,6 +20,8 @@ sub test_file {
 sub run_test {
     my ($testdir) = @_;
 
+    print "prepare $testdir\n";
+    
     my $rootfs = "./tmprootfs";
 
     run_command("rm -rf $rootfs");

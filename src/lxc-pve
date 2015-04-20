@@ -122,7 +122,8 @@ __PACKAGE__->register_method ({
 	$conf->{'lxc.arch'} = 'i386'; # || x86_64
 
 	$conf->{'lxc.include'} = "/usr/share/lxc/config/debian.common.conf";
-
+	$conf->{'lxc.hook.mount'} = "/usr/share/lxc/hooks/lxc-pve-mount-hook";
+	
 	if ($userns) {
 	    die "also include me";
 	    $conf->{'lxc.include'} = "/usr/share/lxc/config/debian.userns.conf";

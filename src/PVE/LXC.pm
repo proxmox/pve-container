@@ -101,18 +101,20 @@ my $valid_lxc_keys = {
     'pve.comment' => 1,
 };
 
-my $valid_network_keys = {
+my $valid_lxc_network_keys = {
     type => 1,
-    flags => 1,
     link => 1,
     mtu => 1,
     name => 1, # ifname inside container
     'veth.pair' => 1, # ifname at host (eth${vmid}.X)
     hwaddr => 1,
-    ipv4 => 1,
-    'ipv4.gateway' => 1,
-    ipv6 => 1,
-    'ipv6.gateway' => 1,
+};
+
+my $valid_pve_network_keys = {
+    ip => 1,
+    gw => 1,
+    ip6 => 1,
+    gw6 => 1,
 };
 
 my $lxc_array_configs = {
@@ -149,7 +151,13 @@ sub write_lxc_config {
 	$raw .= "lxc.network.type = $net->{type}\n";
 	foreach my $subkey (sort keys %$net) {
 	    next if $subkey eq 'type';
-	    $raw .= "lxc.network.$subkey = $net->{$subkey}\n";
+	    if ($valid_lxc_network_keys->{$subkey}) {
+		$raw .= "lxc.network.$subkey = $net->{$subkey}\n";
+	    } elsif ($valid_pve_network_keys->{$subkey}) {
+		$raw .= "pve.network.$subkey = $net->{$subkey}\n";
+	    } else {
+		die "found invalid network key '$subkey'";
+	    }
 	}
     }
 
@@ -239,12 +247,20 @@ sub parse_lxc_config {
 	    if ($subkey eq 'type') {
 		&$push_network($network);
 		$network = { type => $value };
-	    } elsif ($valid_network_keys->{$subkey}) {
+	    } elsif ($valid_lxc_network_keys->{$subkey}) {
 		$network->{$subkey} = $value;
 	    } else {
 		die "unable to parse config line: $line\n";
 	    }
-
+	    next;
+	}
+	if ($line =~ m/^pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
+	    my ($subkey, $value) = ($1, $2);
+	    if ($valid_pve_network_keys->{$subkey}) {
+		$network->{$subkey} = $value;
+	    } else {
+		die "unable to parse config line: $line\n";
+	    }
 	    next;
 	}
 	if ($line =~ m/^(pve.comment)\s*=\s*(\S.*)\s*$/) {
@@ -549,7 +565,7 @@ sub print_lxc_network {
 
     my $res = "link=$net->{link}";
 
-    foreach my $k (qw(hwaddr mtu name ipv4 ipv4.gateway ipv6 ipv6.gateway)) {
+    foreach my $k (qw(hwaddr mtu name ip gw ip6 gw6)) {
 	next if !defined($net->{$k});
 	$res .= ",$k=$net->{$k}";
     }
@@ -565,7 +581,7 @@ sub parse_lxc_network {
     return $res if !$data;
 
     foreach my $pv (split (/,/, $data)) {
-	if ($pv =~ m/^(link|hwaddr|mtu|name|ipv4|ipv6|ipv4\.gateway|ipv6\.gateway)=(\S+)$/) {
+	if ($pv =~ m/^(link|hwaddr|mtu|name|ip|ip6|gw|gw6)=(\S+)$/) {
 	    $res->{$1} = $2;
 	} else {
 	    return undef;
@@ -663,6 +679,48 @@ sub parse_ipv4_cidr {
     
     die "unable to parse ipv4 address/mask\n";
 }
-    
+
+sub update_lxc_config {
+    my ($vmid, $conf, $running, $param, $delete) = @_;
+
+    # fixme: hotplug
+    die "unable to modify config while container is running\n" if $running;
+
+    if (defined($delete)) {
+	foreach my $opt (@$delete) {
+	    if ($opt eq 'hostname' || $opt eq 'memory') {
+		die "unable to delete required option '$opt'\n";
+	    } elsif ($opt eq 'swap') {
+		delete $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'};
+	    } elsif ($opt eq 'description') {
+		delete $conf->{'pve.comment'};
+	    } elsif ($opt =~ m/^net\d$/) {
+		delete $conf->{$opt};
+	    } else {
+		die "implement me"
+	    }
+	}
+    }
+
+    foreach my $opt (keys %$param) {
+	my $value = $param->{$opt};
+	if ($opt eq 'hostname') {
+	    $conf->{'lxc.utsname'} = $value;
+	} elsif ($opt eq 'memory') {
+	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
+	} elsif ($opt eq 'swap') {
+	    $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'} = $value*1024*1024;
+	} elsif ($opt eq 'description') {
+	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
+	} elsif ($opt =~ m/^net(\d+)$/) {
+	    my $netid = $1;
+	    my $net = PVE::LXC::parse_lxc_network($value);
+	    $net->{'veth.pair'} = "veth${vmid}.$netid";
+	    $conf->{$opt} = $net;
+	} else {
+	    die "implement me"
+	}
+    }
+}
     
 1;

@@ -19,25 +19,26 @@ sub setup_network {
     my $networks = {};
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
+	my $ind = $1;
 	my $d = $conf->{$k};
 	if ($d->{name}) {
 	    my $net = {};
-	    if (defined($d->{ipv4})) {
-		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ipv4});
+	    if (defined($d->{ip})) {
+		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
 		$net->{v4address} = $ipinfo->{address};
 		$net->{v4netmask} = $ipinfo->{netmask};
 	    }
-	    if (defined($d->{'ipv4.gateway'})) {
-		$net->{v4gateway} = $d->{'ipv4.gateway'};
+	    if (defined($d->{'gw'})) {
+		$net->{v4gateway} = $d->{'gw'};
 	    }
-	    if (defined($d->{ipv6})) {
+	    if (defined($d->{ip6})) {
 		die "implement me";
 	    }
 	    $networks->{$d->{name}} = $net;
 	}
     }
 
-    return if !scalar(keys %$networks);
+     return if !scalar(keys %$networks);
 
     my $filename = "$rootfs/etc/network/interfaces";
     my $data = {};
@@ -65,7 +66,7 @@ sub setup_network {
 		$interfaces .= "iface $section->{ifname} inet static\n";
 		$interfaces .= "\taddress $net->{v4address}\n" if defined($net->{v4address});
 		$interfaces .= "\tnetmask $net->{v4netmask}\n" if defined($net->{v4netmask});
-		$interfaces .= "\taddress $net->{v4gateway}\n" if defined($net->{v4gateway});
+		$interfaces .= "\tgateway $net->{v4gateway}\n" if defined($net->{v4gateway});
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
@@ -82,7 +83,7 @@ sub setup_network {
 		$interfaces .= "iface $section->{ifname} inet6 static\n";
 		$interfaces .= "\taddress $net->{v6address}\n" if defined($net->{v6address});
 		$interfaces .= "\tnetmask $net->{v6netmask}\n" if defined($net->{v6netmask});
-		$interfaces .= "\taddress $net->{v6gateway}\n" if defined($net->{v6gateway});
+		$interfaces .= "\tgateway $net->{v6gateway}\n" if defined($net->{v6gateway});
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
@@ -146,13 +147,17 @@ sub setup_network {
 	
     }
 
+    my $need_separator = 1;
     foreach my $ifname (sort keys %$networks) {
 	my $net = $networks->{$ifname};
+	
 	if (!$done_v4_hash->{$ifname}) {
+	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
 	    $section = { type => 'ipv4', ifname => $ifname, attr => []};
 	    &$print_section(1);
 	}
 	if (!$done_v6_hash->{$ifname} && defined($net->{v6address})) {
+	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
 	    $section = { type => 'ipv6', ifname => $ifname, attr => []};
 	    &$print_section(1);
 	}
