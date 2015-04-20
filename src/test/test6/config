@@ -1,0 +1,2 @@
+lxc.utsname = test1
+lxc.tty = 0
