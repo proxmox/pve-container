@@ -226,8 +226,7 @@ __PACKAGE__->register_method({
 
 	$param->{hostname} ||= "CT$vmid";
 	$param->{memory} ||= 512;
-	# swap does not work ?!
-	#$param->{swap} = 512 if !defined($param->{swap});
+	$param->{swap} = 512 if !defined($param->{swap});
 	
 	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param); 
 
@@ -543,8 +542,18 @@ __PACKAGE__->register_method({
 		    $conf->{$k} = int($value / (1024*1024));
 		}
 	    } elsif ($k eq 'swap') {
-		if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}) {
-		    $conf->{$k} = int($value / (1024*1024));
+		if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}) {
+		    my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
+		    $conf->{$k} = int(($value -$mem) / (1024*1024));
+		}
+	    } elsif ($k eq 'cpus') {
+		my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
+		my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
+
+		if ($cfs_period_us && $cfs_quota_us) {
+		    $conf->{$k} = int($cfs_quota_us/$cfs_period_us);
+		} else {
+		    $conf->{$k} = 0;
 		}
 	    } elsif ($k =~ m/^net\d$/) {
 		my $net = $lxc_conf->{$k};

@@ -53,7 +53,9 @@ my $valid_lxc_keys = {
     'lxc.id_map' => 1,
     
     'lxc.cgroup.memory.limit_in_bytes' => \&parse_lxc_size,
-    'lxc.cgroup.memory.memsw.usage_in_bytes' => \&parse_lxc_size,
+    'lxc.cgroup.memory.memsw.limit_in_bytes' => \&parse_lxc_size,
+    'lxc.cgroup.cpu.cfs_period_us' => 1,
+    'lxc.cgroup.cpu.cfs_quota_us' => 1,
     
     # mount related
     'lxc.mount' => 1,
@@ -383,9 +385,10 @@ my $confdesc = {
     cpus => {
 	optional => 1,
 	type => 'integer',
-	description => "The number of CPUs for this container.",
-	minimum => 1,
-	default => 1,
+	description => "The number of CPUs for this container (0 is unlimited).",
+	minimum => 0,
+	maximum => 128,
+	default => 0,
     },
     cpuunits => {
 	optional => 1,
@@ -519,7 +522,14 @@ sub vmstatus {
 	$d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
 	    
-	$d->{cpus} = 1; # fixme:
+	$d->{cpus} = 0;
+
+	my $cfs_period_us = $conf->{'lxc.cgroup.cpu.cfs_period_us'};
+	my $cfs_quota_us = $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
+
+	if ($cfs_period_us && $cfs_quota_us) {
+	    $d->{cpus} = int($cfs_quota_us/$cfs_period_us);
+	}
 	
 	$d->{disk} = 0;
 	$d->{maxdisk} = 1;
@@ -532,7 +542,7 @@ sub vmstatus {
 	$d->{mem} = 0;
 	$d->{swap} = 0;
 	$d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
-	    ($conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'}||0);
+	    ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
 
 	$d->{uptime} = 0;
 	$d->{cpu} = 0;
@@ -691,7 +701,7 @@ sub update_lxc_config {
 	    if ($opt eq 'hostname' || $opt eq 'memory') {
 		die "unable to delete required option '$opt'\n";
 	    } elsif ($opt eq 'swap') {
-		delete $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'};
+		delete $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'};
 	    } elsif ($opt eq 'description') {
 		delete $conf->{'pve.comment'};
 	    } elsif ($opt =~ m/^net\d$/) {
@@ -709,7 +719,18 @@ sub update_lxc_config {
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 	} elsif ($opt eq 'swap') {
-	    $conf->{'lxc.cgroup.memory.memsw.usage_in_bytes'} = $value*1024*1024;
+	    my $mem =  $conf->{'lxc.cgroup.memory.limit_in_bytes'};
+	    $mem = $param->{memory}*1024*1024 if $param->{memory};
+	    $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $mem + $value*1024*1024;
+	} elsif ($opt eq 'cpus') {
+	    if ($value > 0) {
+		my $cfs_period_us = 100000;
+		$conf->{'lxc.cgroup.cpu.cfs_period_us'} = $cfs_period_us;
+		$conf->{'lxc.cgroup.cpu.cfs_quota_us'} = $cfs_period_us*$value;
+	    } else {
+		delete $conf->{'lxc.cgroup.cpu.cfs_period_us'};
+		delete $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
+	    }
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
 	} elsif ($opt =~ m/^net(\d+)$/) {
