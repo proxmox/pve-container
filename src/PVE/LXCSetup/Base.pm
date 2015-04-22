@@ -5,14 +5,18 @@ use warnings;
 
 use PVE::Tools;
 
-sub change_hostname  {
-    my ($etc_hosts_data, $hostip, $oldname, $newname) = @_;
+my $update_etc_hosts = sub {
+    my ($etc_hosts_data, $hostip, $oldname, $newname, $searchdomains) = @_;
 
-    # fixme: searchdomain ?
-    
     my $done = 0;
 
     my @lines;
+
+    my $extra_names = '';
+    foreach my $domain (PVE::Tools::split_list($searchdomains)) {
+	$extra_names .= ' ' if $extra_names;
+	$extra_names .= "$newname.$domain";
+    }
     
     foreach my $line (split(/\n/, $etc_hosts_data)) {
 	if ($line =~ m/^#/ || $line =~ m/^\s*$/) {
@@ -39,7 +43,7 @@ sub change_hostname  {
 	if ($found) {
 	    if (!$done) {
 		if (defined($hostip)) {
-		    push @lines, "$ip $newname";
+		    push @lines, "$ip $extra_names $newname";
 		} else {
 		    push @lines, "127.0.1.1 $newname";
 		}
@@ -53,7 +57,7 @@ sub change_hostname  {
 
     if (!$done) {
 	if (defined($hostip)) {
-	    push @lines, "$hostip $newname";
+	    push @lines, "$hostip $extra_names $newname";
 	} else {
 	    push @lines, "127.0.1.1 $newname";
 	}	
@@ -74,12 +78,12 @@ sub change_hostname  {
     $etc_hosts_data = join("\n", @lines) . "\n";
     
     return $etc_hosts_data;
-}
+};
 
 sub set_hostname {
     my ($class, $conf) = @_;
     
-    my $hostname = $conf->{'lxc.utsname'} || 'debian';
+    my $hostname = $conf->{'lxc.utsname'} || 'localhost';
 
     $hostname =~ s/\..*$//;
 
@@ -87,7 +91,7 @@ sub set_hostname {
 
     my $hostname_fn = "$rootfs/etc/hostname";
     
-    my $oldname = PVE::Tools::file_read_firstline($hostname_fn) || 'debian';
+    my $oldname = PVE::Tools::file_read_firstline($hostname_fn) || 'localhost';
 
     my $hosts_fn = "$rootfs/etc/hosts";
     my $etc_hosts_data = '';
@@ -98,7 +102,8 @@ sub set_hostname {
 
     my $hostip = undef; # fixme;
     
-    $etc_hosts_data = change_hostname($etc_hosts_data, $hostip, $oldname, $hostname);
+    $etc_hosts_data = &$update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
+					 $hostname, $conf->{'pve.searchdomain'});
   
     PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
     PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
