@@ -25,6 +25,9 @@ sub new {
 
     my $self = bless { conf => $conf };
 
+    my $rootfs = $conf->{'lxc.rootfs'};
+    die "unable to find root filesystem\n" if !$rootfs || $rootfs eq '/';
+    
     if (!defined($type)) {
 	# try to autodetect type
 	$type = &$autodetect_type($conf);
@@ -48,6 +51,12 @@ sub set_hostname {
     $self->{plugin}->set_hostname($self->{conf});
 }
 
+sub set_dns {
+    my ($self) = @_;
+
+    $self->{plugin}->set_dns($self->{conf});
+}
+
 sub setup_init {
     my ($self) = @_;
 
@@ -55,7 +64,7 @@ sub setup_init {
 }
 
 sub set_user_passwort {
-
+    die "fixme";
 }
 
 sub pre_start_hook {

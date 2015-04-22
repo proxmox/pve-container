@@ -794,9 +794,11 @@ sub update_lxc_config {
 	} elsif ($opt eq 'startup') {
 	    $conf->{'pve.startup'} = $value;
 	} elsif ($opt eq 'nameserver') {
-	    $conf->{'pve.nameserver'} = $value;
+	    my $list = join(' ', PVE::Tools::split_list($value));
+	    $conf->{'pve.nameserver'} = $list;
 	} elsif ($opt eq 'searchdomain') {
-	    $conf->{'pve.searchdomain'} = $value;
+	    my $list = join(' ', PVE::Tools::split_list($value));
+	    $conf->{'pve.searchdomain'} = $list;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 	} elsif ($opt eq 'swap') {
@@ -825,6 +827,22 @@ sub update_lxc_config {
 	    die "implement me"
 	}
     }
+}
+
+sub get_primary_ips {
+    my ($conf) = @_;
+
+    # return data from net0
+    
+    my $net = $conf->{net0};
+    return undef if !$net;
+
+    my $ipv4 = $net->{ip};
+    $ipv4 =~ s!/\d+$!! if $ipv4;
+    my $ipv6 = $net->{ip};
+    $ipv6 =~ s!/\d+$!! if $ipv6;
+    
+    return ($ipv4, $ipv6);
 }
     
 1;

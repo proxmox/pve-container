@@ -1,0 +1,3 @@
+lxc.utsname = test1
+pve.searchdomain = proxmox.com
+pve.nameserver = 8.8.8.8, 8.8.8.9

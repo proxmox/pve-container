@@ -29,7 +29,7 @@ my $update_etc_hosts = sub {
 	    push @lines, $line;
 	    next;
 	}
-	
+
 	my $found = 0;
 	foreach my $name (@names) {
 	    if ($name eq $oldname || $name eq $newname) {
@@ -43,7 +43,7 @@ my $update_etc_hosts = sub {
 	if ($found) {
 	    if (!$done) {
 		if (defined($hostip)) {
-		    push @lines, "$ip $extra_names $newname";
+		    push @lines, "$hostip $extra_names $newname";
 		} else {
 		    push @lines, "127.0.1.1 $newname";
 		}
@@ -80,6 +80,42 @@ my $update_etc_hosts = sub {
     return $etc_hosts_data;
 };
 
+sub set_dns {
+    my ($class, $conf) = @_;
+
+    my $nameserver = $conf->{'pve.nameserver'};
+    my $searchdomains = $conf->{'pve.searchdomain'};
+
+    my $host_resolv_conf = PVE::INotify::read_file('resolvconf');
+
+    if (!($nameserver && $searchdomains)) {
+	$searchdomains = $host_resolv_conf->{search};
+
+	my @list = ();
+	foreach my $k ("dns1", "dns2", "dns3") {
+	    if (my $ns = $host_resolv_conf->{$k}) {
+		push @list, $ns;
+	    }
+	}
+	$nameserver = join(' ', @list);
+    }
+    
+    my $rootfs = $conf->{'lxc.rootfs'};
+    
+    my $filename = "$rootfs/etc/resolv.conf";
+
+    my $data = '';
+
+    $data .= "search " . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+	if $searchdomains;
+
+    foreach my $ns ( PVE::Tools::split_list($nameserver)) {
+	$data .= "nameserver $ns\n";
+    }
+
+    PVE::Tools::file_set_contents($filename, $data);
+}
+
 sub set_hostname {
     my ($class, $conf) = @_;
     
@@ -100,8 +136,9 @@ sub set_hostname {
 	$etc_hosts_data =  PVE::Tools::file_get_contents($hosts_fn);
     }
 
-    my $hostip = undef; # fixme;
-    
+    my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
+    my $hostip = $ipv4 || $ipv6;
+ 
     $etc_hosts_data = &$update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
 					 $hostname, $conf->{'pve.searchdomain'});
   
@@ -127,6 +164,7 @@ sub pre_start_hook {
     $class->setup_init($conf);
     $class->setup_network($conf);
     $class->set_hostname($conf);
+    $class->set_dns($conf);
 
     # fixme: what else ?
 }
@@ -137,6 +175,7 @@ sub post_create_hook {
     $class->setup_init($conf);
     $class->setup_network($conf);
     $class->set_hostname($conf);
+    $class->set_dns($conf);
 
     # fixme: what else ?
 }

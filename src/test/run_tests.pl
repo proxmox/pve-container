@@ -42,7 +42,7 @@ sub run_test {
 	
 	$lxc_setup->post_create_hook();
 
-	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces);
+	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
