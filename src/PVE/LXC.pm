@@ -54,8 +54,9 @@ my $valid_lxc_keys = {
     
     'lxc.cgroup.memory.limit_in_bytes' => \&parse_lxc_size,
     'lxc.cgroup.memory.memsw.limit_in_bytes' => \&parse_lxc_size,
-    'lxc.cgroup.cpu.cfs_period_us' => 1,
-    'lxc.cgroup.cpu.cfs_quota_us' => 1,
+    'lxc.cgroup.cpu.cfs_period_us' => '\d+',
+    'lxc.cgroup.cpu.cfs_quota_us' => '\d+',
+    'lxc.cgroup.cpu.shares' => '\d+',
     
     # mount related
     'lxc.mount' => 1,
@@ -63,7 +64,7 @@ my $valid_lxc_keys = {
     'lxc.mount.auto' => 1,
 
     # not used by pve
-    'lxc.tty' => 1,
+    'lxc.tty' => '\d+',
     'lxc.pts' => 1,
     'lxc.haltsignal' => 1,
     'lxc.rebootsignal' => 1,	
@@ -692,6 +693,51 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
+sub lxc_conf_to_pve {
+    my ($vmid, $lxc_conf) = @_;
+
+    my $properties = json_config_properties();
+
+    my $conf = { digest => $lxc_conf->{digest} };
+
+    foreach my $k (keys %$properties) {
+
+	if ($k eq 'description') {
+	    if (my $raw = $lxc_conf->{'pve.comment'}) {
+		$conf->{$k} = PVE::Tools::decode_text($raw);
+	    }
+	} elsif ($k eq 'hostname') {
+	    $conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
+	} elsif ($k eq 'memory') {
+	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
+		$conf->{$k} = int($value / (1024*1024));
+	    }
+	} elsif ($k eq 'swap') {
+	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}) {
+		my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
+		$conf->{$k} = int(($value -$mem) / (1024*1024));
+	    }
+	} elsif ($k eq 'cpus') {
+	    my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
+	    my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
+	    
+	    if ($cfs_period_us && $cfs_quota_us) {
+		$conf->{$k} = int($cfs_quota_us/$cfs_period_us);
+	    } else {
+		$conf->{$k} = 0;
+	    }
+	} elsif ($k eq 'cpuunits') {
+	    $conf->{$k} = $lxc_conf->{'lxc.cgroup.cpu.shares'} || 1024;
+	} elsif ($k =~ m/^net\d$/) {
+	    my $net = $lxc_conf->{$k};
+	    next if !$net;
+	    $conf->{$k} = print_lxc_network($net);
+	}
+    }
+  
+    return $conf;
+}
+
 sub update_lxc_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
@@ -733,6 +779,8 @@ sub update_lxc_config {
 		delete $conf->{'lxc.cgroup.cpu.cfs_period_us'};
 		delete $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
 	    }
+	} elsif ($opt eq 'cpuunits') {
+	    $conf->{'lxc.cgroup.cpu.shares'} = $value;	    
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
 	} elsif ($opt =~ m/^net(\d+)$/) {

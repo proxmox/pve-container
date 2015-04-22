@@ -520,47 +520,12 @@ __PACKAGE__->register_method({
 
 	# NOTE: we only return selected/converted values
 
-	my $conf = { digest => $lxc_conf->{digest} };
+	my $conf = PVE::LXC::lxc_conf_to_pve($param->{vmid}, $lxc_conf);
 
 	my $stcfg = PVE::Cluster::cfs_read_file("storage.cfg");
 
 	my ($sid, undef, $path) = &$get_container_storage($stcfg, $param->{vmid}, $lxc_conf);
 	$conf->{storage} = $sid || $path;
-
-	my $properties = PVE::LXC::json_config_properties();
-
-	foreach my $k (keys %$properties) {
-
-	    if ($k eq 'description') {
-		if (my $raw = $lxc_conf->{'pve.comment'}) {
-		    $conf->{$k} = PVE::Tools::decode_text($raw);
-		}
-	    } elsif ($k eq 'hostname') {
-		$conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
-	    } elsif ($k eq 'memory') {
-		if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
-		    $conf->{$k} = int($value / (1024*1024));
-		}
-	    } elsif ($k eq 'swap') {
-		if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}) {
-		    my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
-		    $conf->{$k} = int(($value -$mem) / (1024*1024));
-		}
-	    } elsif ($k eq 'cpus') {
-		my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
-		my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-
-		if ($cfs_period_us && $cfs_quota_us) {
-		    $conf->{$k} = int($cfs_quota_us/$cfs_period_us);
-		} else {
-		    $conf->{$k} = 0;
-		}
-	    } elsif ($k =~ m/^net\d$/) {
-		my $net = $lxc_conf->{$k};
-		next if !$net;
-		$conf->{$k} = PVE::LXC::print_lxc_network($net);
-	    }
-	}
 
 	return $conf;
     }});
