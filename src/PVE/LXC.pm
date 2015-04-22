@@ -9,6 +9,7 @@ use Fcntl ':flock';
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
 use PVE::SafeSyslog;
 use PVE::INotify;
+use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw($IPV6RE $IPV4RE);
 
 use Data::Dumper;
@@ -102,6 +103,10 @@ my $valid_lxc_keys = {
     
     # pve related keys
     'pve.onboot' => '(0|1)',
+    'pve.startup' => sub {
+	my ($name, $value) = @_;
+	return PVE::JSONSchema::pve_verify_startup_order($value);
+    },
     'pve.comment' => 1,
 };
 
@@ -386,6 +391,7 @@ my $confdesc = {
 	description => "Specifies whether a VM will be started during system bootup.",
 	default => 0,
     },
+    startup => get_standard_option('pve-startup-order'),
     cpus => {
 	optional => 1,
 	type => 'integer',
@@ -709,6 +715,8 @@ sub lxc_conf_to_pve {
 	    }
 	} elsif ($k eq 'onboot') {
 	    $conf->{$k} = $lxc_conf->{'pve.onboot'} if  $lxc_conf->{'pve.onboot'};
+	} elsif ($k eq 'startup') {
+	    $conf->{$k} = $lxc_conf->{'pve.startup'} if  $lxc_conf->{'pve.startup'};
 	} elsif ($k eq 'hostname') {
 	    $conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
 	} elsif ($k eq 'memory') {
@@ -757,6 +765,8 @@ sub update_lxc_config {
 		delete $conf->{'pve.comment'};
 	    } elsif ($opt eq 'onboot') {
 		delete $conf->{'pve.onboot'};
+	    } elsif ($opt eq 'startup') {
+		delete $conf->{'pve.startup'};
 	    } elsif ($opt =~ m/^net\d$/) {
 		delete $conf->{$opt};
 	    } else {
@@ -771,6 +781,8 @@ sub update_lxc_config {
 	    $conf->{'lxc.utsname'} = $value;
 	} elsif ($opt eq 'onboot') {
 	    $conf->{'pve.onboot'} = $value ? 1 : 0;
+	} elsif ($opt eq 'startup') {
+	    $conf->{'pve.startup'} = $value;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 	} elsif ($opt eq 'swap') {
