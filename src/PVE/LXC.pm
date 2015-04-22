@@ -113,6 +113,8 @@ my $valid_lxc_network_keys = {
 
 my $valid_pve_network_keys = {
     bridge => 1,
+    tag => 1,
+    firewall => 1,
     ip => 1,
     gw => 1,
     ip6 => 1,
@@ -575,7 +577,7 @@ sub print_lxc_network {
 
     my $res = "bridge=$net->{bridge}";
 
-    foreach my $k (qw(hwaddr mtu name ip gw ip6 gw6)) {
+    foreach my $k (qw(hwaddr mtu name ip gw ip6 gw6 firewall tag)) {
 	next if !defined($net->{$k});
 	$res .= ",$k=$net->{$k}";
     }
@@ -591,7 +593,7 @@ sub parse_lxc_network {
     return $res if !$data;
 
     foreach my $pv (split (/,/, $data)) {
-	if ($pv =~ m/^(bridge|hwaddr|mtu|name|ip|ip6|gw|gw6)=(\S+)$/) {
+	if ($pv =~ m/^(bridge|hwaddr|mtu|name|ip|ip6|gw|gw6|firewall|tag)=(\S+)$/) {
 	    $res->{$1} = $2;
 	} else {
 	    return undef;
