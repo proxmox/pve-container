@@ -1,3 +1,17 @@
+pve-container (0.3-1) unstable; urgency=medium
+
+  * implement lxcnetaddbr to bring up network
+
+  * implement swap and cpulimit
+
+  * add regression tests
+
+  * add mount hook to setup container config
+
+  * add helper classes to setup container configuration
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 22 Apr 2015 07:50:02 +0200
+
 pve-container (0.2-1) unstable; urgency=medium
 
   * improved CLI
