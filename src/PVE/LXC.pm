@@ -101,6 +101,7 @@ my $valid_lxc_keys = {
     'lxc.hook.clone' => 1,
     
     # pve related keys
+    'pve.onboot' => '(0|1)',
     'pve.comment' => 1,
 };
 
@@ -706,6 +707,8 @@ sub lxc_conf_to_pve {
 	    if (my $raw = $lxc_conf->{'pve.comment'}) {
 		$conf->{$k} = PVE::Tools::decode_text($raw);
 	    }
+	} elsif ($k eq 'onboot') {
+	    $conf->{$k} = $lxc_conf->{'pve.onboot'} if  $lxc_conf->{'pve.onboot'};
 	} elsif ($k eq 'hostname') {
 	    $conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
 	} elsif ($k eq 'memory') {
@@ -752,6 +755,8 @@ sub update_lxc_config {
 		delete $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'};
 	    } elsif ($opt eq 'description') {
 		delete $conf->{'pve.comment'};
+	    } elsif ($opt eq 'onboot') {
+		delete $conf->{'pve.onboot'};
 	    } elsif ($opt =~ m/^net\d$/) {
 		delete $conf->{$opt};
 	    } else {
@@ -764,6 +769,8 @@ sub update_lxc_config {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
 	    $conf->{'lxc.utsname'} = $value;
+	} elsif ($opt eq 'onboot') {
+	    $conf->{'pve.onboot'} = $value ? 1 : 0;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 	} elsif ($opt eq 'swap') {
