@@ -5,6 +5,6 @@ lxc.include = /usr/share/lxc/config/debian.common.conf
 lxc.utsname = test3
 lxc.network.type = veth
 lxc.network.hwaddr = 26:2B:CC:E5:7F:F9
-lxc.network.link = vmbr0
+pve.network.bridge = vmbr0
 lxc.network.name = eth0
 lxc.network.veth.pair = veth100.0

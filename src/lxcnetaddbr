@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use PVE::LXC;
+use PVE::Tools qw(run_command);
+use PVE::Network;
+use PVE::ProcFSTools;
+
+die "got unexpected argument count\n" if scalar(@ARGV) != 5;
+
+my ($vmid, $arg2, $arg3, $type, $iface) = @ARGV;
+
+die "got unexpected argument ($arg2 != net)\n" if $arg2 ne 'net';
+die "got unexpected argument ($arg3 != up)\n" if $arg3 ne 'up';
+
+die "got unexpected argument ($type != veth)\n" if $type ne 'veth';
+    
+die "got unexpected environment" if $vmid ne $ENV{LXC_NAME};
+
+die "missing vmid parameter\n" if !$vmid;
+die "missing iface parameter\n" if !$iface;
+
+my $conf = PVE::LXC::load_config($vmid);
+
+my $net = undef;
+foreach my $k (keys %$conf) {
+    next if $k !~ m/^net\d+$/;
+    my $d = $conf->{$k};
+    if ($d->{'veth.pair'} eq $iface) {
+	$net = $d;
+	last;
+    }
+}
+
+die "unable to find network definition for interface '$iface'\n"
+    if !$net;
+    
+my $tag = $net->{tag};
+my $firewall = $net->{firewall};
+my $bridge = $net->{bridge};
+
+die "missing bridge configuration" if !$bridge;
+
+if (-d "/sys/class/net/$iface") {
+
+    my $bridgemtu = PVE::Tools::file_read_firstline("/sys/class/net/$bridge/mtu");
+    die "bridge '$bridge' does not exist\n" if !$bridgemtu;
+    #avoid insecure dependency;
+    ($bridgemtu) = $bridgemtu =~ /(\d+)/;
+
+    PVE::Tools::run_command("/sbin/ip link set dev $iface up mtu $bridgemtu");
+    PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
+    PVE::ProcFSTools::write_proc_entry("/proc/sys/net/ipv4/conf/$iface/proxy_arp", "1");
+    PVE::ProcFSTools::write_proc_entry("/proc/sys/net/ipv4/conf/$iface/forwarding", "1");
+    PVE::Network::tap_plug($iface, $bridge, $tag, $firewall);
+}
+
+exit 0;

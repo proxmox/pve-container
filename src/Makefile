@@ -5,8 +5,9 @@ BINDIR=${PREFIX}/bin
 SBINDIR=${PREFIX}/sbin
 MANDIR=${PREFIX}/share/man
 DOCDIR=${PREFIX}/share/doc/${PACKAGE}
-LXCTMPLDIR=${PREFIX}/share/lxc/templates
-LXCHOOKDIR=${PREFIX}/share/lxc/hooks
+LXCSCRIPTDIR=${PREFIX}/share/lxc
+LXCTMPLDIR=${LXCSCRIPTDIR}/templates
+LXCHOOKDIR=${LXCSCRIPTDIR}/hooks
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
 export PERLDIR=${PREFIX}/share/perl5
@@ -27,11 +28,13 @@ lxc-pve-mount-hook.1.pod: lxc-pve-mount-hook
 	perl -I. -T ./lxc-pve-mount-hook printmanpod >$@
 
 .PHONY: install
-install: pct lxc-pve lxc-pve-mount-hook lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
+install: pct lxc-pve lxc-pve-mount-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
 	perl -T -I. ./pct verifyapi
 	perl -T -I. ./lxc-pve verifyapi
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
+	install -d ${LXCSCRIPTDIR}
+	install -m 0755 lxcnetaddbr ${LXCSCRIPTDIR}
 	install -d ${LXCTMPLDIR}
 	install -m 0755 lxc-pve ${LXCTMPLDIR}
 	install -d ${LXCHOOKDIR}

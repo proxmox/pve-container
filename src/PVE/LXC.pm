@@ -105,7 +105,6 @@ my $valid_lxc_keys = {
 
 my $valid_lxc_network_keys = {
     type => 1,
-    link => 1,
     mtu => 1,
     name => 1, # ifname inside container
     'veth.pair' => 1, # ifname at host (eth${vmid}.X)
@@ -113,6 +112,7 @@ my $valid_lxc_network_keys = {
 };
 
 my $valid_pve_network_keys = {
+    bridge => 1,
     ip => 1,
     gw => 1,
     ip6 => 1,
@@ -571,9 +571,9 @@ sub vmstatus {
 sub print_lxc_network {
     my $net = shift;
 
-    die "no network link defined\n" if !$net->{link};
+    die "no network bridge defined\n" if !$net->{bridge};
 
-    my $res = "link=$net->{link}";
+    my $res = "bridge=$net->{bridge}";
 
     foreach my $k (qw(hwaddr mtu name ip gw ip6 gw6)) {
 	next if !defined($net->{$k});
@@ -591,7 +591,7 @@ sub parse_lxc_network {
     return $res if !$data;
 
     foreach my $pv (split (/,/, $data)) {
-	if ($pv =~ m/^(link|hwaddr|mtu|name|ip|ip6|gw|gw6)=(\S+)$/) {
+	if ($pv =~ m/^(bridge|hwaddr|mtu|name|ip|ip6|gw|gw6)=(\S+)$/) {
 	    $res->{$1} = $2;
 	} else {
 	    return undef;
