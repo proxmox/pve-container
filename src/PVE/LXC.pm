@@ -102,6 +102,8 @@ my $valid_lxc_keys = {
     'lxc.hook.clone' => 1,
     
     # pve related keys
+    'pve.nameserver' => 1,
+    'pve.searchdomain' => 1,
     'pve.onboot' => '(0|1)',
     'pve.startup' => sub {
 	my ($name, $value) = @_;
@@ -719,6 +721,10 @@ sub lxc_conf_to_pve {
 	    $conf->{$k} = $lxc_conf->{'pve.startup'} if  $lxc_conf->{'pve.startup'};
 	} elsif ($k eq 'hostname') {
 	    $conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
+	} elsif ($k eq 'nameserver') {
+	    $conf->{$k} = $lxc_conf->{'pve.nameserver'} if $lxc_conf->{'pve.nameserver'};
+	} elsif ($k eq 'searchdomain') {
+	    $conf->{$k} = $lxc_conf->{'pve.searchdomain'} if $lxc_conf->{'pve.searchdomain'};
 	} elsif ($k eq 'memory') {
 	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
 		$conf->{$k} = int($value / (1024*1024));
@@ -767,6 +773,10 @@ sub update_lxc_config {
 		delete $conf->{'pve.onboot'};
 	    } elsif ($opt eq 'startup') {
 		delete $conf->{'pve.startup'};
+	    } elsif ($opt eq 'nameserver') {
+		delete $conf->{'pve.nameserver'};
+	    } elsif ($opt eq 'searchdomain') {
+		delete $conf->{'pve.searchdomain'};
 	    } elsif ($opt =~ m/^net\d$/) {
 		delete $conf->{$opt};
 	    } else {
@@ -783,6 +793,10 @@ sub update_lxc_config {
 	    $conf->{'pve.onboot'} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
 	    $conf->{'pve.startup'} = $value;
+	} elsif ($opt eq 'nameserver') {
+	    $conf->{'pve.nameserver'} = $value;
+	} elsif ($opt eq 'searchdomain') {
+	    $conf->{'pve.searchdomain'} = $value;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
 	} elsif ($opt eq 'swap') {
