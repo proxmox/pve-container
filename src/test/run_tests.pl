@@ -34,6 +34,7 @@ sub run_test {
     my $conf = PVE::LXC::parse_lxc_config("/lxc/100/config", $raw);
 
     $conf->{'lxc.rootfs'} = $rootfs;
+    $conf->{'pve.test_mode'} = 1;
     
     my $lxc_setup = PVE::LXCSetup->new($conf);
 

@@ -8,7 +8,41 @@ use Digest::SHA;
 use IO::File;
 use Encode;
 
+use PVE::INotify;
 use PVE::Tools;
+
+
+my $lookup_dns_conf = sub {
+    my ($conf) = @_;
+
+    my $nameserver = $conf->{'pve.nameserver'};
+    my $searchdomains = $conf->{'pve.searchdomain'};
+
+    if (!($nameserver && $searchdomains)) {
+
+	if ($conf->{'pve.test_mode'}) {
+	    
+	    $nameserver = "8.8.8.8 8.8.8.9";
+	    $searchdomains = "promxox.com";
+	
+	} else {
+
+	    my $host_resolv_conf = PVE::INotify::read_file('resolvconf');
+
+	    $searchdomains = $host_resolv_conf->{search};
+
+	    my @list = ();
+	    foreach my $k ("dns1", "dns2", "dns3") {
+		if (my $ns = $host_resolv_conf->{$k}) {
+		    push @list, $ns;
+		}
+	    }
+	    $nameserver = join(' ', @list);
+	}
+    }
+
+    return ($searchdomains, $nameserver);
+};
 
 my $update_etc_hosts = sub {
     my ($etc_hosts_data, $hostip, $oldname, $newname, $searchdomains) = @_;
@@ -88,22 +122,7 @@ my $update_etc_hosts = sub {
 sub set_dns {
     my ($class, $conf) = @_;
 
-    my $nameserver = $conf->{'pve.nameserver'};
-    my $searchdomains = $conf->{'pve.searchdomain'};
-
-    my $host_resolv_conf = PVE::INotify::read_file('resolvconf');
-
-    if (!($nameserver && $searchdomains)) {
-	$searchdomains = $host_resolv_conf->{search};
-
-	my @list = ();
-	foreach my $k ("dns1", "dns2", "dns3") {
-	    if (my $ns = $host_resolv_conf->{$k}) {
-		push @list, $ns;
-	    }
-	}
-	$nameserver = join(' ', @list);
-    }
+    my ($searchdomains, $nameserver) = &$lookup_dns_conf($conf);
     
     my $rootfs = $conf->{'lxc.rootfs'};
     
@@ -143,10 +162,12 @@ sub set_hostname {
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
- 
+
+    my ($searchdomains) = &$lookup_dns_conf($conf);
+
     $etc_hosts_data = &$update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
-					 $hostname, $conf->{'pve.searchdomain'});
-  
+					 $hostname, $searchdomains);
+    
     PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
     PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
 }
