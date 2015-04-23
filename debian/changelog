@@ -1,3 +1,17 @@
+pve-container (0.4-1) unstable; urgency=medium
+
+  * allow to setup root password
+
+  * implement dns setup for containers
+
+  * implement startup and onboot option
+
+  * implement cpuunits
+
+  * add firewall and vlan tag network options
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 23 Apr 2015 10:58:45 +0200
+
 pve-container (0.3-1) unstable; urgency=medium
 
   * implement lxcnetaddbr to bring up network
