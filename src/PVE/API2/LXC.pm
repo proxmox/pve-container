@@ -126,6 +126,7 @@ __PACKAGE__->register_method({
 		optional => 1,
 		type => 'string',
 		description => "Sets root password inside container.",
+		minLength => 5,
 	    },
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Target storage.",
@@ -244,6 +245,10 @@ __PACKAGE__->register_method({
 	    my $cmd = ['lxc-create', '-f', $temp_conf_fn, '-t', 'pve', '-n', $vmid,
 		       '--', '--archive', $archive];
 
+	    if (defined($password)) {
+		push $cmd, '--password', $password 
+	    }
+	    
 	    eval { PVE::Tools::run_command($cmd); };
 	    my $err = $@;
 

@@ -55,6 +55,11 @@ __PACKAGE__->register_method ({
 		description => "Path to the template tar file.",
 		type => 'string',		
 	    },
+	    password => {
+		optional => 1,
+		type => 'string',
+		description => "Sets root password inside container.",
+	    },
 	    'mapped-uid' => {
 		description => " A uid map (user namespaces - LXC internal argument - do not pass manually!)",
 		type => 'string',
@@ -133,7 +138,7 @@ __PACKAGE__->register_method ({
 
 	# fixme: use correct dist
 	my $lxc_setup = PVE::LXCSetup->new($conf);
-	$lxc_setup->post_create_hook();
+	$lxc_setup->post_create_hook($param->{password});
 	
 	return undef;
     }});

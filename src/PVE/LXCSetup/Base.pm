@@ -3,6 +3,11 @@ package PVE::LXCSetup::Base;
 use strict;
 use warnings;
 
+use File::stat;
+use Digest::SHA;
+use IO::File;
+use Encode;
+
 use PVE::Tools;
 
 my $update_etc_hosts = sub {
@@ -158,6 +163,69 @@ sub setup_init {
     die "please implement this inside subclass"
 }
 
+my $replacepw  = sub {
+    my ($file, $user, $epw) = @_;
+
+    my $tmpfile = "$file.$$";
+
+    eval  {
+	my $src = IO::File->new("<$file") ||
+	    die "unable to open file '$file' - $!";
+
+	my $st = File::stat::stat($src) ||
+	    die "unable to stat file - $!";
+
+	my $dst = IO::File->new(">$tmpfile") ||
+	    die "unable to open file '$tmpfile' - $!";
+
+	# copy owner and permissions
+	chmod $st->mode, $dst;
+	chown $st->uid, $st->gid, $dst;
+	
+	while (defined (my $line = <$src>)) {
+	    $line =~ s/^${user}:[^:]*:/${user}:${epw}:/;
+	    print $dst $line;
+	}
+
+	$src->close() || die "close '$file' failed - $!\n";
+	$dst->close() || die "close '$tmpfile' failed - $!\n";
+    };
+    if (my $err = $@) {
+	unlink $tmpfile;
+    } else {
+	rename $tmpfile, $file;
+	unlink $tmpfile; # in case rename fails
+    }	
+};
+
+sub set_user_password {
+    my ($class, $conf, $user, $opt_password) = @_;
+
+    my $rootfs = $conf->{'lxc.rootfs'};
+
+    my $pwfile = "$rootfs/etc/passwd";
+
+    return if ! -f $pwfile;
+
+    my $shadow = "$rootfs/etc/shadow";
+    
+    if (defined($opt_password)) {
+	if ($opt_password !~ m/^\$/) {
+	    my $time = substr (Digest::SHA::sha1_base64 (time), 0, 8);
+	    $opt_password = crypt(encode("utf8", $opt_password), "\$1\$$time\$");
+	};
+    } else {
+	$opt_password = '*';
+    }
+    
+    if (-f $shadow) {
+	&$replacepw ($shadow, $user, $opt_password);
+	&$replacepw ($pwfile, $user, 'x');
+    } else {
+	&$replacepw ($pwfile, $user, $opt_password);
+    }
+}
+
 sub pre_start_hook {
     my ($class, $conf) = @_;
 
@@ -170,13 +238,14 @@ sub pre_start_hook {
 }
 
 sub post_create_hook {
-    my ($class, $conf) = @_;
+    my ($class, $conf, $root_password) = @_;
 
+    $class->set_user_password($conf, 'root', $root_password);
     $class->setup_init($conf);
     $class->setup_network($conf);
     $class->set_hostname($conf);
     $class->set_dns($conf);
-
+    
     # fixme: what else ?
 }
 

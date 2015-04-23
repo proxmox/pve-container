@@ -63,8 +63,10 @@ sub setup_init {
     $self->{plugin}->setup_init($self->{conf});
 }
 
-sub set_user_passwort {
-    die "fixme";
+sub set_user_password {
+    my ($self, $user, $pw) = @_;
+    
+    $self->{plugin}->set_user_password($self->{conf}, $user, $pw);
 }
 
 sub pre_start_hook {
@@ -74,9 +76,9 @@ sub pre_start_hook {
 }
 
 sub post_create_hook {
-    my ($self) = @_;
+    my ($self, $root_password) = @_;
 
-    $self->{plugin}->post_create_hook($self->{conf});
+    $self->{plugin}->post_create_hook($self->{conf}, $root_password);
 }
 
 1;
