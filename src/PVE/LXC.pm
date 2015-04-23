@@ -102,8 +102,14 @@ my $valid_lxc_keys = {
     'lxc.hook.clone' => 1,
     
     # pve related keys
-    'pve.nameserver' => 1,
-    'pve.searchdomain' => 1,
+    'pve.nameserver' => sub {
+	my ($name, $value) = @_;
+	return verify_nameserver_list($value);
+    },
+    'pve.searchdomain' => sub {
+	my ($name, $value) = @_;
+	return verify_searchdomain_list($value);
+    },
     'pve.onboot' => '(0|1)',
     'pve.startup' => sub {
 	my ($name, $value) = @_;
@@ -755,6 +761,31 @@ sub lxc_conf_to_pve {
     return $conf;
 }
 
+# verify and cleanup nameserver list (replace \0 with ' ')
+sub verify_nameserver_list {
+    my ($nameserver_list) = @_;
+
+    my @list = ();
+    foreach my $server (PVE::Tools::split_list($nameserver_list)) {
+	PVE::JSONSchema::pve_verify_ip($server);
+	push @list, $server;
+    }
+
+    return join(' ', @list);
+}
+
+sub verify_searchdomain_list {
+    my ($searchdomain_list) = @_;
+
+    my @list = ();
+    foreach my $server (PVE::Tools::split_list($searchdomain_list)) {
+	# todo: should we add checks for valid dns domains?
+	push @list, $server;
+    }
+
+    return join(' ', @list);
+}
+
 sub update_lxc_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
@@ -794,10 +825,10 @@ sub update_lxc_config {
 	} elsif ($opt eq 'startup') {
 	    $conf->{'pve.startup'} = $value;
 	} elsif ($opt eq 'nameserver') {
-	    my $list = join(' ', PVE::Tools::split_list($value));
+	    my $list = verify_nameserver_list($value);
 	    $conf->{'pve.nameserver'} = $list;
 	} elsif ($opt eq 'searchdomain') {
-	    my $list = join(' ', PVE::Tools::split_list($value));
+	    my $list = verify_searchdomain_list($value);
 	    $conf->{'pve.searchdomain'} = $list;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
