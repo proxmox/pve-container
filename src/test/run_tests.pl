@@ -61,10 +61,10 @@ if (scalar(@ARGV)) {
 
 } else {
 
-    PVE::Tools::dir_glob_foreach('.', 'test\d+', sub {
-	my ($testdir) = @_;
-	run_test($testdir);     
-    });
+    foreach my $testdir (<test-*>) {#
+	next if ! -d $testdir; 
+	run_test($testdir);
+    }
 }
 
 exit(0);
