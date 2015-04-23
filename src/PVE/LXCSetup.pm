@@ -14,7 +14,6 @@ my $autodetect_type = sub {
     
     my $rootfs = $conf->{'lxc.rootfs'};
     if (-f "$rootfs/etc/debian_version") {
-
 	return "debian";
     }
     die "unable to detect OS disribution\n";
@@ -33,9 +32,11 @@ sub new {
 	$type = &$autodetect_type($conf);
     }
     
-    $self->{plugin} = $plugins->{$type} ||
+    my $plugin_class = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 
+    $self->{plugin} = $plugin_class->new($conf);
+    
     return $self;
 }
 

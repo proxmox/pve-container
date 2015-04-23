@@ -11,6 +11,22 @@ use PVE::LXCSetup::Base;
 
 use base qw(PVE::LXCSetup::Base);
 
+sub new {
+    my ($class, $conf) = @_;
+
+    my $rootfs = $conf->{'lxc.rootfs'};
+    
+    my $version = PVE::Tools::file_read_firstline("$rootfs/etc/debian_version");
+
+    die "unable to read version info\n" if !defined($version);
+  
+    die "unsupported debian version '$version'\n" if $version < 6;
+
+    my $self = { conf => $conf, version => $version };
+
+    return bless $self, $class;
+}
+
 my $default_inittab = <<__EOD__;
 
 # The default runlevel.
@@ -55,7 +71,7 @@ p0::powerfail:/sbin/init 0
 __EOD__
 
 sub setup_init {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
     my $rootfs = $conf->{'lxc.rootfs'};
 
@@ -76,7 +92,7 @@ sub setup_init {
 }
 
 sub setup_network {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
     my $rootfs = $conf->{'lxc.rootfs'};
 

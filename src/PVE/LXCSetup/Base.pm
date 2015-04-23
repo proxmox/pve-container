@@ -11,6 +11,11 @@ use Encode;
 use PVE::INotify;
 use PVE::Tools;
 
+sub new {
+    my ($class, $conf) = @_;
+
+    return bless { conf => $conf }, $class;
+}
 
 my $lookup_dns_conf = sub {
     my ($conf) = @_;
@@ -120,7 +125,7 @@ my $update_etc_hosts = sub {
 };
 
 sub set_dns {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
     my ($searchdomains, $nameserver) = &$lookup_dns_conf($conf);
     
@@ -141,7 +146,7 @@ sub set_dns {
 }
 
 sub set_hostname {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
     
     my $hostname = $conf->{'lxc.utsname'} || 'localhost';
 
@@ -173,13 +178,13 @@ sub set_hostname {
 }
 
 sub setup_network {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
     die "please implement this inside subclass"
 }
 
 sub setup_init {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
     die "please implement this inside subclass"
 }
@@ -220,7 +225,7 @@ my $replacepw  = sub {
 };
 
 sub set_user_password {
-    my ($class, $conf, $user, $opt_password) = @_;
+    my ($self, $conf, $user, $opt_password) = @_;
 
     my $rootfs = $conf->{'lxc.rootfs'};
 
@@ -248,24 +253,24 @@ sub set_user_password {
 }
 
 sub pre_start_hook {
-    my ($class, $conf) = @_;
+    my ($self, $conf) = @_;
 
-    $class->setup_init($conf);
-    $class->setup_network($conf);
-    $class->set_hostname($conf);
-    $class->set_dns($conf);
+    $self->setup_init($conf);
+    $self->setup_network($conf);
+    $self->set_hostname($conf);
+    $self->set_dns($conf);
 
     # fixme: what else ?
 }
 
 sub post_create_hook {
-    my ($class, $conf, $root_password) = @_;
+    my ($self, $conf, $root_password) = @_;
 
-    $class->set_user_password($conf, 'root', $root_password);
-    $class->setup_init($conf);
-    $class->setup_network($conf);
-    $class->set_hostname($conf);
-    $class->set_dns($conf);
+    $self->set_user_password($conf, 'root', $root_password);
+    $self->setup_init($conf);
+    $self->setup_network($conf);
+    $self->set_hostname($conf);
+    $self->set_dns($conf);
     
     # fixme: what else ?
 }
