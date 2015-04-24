@@ -116,6 +116,7 @@ my $valid_lxc_keys = {
 	return PVE::JSONSchema::pve_verify_startup_order($value);
     },
     'pve.comment' => 1,
+    'pve.disksize' => '\d+(\.\d+)?',
 };
 
 my $valid_lxc_network_keys = {
@@ -467,7 +468,7 @@ my $confdesc = {
 	type => 'number',
 	description => "Amount of disk space for the VM in GB. A zero indicates no limits.",
 	minimum => 0,
-	default => 2,
+	default => 4,
     },
     hostname => {
 	optional => 1,
@@ -555,6 +556,34 @@ sub check_running {
     return undef;
 }
 
+sub get_container_disk_usage {
+    my ($vmid) = @_;
+
+    my $cmd = ['lxc-attach', '-n', $vmid, '--', 'df',  '-P', '-B', '1', '/'];
+    
+    my $res = {
+	total => 0,
+	used => 0,
+	avail => 0,
+    };
+
+    my $parser = sub {
+	my $line = shift;
+	if (my ($fsid, $total, $used, $avail) = $line =~
+	    m/^(\S+.*)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+%\s.*$/) {
+	    $res = {
+		total => $total,
+		used => $used,
+		avail => $avail,
+	    };
+	}
+    };
+    eval { PVE::Tools::run_command($cmd, timeout => 1, outfunc => $parser); };
+    warn $@ if $@;
+
+    return $res;
+}
+
 sub vmstatus {
     my ($opt_vmid) = @_;
 
@@ -564,7 +593,10 @@ sub vmstatus {
     
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
-	$d->{status} = $active_hash->{$vmid} ? 'running' : 'stopped';
+
+	my $running = defined($active_hash->{$vmid});
+	
+	$d->{status} = $running ? 'running' : 'stopped';
 
 	my $cfspath = cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
@@ -582,11 +614,21 @@ sub vmstatus {
 	}
 	
 	$d->{disk} = 0;
-	$d->{maxdisk} = 1;
+	$d->{maxdisk} = defined($conf->{'pve.disksize'}) ?
+	    int($conf->{'pve.disksize'}*1024*1024)*1024 : 1024*1024*1024*1024*1024;
+	
 	if (my $private = $conf->{'lxc.rootfs'}) {
-	    my $res = PVE::Tools::df($private, 2);
-	    $d->{disk} = $res->{used};
-	    $d->{maxdisk} = $res->{total};
+	    if ($private =~ m!^/!) {
+		my $res = PVE::Tools::df($private, 2);
+		$d->{disk} = $res->{used};
+		$d->{maxdisk} = $res->{total};
+	    } elsif ($running) {
+		if ($private =~ m!^loop:(\S+)$!) {
+		    my $res = get_container_disk_usage($vmid);
+		    $d->{disk} = $res->{used};
+		    $d->{maxdisk} = $res->{total};
+		}		
+	    }
 	}
 	
 	$d->{mem} = 0;
@@ -783,6 +825,9 @@ sub lxc_conf_to_pve {
 	    }
 	} elsif ($k eq 'cpuunits') {
 	    $conf->{$k} = $lxc_conf->{'lxc.cgroup.cpu.shares'} || 1024;
+	} elsif ($k eq 'disk') {
+	    $conf->{$k} = defined($lxc_conf->{'pve.disksize'}) ?
+		$lxc_conf->{'pve.disksize'} : 0;
 	} elsif ($k =~ m/^net\d$/) {
 	    my $net = $lxc_conf->{$k};
 	    next if !$net;
@@ -881,6 +926,8 @@ sub update_lxc_config {
 	    $conf->{'lxc.cgroup.cpu.shares'} = $value;	    
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
+	} elsif ($opt eq 'disk') {
+	    $conf->{'pve.disksize'} = $value;
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);

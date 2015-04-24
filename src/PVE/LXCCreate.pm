@@ -61,9 +61,9 @@ sub restore_and_configure {
 
 # directly use a storage directory
 sub create_rootfs_dir {
-    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+    my ($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password) = @_;
 
-    # fixme: size is ignored here!
+    # note: there is no size limit
 
     my $private = PVE::Storage::get_private_dir($storage_conf, $storage, $vmid);
     mkdir($private) || die "unable to create container private dir '$private' - $!\n";
@@ -131,10 +131,10 @@ sub create_rootfs {
     eval {
 	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
 	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-	    if (1) {
+	    if ($size > 0) {
 		create_rootfs_dir_loop($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
 	    } else {
-		create_rootfs_dir($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
+		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password);
 	    }
 	} else {
 	    die "unable to create containers on storage type '$scfg->{type}'\n";

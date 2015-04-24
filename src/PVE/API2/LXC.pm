@@ -247,7 +247,9 @@ __PACKAGE__->register_method({
 	#$conf->{'lxc.id_map'} = ["u 0 100000 65536", "g 0 100000 65536"];
 
 	my $code = sub {
-	    my $size = 4*1024*1024*1024; # fixme
+	    my $size = 4*1024*1024; # defaults to 4G	    
+	    $size = int($param->{disk}*1024) * 1024 if defined($param->{disk});
+	    
 	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $size, $vmid, $conf, $archive, $password);
 	};
 
