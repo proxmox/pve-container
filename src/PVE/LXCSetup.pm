@@ -10,32 +10,30 @@ my $plugins = {
 };
 
 my $autodetect_type = sub {
-    my ($conf) = @_;
+    my ($rootdir) = @_;
     
-    my $rootfs = $conf->{'lxc.rootfs'};
-    if (-f "$rootfs/etc/debian_version") {
+    if (-f "$rootdir/etc/debian_version") {
 	return "debian";
     }
     die "unable to detect OS disribution\n";
 };
 
 sub new {
-    my ($class, $conf, $type) = @_;
+    my ($class, $conf, $rootdir, $type) = @_;
 
-    my $self = bless { conf => $conf };
+    die "no root directory\n" if !$rootdir || $rootdir eq '/';
 
-    my $rootfs = $conf->{'lxc.rootfs'};
-    die "unable to find root filesystem\n" if !$rootfs || $rootfs eq '/';
-    
+    my $self = bless { conf => $conf, $rootdir => $rootdir};
+
     if (!defined($type)) {
 	# try to autodetect type
-	$type = &$autodetect_type($conf);
+	$type = &$autodetect_type($rootdir);
     }
     
     my $plugin_class = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 
-    $self->{plugin} = $plugin_class->new($conf);
+    $self->{plugin} = $plugin_class->new($conf, $rootdir);
     
     return $self;
 }

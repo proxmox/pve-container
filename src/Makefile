@@ -21,31 +21,23 @@ all:
 pct.1.pod: pct
 	perl -I. -T ./pct printmanpod >$@
 
-lxc-pve.1.pod: lxc-pve
-	perl -I. -T ./lxc-pve printmanpod >$@
-
 lxc-pve-mount-hook.1.pod: lxc-pve-mount-hook
 	perl -I. -T ./lxc-pve-mount-hook printmanpod >$@
 
 .PHONY: install
-install: pct lxc-pve lxc-pve-mount-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz lxc-pve.1.pod lxc-pve.1.gz
+install: pct lxc-pve-mount-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz
 	perl -T -I. ./pct verifyapi
-	perl -T -I. ./lxc-pve verifyapi
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
 	install -d ${LXCSCRIPTDIR}
 	install -m 0755 lxcnetaddbr ${LXCSCRIPTDIR}
-	install -d ${LXCTMPLDIR}
-	install -m 0755 lxc-pve ${LXCTMPLDIR}
 	install -d ${LXCHOOKDIR}
 	install -m 0755 lxc-pve-mount-hook ${LXCHOOKDIR}
 	make -C PVE install
 	install -d ${MAN1DIR}
 	install -d ${PODDIR}
 	install -m 0644 pct.1.gz ${MAN1DIR}
-	install -m 0644 lxc-pve.1.gz ${MAN1DIR}
 	install -m 0644 pct.1.pod ${PODDIR}
-	install -m 0644 lxc-pve.1.pod ${PODDIR}
 
 .PHONY: test
 test:

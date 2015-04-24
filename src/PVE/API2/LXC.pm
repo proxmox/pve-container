@@ -13,6 +13,7 @@ use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
+use PVE::LXCCreate;
 use PVE::HA::Config;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
@@ -228,33 +229,26 @@ __PACKAGE__->register_method({
 	$param->{hostname} ||= "CT$vmid";
 	$param->{memory} ||= 512;
 	$param->{swap} = 512 if !defined($param->{swap});
-	
-	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param); 
+
+	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param);
 
 	# assigng default names, so that we can configure network with LXCSetup
 	foreach my $k (keys %$conf) {
 	    next if $k !~ m/^net(\d+)$/;
 	    my $d = $conf->{$k};
 	    my $ind = $1;
-	    $d->{name} = "eth$ind";
+	    $d->{name} = "eth$ind"; # fixme: do not overwrite settings!
 	}
-	
+
+	$conf->{'lxc.hook.mount'} = "/usr/share/lxc/hooks/lxc-pve-mount-hook";
+
+	# use user namespace ?
+	# disable for now, because kernel 3.10.0 does not support it
+	#$conf->{'lxc.id_map'} = ["u 0 100000 65536", "g 0 100000 65536"];
+
 	my $code = sub {
-	    my $temp_conf_fn = PVE::LXC::write_temp_config($vmid, $conf);
-
-	    my $cmd = ['lxc-create', '-f', $temp_conf_fn, '-t', 'pve', '-n', $vmid,
-		       '--', '--archive', $archive];
-
-	    if (defined($password)) {
-		push $cmd, '--password', $password 
-	    }
-	    
-	    eval { PVE::Tools::run_command($cmd); };
-	    my $err = $@;
-
-	    unlink $temp_conf_fn;
-
-	    die $err if $err;
+	    my $size = 4*1024*1024*1024; # fixme
+	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $size, $vmid, $conf, $archive, $password);
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
@@ -342,7 +336,7 @@ __PACKAGE__->register_method({
 
 	    my $running = PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::update_lxc_config($vmid, $conf, $running, $param, \@delete); 
+	    PVE::LXC::update_lxc_config($vmid, $conf, $running, $param, \@delete);
 
 	    PVE::LXC::write_config($vmid, $conf);
 	};
@@ -581,8 +575,8 @@ __PACKAGE__->register_method({
 my $sslcert;
 
 __PACKAGE__->register_method ({
-    name => 'vncproxy', 
-    path => '{vmid}/vncproxy', 
+    name => 'vncproxy',
+    path => '{vmid}/vncproxy',
     method => 'POST',
     protected => 1,
     permissions => {
@@ -601,7 +595,7 @@ __PACKAGE__->register_method ({
 	    },
 	},
     },
-    returns => { 
+    returns => {
     	additionalProperties => 0,
 	properties => {
 	    user => { type => 'string' },
@@ -631,34 +625,34 @@ __PACKAGE__->register_method ({
 	my $port = PVE::Tools::next_vnc_port();
 
 	my $remip;
-	
+
 	if ($node ne PVE::INotify::nodename()) {
 	    $remip = PVE::Cluster::remote_node_ip($node);
 	}
 
 	# NOTE: vncterm VNC traffic is already TLS encrypted,
 	# so we select the fastest chipher here (or 'none'?)
-	my $remcmd = $remip ? 
+	my $remcmd = $remip ?
 	    ['/usr/bin/ssh', '-t', $remip] : [];
 
-	my $shcmd = [ '/usr/bin/dtach', '-A', 
-		      "/var/run/dtach/vzctlconsole$vmid", 
-		      '-r', 'winch', '-z', 
+	my $shcmd = [ '/usr/bin/dtach', '-A',
+		      "/var/run/dtach/vzctlconsole$vmid",
+		      '-r', 'winch', '-z',
 		      'lxc-console', '-n', $vmid ];
 
 	my $realcmd = sub {
 	    my $upid = shift;
 
-	    syslog ('info', "starting openvz vnc proxy $upid\n");
+	    syslog ('info', "starting lxc vnc proxy $upid\n");
 
-	    my $timeout = 10; 
+	    my $timeout = 10;
 
 	    my $cmd = ['/usr/bin/vncterm', '-rfbport', $port,
-		       '-timeout', $timeout, '-authpath', $authpath, 
+		       '-timeout', $timeout, '-authpath', $authpath,
 		       '-perm', 'VM.Console'];
 
 	    if ($param->{websocket}) {
-		$ENV{PVE_VNC_TICKET} = $ticket; # pass ticket to vncterm 
+		$ENV{PVE_VNC_TICKET} = $ticket; # pass ticket to vncterm
 		push @$cmd, '-notls', '-listen', 'localhost';
 	    }
 
@@ -676,9 +670,9 @@ __PACKAGE__->register_method ({
 	return {
 	    user => $authuser,
 	    ticket => $ticket,
-	    port => $port, 
-	    upid => $upid, 
-	    cert => $sslcert, 
+	    port => $port,
+	    upid => $upid,
+	    cert => $sslcert,
 	};
     }});
 
@@ -686,7 +680,7 @@ __PACKAGE__->register_method({
     name => 'vncwebsocket',
     path => '{vmid}/vncwebsocket',
     method => 'GET',
-    permissions => { 
+    permissions => {
 	description => "You also need to pass a valid ticket (vncticket).",
 	check => ['perm', '/vms/{vmid}', [ 'VM.Console' ]],
     },
@@ -727,13 +721,13 @@ __PACKAGE__->register_method({
 	PVE::AccessControl::verify_vnc_ticket($param->{vncticket}, $authuser, $authpath);
 
 	my $port = $param->{port};
-	
+
 	return { port => $port };
     }});
 
 __PACKAGE__->register_method ({
-    name => 'spiceproxy', 
-    path => '{vmid}/spiceproxy', 
+    name => 'spiceproxy',
+    path => '{vmid}/spiceproxy',
     method => 'POST',
     protected => 1,
     proxyto => 'node',
@@ -760,9 +754,9 @@ __PACKAGE__->register_method ({
 	my $authpath = "/vms/$vmid";
 	my $permissions = 'VM.Console';
 
-	my $shcmd = ['/usr/bin/dtach', '-A', 
-		     "/var/run/dtach/vzctlconsole$vmid", 
-		     '-r', 'winch', '-z', 
+	my $shcmd = ['/usr/bin/dtach', '-A',
+		     "/var/run/dtach/vzctlconsole$vmid",
+		     '-r', 'winch', '-z',
 		     'lxc-console', '-n', $vmid];
 
 	my $title = "CT $vmid";

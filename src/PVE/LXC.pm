@@ -140,6 +140,7 @@ my $lxc_array_configs = {
     'lxc.network' => 1,
     'lxc.mount' => 1,
     'lxc.include' => 1,
+    'lxc.id_map' => 1,
 };
 
 sub write_lxc_config {
@@ -154,7 +155,14 @@ sub write_lxc_config {
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^lxc\./;
 	$done_hash->{$k} = 1;
-	$raw .= "$k = $data->{$k}\n";
+	if (ref($data->{$k})) {
+	    die "got unexpected reference for '$k'" if !$lxc_array_configs->{$k};
+	    foreach my $v (@{$data->{$k}}) {
+		$raw .= "$k = $v\n";
+	    }
+	} else {
+	    $raw .= "$k = $data->{$k}\n";
+	}
     }
 
     foreach my $k (sort keys %$data) {
@@ -290,9 +298,14 @@ sub parse_lxc_config {
 	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
 	    my ($name, $value) = ($1, $2);
 
-	    die "multiple definitions for $name\n" if defined($data->{$name});
-
-	    $data->{$name} = parse_lxc_option($name, $value);		    
+	    if ($lxc_array_configs->{$name}) {
+		$data->{$name} = [] if !defined($data->{$name});
+		push @{$data->{$name}},  parse_lxc_option($name, $value);
+	    } else {
+		die "multiple definitions for $name\n" if defined($data->{$name});
+		$data->{$name} = parse_lxc_option($name, $value);
+	    }
+	    
 	    next;
 	}
 
@@ -353,6 +366,25 @@ sub load_config {
     die "container $vmid does not exists\n" if !defined($conf);
 
     return $conf;
+}
+
+sub create_config {
+    my ($vmid, $conf) = @_;
+
+    my $dir = "/etc/pve/nodes/$nodename/lxc";
+    mkdir $dir;
+
+    $dir .= "/$vmid";
+    mkdir($dir) || die "unable to create container configuration directory - $!\n";
+
+    write_config($vmid, $conf);
+}
+
+sub destroy_config {
+    my ($vmid) = @_;
+
+    my $dir = "/etc/pve/nodes/$nodename/lxc/$vmid";
+    File::Path::rmtree($dir);
 }
 
 sub write_config {

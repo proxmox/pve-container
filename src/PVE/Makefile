@@ -1,4 +1,4 @@
-SOURCES=LXC.pm LXCSetup.pm
+SOURCES=LXC.pm LXCSetup.pm LXCCreate.pm
 
 .PHONY: install
 install:

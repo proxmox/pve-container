@@ -12,17 +12,17 @@ use PVE::LXCSetup::Base;
 use base qw(PVE::LXCSetup::Base);
 
 sub new {
-    my ($class, $conf) = @_;
+    my ($class, $conf, $rootdir) = @_;
 
-    my $rootfs = $conf->{'lxc.rootfs'};
-    
-    my $version = PVE::Tools::file_read_firstline("$rootfs/etc/debian_version");
+    my $version = PVE::Tools::file_read_firstline("$rootdir/etc/debian_version");
 
     die "unable to read version info\n" if !defined($version);
   
     die "unsupported debian version '$version'\n" if $version < 6;
 
-    my $self = { conf => $conf, version => $version };
+    my $self = { conf => $conf, rootdir => $rootdir, version => $version };
+
+    $conf->{'lxc.include'} = "/usr/share/lxc/config/debian.common.conf";
 
     return bless $self, $class;
 }
@@ -73,9 +73,9 @@ __EOD__
 sub setup_init {
     my ($self, $conf) = @_;
 
-    my $rootfs = $conf->{'lxc.rootfs'};
+    my $rootdir = $self->{rootdir};
 
-    my $filename = "$rootfs/etc/inittab";
+    my $filename = "$rootdir/etc/inittab";
 
     if (-f $filename) {
 	my $inittab = $default_inittab;
@@ -94,7 +94,7 @@ sub setup_init {
 sub setup_network {
     my ($self, $conf) = @_;
 
-    my $rootfs = $conf->{'lxc.rootfs'};
+    my $rootdir = $self->{rootdir};
 
     my $networks = {};
     foreach my $k (keys %$conf) {
@@ -120,7 +120,7 @@ sub setup_network {
 
      return if !scalar(keys %$networks);
 
-    my $filename = "$rootfs/etc/network/interfaces";
+    my $filename = "$rootdir/etc/network/interfaces";
     my $data = {};
     my $order = [];
     my $interfaces = "";

@@ -68,9 +68,11 @@ __PACKAGE__->register_method ({
 	my $raw = PVE::Tools::file_get_contents($param->{path});
 	my $conf = PVE::LXC::parse_lxc_config($param->{path}, $raw);
 
-	my $lxc_setup = PVE::LXCSetup->new($conf);
+	my $mountpoint = $ENV{LXC_ROOTFS_MOUNT};
+
+	my $lxc_setup = PVE::LXCSetup->new($conf, $mountpoint);
 	$lxc_setup->pre_start_hook();
-	
+
 	return undef;
     }});
 
@@ -85,7 +87,7 @@ if ((scalar(@ARGV) == 1) && ($ARGV[0] eq 'printmanpod') ||
 } elsif ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'mount')) {
     $param->{name} = $ENV{'LXC_NAME'};
     die "got wrong name" if $param->{name} ne $ARGV[0];
-    
+
     $param->{path} = $ENV{'LXC_CONFIG_FILE'};
     $param->{rootfs} = $ENV{'LXC_ROOTFS_PATH'};
     @ARGV = ();

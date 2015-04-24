@@ -12,9 +12,9 @@ use PVE::INotify;
 use PVE::Tools;
 
 sub new {
-    my ($class, $conf) = @_;
+    my ($class, $conf, $rootdir) = @_;
 
-    return bless { conf => $conf }, $class;
+    return bless { conf => $conf, rootdir => $rootdir }, $class;
 }
 
 my $lookup_dns_conf = sub {
@@ -129,9 +129,9 @@ sub set_dns {
 
     my ($searchdomains, $nameserver) = &$lookup_dns_conf($conf);
     
-    my $rootfs = $conf->{'lxc.rootfs'};
+    my $rootdir = $self->{rootdir};
     
-    my $filename = "$rootfs/etc/resolv.conf";
+    my $filename = "$rootdir/etc/resolv.conf";
 
     my $data = '';
 
@@ -152,13 +152,13 @@ sub set_hostname {
 
     $hostname =~ s/\..*$//;
 
-    my $rootfs = $conf->{'lxc.rootfs'};
+    my $rootdir = $self->{rootdir};
 
-    my $hostname_fn = "$rootfs/etc/hostname";
+    my $hostname_fn = "$rootdir/etc/hostname";
     
     my $oldname = PVE::Tools::file_read_firstline($hostname_fn) || 'localhost';
 
-    my $hosts_fn = "$rootfs/etc/hosts";
+    my $hosts_fn = "$rootdir/etc/hosts";
     my $etc_hosts_data = '';
     
     if (-f $hosts_fn) {
@@ -227,13 +227,13 @@ my $replacepw  = sub {
 sub set_user_password {
     my ($self, $conf, $user, $opt_password) = @_;
 
-    my $rootfs = $conf->{'lxc.rootfs'};
+    my $rootdir = $self->{rootdir};
 
-    my $pwfile = "$rootfs/etc/passwd";
+    my $pwfile = "$rootdir/etc/passwd";
 
     return if ! -f $pwfile;
 
-    my $shadow = "$rootfs/etc/shadow";
+    my $shadow = "$rootdir/etc/shadow";
     
     if (defined($opt_password)) {
 	if ($opt_password !~ m/^\$/) {

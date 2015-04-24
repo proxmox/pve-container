@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+
+# NOTE: we do not use this at all
+
 use strict;
 use warnings;
 use POSIX;
