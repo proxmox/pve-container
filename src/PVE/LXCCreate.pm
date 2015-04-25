@@ -10,6 +10,17 @@ use PVE::Storage;
 use PVE::LXC;
 use PVE::LXCSetup;
 
+sub next_free_nbd_dev {
+    
+    for(my $i = 0;;$i++) {
+	my $dev = "/dev/nbd$i";
+	last if ! -b $dev;
+	next if -f "/sys/block/nbd$i/pid"; # busy
+	return $dev;
+    }
+    die "unable to find free nbd device\n";
+}
+
 sub restore_archive {
     my ($archive, $rootdir, $conf) = @_;
 
@@ -121,6 +132,56 @@ sub create_rootfs_dir_loop {
     PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
 }
 
+# create a file, then mount with qemu-nbd
+sub create_rootfs_dir_qemu {
+    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+
+    my $format = 'qcow2';
+    
+    my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 
+					  $format, "vm-$vmid-rootfs.$format", $size);
+
+    push @{$cleanup->{volids}}, $volid;
+
+    my $image_path = PVE::Storage::path($storage_conf, $volid);
+    $conf->{'lxc.rootfs'} = "nbd:${image_path}";
+
+    print "allocated image: $image_path\n";
+
+    my $mountpoint;
+
+    my $nbd_dev;
+    eval {
+	$nbd_dev = next_free_nbd_dev();
+	PVE::Tools::run_command(['qemu-nbd', '-c', $nbd_dev, $image_path]);
+
+	my $cmd = ['mkfs.ext4', $nbd_dev];
+	PVE::Tools::run_command($cmd);
+
+
+	my $tmp = "/var/lib/lxc/$vmid/rootfs";
+	File::Path::mkpath($tmp);
+	PVE::Tools::run_command(['mount', '-t', 'ext4', $nbd_dev, $tmp]);
+	$mountpoint = $tmp;
+
+	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password);
+    };
+    if (my $err = $@) {
+	if ($mountpoint) {
+	    eval { PVE::Tools::run_command(['umount', $mountpoint]); };
+	    warn $@ if $@;
+	}
+	if ($nbd_dev) {
+	    eval { PVE::Tools::run_command(['qemu-nbd', '-d', $nbd_dev]); };
+	    warn $@ if $@;
+	}
+	die $err;
+    }
+
+    PVE::Tools::run_command(['umount', $mountpoint]);
+    PVE::Tools::run_command(['qemu-nbd', '-d', $nbd_dev]);
+}
+
 sub create_rootfs {
     my ($storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
 
@@ -132,7 +193,7 @@ sub create_rootfs {
 	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
 	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
 	    if ($size > 0) {
-		create_rootfs_dir_loop($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
+		create_rootfs_dir_qemu($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
 	    } else {
 		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password);
 	    }

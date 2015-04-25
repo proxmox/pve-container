@@ -623,7 +623,7 @@ sub vmstatus {
 		$d->{disk} = $res->{used};
 		$d->{maxdisk} = $res->{total};
 	    } elsif ($running) {
-		if ($private =~ m!^loop:(\S+)$!) {
+		if ($private =~ m!^(?:loop|nbd):(?:\S+)$!) {
 		    my $res = get_container_disk_usage($vmid);
 		    $d->{disk} = $res->{used};
 		    $d->{maxdisk} = $res->{total};
