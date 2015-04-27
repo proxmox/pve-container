@@ -117,6 +117,11 @@ my $valid_lxc_keys = {
     },
     'pve.comment' => 1,
     'pve.disksize' => '\d+(\.\d+)?',
+    'pve.volid' => sub {
+	my ($name, $value) = @_;
+	PVE::Storage::parse_volume_id($value);
+	return $value;
+    },
 };
 
 my $valid_lxc_network_keys = {

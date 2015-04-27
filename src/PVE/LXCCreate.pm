@@ -116,6 +116,7 @@ sub create_rootfs_dir_loop {
 	PVE::Tools::run_command(['mount', '-t', 'ext4', $loopdev, $tmp]);
 	$mountpoint = $tmp;
 
+	$conf->{'pve.volid'} = $volid;
 	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password);
     };
     if (my $err = $@) {
@@ -164,6 +165,7 @@ sub create_rootfs_dir_qemu {
 	PVE::Tools::run_command(['mount', '-t', 'ext4', $nbd_dev, $tmp]);
 	$mountpoint = $tmp;
 
+	$conf->{'pve.volid'} = $volid;
 	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password);
     };
     if (my $err = $@) {

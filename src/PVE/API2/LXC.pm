@@ -563,14 +563,29 @@ __PACKAGE__->register_method({
 	# test if container exists
 	my $conf = PVE::LXC::load_config($param->{vmid});
 
-	my $realcmd = sub {
-	    my $cmd = ['lxc-destroy', '-n', $vmid ];
+	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	    run_command($cmd);
+	my $code = sub {
+	    if (my $volid = $conf->{'pve.volid'}) {
+	
+		my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volid);
+		die "got strange volid (containe is not owner!)\n" if $vmid != $owner;
 
+		PVE::Storage::vdisk_free($storage_cfg, $volid);
+
+		PVE::LXC::destroy_config($vmid);
+
+	    } else {
+		my $cmd = ['lxc-destroy', '-n', $vmid ];
+
+		run_command($cmd);
+	    }
+	    
 	    PVE::AccessControl::remove_vm_from_pool($vmid);
 	};
 
+	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
+	
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
     }});
 
