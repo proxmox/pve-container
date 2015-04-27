@@ -7,6 +7,7 @@ use File::Path;
 use Fcntl ':flock';
 
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
+use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
