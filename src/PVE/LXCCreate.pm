@@ -195,7 +195,7 @@ sub create_rootfs {
 	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
 	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
 	    if ($size > 0) {
-		create_rootfs_dir_qemu($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
+		create_rootfs_dir_loop($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
 	    } else {
 		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password);
 	    }
