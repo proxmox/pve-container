@@ -6,5 +6,6 @@ install:
 	for i in ${SOURCES}; do install -D -m 0644 $$i ${PERLDIR}/PVE/$$i; done
 	make -C API2 install
 	make -C LXCSetup install
+	make -C VZDump install
 
 
