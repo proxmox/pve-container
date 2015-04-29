@@ -75,6 +75,7 @@ sub create_rootfs_dir {
     my ($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password) = @_;
 
     # note: there is no size limit
+    $conf->{'pve.disksize'} = 0;
 
     my $private = PVE::Storage::get_private_dir($storage_conf, $storage, $vmid);
     mkdir($private) || die "unable to create container private dir '$private' - $!\n";
@@ -90,6 +91,7 @@ sub create_rootfs_dir_loop {
     my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
 
     my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', "vm-$vmid-rootfs.raw", $size);
+    $conf->{'pve.disksize'} = $size/(1024*1024);
 
     push @{$cleanup->{volids}}, $volid;
 
@@ -142,6 +144,8 @@ sub create_rootfs_dir_qemu {
     my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 
 					  $format, "vm-$vmid-rootfs.$format", $size);
 
+    $conf->{'pve.disksize'} = $size/(1024*1024);
+
     push @{$cleanup->{volids}}, $volid;
 
     my $image_path = PVE::Storage::path($storage_conf, $volid);
@@ -185,10 +189,34 @@ sub create_rootfs_dir_qemu {
 }
 
 sub create_rootfs {
-    my ($storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+    my ($storage_conf, $storage, $disk_size_gb, $vmid, $conf, $archive, $password, $restore) = @_;
 
-    PVE::LXC::create_config($vmid, $conf);
+    my $config_fn = PVE::LXC::config_file($vmid);
+    if (-f $config_fn) {
+	die "container exists" if !$restore; # just to be sure
 
+	my $old_conf = PVE::LXC::load_config($vmid);
+
+	if (!defined($disk_size_gb) && defined($old_conf->{'pve.disksize'})) {
+	    $disk_size_gb = $old_conf->{'pve.disksize'};
+	}
+	    
+	# destroy old container
+	PVE::LXC::destory_lxc_container($storage_conf, $vmid, $old_conf);
+
+	# merge old config?
+	
+	PVE::LXC::create_config($vmid, $conf);
+
+    } else {
+	
+	PVE::LXC::create_config($vmid, $conf);
+    }
+
+    my $size = 4*1024*1024; # defaults to 4G	    
+
+    $size = int($disk_size_gb*1024) * 1024 if defined($disk_size_gb);
+    
     my $cleanup = { files => [], volids => [] };
 
     eval {

@@ -1030,5 +1030,24 @@ sub get_primary_ips {
     
     return ($ipv4, $ipv6);
 }
+
+sub destory_lxc_container {
+    my ($storage_cfg, $vmid, $conf) = @_;
+
+    if (my $volid = $conf->{'pve.volid'}) {
+
+	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volid);
+	die "got strange volid (containe is not owner!)\n" if $vmid != $owner;
+
+	PVE::Storage::vdisk_free($storage_cfg, $volid);
+
+	destroy_config($vmid);
+
+    } else {
+	my $cmd = ['lxc-destroy', '-n', $vmid ];
+
+	PVE::Tools::run_command($cmd);
+    }
+}
     
 1;

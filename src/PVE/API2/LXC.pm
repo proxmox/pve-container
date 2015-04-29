@@ -171,6 +171,11 @@ __PACKAGE__->register_method({
 
 	my $restore = extract_param($param, 'restore');
 
+	if ($restore) {
+	    # fixme: limit allowed parameters
+
+	}
+	
 	my $force = extract_param($param, 'force');
 
 	if (!($same_container_exists && $restore && $force)) {
@@ -217,8 +222,11 @@ __PACKAGE__->register_method({
 	my $archive;
 
 	if ($ostemplate eq '-') {
-	    die "archive pipe not implemented\n"
-	    # $archive = '-';
+	    die "pipe requires cli environment\n" 
+		if $rpcenv->{type} ne 'cli'; 
+	    die "pipe can only be used with restore tasks\n" 
+		if !$restore;
+	    $archive = '-';
 	} else {
 	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
@@ -246,16 +254,30 @@ __PACKAGE__->register_method({
 	# disable for now, because kernel 3.10.0 does not support it
 	#$conf->{'lxc.id_map'} = ["u 0 100000 65536", "g 0 100000 65536"];
 
+	my $check_vmid_usage = sub {
+	    if ($force) {
+		die "cant overwrite running container\n"
+		    if PVE::LXC::check_running($vmid);
+	    } else {
+		PVE::Cluster::check_vmid_unused($vmid);
+	    }
+	};
+	
 	my $code = sub {
-	    my $size = 4*1024*1024; # defaults to 4G	    
-	    $size = int($param->{disk}*1024) * 1024 if defined($param->{disk});
 	    
-	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $size, $vmid, $conf, $archive, $password);
+	    &$check_vmid_usage(); # final check after locking
+
+	    PVE::Cluster::check_cfs_quorum();
+
+	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $param->{disk}, $vmid, $conf, 
+					  $archive, $password, $restore);
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
 
-	return $rpcenv->fork_worker($param->{restore} ? 'vzrestore' : 'vzcreate',
+	&$check_vmid_usage(); # first check before locking
+
+	return $rpcenv->fork_worker($restore ? 'vzrestore' : 'vzcreate',
 				    $vmid, $authuser, $realcmd);
 
     }});
@@ -566,21 +588,7 @@ __PACKAGE__->register_method({
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $code = sub {
-	    if (my $volid = $conf->{'pve.volid'}) {
-	
-		my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volid);
-		die "got strange volid (containe is not owner!)\n" if $vmid != $owner;
-
-		PVE::Storage::vdisk_free($storage_cfg, $volid);
-
-		PVE::LXC::destroy_config($vmid);
-
-	    } else {
-		my $cmd = ['lxc-destroy', '-n', $vmid ];
-
-		run_command($cmd);
-	    }
-	    
+	    PVE::LXC::destory_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_from_pool($vmid);
 	};
 

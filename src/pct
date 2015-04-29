@@ -5,6 +5,7 @@ use warnings;
 use lib qw(. ..);
 
 use PVE::SafeSyslog;
+use PVE::Tools qw(extract_param);
 use PVE::Cluster;
 use PVE::INotify;
 use PVE::RPCEnvironment;
@@ -81,7 +82,6 @@ __PACKAGE__->register_method ({
 	exec('lxc-attach', '-n',  $param->{vmid});
     }});
 
-
 my $cmddef = {
     #test => [ __PACKAGE__, 'test', [], {}, sub {} ],
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
@@ -108,6 +108,7 @@ my $cmddef = {
     set => [ 'PVE::API2::LXC', 'update_vm', ['vmid'], { node => $nodename }],
     
     create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
+    restore => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename, restore => 1 }, $upid_exit ],
 
     start => [ 'PVE::API2::LXC', 'vm_start', ['vmid'], { node => $nodename }, $upid_exit],
     suspend => [ 'PVE::API2::LXC', 'vm_suspend', ['vmid'], { node => $nodename }, $upid_exit],

@@ -262,7 +262,7 @@ sub archive {
     $cmd .= ")";
 
     if ($opts->{stdout}) {
-	$self->cmd ($cmd, output => ">&=" . fileno($opts->{stdout}));
+	$self->cmd ($cmd, output => ">&" . fileno($opts->{stdout}));
     } else {
 	$self->cmd ("$cmd >$filename");
     }
