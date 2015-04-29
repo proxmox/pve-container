@@ -45,9 +45,14 @@ sub restore_archive {
     push @$cmd, '--anchored';
     push @$cmd, '--exclude' , './dev/*';
 
-    print "extracting archive '$archive'\n";
-    PVE::Tools::run_command($cmd);
-
+    if ($archive eq '-') {
+	print "extracting archive from STDIN\n";
+	PVE::Tools::run_command($cmd, input => "<&STDIN");
+   } else {
+	print "extracting archive '$archive'\n";
+	PVE::Tools::run_command($cmd);
+    }
+    
     # is this really required? what for?
     #$cmd = [@$userns_cmd, 'mkdir', '-p', "$rootdir/dev/pts"];
     #PVE::Tools::run_command($cmd);
