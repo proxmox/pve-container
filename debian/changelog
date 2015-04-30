@@ -1,3 +1,11 @@
+pve-container (0.5-1) unstable; urgency=medium
+
+  * implement restore command
+
+  * implement disk size parameter (loop mounts)
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 30 Apr 2015 18:46:23 +0200
+
 pve-container (0.4-1) unstable; urgency=medium
 
   * allow to setup root password

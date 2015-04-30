@@ -1,6 +1,6 @@
 RELEASE=4.0
 
-VERSION=0.4
+VERSION=0.5
 PACKAGE=pve-container
 PKGREL=1
 
