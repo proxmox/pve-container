@@ -205,12 +205,17 @@ sub create_rootfs {
 	if (!defined($disk_size_gb) && defined($old_conf->{'pve.disksize'})) {
 	    $disk_size_gb = $old_conf->{'pve.disksize'};
 	}
-	    
+
+	# we only copy known settings to restored container
+	my $pve_conf = PVE::LXC::lxc_conf_to_pve($vmid,  $old_conf);
+	foreach my $opt (qw(disk digest)) {
+	    delete $pve_conf->{$opt};
+	}
+	update_lxc_config($vmid, $conf, 0, $pve_conf);
+	
 	# destroy old container
 	PVE::LXC::destory_lxc_container($storage_conf, $vmid, $old_conf);
 
-	# merge old config?
-	
 	PVE::LXC::create_config($vmid, $conf);
 
     } else {
