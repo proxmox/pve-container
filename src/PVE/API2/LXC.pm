@@ -23,10 +23,15 @@ use Data::Dumper; # fixme: remove
 my $get_container_storage = sub {
     my ($stcfg, $vmid, $lxc_conf) = @_;
 
-    my $path = $lxc_conf->{'lxc.rootfs'};
-    my ($vtype, $volid) = PVE::Storage::path_to_volume_id($stcfg, $path);
-    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
-    return wantarray ? ($sid, $volname, $path) : $sid;
+    if (my $volid = $lxc_conf->{'pve.volid'}) {
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+	return wantarray ? ($sid, $volname) : $sid;
+    } else {
+	my $path = $lxc_conf->{'lxc.rootfs'};
+	my ($vtype, $volid) = PVE::Storage::path_to_volume_id($stcfg, $path);
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
+	return wantarray ? ($sid, $volname, $path) : $sid;
+    }
 };
 
 my $check_ct_modify_config_perm = sub {
@@ -194,8 +199,6 @@ __PACKAGE__->register_method({
 
 	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
 	    if !$scfg->{content}->{rootdir};
-
-	my $private = PVE::Storage::get_private_dir($storage_cfg, $storage, $vmid);
 
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
