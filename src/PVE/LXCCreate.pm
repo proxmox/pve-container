@@ -91,6 +91,23 @@ sub create_rootfs_dir {
     restore_and_configure($vmid, $archive, $private, $conf, $password);
 }
 
+# use new subvolume API
+sub create_rootfs_subvol {
+    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+
+    my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol', 
+					  "subvol-$vmid-rootfs", $size);
+    push @{$cleanup->{volids}}, $volid;
+
+    my $private = PVE::Storage::path($storage_conf, $volid);
+    (-d $private) || die "unable to get container private dir '$private' - $!\n";
+
+    $conf->{'lxc.rootfs'} = $private;
+    $conf->{'pve.volid'} = $volid;
+
+    restore_and_configure($vmid, $archive, $private, $conf, $password);
+}
+
 # create a raw file, then loop mount
 sub create_rootfs_dir_loop {
     my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
@@ -237,7 +254,13 @@ sub create_rootfs {
 	    } else {
 		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password);
 	    }
+	} elsif ($scfg->{type} eq 'zfspool') {
+
+	    create_rootfs_subvol($cleanup, $storage_conf, $storage, $size, 
+				 $vmid, $conf, $archive, $password);
+	    
 	} else {
+	    
 	    die "unable to create containers on storage type '$scfg->{type}'\n";
 	}
     };
