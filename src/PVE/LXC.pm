@@ -437,6 +437,8 @@ sub lock_aquire {
 
     my $filename = lock_filename($vmid);
 
+    mkdir $lockdir if !-d $lockdir;
+
     my $lock_func = sub {
 	if (!$lock_handles->{$$}->{$filename}) {
 	    my $fh = new IO::File(">>$filename") ||
