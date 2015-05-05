@@ -1,4 +1,4 @@
-SOURCES=Base.pm Debian.pm
+SOURCES=Base.pm Debian.pm Redhat.pm
 
 .PHONY: install
 install:

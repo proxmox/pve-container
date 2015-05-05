@@ -4,9 +4,11 @@ use strict;
 use warnings;
 
 use PVE::LXCSetup::Debian;
+use PVE::LXCSetup::Redhat;
 
 my $plugins = {
     debian =>  'PVE::LXCSetup::Debian',
+    redhat =>  'PVE::LXCSetup::Redhat',
 };
 
 my $autodetect_type = sub {
@@ -14,6 +16,8 @@ my $autodetect_type = sub {
     
     if (-f "$rootdir/etc/debian_version") {
 	return "debian";
+    } elsif (-f  "$rootdir/etc/redhat-release") {
+	return "redhat";
     }
     die "unable to detect OS disribution\n";
 };

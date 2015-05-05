@@ -17,7 +17,7 @@ sub new {
     return bless { conf => $conf, rootdir => $rootdir }, $class;
 }
 
-my $lookup_dns_conf = sub {
+sub lookup_dns_conf {
     my ($conf) = @_;
 
     my $nameserver = $conf->{'pve.nameserver'};
@@ -47,9 +47,9 @@ my $lookup_dns_conf = sub {
     }
 
     return ($searchdomains, $nameserver);
-};
+}
 
-my $update_etc_hosts = sub {
+sub update_etc_hosts {
     my ($etc_hosts_data, $hostip, $oldname, $newname, $searchdomains) = @_;
 
     my $done = 0;
@@ -122,12 +122,12 @@ my $update_etc_hosts = sub {
     $etc_hosts_data = join("\n", @lines) . "\n";
     
     return $etc_hosts_data;
-};
+}
 
 sub set_dns {
     my ($self, $conf) = @_;
 
-    my ($searchdomains, $nameserver) = &$lookup_dns_conf($conf);
+    my ($searchdomains, $nameserver) = lookup_dns_conf($conf);
     
     my $rootdir = $self->{rootdir};
     
@@ -168,10 +168,10 @@ sub set_hostname {
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
-    my ($searchdomains) = &$lookup_dns_conf($conf);
+    my ($searchdomains) = lookup_dns_conf($conf);
 
-    $etc_hosts_data = &$update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
-					 $hostname, $searchdomains);
+    $etc_hosts_data = update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
+				       $hostname, $searchdomains);
     
     PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
     PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
