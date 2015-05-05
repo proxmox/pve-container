@@ -42,7 +42,7 @@ sub run_test {
 	
 	$lxc_setup->post_create_hook('$TEST$ABCDEF');
 
-	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf /etc/passwd /etc/shadow);
+	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf /etc/passwd /etc/shadow /etc/sysconfig/network /etc/sysconfig/network-scripts/ifcfg-eth0 /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth2 /etc/sysconfig/network-scripts/ifcfg-eth3 /etc/init/start-ttys.conf /etc/init/tty.conf);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");

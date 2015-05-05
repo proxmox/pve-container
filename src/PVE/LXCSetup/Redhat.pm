@@ -133,7 +133,7 @@ sub set_hostname {
 	PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
     } else {
 	my $data = PVE::Tools::file_get_contents($sysconfig_network);
-	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname/m) {
+	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname\n/m) {
 	    $data .= "HOSTNAME=$hostname\n";
 	}
 	PVE::Tools::file_set_contents($sysconfig_network, $data);

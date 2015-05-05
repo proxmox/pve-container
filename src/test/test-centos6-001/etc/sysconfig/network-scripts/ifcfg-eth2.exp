@@ -1,0 +1,3 @@
+DEVICE=eth2
+ONBOOT=yes
+BOOTPROTO=none
