@@ -124,6 +124,12 @@ sub update_etc_hosts {
     return $etc_hosts_data;
 }
 
+sub template_fixup {
+    my ($self, $conf) = @_;
+
+    # do nothing by default
+}
+
 sub set_dns {
     my ($self, $conf) = @_;
 
@@ -266,6 +272,7 @@ sub pre_start_hook {
 sub post_create_hook {
     my ($self, $conf, $root_password) = @_;
 
+    $self->template_fixup($conf);
     $self->set_user_password($conf, 'root', $root_password);
     $self->setup_init($conf);
     $self->setup_network($conf);

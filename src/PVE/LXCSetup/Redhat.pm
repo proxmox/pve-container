@@ -34,19 +34,7 @@ sub new {
     return bless $self, $class;
 }
 
-sub setup_init {
-    my ($self, $conf) = @_;
-
-    my $rootdir = $self->{rootdir};
-
-    # rm -rf $rootdir/etc/udev/devices
-    # Comment the line "#/sbin/start_udev" in file etc/rc.d/rc.sysinit.
-    # edit/etc/securetty
-
-    my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
-    mkpath "$rootdir/etc/init";
-
-    my $tty_conf = <<__EOD__;
+my $tty_conf = <<__EOD__;
 # tty - getty
 #
 # This service maintains a getty on the specified device.
@@ -61,12 +49,8 @@ instance \$TTY
 exec /sbin/agetty -8 \$TTY 38400
 usage 'tty TTY=/dev/ttyX  - where X is console id'
 __EOD__
-
-    my $filename = "$rootdir/etc/init/tty.conf";
-    PVE::Tools::file_set_contents($filename, $tty_conf)
-	if ! -f $filename;
-
-    my $start_ttys_conf = <<__EOD__;
+    
+my $start_ttys_conf = <<__EOD__;
 #
 # This service starts the configured number of gettys.
 #
@@ -87,9 +71,54 @@ script
 end script
 __EOD__
 
-    $filename = "$rootdir/etc/init/start-ttys.conf";
-    PVE::Tools::file_set_contents($filename, $start_ttys_conf)
-	if ! -f $filename;
+sub template_fixup {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+    
+    if ($self->{version} < 7) {
+	# re-create emissing files for tty
+
+	mkpath "$rootdir/etc/init";
+
+	my $filename = "$rootdir/etc/init/tty.conf";
+	PVE::Tools::file_set_contents($filename, $tty_conf)
+	    if ! -f $filename;
+
+
+	$filename = "$rootdir/etc/init/start-ttys.conf";
+	PVE::Tools::file_set_contents($filename, $start_ttys_conf)
+	    if ! -f $filename;
+
+	# do not start udevd
+	$filename = "$rootdir/etc/rc.d/rc.sysinit";
+	my $data = PVE::Tools::file_get_contents($filename);
+	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
+	PVE::Tools::file_set_contents($filename, $data);
+	
+	# edit /etc/securetty (enable login on console)
+	$filename = "$rootdir/etc/securetty";
+	$data = PVE::Tools::file_get_contents($filename);
+	chomp $data; $data .= "\n";
+	foreach my $dev (qw(console tty1 tty2 tty3 tty4)) {
+	    if ($data !~ m!^lxc/$dev\s*$!m) {
+		$data .= "lxc/$dev\n"; 
+	    }
+	}
+	PVE::Tools::file_set_contents($filename, $data);
+    }
+}
+
+    
+sub setup_init {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+
+     # edit/etc/securetty
+
+    my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
+
 
 }
 

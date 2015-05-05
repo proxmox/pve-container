@@ -42,6 +42,12 @@ sub new {
     return $self;
 }
 
+sub template_fixup {
+    my ($self) = @_;
+
+    $self->{plugin}->template_fixup($self->{conf});
+}
+ 
 sub setup_network {
     my ($self) = @_;
 
