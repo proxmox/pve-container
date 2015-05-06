@@ -71,6 +71,14 @@ script
 end script
 __EOD__
 
+my $power_status_changed_conf = <<__EOD__;
+#  power-status-changed - shutdown on SIGPWR
+#
+start on power-status-changed
+    
+exec /sbin/shutdown -h now "SIGPWR received"
+__EOD__
+
 sub template_fixup {
     my ($self, $conf) = @_;
 
@@ -88,6 +96,10 @@ sub template_fixup {
 
 	$filename = "$rootdir/etc/init/start-ttys.conf";
 	PVE::Tools::file_set_contents($filename, $start_ttys_conf)
+	    if ! -f $filename;
+
+	$filename = "$rootdir/etc/init/power-status-changed.conf";
+	PVE::Tools::file_set_contents($filename, $power_status_changed_conf)
 	    if ! -f $filename;
 
 	# do not start udevd

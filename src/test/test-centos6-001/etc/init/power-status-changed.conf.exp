@@ -1,0 +1,5 @@
+#  power-status-changed - shutdown on SIGPWR
+#
+start on power-status-changed
+    
+exec /sbin/shutdown -h now "SIGPWR received"
