@@ -1,3 +1,9 @@
+pve-container (0.6-2) unstable; urgency=medium
+
+  * depend on lxc-pve
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 06 May 2015 10:37:18 +0200
+
 pve-container (0.6-1) unstable; urgency=medium
 
   * add support for centos6

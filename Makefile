@@ -2,7 +2,7 @@ RELEASE=4.0
 
 VERSION=0.6
 PACKAGE=pve-container
-PKGREL=1
+PKGREL=2
 
 GITVERSION:=$(shell cat .git/refs/heads/master)
 
