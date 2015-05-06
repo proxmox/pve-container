@@ -46,7 +46,7 @@ stop on runlevel [S016]
 
 respawn
 instance \$TTY
-exec /sbin/agetty -8 \$TTY 38400
+exec /sbin/mingetty \$TTY
 usage 'tty TTY=/dev/ttyX  - where X is console id'
 __EOD__
     
