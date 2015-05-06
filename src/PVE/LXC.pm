@@ -179,10 +179,12 @@ sub write_lxc_config {
 	$raw .= "$k = $data->{$k}\n";
     }
 
+    my $network_count = 0;
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^net\d+$/;
 	$done_hash->{$k} = 1;
 	my $net = $data->{$k};
+	$network_count++;
 	$raw .= "lxc.network.type = $net->{type}\n";
 	foreach my $subkey (sort keys %$net) {
 	    next if $subkey eq 'type';
@@ -194,6 +196,10 @@ sub write_lxc_config {
 		die "found invalid network key '$subkey'";
 	    }
 	}
+    }
+
+    if (!$network_count) {
+	$raw .= "lxc.network.type = empty\n";
     }
 
     foreach my $k (sort keys %$data) {
@@ -323,6 +329,7 @@ sub parse_lxc_config {
     &$push_network($network);
 
     foreach my $net (@{$network_list}) {
+	next if $net->{type} eq 'empty'; # skip
 	$net->{'veth.pair'} = &$find_next_hostif_name() if !$net->{'veth.pair'};
 	$net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
 	die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
