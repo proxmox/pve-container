@@ -251,8 +251,6 @@ __PACKAGE__->register_method({
 	    $d->{name} = "eth$ind"; # fixme: do not overwrite settings!
 	}
 
-	$conf->{'lxc.hook.mount'} = "/usr/share/lxc/hooks/lxc-pve-mount-hook";
-
 	# use user namespace ?
 	# disable for now, because kernel 3.10.0 does not support it
 	#$conf->{'lxc.id_map'} = ["u 0 100000 65536", "g 0 100000 65536"];
