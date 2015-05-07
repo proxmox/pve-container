@@ -40,9 +40,10 @@ sub run_test {
     for (my $i = 0; $i < 2; $i++) {
 	# run tests twice, to make sure scripts are idempotent
 	
+	srand(0);
 	$lxc_setup->post_create_hook('$TEST$ABCDEF');
 
-	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf /etc/passwd /etc/shadow /etc/sysconfig/network /etc/sysconfig/network-scripts/ifcfg-eth0 /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth2 /etc/sysconfig/network-scripts/ifcfg-eth3 /etc/init/start-ttys.conf /etc/init/tty.conf /etc/init/power-status-changed.conf /etc/securetty);
+	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf /etc/passwd /etc/shadow /etc/sysconfig/network /etc/sysconfig/network-scripts/ifcfg-eth0 /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth2 /etc/sysconfig/network-scripts/ifcfg-eth3 /etc/init/start-ttys.conf /etc/init/tty.conf /etc/init/power-status-changed.conf /etc/securetty /etc/crontab);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");

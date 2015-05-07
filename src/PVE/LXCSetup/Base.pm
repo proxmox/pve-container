@@ -258,6 +258,33 @@ sub set_user_password {
     }
 }
 
+my $randomize_crontab = sub {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+
+    my @files = <$rootdir/etc/cron.d/*>;
+
+    my $crontab_fn = "$rootdir/etc/crontab";
+    unshift @files, $crontab_fn if -f $crontab_fn;
+    
+    foreach my $filename (@files) {
+	my $data = PVE::Tools::file_get_contents($filename);
+ 	my $new = '';
+	foreach my $line (split(/\n/, $data)) {
+	    # we only randomize minutes for root crontab entries
+	    if ($line =~ m/^\d+(\s+\S+\s+\S+\s+\S+\s+\S+\s+root\s+\S.*)$/) {
+		my $rest = $1;
+		my $min = int(rand()*59);
+		$new .= "$min$rest\n";
+	    } else {
+		$new .= "$line\n";
+	    }
+	}
+	PVE::Tools::file_set_contents($filename, $new);
+   }
+};
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
@@ -273,6 +300,9 @@ sub post_create_hook {
     my ($self, $conf, $root_password) = @_;
 
     $self->template_fixup($conf);
+    
+    &$randomize_crontab($self, $conf);
+    
     $self->set_user_password($conf, 'root', $root_password);
     $self->setup_init($conf);
     $self->setup_network($conf);
