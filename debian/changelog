@@ -1,3 +1,11 @@
+pve-container (0.7-1) unstable; urgency=medium
+
+  * randomize crontab entries
+
+  * install global lxc config
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 07 May 2015 09:09:15 +0200
+
 pve-container (0.6-2) unstable; urgency=medium
 
   * depend on lxc-pve
