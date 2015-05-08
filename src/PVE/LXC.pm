@@ -160,23 +160,35 @@ sub write_lxc_config {
 
     my $done_hash = { digest => 1};
 
-    foreach my $k (sort keys %$data) {
-	next if $k !~ m/^lxc\./;
+    my $dump_entry = sub {
+	my ($k) = @_;
+	my $value = $data->{$k};
+	return if !defined($value);
+	return if $done_hash->{$k};
 	$done_hash->{$k} = 1;
-	if (ref($data->{$k})) {
-	    die "got unexpected reference for '$k'" if !$lxc_array_configs->{$k};
-	    foreach my $v (@{$data->{$k}}) {
+	if (ref($value)) {
+	    die "got unexpected reference for '$k'" 
+		if !$lxc_array_configs->{$k};
+	    foreach my $v (@$value) {
 		$raw .= "$k = $v\n";
 	    }
 	} else {
-	    $raw .= "$k = $data->{$k}\n";
+	    $raw .= "$k = $value\n";
 	}
+    };
+
+    # Note: Order is important! Include defaults first, so that we
+    # can overwrite them later.
+    &$dump_entry('lxc.include');
+    
+    foreach my $k (sort keys %$data) {
+	next if $k !~ m/^lxc\./;
+	&$dump_entry($k);
     }
 
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^pve\./;
-	$done_hash->{$k} = 1;
-	$raw .= "$k = $data->{$k}\n";
+	&$dump_entry($k);
     }
 
     my $network_count = 0;
