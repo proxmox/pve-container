@@ -1,0 +1,78 @@
+= Info for developers =
+
+== Command Line Tool ==
+
+Example:
+
+ # pct create 200 debian-7.0-standard_7.0-2_i386.tar.gz
+ # pct start 200
+ # pct enter 200
+ # pct stop 200
+ # pct destroy 200
+
+You can get detailed help with:
+
+ # pct help -v
+ 
+== Container names ==
+
+We use integers values for container names (and do not allow to use
+arbitrary names for containers).
+
+== LXC Configuration ==
+
+We store LXC container configurations on the cluster file system:
+
+ /etc/pve/nodes/<nodeid>/lxc/<CTID>/config
+
+There is a symbolic link for the local node at
+
+ /etc/pve/lxc => /etc/pve/nodes/<localhost>/lxc
+
+We store PVE related configuration using prefix 'pve', for example:
+
+ # lxc config for container 105
+ lxc.include = /usr/share/lxc/config/debian.common.conf
+ lxc.utsname = ct1
+ pve.disksize = 8
+ pve.volid = local:105/vm-105-rootfs.raw
+ # network config
+ lxc.network.type = veth
+ pve.network.bridge = vmbr0
+ pve.network.gw = 192.168.2.1
+ lxc.network.hwaddr = 86:5D:0B:28:E6:23
+ pve.network.ip = 192.168.3.106/20
+ lxc.network.name = eth0
+ lxc.network.veth.pair = veth105.0
+
+Those 'pve.network' entrioes are used by the PVE::LXCSetup classes to
+configure the network inside the containers.
+
+We only allow 'veth' networks, and use 'lxc.network.veth.pair' to
+uniquely identify the network withing the configuration file
+
+ veth<vmid>.0 => net0
+ veth<vmid>.1 => net1
+ veth<vmid>.2 => net2
+ ...
+
+
+== CRIU ==
+
+CRIU (1.5.2) does not work well with kernel 3.10.0, so checkpoint/restore
+and live migration does not work.
+
+= FAQ =
+
+* Why not LXD
+
+- LXD uses a local database to store configuration files, which simply
+  does not work with our distributed configuration file system
+  (pmxcfs)
+
+- We want to use our existing libraries (i.e. Storage).
+
+- It is a wrapper around LXC, and only provides a REST API and new CLI
+  tool. But Proxmox VE already provides a full featured API, and CLI tools
+  are automatically generated from that API.
+
