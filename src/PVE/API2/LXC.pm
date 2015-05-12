@@ -651,7 +651,7 @@ __PACKAGE__->register_method ({
 	my ($remip, $family);
 
 	if ($node ne PVE::INotify::nodename()) {
-	    ($remip, $family) = PVE::Cluster::remote_node_ip_and_family($node);
+	    ($remip, $family) = PVE::Cluster::remote_node_ip($node);
 	} else {
 	    $family = PVE::Tools::get_host_address_family($node);
 	}
