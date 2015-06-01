@@ -530,10 +530,10 @@ my $confdesc = {
 	default => 0,
     },
     startup => get_standard_option('pve-startup-order'),
-    cpus => {
+    cpulimit => {
 	optional => 1,
 	type => 'integer',
-	description => "The number of CPUs for this container (0 is unlimited).",
+	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has total of '2' CPU time. Value '0' indicates no CPU limit.",
 	minimum => 0,
 	maximum => 128,
 	default => 0,
@@ -911,7 +911,7 @@ sub lxc_conf_to_pve {
 		my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
 		$conf->{$k} = int(($value -$mem) / (1024*1024));
 	    }
-	} elsif ($k eq 'cpus') {
+	} elsif ($k eq 'cpulimit') {
 	    my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
 	    my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
 	    
@@ -1010,7 +1010,7 @@ sub update_lxc_config {
 	    my $mem =  $conf->{'lxc.cgroup.memory.limit_in_bytes'};
 	    $mem = $param->{memory}*1024*1024 if $param->{memory};
 	    $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $mem + $value*1024*1024;
-	} elsif ($opt eq 'cpus') {
+	} elsif ($opt eq 'cpulimit') {
 	    if ($value > 0) {
 		my $cfs_period_us = 100000;
 		$conf->{'lxc.cgroup.cpu.cfs_period_us'} = $cfs_period_us;
