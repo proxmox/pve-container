@@ -532,7 +532,7 @@ my $confdesc = {
     startup => get_standard_option('pve-startup-order'),
     cpulimit => {
 	optional => 1,
-	type => 'integer',
+	type => 'number',
 	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has total of '2' CPU time. Value '0' indicates no CPU limit.",
 	minimum => 0,
 	maximum => 128,
@@ -916,7 +916,7 @@ sub lxc_conf_to_pve {
 	    my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
 	    
 	    if ($cfs_period_us && $cfs_quota_us) {
-		$conf->{$k} = int($cfs_quota_us/$cfs_period_us);
+		$conf->{$k} = $cfs_quota_us/$cfs_period_us;
 	    } else {
 		$conf->{$k} = 0;
 	    }
