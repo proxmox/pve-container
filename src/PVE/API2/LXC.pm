@@ -931,11 +931,9 @@ __PACKAGE__->register_method({
 		    PVE::Storage::activate_storage($stcfg, $sid);
 		}
 
-		# lxc-start does not close all FDs, so we cannot 
-		# use run_command
-		# run_command(['lxc-start', '-n', $vmid]);
+		my $cmd = ['lxc-start', '-n', $vmid];
 
-		system("lxc-start -n $vmid");
+		run_command($cmd);
 
 		return;
 	    };
