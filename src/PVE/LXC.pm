@@ -86,7 +86,7 @@ my $valid_lxc_keys = {
     'lxc.loglevel' => 1,
     'lxc.logfile' => 1,
     'lxc.environment' => 1,
-    
+    'lxc.cgroup.devices.deny' => 1,
 
     # autostart
     'lxc.start.auto' => 1,
@@ -149,6 +149,7 @@ my $lxc_array_configs = {
     'lxc.mount' => 1,
     'lxc.include' => 1,
     'lxc.id_map' => 1,
+    'lxc.cgroup.devices.deny' => 1,
 };
 
 sub write_lxc_config {
