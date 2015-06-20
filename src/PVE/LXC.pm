@@ -966,13 +966,14 @@ sub update_lxc_config {
 
     # fixme: hotplug
     die "unable to modify config while container is running\n" if $running;
-
+    
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
 	    if ($opt eq 'hostname' || $opt eq 'memory') {
 		die "unable to delete required option '$opt'\n";
 	    } elsif ($opt eq 'swap') {
 		delete $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'};
+		cgroups_write("memory", $vmid, "memsw.limit_in_bytes", -1, $running);
 	    } elsif ($opt eq 'description') {
 		delete $conf->{'pve.comment'};
 	    } elsif ($opt eq 'onboot') {
@@ -1007,21 +1008,27 @@ sub update_lxc_config {
 	    $conf->{'pve.searchdomain'} = $list;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
+	    cgroups_write("memory", $vmid, "memory.limit_in_bytes", $value*1024*1024, $running);
 	} elsif ($opt eq 'swap') {
 	    my $mem =  $conf->{'lxc.cgroup.memory.limit_in_bytes'};
 	    $mem = $param->{memory}*1024*1024 if $param->{memory};
 	    $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $mem + $value*1024*1024;
+	    cgroups_write("memory", $vmid, "memsw.limit_in_bytes", $mem + $value*1024*1024, $running);
+
 	} elsif ($opt eq 'cpulimit') {
 	    if ($value > 0) {
 		my $cfs_period_us = 100000;
 		$conf->{'lxc.cgroup.cpu.cfs_period_us'} = $cfs_period_us;
 		$conf->{'lxc.cgroup.cpu.cfs_quota_us'} = $cfs_period_us*$value;
+		cgroups_write("cpu", $vmid, "cpu.cfs_quota_us", $cfs_period_us*$value, $running);
 	    } else {
 		delete $conf->{'lxc.cgroup.cpu.cfs_period_us'};
 		delete $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
+		cgroups_write("cpu", $vmid, "cpu.cfs_quota_us", -1, $running);
 	    }
 	} elsif ($opt eq 'cpuunits') {
 	    $conf->{'lxc.cgroup.cpu.shares'} = $value;	    
+	    cgroups_write("cpu", $vmid, "cpu.shares", $value, $running);
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
 	} elsif ($opt eq 'disk') {
@@ -1070,6 +1077,15 @@ sub destory_lxc_container {
 
 	PVE::Tools::run_command($cmd);
     }
+}
+
+sub cgroups_write {
+   my ($controller, $vmid, $option, $value, $running) = @_;
+
+   return if !$running;
+   my $path = "/sys/fs/cgroup/$controller/lxc/$vmid/$option";
+   PVE::ProcFSTools::write_proc_entry($path, $value);
+
 }
     
 1;
