@@ -596,7 +596,12 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     $confdesc->{"net$i"} = {
 	optional => 1,
 	type => 'string', format => 'pve-lxc-network',
-	description => "Specifies network interfaces for the container.",
+	description => "Specifies network interfaces for the container.\n\n".
+	    "The string should have the follow format:\n\n".
+	    "-net<[0-9]> bridge=<vmbr<Nummber>>[,hwaddr=<MAC>]\n".
+	    "[,mtu=<Number>][,name=<String>][,ip=<IPv4Format/CIDR>]\n".
+	    ",ip6=<IPv6Format/CIDR>][,gw=<GatwayIPv4>]\n".
+	    ",gw6=<GatwayIPv6>][,firewall=<[1|0]>][,tag=<VlanNo>]",
     };
 }
 
