@@ -228,7 +228,7 @@ sub parse_lxc_option {
 
     my $parser = $valid_lxc_keys->{$name};
 
-    die "inavlid key '$name'\n" if !defined($parser);
+    die "invalid key '$name'\n" if !defined($parser);
 
     if ($parser eq '1') {
 	return $value;		
