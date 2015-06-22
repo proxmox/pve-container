@@ -817,6 +817,14 @@ sub read_cgroup_value {
     return PVE::Tools::file_read_firstline($path);
 }
 
+sub write_cgroup_value {
+   my ($group, $vmid, $name, $value) = @_;
+
+   my $path = "/sys/fs/cgroup/$group/lxc/$vmid/$name";
+   PVE::ProcFSTools::write_proc_entry($path, $value) if -e $path;
+
+}
+
 sub find_lxc_console_pids {
 
     my $res = {};
@@ -977,16 +985,15 @@ sub verify_searchdomain_list {
 sub update_lxc_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
-    # fixme: hotplug
-    die "unable to modify config while container is running\n" if $running;
-    
+    my @nohotplug;
+
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
 	    if ($opt eq 'hostname' || $opt eq 'memory') {
 		die "unable to delete required option '$opt'\n";
 	    } elsif ($opt eq 'swap') {
 		delete $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'};
-		cgroups_write("memory", $vmid, "memsw.limit_in_bytes", -1, $running);
+		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", -1);
 	    } elsif ($opt eq 'description') {
 		delete $conf->{'pve.comment'};
 	    } elsif ($opt eq 'onboot') {
@@ -995,13 +1002,20 @@ sub update_lxc_config {
 		delete $conf->{'pve.startup'};
 	    } elsif ($opt eq 'nameserver') {
 		delete $conf->{'pve.nameserver'};
+		push @nohotplug, $opt;
+		next if $running;
 	    } elsif ($opt eq 'searchdomain') {
 		delete $conf->{'pve.searchdomain'};
+		push @nohotplug, $opt;
+		next if $running;
 	    } elsif ($opt =~ m/^net\d$/) {
 		delete $conf->{$opt};
+		push @nohotplug, $opt;
+		next if $running;
 	    } else {
 		die "implement me"
 	    }
+	    PVE::LXC::write_config($vmid, $conf) if $running;
 	}
     }
 
@@ -1016,45 +1030,56 @@ sub update_lxc_config {
 	} elsif ($opt eq 'nameserver') {
 	    my $list = verify_nameserver_list($value);
 	    $conf->{'pve.nameserver'} = $list;
+	    push @nohotplug, $opt;
+	    next if $running;
 	} elsif ($opt eq 'searchdomain') {
 	    my $list = verify_searchdomain_list($value);
 	    $conf->{'pve.searchdomain'} = $list;
+	    push @nohotplug, $opt;
+	    next if $running;
 	} elsif ($opt eq 'memory') {
 	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
-	    cgroups_write("memory", $vmid, "memory.limit_in_bytes", $value*1024*1024, $running);
+	    write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", $value*1024*1024);
 	} elsif ($opt eq 'swap') {
 	    my $mem =  $conf->{'lxc.cgroup.memory.limit_in_bytes'};
 	    $mem = $param->{memory}*1024*1024 if $param->{memory};
 	    $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $mem + $value*1024*1024;
-	    cgroups_write("memory", $vmid, "memsw.limit_in_bytes", $mem + $value*1024*1024, $running);
+	    write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", $mem + $value*1024*1024);
 
 	} elsif ($opt eq 'cpulimit') {
 	    if ($value > 0) {
 		my $cfs_period_us = 100000;
 		$conf->{'lxc.cgroup.cpu.cfs_period_us'} = $cfs_period_us;
 		$conf->{'lxc.cgroup.cpu.cfs_quota_us'} = $cfs_period_us*$value;
-		cgroups_write("cpu", $vmid, "cpu.cfs_quota_us", $cfs_period_us*$value, $running);
+		write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", $cfs_period_us*$value);
 	    } else {
 		delete $conf->{'lxc.cgroup.cpu.cfs_period_us'};
 		delete $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-		cgroups_write("cpu", $vmid, "cpu.cfs_quota_us", -1, $running);
+		write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
 	    }
 	} elsif ($opt eq 'cpuunits') {
 	    $conf->{'lxc.cgroup.cpu.shares'} = $value;	    
-	    cgroups_write("cpu", $vmid, "cpu.shares", $value, $running);
+	    write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
 	} elsif ($opt eq 'disk') {
 	    $conf->{'pve.disksize'} = $value;
+	    push @nohotplug, $opt;
+	    next if $running;
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);
 	    $net->{'veth.pair'} = "veth${vmid}.$netid";
 	    $conf->{$opt} = $net;
+	    push @nohotplug, $opt;
+	    next if $running;
 	} else {
 	    die "implement me"
 	}
+	PVE::LXC::write_config($vmid, $conf) if $running;
     }
+
+    die "unable to modify ".join(",",@nohotplug)." while container is running\n" if @nohotplug > 0 && $running;
 }
 
 sub get_primary_ips {
@@ -1090,15 +1115,6 @@ sub destory_lxc_container {
 
 	PVE::Tools::run_command($cmd);
     }
-}
-
-sub cgroups_write {
-   my ($controller, $vmid, $option, $value, $running) = @_;
-
-   return if !$running;
-   my $path = "/sys/fs/cgroup/$controller/lxc/$vmid/$option";
-   PVE::ProcFSTools::write_proc_entry($path, $value);
-
 }
     
 1;
