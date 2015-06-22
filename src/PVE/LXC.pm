@@ -1079,7 +1079,9 @@ sub update_lxc_config {
 	PVE::LXC::write_config($vmid, $conf) if $running;
     }
 
-    die "unable to modify ".join(",",@nohotplug)." while container is running\n" if @nohotplug > 0 && $running;
+    if ($running && scalar(@nohotplug)) {
+	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
+    }
 }
 
 sub get_primary_ips {
