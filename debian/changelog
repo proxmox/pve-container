@@ -1,3 +1,9 @@
+pve-container (0.8-1) unstable; urgency=medium
+
+  * only use lxc-pve-mount-hook for containers on /etc/pve/
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 24 Jun 2015 06:41:37 +0200
+
 pve-container (0.7-2) unstable; urgency=medium
 
   * use nowait trigger for pve-api-updates
