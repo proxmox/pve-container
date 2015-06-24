@@ -2,19 +2,28 @@ package PVE::LXCSetup;
 
 use strict;
 use warnings;
+use PVE::Tools;
 
 use PVE::LXCSetup::Debian;
+use PVE::LXCSetup::Ubuntu;
 use PVE::LXCSetup::Redhat;
 
 my $plugins = {
     debian =>  'PVE::LXCSetup::Debian',
+    ubuntu =>  'PVE::LXCSetup::Ubuntu',
     redhat =>  'PVE::LXCSetup::Redhat',
 };
 
 my $autodetect_type = sub {
     my ($rootdir) = @_;
-    
-    if (-f "$rootdir/etc/debian_version") {
+
+    my $lsb_fn = "$rootdir/etc/lsb-release";
+    if (-f $lsb_fn) {
+	my $data =  PVE::Tools::file_get_contents($lsb_fn);
+	if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
+	    return 'ubuntu';
+	}
+    } elsif (-f "$rootdir/etc/debian_version") {
 	return "debian";
     } elsif (-f  "$rootdir/etc/redhat-release") {
 	return "redhat";
