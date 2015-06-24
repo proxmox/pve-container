@@ -44,7 +44,12 @@ __PACKAGE__->register_method ({
     parameters => {
     	additionalProperties => 0,
 	properties => {
-	    name => get_standard_option('pve-vmid'),
+	    name => {
+		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>/config (else it is just a NOP).",
+		type => 'string',
+		pattern => '\S+',
+		maxLength => 64,
+	    },
 	    path => {
 		description => "The path to the container configuration directory (LXC internal argument - do not pass manually!).",
 		type => 'string',
@@ -62,8 +67,8 @@ __PACKAGE__->register_method ({
 
 	my $private = $param->{rootfs};
 
-	die "got strange path '$param->{path}'\n"
-	    if $param->{path} !~ m!^/etc/pve/lxc/$param->{name}/config$!;
+	return undef if $param->{name} !~ m/^\d+$/;
+	return undef if $param->{path} !~ m!^/etc/pve/lxc/$param->{name}/config$!;
 
 	my $raw = PVE::Tools::file_get_contents($param->{path});
 	my $conf = PVE::LXC::parse_lxc_config($param->{path}, $raw);
@@ -113,7 +118,7 @@ lxc-pve - LXC mount hook for Proxmox VE
 
 =head1 DESCRIPTION
 
-This mount hook sets the network and hostname for the container.
+This mount hook sets the network and hostname for pve container.
 
 =head1 SEE ALSO
 
