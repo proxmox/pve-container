@@ -803,7 +803,7 @@ sub parse_lxc_network {
     }
 
     $res->{type} = 'veth';
-    $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{mac};
+    $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{hwaddr};
    
     return $res;
 }
@@ -1071,10 +1071,11 @@ sub update_lxc_config {
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);
+	    my $oldnet = $conf->{$opt} ? $conf->{$opt} : undef;
 	    $net->{'veth.pair'} = "veth${vmid}.$netid";
 	    $conf->{$opt} = $net;
-	    push @nohotplug, $opt;
-	    next if $running;
+	    next if !$running;
+	    update_net($vmid, $net, $oldnet, $netid);
 	} else {
 	    die "implement me"
 	}
@@ -1119,6 +1120,72 @@ sub destory_lxc_container {
 
 	PVE::Tools::run_command($cmd);
     }
+}
+
+my $safe_num_ne = sub {
+    my ($a, $b) = @_;
+
+    return 0 if !defined($a) && !defined($b);
+    return 1 if !defined($a);
+    return 1 if !defined($b);
+
+    return $a != $b;
+};
+
+my $safe_string_ne = sub {
+    my ($a, $b) = @_;
+
+    return 0 if !defined($a) && !defined($b);
+    return 1 if !defined($a);
+    return 1 if !defined($b);
+
+    return $a ne $b;
+};
+
+sub update_net {
+    my ($vmid, $newnet, $oldnet, $netid) = @_;
+
+    my $veth = $newnet->{'veth.pair'};
+    my $vethpeer = $veth."p";
+    my $eth = $newnet->{name};
+
+    if ($oldnet) {
+	if (&$safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr}) ||
+	    &$safe_string_ne($oldnet->{name}, $newnet->{name})) { 
+
+            PVE::Network::veth_delete($veth);
+	    hotplug_net($vmid, $newnet);
+
+	} elsif (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
+                &$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
+                &$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
+
+                PVE::Network::tap_unplug($veth);
+                PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+	}
+    } else {
+	hotplug_net($vmid, $newnet);
+    }
+
+}
+
+sub hotplug_net {
+    my ($vmid, $newnet) = @_;
+
+    my $veth = $newnet->{'veth.pair'};
+    my $vethpeer = $veth."p";
+    my $eth = $newnet->{name};
+
+    PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
+    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+
+    #attach peer in container
+    my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
+    PVE::Tools::run_command($cmd);
+
+    #link up peer in container
+    $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth ,'up'  ];
+    PVE::Tools::run_command($cmd);
 }
 
 1;
