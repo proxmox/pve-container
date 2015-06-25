@@ -1167,6 +1167,7 @@ sub update_net {
 	hotplug_net($vmid, $newnet);
     }
 
+    update_ipconfig($vmid, $eth, $oldnet, $newnet);
 }
 
 sub hotplug_net {
@@ -1186,6 +1187,25 @@ sub hotplug_net {
     #link up peer in container
     $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth ,'up'  ];
     PVE::Tools::run_command($cmd);
+}
+
+sub update_ipconfig {
+    my ($vmid, $eth, $oldnet, $newnet) = @_;
+
+
+    if (&$safe_string_ne($oldnet->{ip}, $newnet->{ip})) {
+        my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip}, 'dev', $eth  ];
+        PVE::Tools::run_command($cmd);
+    }
+
+    if (&$safe_string_ne($oldnet->{gw}, $newnet->{gw})) {
+        my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw} ];
+        PVE::Tools::run_command($cmd);
+    }
+    #fix me : ip,gateway removal
+    #fix me : ipv6
+    #fix me : write /etc/network/interfaces ?
+
 }
 
 1;
