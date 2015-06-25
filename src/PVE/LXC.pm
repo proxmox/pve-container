@@ -13,6 +13,7 @@ use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw($IPV6RE $IPV4RE);
+use PVE::Network;
 
 use Data::Dumper;
 
@@ -1008,10 +1009,11 @@ sub update_lxc_config {
 		delete $conf->{'pve.searchdomain'};
 		push @nohotplug, $opt;
 		next if $running;
-	    } elsif ($opt =~ m/^net\d$/) {
+	    } elsif ($opt =~ m/^net(\d)$/) {
 		delete $conf->{$opt};
-		push @nohotplug, $opt;
-		next if $running;
+		next if !$running;
+		my $netid = $1;
+		PVE::Network::veth_delete("veth${vmid}.$netid");
 	    } else {
 		die "implement me"
 	    }
@@ -1118,5 +1120,5 @@ sub destory_lxc_container {
 	PVE::Tools::run_command($cmd);
     }
 }
-    
+
 1;
