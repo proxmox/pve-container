@@ -70,9 +70,14 @@ and live migration does not work.
   does not work with our distributed configuration file system
   (pmxcfs)
 
-- We want to use our existing libraries (i.e. Storage).
+- We want to use our existing libraries (i.e. Storage). Also see:
+  https://lists.linuxcontainers.org/pipermail/lxc-users/2015-June/009441.html
+  where they write: "Lxd will not be as flexible as lxc in many ways,
+  including with respect to backing stores."
 
+  We have a different goal, and want to support many new storage technologies
+  like zfs, ceph, ...
+  
 - It is a wrapper around LXC, and only provides a REST API and new CLI
   tool. But Proxmox VE already provides a full featured API, and CLI tools
   are automatically generated from that API.
-
