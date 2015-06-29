@@ -263,7 +263,13 @@ my $randomize_crontab = sub {
 
     my $rootdir = $self->{rootdir};
 
-    my @files = <$rootdir/etc/cron.d/*>;
+    my @files;
+    # Note: dir_glob_foreach() untaints filenames!
+    my $cron_dir = "$rootdir/etc/cron.d";
+    PVE::Tools::dir_glob_foreach($cron_dir, qr/[A-Z\-\_a-z0-9]+/, sub {
+	my ($name) = @_;
+	push @files, "$cron_dir/$name";
+    });
 
     my $crontab_fn = "$rootdir/etc/crontab";
     unshift @files, $crontab_fn if -f $crontab_fn;
