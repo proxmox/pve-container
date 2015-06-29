@@ -760,11 +760,12 @@ sub vmstatus {
 	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $d->{mem};
 
 	my $blkio_bytes = read_cgroup_value('blkio', $vmid, 'blkio.throttle.io_service_bytes', 1);
-	my @bytes = split /\n/, $blkio_bytes;
+	my @bytes = split(/\n/, $blkio_bytes);
 	foreach my $byte (@bytes) {
-	    my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/;
-	    $d->{diskread} = $2 if $key eq 'Read';
-	    $d->{diskwrite} = $2 if $key eq 'Write';
+	    if (my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/) {
+		$d->{diskread} = $2 if $key eq 'Read';
+		$d->{diskwrite} = $2 if $key eq 'Write';
+	    }
 	}
     }
     
