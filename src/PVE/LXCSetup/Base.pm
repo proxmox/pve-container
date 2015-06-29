@@ -285,6 +285,37 @@ my $randomize_crontab = sub {
    }
 };
 
+sub rewrite_ssh_host_keys {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+
+    my $etc_ssh_dir = "$rootdir/etc/ssh";
+
+    return if ! -d $etc_ssh_dir;
+    
+    my $keynames = {
+	rsa1 => 'ssh_host_key',
+	rsa => 'ssh_host_rsa_key',
+	dsa => 'ssh_host_dsa_key',
+	ecdsa => 'ssh_host_ecdsa_key', 
+	ed25519 => 'ssh_host_ed25519_key',
+    };
+
+    my $hostname = $conf->{'lxc.utsname'} || 'localhost';
+    $hostname =~ s/\..*$//;
+
+    foreach my $keytype (keys %$keynames) {
+	my $basename = $keynames->{$keytype};
+	unlink "${etc_ssh_dir}/$basename";
+	unlink "${etc_ssh_dir}/$basename.pub";
+	print "Creating SSH host key '$basename' - this may take some time ...\n";
+	my $cmd = ['ssh-keygen', '-q', '-f', "${etc_ssh_dir}/$basename", '-t', $keytype,
+		   '-N', '', '-C', "root\@$hostname"];
+	PVE::Tools::run_command($cmd);
+    }
+}
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
@@ -308,6 +339,7 @@ sub post_create_hook {
     $self->setup_network($conf);
     $self->set_hostname($conf);
     $self->set_dns($conf);
+    $self->rewrite_ssh_host_keys($conf);
     
     # fixme: what else ?
 }

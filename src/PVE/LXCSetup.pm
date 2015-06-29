@@ -87,6 +87,12 @@ sub set_user_password {
     $self->{plugin}->set_user_password($self->{conf}, $user, $pw);
 }
 
+sub rewrite_ssh_host_keys {
+    my ($self) = @_;
+
+    $self->{plugin}->rewrite_ssh_host_keys($self->{conf});
+}    
+
 sub pre_start_hook {
     my ($self) = @_;
 
