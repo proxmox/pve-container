@@ -1,3 +1,13 @@
+pve-container (0.9-1) unstable; urgency=medium
+
+  * correctly untaint crontab filenames
+
+  * create new ssh host keys at startup
+
+  * add net hotplug and hotplug ip configuration
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 29 Jun 2015 12:38:46 +0200
+
 pve-container (0.8-1) unstable; urgency=medium
 
   * only use lxc-pve-mount-hook for containers on /etc/pve/
