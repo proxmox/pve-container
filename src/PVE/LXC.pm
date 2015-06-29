@@ -776,11 +776,11 @@ sub vmstatus {
 sub print_lxc_network {
     my $net = shift;
 
-    die "no network bridge defined\n" if !$net->{bridge};
+    die "no network name defined\n" if !$net->{name};
 
-    my $res = "bridge=$net->{bridge}";
+    my $res = "name=$net->{name}";
 
-    foreach my $k (qw(hwaddr mtu name ip gw ip6 gw6 firewall tag)) {
+    foreach my $k (qw(hwaddr mtu bridge ip gw ip6 gw6 firewall tag)) {
 	next if !defined($net->{$k});
 	$res .= ",$k=$net->{$k}";
     }
@@ -851,6 +851,19 @@ sub find_lxc_console_pids {
     });
 
     return $res;
+}
+
+sub find_lxc_pid {
+    my ($vmid) = @_;
+
+    my $pid = undef;
+    my $parser = sub {
+        my $line = shift;
+        $pid = $1 if $line =~ m/PID:\s+(\d+)/;
+    };
+    PVE::Tools::run_command(['lxc-info', '-n', $vmid], outfunc => $parser);
+
+   return $pid;
 }
 
 my $ipv4_reverse_mask = [
@@ -989,6 +1002,12 @@ sub update_lxc_config {
 
     my @nohotplug;
 
+    my $rootdir = undef;
+    if($running){
+	my $pid = find_lxc_pid($vmid);
+	$rootdir = "/proc/$pid/root/";
+    }
+
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
 	    if ($opt eq 'hostname' || $opt eq 'memory') {
@@ -1026,6 +1045,7 @@ sub update_lxc_config {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
 	    $conf->{'lxc.utsname'} = $value;
+
 	} elsif ($opt eq 'onboot') {
 	    $conf->{'pve.onboot'} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
@@ -1072,11 +1092,13 @@ sub update_lxc_config {
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);
-	    my $oldnet = $conf->{$opt} ? $conf->{$opt} : undef;
 	    $net->{'veth.pair'} = "veth${vmid}.$netid";
-	    $conf->{$opt} = $net;
-	    next if !$running;
-	    update_net($vmid, $net, $oldnet, $netid);
+ 	    if(!$running) {
+		$conf->{$opt} = $net;
+	    }else{
+		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
+	    }
+
 	} else {
 	    die "implement me"
 	}
@@ -1144,35 +1166,49 @@ my $safe_string_ne = sub {
 };
 
 sub update_net {
-    my ($vmid, $newnet, $oldnet, $netid) = @_;
+    my ($vmid, $conf, $opt, $newnet, $netid, $rootdir) = @_;
 
     my $veth = $newnet->{'veth.pair'};
     my $vethpeer = $veth."p";
     my $eth = $newnet->{name};
 
-    if ($oldnet) {
-	if (&$safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr}) ||
-	    &$safe_string_ne($oldnet->{name}, $newnet->{name})) { 
+    if ($conf->{$opt}) {
+	if (&$safe_string_ne($conf->{$opt}->{hwaddr}, $newnet->{hwaddr}) ||
+	    &$safe_string_ne($conf->{$opt}->{name}, $newnet->{name})) { 
 
             PVE::Network::veth_delete($veth);
-	    hotplug_net($vmid, $newnet);
+	    delete $conf->{$opt};
+	    PVE::LXC::write_config($vmid, $conf);
 
-	} elsif (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
-                &$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
-                &$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
+	    hotplug_net($vmid, $conf, $opt, $newnet);
 
-                PVE::Network::tap_unplug($veth);
+	} elsif (&$safe_string_ne($conf->{$opt}->{bridge}, $newnet->{bridge}) ||
+                &$safe_num_ne($conf->{$opt}->{tag}, $newnet->{tag}) ||
+                &$safe_num_ne($conf->{$opt}->{firewall}, $newnet->{firewall})) {
+
+		if ($conf->{$opt}->{bridge}){
+		    PVE::Network::tap_unplug($veth);
+		    delete $conf->{$opt}->{bridge};
+		    delete $conf->{$opt}->{tag};
+		    delete $conf->{$opt}->{firewall};
+		    PVE::LXC::write_config($vmid, $conf);
+		}
+
                 PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+		$conf->{$opt}->{bridge} = $newnet->{bridge} if $newnet->{bridge};
+		$conf->{$opt}->{tag} = $newnet->{tag} if $newnet->{tag};
+		$conf->{$opt}->{firewall} = $newnet->{firewall} if $newnet->{firewall};
+		PVE::LXC::write_config($vmid, $conf);
 	}
     } else {
-	hotplug_net($vmid, $newnet);
+	hotplug_net($vmid, $conf, $opt, $newnet);
     }
 
-    update_ipconfig($vmid, $eth, $oldnet, $newnet);
+    update_ipconfig($vmid, $conf, $opt, $eth, $newnet, $rootdir);
 }
 
 sub hotplug_net {
-    my ($vmid, $newnet) = @_;
+    my ($vmid, $conf, $opt, $newnet) = @_;
 
     my $veth = $newnet->{'veth.pair'};
     my $vethpeer = $veth."p";
@@ -1188,24 +1224,115 @@ sub hotplug_net {
     #link up peer in container
     $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth ,'up'  ];
     PVE::Tools::run_command($cmd);
+
+    $conf->{$opt}->{type} = 'veth';
+    $conf->{$opt}->{bridge} = $newnet->{bridge} if $newnet->{bridge};
+    $conf->{$opt}->{tag} = $newnet->{tag} if $newnet->{tag};
+    $conf->{$opt}->{firewall} = $newnet->{firewall} if $newnet->{firewall};
+    $conf->{$opt}->{hwaddr} = $newnet->{hwaddr} if $newnet->{hwaddr};
+    $conf->{$opt}->{name} = $newnet->{name} if $newnet->{name};
+    $conf->{$opt}->{'veth.pair'} = $newnet->{'veth.pair'} if $newnet->{'veth.pair'};
+
+    delete $conf->{$opt}->{ip} if $conf->{$opt}->{ip};
+    delete $conf->{$opt}->{ip6} if $conf->{$opt}->{ip6};
+    delete $conf->{$opt}->{gw} if $conf->{$opt}->{gw};
+    delete $conf->{$opt}->{gw6} if $conf->{$opt}->{gw6};
+
+    PVE::LXC::write_config($vmid, $conf);
 }
 
 sub update_ipconfig {
-    my ($vmid, $eth, $oldnet, $newnet) = @_;
+    my ($vmid, $conf, $opt, $eth, $newnet, $rootdir) = @_;
 
+    my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
 
-    if (&$safe_string_ne($oldnet->{ip}, $newnet->{ip})) {
-        my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip}, 'dev', $eth  ];
-        PVE::Tools::run_command($cmd);
+    if (&$safe_string_ne($conf->{$opt}->{ip}, $newnet->{ip})) {
+
+	if ($conf->{$opt}->{ip}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip}, 'dev', $eth  ];
+	    PVE::Tools::run_command($cmd);
+
+	    delete $conf->{$opt}->{ip};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
+
+	if ($newnet->{ip}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip}, 'dev', $eth  ];
+	    PVE::Tools::run_command($cmd);
+
+	    $conf->{$opt}->{ip} = $newnet->{ip};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
     }
 
-    if (&$safe_string_ne($oldnet->{gw}, $newnet->{gw})) {
-        my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw} ];
-        PVE::Tools::run_command($cmd);
+
+    if (&$safe_string_ne($conf->{$opt}->{gw}, $newnet->{gw})) {
+
+	if ($conf->{$opt}->{gw}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw} ];
+	    PVE::Tools::run_command($cmd);
+
+	    delete $conf->{$opt}->{gw};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+
+	}
+
+	if ($newnet->{gw}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw} ];
+	    PVE::Tools::run_command($cmd);
+
+	    $conf->{$opt}->{gw} = $newnet->{gw};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+        }
     }
-    #fix me : ip,gateway removal
-    #fix me : ipv6
-    #fix me : write /etc/network/interfaces ?
+
+    if (&$safe_string_ne($conf->{$opt}->{ip6}, $newnet->{ip6})) {
+
+	if ($conf->{$opt}->{ip6}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip6}, 'dev', $eth  ];
+	    PVE::Tools::run_command($cmd);
+
+	    delete $conf->{$opt}->{ip6};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
+
+	if ($newnet->{ip6}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip6}, 'dev', $eth  ];
+	    PVE::Tools::run_command($cmd);
+
+	    $conf->{$opt}->{ip6} = $newnet->{ip6};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
+    }
+
+
+    if (&$safe_string_ne($conf->{$opt}->{gw6}, $newnet->{gw6})) {
+
+	if ($conf->{$opt}->{gw6}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw6} ];
+	    PVE::Tools::run_command($cmd);
+
+	    delete $conf->{$opt}->{gw6};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+
+	}
+
+	if ($newnet->{gw6}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw6} ];
+	    PVE::Tools::run_command($cmd);
+
+	    $conf->{$opt}->{gw6} = $newnet->{gw6};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+        }
+    }
 
 }
 
