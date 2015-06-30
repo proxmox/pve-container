@@ -6,6 +6,8 @@ pve-container (0.9-1) unstable; urgency=medium
 
   * add net hotplug and hotplug ip configuration
 
+  * add support for Ubuntu 15.04
+
  -- Proxmox Support Team <support@proxmox.com>  Mon, 29 Jun 2015 12:38:46 +0200
 
 pve-container (0.8-1) unstable; urgency=medium
