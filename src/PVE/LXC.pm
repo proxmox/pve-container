@@ -1305,7 +1305,7 @@ sub update_ipconfig {
 	    PVE::LXC::write_config($vmid, $conf);
 	    $lxc_setup->setup_network($conf);
 	}
-
+    }
 
     if (&$safe_string_ne($conf->{$opt}->{ip6}, $newnet->{ip6})) {
 
