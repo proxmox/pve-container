@@ -207,11 +207,11 @@ sub setup_network {
 		    $data .= "GATEWAY=$d->{gw}\n";
 		}
 	    }
-	    if (defined($d->{gw6})) {
-		die "implement me";
-	    }
 	    if (defined($d->{ip6})) {
-		die "implement me";
+		$data .= "IPV6ADDR=$d->{ip6}\n";
+	    }
+	    if (defined($d->{gw6})) {
+		$data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
 	    }
 	    PVE::Tools::file_set_contents($filename, $data);
 	}
