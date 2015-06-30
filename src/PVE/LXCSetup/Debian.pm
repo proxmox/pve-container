@@ -3,7 +3,7 @@ package PVE::LXCSetup::Debian;
 use strict;
 use warnings;
 use Data::Dumper;
-use PVE::Tools;
+use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
 use File::Path;
 
@@ -105,14 +105,21 @@ sub setup_network {
 	    my $net = {};
 	    if (defined($d->{ip})) {
 		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
-		$net->{v4address} = $ipinfo->{address};
-		$net->{v4netmask} = $ipinfo->{netmask};
+		$net->{address} = $ipinfo->{address};
+		$net->{netmask} = $ipinfo->{netmask};
 	    }
 	    if (defined($d->{'gw'})) {
-		$net->{v4gateway} = $d->{'gw'};
+		$net->{gateway} = $d->{'gw'};
 	    }
 	    if (defined($d->{ip6})) {
-		die "implement me";
+		if ($d->{ip6} !~ /^($IPV6RE)\/(\d+)$/) {
+		    die "unable to parse ipv6 address/prefix\n";
+		}
+		$net->{address6} = $1;
+		$net->{netmask6} = $2;
+	    }
+	    if (defined($d->{'gw6'})) {
+		$net->{gateway6} = $d->{'gw6'};
 	    }
 	    $networks->{$d->{name}} = $net;
 	}
@@ -142,11 +149,11 @@ sub setup_network {
 
 	    $interfaces .= "auto $section->{ifname}\n" if $new;
 
-	    if ($net->{v4address}) {
+	    if ($net->{address}) {
 		$interfaces .= "iface $section->{ifname} inet static\n";
-		$interfaces .= "\taddress $net->{v4address}\n" if defined($net->{v4address});
-		$interfaces .= "\tnetmask $net->{v4netmask}\n" if defined($net->{v4netmask});
-		$interfaces .= "\tgateway $net->{v4gateway}\n" if defined($net->{v4gateway});
+		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
+		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
+		$interfaces .= "\tgateway $net->{gateway}\n" if defined($net->{gateway});
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
@@ -159,11 +166,11 @@ sub setup_network {
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$section->{ifname}} = 1;
 	    
-	    if ($net->{v6address}) {
+	    if ($net->{address6}) {
 		$interfaces .= "iface $section->{ifname} inet6 static\n";
-		$interfaces .= "\taddress $net->{v6address}\n" if defined($net->{v6address});
-		$interfaces .= "\tnetmask $net->{v6netmask}\n" if defined($net->{v6netmask});
-		$interfaces .= "\tgateway $net->{v6gateway}\n" if defined($net->{v6gateway});
+		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
+		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
+		$interfaces .= "\tgateway $net->{gateway6}\n" if defined($net->{gateway6});
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
@@ -236,7 +243,7 @@ sub setup_network {
 	    $section = { type => 'ipv4', ifname => $ifname, attr => []};
 	    &$print_section(1);
 	}
-	if (!$done_v6_hash->{$ifname} && defined($net->{v6address})) {
+	if (!$done_v6_hash->{$ifname} && defined($net->{address6})) {
 	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
 	    $section = { type => 'ipv6', ifname => $ifname, attr => []};
 	    &$print_section(1);
