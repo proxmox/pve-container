@@ -859,11 +859,13 @@ sub find_lxc_pid {
     my $pid = undef;
     my $parser = sub {
         my $line = shift;
-        $pid = $1 if $line =~ m/PID:\s+(\d+)/;
+        $pid = $1 if $line =~ m/^PID:\s+(\d+)$/;
     };
     PVE::Tools::run_command(['lxc-info', '-n', $vmid], outfunc => $parser);
 
-   return $pid;
+    die "unable to get PID for CT $vmid (not running?)\n" if !$pid;
+    
+    return $pid;
 }
 
 my $ipv4_reverse_mask = [
