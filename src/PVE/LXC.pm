@@ -55,13 +55,13 @@ my $valid_lxc_keys = {
     'lxc.utsname' => 1,
 
     'lxc.id_map' => 1,
-    
+
     'lxc.cgroup.memory.limit_in_bytes' => \&parse_lxc_size,
     'lxc.cgroup.memory.memsw.limit_in_bytes' => \&parse_lxc_size,
     'lxc.cgroup.cpu.cfs_period_us' => '\d+',
     'lxc.cgroup.cpu.cfs_quota_us' => '\d+',
     'lxc.cgroup.cpu.shares' => '\d+',
-    
+
     # mount related
     'lxc.mount' => 1,
     'lxc.mount.entry' => 1,
@@ -71,7 +71,7 @@ my $valid_lxc_keys = {
     'lxc.tty' => '\d+',
     'lxc.pts' => 1,
     'lxc.haltsignal' => 1,
-    'lxc.rebootsignal' => 1,	
+    'lxc.rebootsignal' => 1,
     'lxc.stopsignal' => 1,
     'lxc.init_cmd' => 1,
     'lxc.console' => 1,
@@ -103,7 +103,7 @@ my $valid_lxc_keys = {
     'lxc.hook.start' => 1,
     'lxc.hook.post-stop' => 1,
     'lxc.hook.clone' => 1,
-    
+
     # pve related keys
     'pve.nameserver' => sub {
 	my ($name, $value) = @_;
@@ -169,7 +169,7 @@ sub write_lxc_config {
 	return if $done_hash->{$k};
 	$done_hash->{$k} = 1;
 	if (ref($value)) {
-	    die "got unexpected reference for '$k'" 
+	    die "got unexpected reference for '$k'"
 		if !$lxc_array_configs->{$k};
 	    foreach my $v (@$value) {
 		$raw .= "$k = $v\n";
@@ -182,7 +182,7 @@ sub write_lxc_config {
     # Note: Order is important! Include defaults first, so that we
     # can overwrite them later.
     &$dump_entry('lxc.include');
-    
+
     foreach my $k (sort keys %$data) {
 	next if $k !~ m/^lxc\./;
 	&$dump_entry($k);
@@ -232,7 +232,7 @@ sub parse_lxc_option {
     die "invalid key '$name'\n" if !defined($parser);
 
     if ($parser eq '1') {
-	return $value;		
+	return $value;
     } elsif (ref($parser)) {
 	my $res = &$parser($name, $value);
 	return $res if defined($res);
@@ -240,7 +240,7 @@ sub parse_lxc_option {
 	# assume regex
 	return $value if $value =~ m/^$parser$/;
     }
-    
+
     die "unable to parse value '$value' for option '$name'\n";
 }
 
@@ -333,7 +333,7 @@ sub parse_lxc_config {
 		die "multiple definitions for $name\n" if defined($data->{$name});
 		$data->{$name} = parse_lxc_option($name, $value);
 	    }
-	    
+
 	    next;
 	}
 
@@ -446,7 +446,7 @@ my $lockdir = "/run/lock/lxc";
 
 sub lock_filename {
     my ($vmid) = @_;
- 
+
     return "$lockdir/pve-config-{$vmid}.lock";
 }
 
@@ -483,7 +483,7 @@ sub lock_aquire {
 	    }
 
 	    $lock_handles->{$$}->{$filename}->{refcount}++;
-	    
+
 	    print STDERR " OK\n";
 	}
     };
@@ -492,7 +492,7 @@ sub lock_aquire {
     my $err = $@;
     if ($err) {
 	die "can't lock file '$filename' - $err";
-    } 
+    }
 }
 
 sub lock_release {
@@ -626,12 +626,12 @@ sub json_config_properties {
 # container status helpers
 
 sub list_active_containers {
-    
+
     my $filename = "/proc/net/unix";
 
     # similar test is used by lcxcontainers.c: list_active_containers
     my $res = {};
-    
+
     my $fh = IO::File->new ($filename, "r");
     return $res if !$fh;
 
@@ -645,7 +645,7 @@ sub list_active_containers {
     }
 
     close($fh);
-    
+
     return $res;
 }
 
@@ -656,7 +656,7 @@ sub check_running {
     my $active_hash = list_active_containers();
 
     return 1 if defined($active_hash->{$vmid});
-    
+
     return undef;
 }
 
@@ -664,7 +664,7 @@ sub get_container_disk_usage {
     my ($vmid) = @_;
 
     my $cmd = ['lxc-attach', '-n', $vmid, '--', 'df',  '-P', '-B', '1', '/'];
-    
+
     my $res = {
 	total => 0,
 	used => 0,
@@ -694,20 +694,20 @@ sub vmstatus {
     my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc' }} : config_list();
 
     my $active_hash = list_active_containers();
-    
+
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 
 	my $running = defined($active_hash->{$vmid});
-	
+
 	$d->{status} = $running ? 'running' : 'stopped';
 
 	my $cfspath = cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
-	
+
 	$d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
-	    
+
 	$d->{cpus} = 0;
 
 	my $cfs_period_us = $conf->{'lxc.cgroup.cpu.cfs_period_us'};
@@ -716,11 +716,11 @@ sub vmstatus {
 	if ($cfs_period_us && $cfs_quota_us) {
 	    $d->{cpus} = int($cfs_quota_us/$cfs_period_us);
 	}
-	
+
 	$d->{disk} = 0;
 	$d->{maxdisk} = defined($conf->{'pve.disksize'}) ?
 	    int($conf->{'pve.disksize'}*1024*1024)*1024 : 1024*1024*1024*1024*1024;
-	
+
 	if (my $private = $conf->{'lxc.rootfs'}) {
 	    if ($private =~ m!^/!) {
 		my $res = PVE::Tools::df($private, 2);
@@ -731,10 +731,10 @@ sub vmstatus {
 		    my $res = get_container_disk_usage($vmid);
 		    $d->{disk} = $res->{used};
 		    $d->{maxdisk} = $res->{total};
-		}		
+		}
 	    }
 	}
-	
+
 	$d->{mem} = 0;
 	$d->{swap} = 0;
 	$d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
@@ -749,7 +749,7 @@ sub vmstatus {
 	$d->{diskread} = 0;
 	$d->{diskwrite} = 0;
     }
-    
+
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 	next if $d->{status} ne 'running';
@@ -768,7 +768,7 @@ sub vmstatus {
 	    }
 	}
     }
-    
+
     return $list;
 }
 
@@ -805,7 +805,7 @@ sub parse_lxc_network {
 
     $res->{type} = 'veth';
     $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{hwaddr};
-   
+
     return $res;
 }
 
@@ -840,13 +840,13 @@ sub find_lxc_console_pids {
 	my @args = split(/\0/, $cmdline);
 
 	# serach for lxc-console -n <vmid>
-	return if scalar(@args) != 3; 
+	return if scalar(@args) != 3;
 	return if $args[1] ne '-n';
 	return if $args[2] !~ m/^\d+$/;
 	return if $args[0] !~ m|^(/usr/bin/)?lxc-console$|;
-	
+
 	my $vmid = $args[2];
-	
+
 	push @{$res->{$vmid}}, $pid;
     });
 
@@ -864,7 +864,7 @@ sub find_lxc_pid {
     PVE::Tools::run_command(['lxc-info', '-n', $vmid], outfunc => $parser);
 
     die "unable to get PID for CT $vmid (not running?)\n" if !$pid;
-    
+
     return $pid;
 }
 
@@ -903,8 +903,8 @@ my $ipv4_reverse_mask = [
     '255.255.255.254',
     '255.255.255.255',
 ];
- 
-# Note: we cannot use Net:IP, because that only allows strict 
+
+# Note: we cannot use Net:IP, because that only allows strict
 # CIDR networks
 sub parse_ipv4_cidr {
     my ($cidr, $noerr) = @_;
@@ -912,9 +912,9 @@ sub parse_ipv4_cidr {
     if ($cidr =~ m!^($IPV4RE)(?:/(\d+))$! && ($2 > 7) &&  ($2 < 32)) {
 	return { address => $1, netmask => $ipv4_reverse_mask->[$2] };
     }
-    
+
     return undef if $noerr;
-    
+
     die "unable to parse ipv4 address/mask\n";
 }
 
@@ -953,7 +953,7 @@ sub lxc_conf_to_pve {
 	} elsif ($k eq 'cpulimit') {
 	    my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
 	    my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-	    
+
 	    if ($cfs_period_us && $cfs_quota_us) {
 		$conf->{$k} = $cfs_quota_us/$cfs_period_us;
 	    } else {
@@ -970,7 +970,7 @@ sub lxc_conf_to_pve {
 	    $conf->{$k} = print_lxc_network($net);
 	}
     }
-  
+
     return $conf;
 }
 
@@ -1004,10 +1004,10 @@ sub update_lxc_config {
 
     my @nohotplug;
 
-    my $rootdir = undef;
-    if($running){
+    my $rootdir;
+    if ($running) {
 	my $pid = find_lxc_pid($vmid);
-	$rootdir = "/proc/$pid/root/";
+	$rootdir = "/proc/$pid/root";
     }
 
     if (defined($delete)) {
@@ -1047,7 +1047,6 @@ sub update_lxc_config {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
 	    $conf->{'lxc.utsname'} = $value;
-
 	} elsif ($opt eq 'onboot') {
 	    $conf->{'pve.onboot'} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
@@ -1083,7 +1082,7 @@ sub update_lxc_config {
 		write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
 	    }
 	} elsif ($opt eq 'cpuunits') {
-	    $conf->{'lxc.cgroup.cpu.shares'} = $value;	    
+	    $conf->{'lxc.cgroup.cpu.shares'} = $value;
 	    write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
 	} elsif ($opt eq 'description') {
 	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
@@ -1095,12 +1094,11 @@ sub update_lxc_config {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);
 	    $net->{'veth.pair'} = "veth${vmid}.$netid";
- 	    if(!$running) {
+ 	    if (!$running) {
 		$conf->{$opt} = $net;
-	    }else{
+	    } else {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
-
 	} else {
 	    die "implement me"
 	}
@@ -1116,7 +1114,7 @@ sub get_primary_ips {
     my ($conf) = @_;
 
     # return data from net0
-    
+
     my $net = $conf->{net0};
     return undef if !$net;
 
@@ -1124,7 +1122,7 @@ sub get_primary_ips {
     $ipv4 =~ s!/\d+$!! if $ipv4;
     my $ipv6 = $net->{ip};
     $ipv6 =~ s!/\d+$!! if $ipv6;
-    
+
     return ($ipv4, $ipv6);
 }
 
@@ -1171,12 +1169,12 @@ sub update_net {
     my ($vmid, $conf, $opt, $newnet, $netid, $rootdir) = @_;
 
     my $veth = $newnet->{'veth.pair'};
-    my $vethpeer = $veth."p";
+    my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
     if ($conf->{$opt}) {
 	if (&$safe_string_ne($conf->{$opt}->{hwaddr}, $newnet->{hwaddr}) ||
-	    &$safe_string_ne($conf->{$opt}->{name}, $newnet->{name})) { 
+	    &$safe_string_ne($conf->{$opt}->{name}, $newnet->{name})) {
 
             PVE::Network::veth_delete($veth);
 	    delete $conf->{$opt};
@@ -1213,17 +1211,17 @@ sub hotplug_net {
     my ($vmid, $conf, $opt, $newnet) = @_;
 
     my $veth = $newnet->{'veth.pair'};
-    my $vethpeer = $veth."p";
+    my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
     PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
     PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
 
-    #attach peer in container
+    # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
     PVE::Tools::run_command($cmd);
 
-    #link up peer in container
+    # link up peer in container
     $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth ,'up'  ];
     PVE::Tools::run_command($cmd);
 
@@ -1269,7 +1267,6 @@ sub update_ipconfig {
 	}
     }
 
-
     if (&$safe_string_ne($conf->{$opt}->{gw}, $newnet->{gw})) {
 
 	if ($conf->{$opt}->{gw}) {
@@ -1313,7 +1310,6 @@ sub update_ipconfig {
 	}
     }
 
-
     if (&$safe_string_ne($conf->{$opt}->{gw6}, $newnet->{gw6})) {
 
 	if ($conf->{$opt}->{gw6}) {
@@ -1335,7 +1331,6 @@ sub update_ipconfig {
 	    $lxc_setup->setup_network($conf);
         }
     }
-
 }
 
 1;
