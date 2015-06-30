@@ -1246,12 +1246,26 @@ sub update_ipconfig {
 
     my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
 
+    my $update_gateway;
+    if (&$safe_string_ne($conf->{$opt}->{gw}, $newnet->{gw})) {
+
+	$update_gateway = 1;
+	if ($conf->{$opt}->{gw}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw} ];
+	    eval { PVE::Tools::run_command($cmd); };
+	    warn $@ if $@; # ignore errors here
+	    delete $conf->{$opt}->{gw};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
+    }
+
     if (&$safe_string_ne($conf->{$opt}->{ip}, $newnet->{ip})) {
 
 	if ($conf->{$opt}->{ip}) {
 	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip}, 'dev', $eth  ];
-	    PVE::Tools::run_command($cmd);
-
+	    eval { PVE::Tools::run_command($cmd); };
+	    warn $@ if $@; # ignore errors here
 	    delete $conf->{$opt}->{ip};
 	    PVE::LXC::write_config($vmid, $conf);
 	    $lxc_setup->setup_network($conf);
@@ -1267,17 +1281,7 @@ sub update_ipconfig {
 	}
     }
 
-    if (&$safe_string_ne($conf->{$opt}->{gw}, $newnet->{gw})) {
-
-	if ($conf->{$opt}->{gw}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw} ];
-	    PVE::Tools::run_command($cmd);
-
-	    delete $conf->{$opt}->{gw};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-
-	}
+    if ($update_gateway) {
 
 	if ($newnet->{gw}) {
 	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw} ];
@@ -1289,12 +1293,26 @@ sub update_ipconfig {
         }
     }
 
+    my $update_gateway6;
+    if (&$safe_string_ne($conf->{$opt}->{gw6}, $newnet->{gw6})) {
+	
+	$update_gateway6 = 1;
+	if ($conf->{$opt}->{gw6}) {
+	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw6} ];
+	    eval { PVE::Tools::run_command($cmd); };
+	    warn $@ if $@; # ignore errors here
+	    delete $conf->{$opt}->{gw6};
+	    PVE::LXC::write_config($vmid, $conf);
+	    $lxc_setup->setup_network($conf);
+	}
+
+
     if (&$safe_string_ne($conf->{$opt}->{ip6}, $newnet->{ip6})) {
 
 	if ($conf->{$opt}->{ip6}) {
 	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip6}, 'dev', $eth  ];
-	    PVE::Tools::run_command($cmd);
-
+	    eval { PVE::Tools::run_command($cmd); };
+	    warn $@ if $@; # ignore errors here
 	    delete $conf->{$opt}->{ip6};
 	    PVE::LXC::write_config($vmid, $conf);
 	    $lxc_setup->setup_network($conf);
@@ -1310,17 +1328,7 @@ sub update_ipconfig {
 	}
     }
 
-    if (&$safe_string_ne($conf->{$opt}->{gw6}, $newnet->{gw6})) {
-
-	if ($conf->{$opt}->{gw6}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw6} ];
-	    PVE::Tools::run_command($cmd);
-
-	    delete $conf->{$opt}->{gw6};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-
-	}
+    if ($update_gateway6) {
 
 	if ($newnet->{gw6}) {
 	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw6} ];
