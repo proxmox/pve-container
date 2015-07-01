@@ -1246,99 +1246,80 @@ sub update_ipconfig {
 
     my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
 
-    my $update_gateway;
-    if (&$safe_string_ne($conf->{$opt}->{gw}, $newnet->{gw})) {
+    my $optdata = $conf->{$opt};
+    my $deleted = [];
+    my $added = [];
+    my $netcmd = sub {
+	my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', @_];
+	PVE::Tools::run_command($cmd);
+    };
 
-	$update_gateway = 1;
-	if ($conf->{$opt}->{gw}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw} ];
-	    eval { PVE::Tools::run_command($cmd); };
-	    warn $@ if $@; # ignore errors here
-	    delete $conf->{$opt}->{gw};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-	}
-    }
+    my $change_ip_config = sub {
+	my ($family_opt, $suffix) = @_;
+	$suffix = '' if !$suffix;
+	my $gw= "gw$suffix";
+	my $ip= "ip$suffix";
 
-    if (&$safe_string_ne($conf->{$opt}->{ip}, $newnet->{ip})) {
+	my $change_ip = &$safe_string_ne($optdata->{$ip}, $newnet->{$ip});
+	my $change_gw = &$safe_string_ne($optdata->{$gw}, $newnet->{$gw});
 
-	if ($conf->{$opt}->{ip}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip}, 'dev', $eth  ];
-	    eval { PVE::Tools::run_command($cmd); };
-	    warn $@ if $@; # ignore errors here
-	    delete $conf->{$opt}->{ip};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-	}
+	return if !$change_ip && !$change_gw;
 
-	if ($newnet->{ip}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip}, 'dev', $eth  ];
-	    PVE::Tools::run_command($cmd);
-
-	    $conf->{$opt}->{ip} = $newnet->{ip};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-	}
-    }
-
-    if ($update_gateway) {
-
-	if ($newnet->{gw}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw} ];
-	    PVE::Tools::run_command($cmd);
-
-	    $conf->{$opt}->{gw} = $newnet->{gw};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-        }
-    }
-
-    my $update_gateway6;
-    if (&$safe_string_ne($conf->{$opt}->{gw6}, $newnet->{gw6})) {
-	
-	$update_gateway6 = 1;
-	if ($conf->{$opt}->{gw6}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'del', 'default', 'via', $conf->{$opt}->{gw6} ];
-	    eval { PVE::Tools::run_command($cmd); };
-	    warn $@ if $@; # ignore errors here
-	    delete $conf->{$opt}->{gw6};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-	}
-    }
-
-    if (&$safe_string_ne($conf->{$opt}->{ip6}, $newnet->{ip6})) {
-
-	if ($conf->{$opt}->{ip6}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'del', $conf->{$opt}->{ip6}, 'dev', $eth  ];
-	    eval { PVE::Tools::run_command($cmd); };
-	    warn $@ if $@; # ignore errors here
-	    delete $conf->{$opt}->{ip6};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
+	# step 1: add new IP, if this fails we cancel
+	if ($change_ip && $newnet->{$ip}) {
+	    eval { &$netcmd($family_opt, 'addr', 'add', $newnet->{$ip}, 'dev', $eth); };
+	    if (my $err = $@) {
+		warn $err;
+		return;
+	    }
 	}
 
-	if ($newnet->{ip6}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'addr', 'add', $newnet->{ip6}, 'dev', $eth  ];
-	    PVE::Tools::run_command($cmd);
-
-	    $conf->{$opt}->{ip6} = $newnet->{ip6};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
+	# step 2: replace gateway
+	#   If this fails we delete the added IP and cancel.
+	#   If it succeeds we save the config and delete the old IP, ignoring
+	#   errors. The config is then saved.
+	# Note: 'ip route replace' can add
+	if ($change_gw) {
+	    if ($newnet->{$gw}) {
+		eval { &$netcmd($family_opt, 'route', 'replace', 'default', 'via', $newnet->{$gw}); };
+		if (my $err = $@) {
+		    warn $err;
+		    # the route was not replaced, the old IP is still available
+		    # rollback (delete new IP) and cancel
+		    if ($change_ip) {
+			eval { &$netcmd($family_opt, 'addr', 'del', $newnet->{$ip}, 'dev', $eth); };
+			warn $@ if $@; # no need to die here
+		    }
+		    return;
+		}
+	    } else {
+		eval { &$netcmd($family_opt, 'route', 'del', 'default'); };
+		# if the route was not deleted, the guest might have deleted it manually
+		# warn and continue
+		warn $@ if $@;
+	    }
 	}
-    }
 
-    if ($update_gateway6) {
+	# from this point on we safe the configuration
+	# step 3: delete old IP ignoring errors
+	if ($change_ip && $optdata->{$ip}) {
+	    eval { &$netcmd($family_opt, 'addr', 'del', $optdata->{$ip}, 'dev', $eth); };
+	    warn $@ if $@; # no need to die here
+	}
 
-	if ($newnet->{gw6}) {
-	    my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'route', 'add', 'default', 'via', $newnet->{gw6} ];
-	    PVE::Tools::run_command($cmd);
+	foreach my $property ($ip, $gw) {
+	    if ($newnet->{$property}) {
+		$optdata->{$property} = $newnet->{$property};
+	    } else {
+		delete $optdata->{$property};
+	    }
+	}
+	PVE::LXC::write_config($vmid, $conf);
+	$lxc_setup->setup_network($conf);
+    };
 
-	    $conf->{$opt}->{gw6} = $newnet->{gw6};
-	    PVE::LXC::write_config($vmid, $conf);
-	    $lxc_setup->setup_network($conf);
-        }
-    }
+    &$change_ip_config('-4');
+    &$change_ip_config('-6', '6');
 }
 
 1;
