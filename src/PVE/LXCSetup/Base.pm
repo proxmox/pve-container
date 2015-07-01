@@ -196,7 +196,7 @@ sub setup_init {
 }
 
 my $replacepw  = sub {
-    my ($file, $user, $epw) = @_;
+    my ($file, $user, $epw, $shadow) = @_;
 
     my $tmpfile = "$file.$$";
 
@@ -213,9 +213,19 @@ my $replacepw  = sub {
 	# copy owner and permissions
 	chmod $st->mode, $dst;
 	chown $st->uid, $st->gid, $dst;
+
+	my $last_change = int(time()/(60*60*24));
+
+	if ($epw =~ m/^\$TEST\$/) { # for regression tests
+	    $last_change = 12345;
+	}
 	
 	while (defined (my $line = <$src>)) {
-	    $line =~ s/^${user}:[^:]*:/${user}:${epw}:/;
+	    if ($shadow) {
+		$line =~ s/^${user}:[^:]*:[^:]*:/${user}:${epw}:${last_change}:/;
+	    } else {
+		$line =~ s/^${user}:[^:]*:/${user}:${epw}:/;
+	    }
 	    print $dst $line;
 	}
 
@@ -251,7 +261,7 @@ sub set_user_password {
     }
     
     if (-f $shadow) {
-	&$replacepw ($shadow, $user, $opt_password);
+	&$replacepw ($shadow, $user, $opt_password, 1);
 	&$replacepw ($pwfile, $user, 'x');
     } else {
 	&$replacepw ($pwfile, $user, $opt_password);
