@@ -1255,8 +1255,10 @@ sub update_ipconfig {
     };
 
     my $change_ip_config = sub {
-	my ($family_opt, $suffix) = @_;
-	$suffix = '' if !$suffix;
+	my ($ipversion) = @_;
+
+	my $family_opt = "-$ipversion";
+	my $suffix = $ipversion == 4 ? '' : $ipversion;
 	my $gw= "gw$suffix";
 	my $ip= "ip$suffix";
 
@@ -1318,8 +1320,8 @@ sub update_ipconfig {
 	$lxc_setup->setup_network($conf);
     };
 
-    &$change_ip_config('-4');
-    &$change_ip_config('-6', '6');
+    &$change_ip_config(4);
+    &$change_ip_config(6);
 }
 
 1;
