@@ -17,7 +17,12 @@ sub new {
     my $version = PVE::Tools::file_read_firstline("$rootdir/etc/debian_version");
 
     die "unable to read version info\n" if !defined($version);
-  
+
+    die "unable to parse version info\n"
+	if $version !~ m/^(\d+(\.\d+)?)(\.\d+)?/;
+
+    $version = $1;
+
     die "unsupported debian version '$version'\n" if $version < 6;
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
