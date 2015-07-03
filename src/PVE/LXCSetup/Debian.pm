@@ -89,7 +89,11 @@ sub setup_init {
 	for (my $i = 1; $i <= $ttycount; $i++) {
 	    next if $i == 7; # reserved for X11
 	    my $levels = ($i == 1) ? '2345' : '23';
-	    $inittab .= "$i:$levels:respawn:/sbin/getty --noclear 38400 tty$i\n";
+	    if ($self->{version} < 7) {
+		$inittab .= "$i:$levels:respawn:/sbin/getty -L 38400 tty$i\n";
+	    } else {
+		$inittab .= "$i:$levels:respawn:/sbin/getty --noclear 38400 tty$i\n";
+	    }
 	}
 	
 	PVE::Tools::file_set_contents($filename, $inittab);
