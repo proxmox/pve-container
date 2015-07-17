@@ -237,7 +237,7 @@ sub write_lxc_config {
 	foreach my $k (sort keys %$elem) {
 	    next if $k eq 'snapshots';
 	    next if $done_hash->{$k};
-	    die "found un-written value in config - implement this!";
+	    die "found un-written value \"$k\" in config - implement this!";
 	}
 
     };
@@ -1198,7 +1198,7 @@ sub update_lxc_config {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
 	} else {
-	    die "implement me"
+	    die "implement me: $opt";
 	}
 	PVE::LXC::write_config($vmid, $conf) if $running;
     }
@@ -1423,11 +1423,131 @@ sub update_ipconfig {
 
 }
 
+# Internal snapshots
+
+# NOTE: Snapshot create/delete involves several non-atomic
+# action, and can take a long time.
+# So we try to avoid locking the file and use 'lock' variable
+# inside the config file instead.
+
+my $snapshot_copy_config = sub {
+    my ($source, $dest) = @_;
+
+    foreach my $k (keys %$source) {
+	next if $k eq 'snapshots';
+	next if $k eq 'pve.snapstate';
+	next if $k eq 'pve.snaptime';
+	next if $k eq 'pve.lock';
+	next if $k eq 'digest';
+	next if $k eq 'pve.comment';
+
+	$dest->{$k} = $source->{$k};
+    }
+};
+
+my $snapshot_prepare = sub {
+    my ($vmid, $snapname, $comment) = @_;
+
+    my $snap;
+
+    my $updatefn =  sub {
+
+	my $conf = load_config($vmid);
+
+	check_lock($conf);
+
+	$conf->{'pve.lock'} = 'snapshot';
+
+	die "snapshot name '$snapname' already used\n"
+	    if defined($conf->{snapshots}->{$snapname});
+
+	my $storecfg = PVE::Storage::config();
+	die "snapshot feature is not available\n" if !has_feature('snapshot', $conf, $storecfg);
+
+	$snap = $conf->{snapshots}->{$snapname} = {};
+
+	&$snapshot_copy_config($conf, $snap);
+
+	$snap->{'pve.snapstate'} = "prepare";
+	$snap->{'pve.snaptime'} = time();
+	$snap->{'pve.snapname'} = $snapname;
+	$snap->{'pve.snapcomment'} = $comment if $comment;
+	$conf->{snapshots}->{$snapname} = $snap;
+
+	PVE::LXC::write_config($vmid, $conf);
+    };
+
+    lock_container($vmid, 10, $updatefn);
+
+    return $snap;
+};
+
+my $snapshot_commit = sub {
+    my ($vmid, $snapname) = @_;
+
+    my $updatefn = sub {
+
+	my $conf = load_config($vmid);
+
+	die "missing snapshot lock\n"
+	    if !($conf->{'pve.lock'} && $conf->{'pve.lock'} eq 'snapshot');
+
+	die "snapshot '$snapname' does not exist\n" 
+	    if !defined($conf->{snapshots}->{$snapname});
+
+	die "wrong snapshot state\n"
+	    if !($conf->{snapshots}->{$snapname}->{'pve.snapstate'} && $conf->{snapshots}->{$snapname}->{'pve.snapstate'} eq "prepare");
+
+	delete $conf->{snapshots}->{$snapname}->{'pve.snapstate'};
+	delete $conf->{'pve.lock'};
+	$conf->{'pve.parent'} = $snapname;
+
+	PVE::LXC::write_config($vmid, $conf);
+
+    };
+
+    lock_container($vmid, 10 ,$updatefn);
+};
+
+sub has_feature {
+    my ($feature, $conf, $storecfg, $snapname) = @_;
+    #Fixme add other drives if necessary.
+    my $err;
+    my $volid = $conf->{'pve.volid'};
+    $err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $volid, $snapname);
+
+    return $err ? 0 : 1;
+}
+
 sub snapshot_create {
     my ($vmid, $snapname, $comment) = @_;
 
-    print "Not implemented\n";
+    my $snap = &$snapshot_prepare($vmid, $snapname, $comment);
 
+    my $config = load_config($vmid);
+
+    my $cmd = "/usr/bin/lxc-freeze -n $vmid";
+    my $running = check_running($vmid);
+    eval {
+	if ($running) {
+	    PVE::Tools::run_command($cmd);
+	};
+
+	my $storecfg = PVE::Storage::config();
+	my $volid = $config->{'pve.volid'};
+
+	$cmd = "/usr/bin/lxc-unfreeze -n $vmid";
+	if ($running) {
+	    PVE::Tools::run_command($cmd);
+	};
+
+	PVE::Storage::volume_snapshot($storecfg, $volid, $snapname);
+	&$snapshot_commit($vmid, $snapname);
+    };
+    if(my $err = $@) {
+	#ToDo implement delete snapshot
+	die "$err\n";
+    }
 }
 
 1;
