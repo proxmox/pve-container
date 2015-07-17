@@ -1339,4 +1339,52 @@ __PACKAGE__->register_method({
 
 	return $rpcenv->fork_worker('pctsnapshot', $vmid, $authuser, $realcmd);
     }});
+
+__PACKAGE__->register_method({
+    name => 'delsnapshot',
+    path => '{vmid}/snapshot/{snapname}',
+    method => 'DELETE',
+    protected => 1,
+    proxyto => 'node',
+    description => "Delete a LXC snapshot.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    force => {
+		optional => 1,
+		type => 'boolean',
+		description => "For removal from config file, even if removing disk snapshots fails.",
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	my $realcmd = sub {
+	    PVE::Cluster::log_msg('info', $authuser, "delete snapshot VM $vmid: $snapname");
+	    PVE::LXC::snapshot_delete($vmid, $snapname, $param->{force});
+	};
+
+	return $rpcenv->fork_worker('lxcdelsnapshot', $vmid, $authuser, $realcmd);
+    }});
 1;

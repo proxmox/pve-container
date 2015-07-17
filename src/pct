@@ -125,6 +125,8 @@ my $cmddef = {
 
     snapshot => [ "PVE::API2::LXC", 'snapshot', ['vmid', 'snapname'],
 		  { node => $nodename } , $upid_exit ],
+
+    delsnapshot => [ "PVE::API2::LXC", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 };
 			      
 my $cmd = shift;

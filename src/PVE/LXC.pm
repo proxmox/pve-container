@@ -1550,4 +1550,10 @@ sub snapshot_create {
     }
 }
 
+sub snapshot_delete {
+    my ($vmid, $snapname, $force) = @_;
+
+    print "Not implemented\n";
+}
+
 1;
