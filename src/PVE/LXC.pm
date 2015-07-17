@@ -1608,4 +1608,9 @@ sub snapshot_delete {
     }
 }
 
+sub snapshot_rollback {
+    my ($vmid, $snapname) = @_;
+
+    die "Not implemented\n";
+}
 1;

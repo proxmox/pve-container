@@ -1387,4 +1387,47 @@ __PACKAGE__->register_method({
 
 	return $rpcenv->fork_worker('lxcdelsnapshot', $vmid, $authuser, $realcmd);
     }});
+__PACKAGE__->register_method({
+    name => 'rollback',
+    path => '{vmid}/snapshot/{snapname}/rollback',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Rollback LXC state to specified snapshot.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	my $realcmd = sub {
+	    PVE::Cluster::log_msg('info', $authuser, "rollback snapshot LXC $vmid: $snapname");
+	    PVE::LXC::snapshot_rollback($vmid, $snapname);
+	};
+
+	return $rpcenv->fork_worker('lxcrollback', $vmid, $authuser, $realcmd);
+    }});
+
 1;
