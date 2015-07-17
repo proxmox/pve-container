@@ -424,6 +424,7 @@ __PACKAGE__->register_method({
 	    { subdir => 'rrd' },
 	    { subdir => 'rrddata' },
 	    { subdir => 'firewall' },
+	    { subdir => 'snapshot' },
 	    ];
 
 	return $res;
@@ -1387,6 +1388,7 @@ __PACKAGE__->register_method({
 
 	return $rpcenv->fork_worker('lxcdelsnapshot', $vmid, $authuser, $realcmd);
     }});
+
 __PACKAGE__->register_method({
     name => 'rollback',
     path => '{vmid}/snapshot/{snapname}/rollback',
@@ -1430,4 +1432,255 @@ __PACKAGE__->register_method({
 	return $rpcenv->fork_worker('lxcrollback', $vmid, $authuser, $realcmd);
     }});
 
+__PACKAGE__->register_method({
+    name => 'snapshot_list',
+    path => '{vmid}/snapshot',
+    method => 'GET',
+    description => "List all snapshots.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+    },
+    proxyto => 'node',
+    protected => 1, # lxc pid files are only readable by root
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid'),
+	    node => get_standard_option('pve-node'),
+	},
+    },
+    returns => {
+	type => 'array',
+	items => {
+	    type => "object",
+	    properties => {},
+	},
+	links => [ { rel => 'child', href => "{name}" } ],
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $vmid = $param->{vmid};
+
+	my $conf = PVE::LXC::load_config($vmid);
+	my $snaphash = $conf->{snapshots} || {};
+
+	my $res = [];
+
+	foreach my $name (keys %$snaphash) {
+	    my $d = $snaphash->{$name};
+	    my $item = {
+		name => $name,
+		snaptime => $d->{'pve.snaptime'} || 0,
+		description => $d->{'pve.snapcomment'} || '',
+	    };
+	    $item->{parent} = $d->{'pve.parent'} if $d->{'pve.parent'};
+	    $item->{snapstate} = $d->{'pve.snapstate'} if $d->{'pve.snapstate'};
+	    push @$res, $item;
+	}
+
+	my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
+	my $current = { name => 'current', digest => $conf->{digest}, running => $running };
+	$current->{parent} = $conf->{'pve.parent'} if $conf->{'pve.parent'};
+
+	push @$res, $current;
+
+	return $res;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'snapshot_cmd_idx',
+    path => '{vmid}/snapshot/{snapname}',
+    description => '',
+    method => 'GET',
+    permissions => {
+	user => 'all',
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid'),
+	    node => get_standard_option('pve-node'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	},
+    },
+    returns => {
+	type => 'array',
+	items => {
+	    type => "object",
+	    properties => {},
+	},
+	links => [ { rel => 'child', href => "{cmd}" } ],
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $res = [];
+
+	push @$res, { cmd => 'rollback' };
+	push @$res, { cmd => 'config' };
+
+	return $res;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'update_snapshot_config',
+    path => '{vmid}/snapshot/{snapname}/config',
+    method => 'PUT',
+    protected => 1,
+    proxyto => 'node',
+    description => "Update snapshot metadata.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    description => {
+		optional => 1,
+		type => 'string',
+		description => "A textual description or comment.",
+	    },
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	return undef if !defined($param->{description});
+
+	my $updatefn =  sub {
+
+	    my $conf = PVE::LXC::load_config($vmid);
+
+	    PVE::LXC::check_lock($conf);
+
+	    my $snap = $conf->{snapshots}->{$snapname};
+
+	    die "snapshot '$snapname' does not exist\n" if !defined($snap);
+
+	    $snap->{'pve.snapcomment'} = $param->{description} if defined($param->{description});
+
+	     PVE::LXC::write_config($vmid, $conf, 1);
+	};
+
+	PVE::LXC::lock_container($vmid, 10, $updatefn);
+
+	return undef;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'get_snapshot_config',
+    path => '{vmid}/snapshot/{snapname}/config',
+    method => 'GET',
+    proxyto => 'node',
+    description => "Get snapshot configuration",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	},
+    },
+    returns => { type => "object" },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	my $lxc_conf = PVE::LXC::load_config($vmid);
+
+	my $snap = $lxc_conf->{snapshots}->{$snapname};
+
+	die "snapshot '$snapname' does not exist\n" if !defined($snap);
+
+	my $conf = PVE::LXC::lxc_conf_to_pve($param->{vmid}, $snap);
+
+	return $conf;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'vm_feature',
+    path => '{vmid}/feature',
+    method => 'GET',
+    proxyto => 'node',
+    protected => 1,
+    description => "Check if feature for virtual machine is available.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+            feature => {
+                description => "Feature to check.",
+                type => 'string',
+                enum => [ 'snapshot' ],
+            },
+            snapname => get_standard_option('pve-lxc-snapshot-name', {
+                optional => 1,
+            }),
+	},
+    },
+    returns => {
+	type => "object",
+	properties => {
+	    hasFeature => { type => 'boolean' },
+	    #nodes => {
+		#type => 'array',
+		#items => { type => 'string' },
+	    #}
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	my $feature = extract_param($param, 'feature');
+
+	my $conf = PVE::LXC::load_config($vmid);
+
+	if($snapname){
+	    my $snap = $conf->{snapshots}->{$snapname};
+	    die "snapshot '$snapname' does not exist\n" if !defined($snap);
+	    $conf = $snap;
+	}
+	my $storecfg = PVE::Storage::config();
+	#Maybe include later
+	#my $nodelist = PVE::LXC::shared_nodes($conf, $storecfg);
+	my $hasFeature = PVE::LXC::has_feature($feature, $conf, $storecfg, $snapname);
+
+	return {
+	    hasFeature => $hasFeature,
+	    #nodes => [ keys %$nodelist ],
+	};
+    }});
 1;
