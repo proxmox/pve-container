@@ -1611,6 +1611,60 @@ sub snapshot_delete {
 sub snapshot_rollback {
     my ($vmid, $snapname) = @_;
 
-    die "Not implemented\n";
+    my $storecfg = PVE::Storage::config();
+
+    my $conf = load_config($vmid);
+
+    my $snap = $conf->{snapshots}->{$snapname};
+
+    die "snapshot '$snapname' does not exist\n" if !defined($snap);
+
+    PVE::Storage::volume_rollback_is_possible($storecfg, $snap->{'pve.volid'},
+					      $snapname);
+
+    my $updatefn = sub {
+
+	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n" if $snap->{snapstate};
+
+	check_lock($conf);
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	eval {
+	    lxc_stop($vmid, $authuser, $rpcenv);
+	};
+
+	die "unable to rollback vm $vmid: vm is running\n"
+	    if check_running($vmid);
+
+	$conf->{'pve.lock'} = 'rollback';
+
+	my $forcemachine;
+
+	# copy snapshot config to current config
+
+	my $tmp_conf = $conf;
+	&$snapshot_copy_config($tmp_conf->{snapshots}->{$snapname}, $conf);
+	print Dumper $conf, $tmp_conf;
+	$conf->{snapshots} = $tmp_conf->{snapshots};
+	delete $conf->{'pve.snaptime'};
+	delete $conf->{'pve.snapname'};
+	$conf->{'pve.parent'} = $snapname;
+
+	PVE::LXC::write_config($vmid, $conf);
+
+    };
+
+    my $unlockfn = sub {
+	delete $conf->{'pve.lock'};
+	PVE::LXC::write_config($vmid, $conf);
+    };
+
+    lock_container($vmid, 10, $updatefn);
+
+    PVE::Storage::volume_snapshot_rollback($storecfg, $conf->{'pve.volid'}, $snapname);
+
+    lock_container($vmid, 5, $unlockfn);
 }
 1;
