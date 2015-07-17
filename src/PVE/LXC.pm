@@ -125,6 +125,14 @@ my $valid_lxc_keys = {
 	PVE::Storage::parse_volume_id($value);
 	return $value;
     },
+
+     #pve snapshot
+    'pve.lock' => 1,
+    'pve.snaptime' => 1,
+    'pve.snapcomment' => 1,
+    'pve.parent' => 1,
+    'pve.snapstate' => 1,
+    'pve.snapname' => 1,
 };
 
 my $valid_lxc_network_keys = {
@@ -163,8 +171,8 @@ sub write_lxc_config {
     my $done_hash = { digest => 1};
 
     my $dump_entry = sub {
-	my ($k) = @_;
-	my $value = $data->{$k};
+	my ($k, $elem, $done_hash, $snap) = @_;
+	my $value = $elem->{$k};
 	return if !defined($value);
 	return if $done_hash->{$k};
 	$done_hash->{$k} = 1;
@@ -172,53 +180,81 @@ sub write_lxc_config {
 	    die "got unexpected reference for '$k'"
 		if !$lxc_array_configs->{$k};
 	    foreach my $v (@$value) {
+		$raw .= "snap\." if $snap;
 		$raw .= "$k = $v\n";
 	    }
 	} else {
+	    $raw .= "snap\." if $snap;
 	    $raw .= "$k = $value\n";
 	}
     };
 
-    # Note: Order is important! Include defaults first, so that we
-    # can overwrite them later.
-    &$dump_entry('lxc.include');
+    my $config_writer = sub {
+	my ($elem, $snapshot) = @_;
 
-    foreach my $k (sort keys %$data) {
-	next if $k !~ m/^lxc\./;
-	&$dump_entry($k);
-    }
+	my $done_hash = { digest => 1};
 
-    foreach my $k (sort keys %$data) {
-	next if $k !~ m/^pve\./;
-	&$dump_entry($k);
-    }
+	if ($elem->{'pve.snapname'}) {
+	     &$dump_entry('pve.snapname', $elem, $done_hash, $snapshot);
+	}
 
-    my $network_count = 0;
-    foreach my $k (sort keys %$data) {
-	next if $k !~ m/^net\d+$/;
-	$done_hash->{$k} = 1;
-	my $net = $data->{$k};
-	$network_count++;
-	$raw .= "lxc.network.type = $net->{type}\n";
-	foreach my $subkey (sort keys %$net) {
-	    next if $subkey eq 'type';
-	    if ($valid_lxc_network_keys->{$subkey}) {
-		$raw .= "lxc.network.$subkey = $net->{$subkey}\n";
-	    } elsif ($valid_pve_network_keys->{$subkey}) {
-		$raw .= "pve.network.$subkey = $net->{$subkey}\n";
-	    } else {
-		die "found invalid network key '$subkey'";
+	# Note: Order is important! Include defaults first, so that we
+	# can overwrite them later.
+	&$dump_entry('lxc.include', $elem, $done_hash, $snapshot);
+
+	foreach my $k (sort keys %$elem) {
+	    next if $k !~ m/^lxc\./;
+	    &$dump_entry($k, $elem, $done_hash, $snapshot);
+	}
+	foreach my $k (sort keys %$elem) {
+	    next if $k !~ m/^pve\./;
+	    &$dump_entry($k, $elem, $done_hash, $snapshot);
+	}
+	my $network_count = 0;
+
+	foreach my $k (sort keys %$elem) {
+	    next if $k !~ m/^net\d+$/;
+	    $done_hash->{$k} = 1;
+
+	    my $net = $elem->{$k};
+	    $network_count++;
+	    $raw .= "snap\." if $snapshot;
+	    $raw .= "lxc.network.type = $net->{type}\n";
+	    foreach my $subkey (sort keys %$net) {
+		next if $subkey eq 'type';
+		if ($valid_lxc_network_keys->{$subkey}) {
+		    $raw .= "snap\." if $snapshot;
+		    $raw .= "lxc.network.$subkey = $net->{$subkey}\n";
+		} elsif ($valid_pve_network_keys->{$subkey}) {
+		    $raw .= "snap\." if $snapshot;
+		    $raw .= "pve.network.$subkey = $net->{$subkey}\n";
+		} else {
+		    die "found invalid network key '$subkey'";
+		}
 	    }
 	}
-    }
+	if (!$network_count) {
+	    $raw .= "snap\." if $snapshot;
+	    $raw .= "lxc.network.type = empty\n";
+	}
+	foreach my $k (sort keys %$elem) {
+	    next if $k eq 'snapshots';
+	    next if $done_hash->{$k};
+	    die "found un-written value in config - implement this!";
+	}
 
-    if (!$network_count) {
-	$raw .= "lxc.network.type = empty\n";
-    }
+    };
 
-    foreach my $k (sort keys %$data) {
-	next if $done_hash->{$k};
-	die "found un-written value in config - implement this!";
+    &$config_writer($data);
+
+    if ($data->{snapshots}){
+	my @tmp = sort  { $data->{snapshots}->{$b}{'pve.snaptime'} <=>
+			      $data->{snapshots}->{$a}{'pve.snaptime'} }
+			keys %{$data->{snapshots}};
+	foreach my $snapname (@tmp) {
+	    $raw .= "\n";
+	    &$config_writer($data->{snapshots}->{$snapname}, 1);
+	}
     }
 
     return $raw;
@@ -258,99 +294,148 @@ sub parse_lxc_config {
 
     my $vmid = $1;
 
-    my $network_counter = 0;
-    my $network_list = [];
-    my $host_ifnames = {};
-
-     my $find_next_hostif_name = sub {
-	for (my $i = 0; $i < 10; $i++) {
-	    my $name = "veth${vmid}.$i";
-	    if (!$host_ifnames->{$name}) {
-		$host_ifnames->{$name} = 1;
-		return $name;
+    my $split_config = sub {
+	my ($raw) = @_;
+	my $sections = [];
+	my $tmp = '';
+	while ($raw && $raw =~ s/^(.*)?(\n|$)//) {
+	    my $line = $1;
+	    if(!$line) {
+		push(@{$sections},$tmp);
+		$tmp = '';
+	    } else {
+		$tmp .= "$line\n";
 	    }
 	}
+	push(@{$sections},$tmp);
 
-	die "unable to find free host_ifname"; # should not happen
+	return $sections;
     };
 
-    my $push_network = sub {
-	my ($netconf) = @_;
-	return if !$netconf;
-	push @{$network_list}, $netconf;
-	$network_counter++;
-	if (my $netname = $netconf->{'veth.pair'}) {
-	    if ($netname =~ m/^veth(\d+).(\d)$/) {
-		die "wrong vmid for network interface pair\n" if $1 != $vmid;
-		my $host_ifnames->{$netname} = 1;
-	    } else {
-		die "wrong network interface pair\n";
-	    }
-	}
-    };
 
-    my $network;
+    my $sec = &$split_config($raw);
 
-    while ($raw && $raw =~ s/^(.*?)(\n|$)//) {
-	my $line = $1;
+    foreach my  $sec_raw (@{$sec}){
+	next if $sec_raw eq '';
+	my $snapname = undef;
 
-	next if $line =~ m/^\#/;
-	next if $line =~ m/^\s*$/;
+	my $network_counter = 0;
+	my $network_list = [];
+	my $host_ifnames = {};
 
-	if ($line =~ m/^lxc\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-	    my ($subkey, $value) = ($1, $2);
-	    if ($subkey eq 'type') {
-		&$push_network($network);
-		$network = { type => $value };
-	    } elsif ($valid_lxc_network_keys->{$subkey}) {
-		$network->{$subkey} = $value;
-	    } else {
-		die "unable to parse config line: $line\n";
-	    }
-	    next;
-	}
-	if ($line =~ m/^pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-	    my ($subkey, $value) = ($1, $2);
-	    if ($valid_pve_network_keys->{$subkey}) {
-		$network->{$subkey} = $value;
-	    } else {
-		die "unable to parse config line: $line\n";
-	    }
-	    next;
-	}
-	if ($line =~ m/^(pve.comment)\s*=\s*(\S.*)\s*$/) {
-	    my ($name, $value) = ($1, $2);
-	    $data->{$name} = $value;
-	    next;
-	}
-	if ($line =~ m/^((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
-	    my ($name, $value) = ($1, $2);
-
-	    if ($lxc_array_configs->{$name}) {
-		$data->{$name} = [] if !defined($data->{$name});
-		push @{$data->{$name}},  parse_lxc_option($name, $value);
-	    } else {
-		die "multiple definitions for $name\n" if defined($data->{$name});
-		$data->{$name} = parse_lxc_option($name, $value);
+	my $find_next_hostif_name = sub {
+	    for (my $i = 0; $i < 10; $i++) {
+		my $name = "veth${vmid}.$i";
+		if (!$host_ifnames->{$name}) {
+		    $host_ifnames->{$name} = 1;
+		    return $name;
+		}
 	    }
 
-	    next;
+	    die "unable to find free host_ifname"; # should not happen
+	};
+
+	my $push_network = sub {
+	    my ($netconf) = @_;
+	    return if !$netconf;
+	    push @{$network_list}, $netconf;
+	    $network_counter++;
+	    if (my $netname = $netconf->{'veth.pair'}) {
+		if ($netname =~ m/^veth(\d+).(\d)$/) {
+		    die "wrong vmid for network interface pair\n" if $1 != $vmid;
+		    my $host_ifnames->{$netname} = 1;
+		} else {
+		    die "wrong network interface pair\n";
+		}
+	    }
+	};
+
+	my $network;
+
+	while ($sec_raw && $sec_raw =~ s/^(.*?)(\n|$)//) {
+	    my $line = $1;
+
+	    next if $line =~ m/^\#/;
+	    next if $line =~ m/^\s*$/;
+
+	    if ($line =~ m/^(snap\.)?lxc\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
+		my ($subkey, $value) = ($2, $3);
+		if ($subkey eq 'type') {
+		    &$push_network($network);
+		    $network = { type => $value };
+		} elsif ($valid_lxc_network_keys->{$subkey}) {
+		    $network->{$subkey} = $value;
+		} else {
+		    die "unable to parse config line: $line\n";
+		}
+		next;
+	    }
+	    if ($line =~ m/^(snap\.)?pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
+		my ($subkey, $value) = ($2, $3);
+		if ($valid_pve_network_keys->{$subkey}) {
+		    $network->{$subkey} = $value;
+		} else {
+		    die "unable to parse config line: $line\n";
+		}
+		next;
+	    }
+	    if ($line =~ m/^(snap\.)?(pve.snapcomment)\s*=\s*(\S.*)\s*$/) {
+		my ($name, $value) = ($2, $3);
+		if ($snapname) {
+		    $data->{snapshots}->{$snapname}->{$name} = $value;
+		}
+		next;
+	    }
+	    if ($line =~ m/^(snap\.)?pve\.snapname = (\w*)$/) {
+		if (!$snapname) {
+		    $snapname = $2;
+		    $data->{snapshots}->{$snapname}->{'pve.snapname'} = $snapname;
+		} else {
+		    die "Configuarion broken\n";
+		}
+		next;
+	    }
+	    if ($line =~ m/^(snap\.)?((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
+		my ($name, $value) = ($2, $3);
+
+		if ($lxc_array_configs->{$name}) {
+		    $data->{$name} = [] if !defined($data->{$name});
+		    if ($snapname) {
+			push @{$data->{snapshots}->{$snapname}->{$name}},  parse_lxc_option($name, $value);
+		    } else {
+			push @{$data->{$name}},  parse_lxc_option($name, $value);
+		    }
+		} else {
+		    if ($snapname) {
+			die "multiple definitions for $name\n" if defined($data->{snapshots}->{$snapname}->{$name});
+			$data->{snapshots}->{$snapname}->{$name} = parse_lxc_option($name, $value);
+		    } else {
+			die "multiple definitions for $name\n" if defined($data->{$name});
+			$data->{$name} = parse_lxc_option($name, $value);
+		    }
+		}
+
+		next;
+	    }
+	    die "unable to parse config line: $line\n";
+	}
+	&$push_network($network);
+
+	foreach my $net (@{$network_list}) {
+	    next if $net->{type} eq 'empty'; # skip
+	    $net->{'veth.pair'} = &$find_next_hostif_name() if !$net->{'veth.pair'};
+	    $net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
+	    die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
+
+	    if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
+		if ($snapname) {
+		    $data->{snapshots}->{$snapname}->{"net$1"} = $net
+		} else {
+		    $data->{"net$1"} = $net;
+	    }
+	    }
 	}
 
-	die "unable to parse config line: $line\n";
-    }
-
-    &$push_network($network);
-
-    foreach my $net (@{$network_list}) {
-	next if $net->{type} eq 'empty'; # skip
-	$net->{'veth.pair'} = &$find_next_hostif_name() if !$net->{'veth.pair'};
-	$net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
-	die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
-
-	if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
-	    $data->{"net$1"} = $net;
-	}
     }
 
     return $data;
@@ -918,6 +1003,12 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
+sub check_lock {
+    my ($conf) = @_;
+
+    die "VM is locked ($conf->{'pve.lock'})\n" if $conf->{'pve.lock'};
+}
+
 sub lxc_conf_to_pve {
     my ($vmid, $lxc_conf) = @_;
 
@@ -969,6 +1060,18 @@ sub lxc_conf_to_pve {
 	    next if !$net;
 	    $conf->{$k} = print_lxc_network($net);
 	}
+    }
+
+    if (my $parent = $lxc_conf->{'pve.parent'}) {
+	    $conf->{parent} = $lxc_conf->{'pve.parent'};
+    }
+
+    if (my $parent = $lxc_conf->{'pve.snapcomment'}) {
+	$conf->{description} = $lxc_conf->{'pve.snapcomment'};
+    }
+
+    if (my $parent = $lxc_conf->{'pve.snaptime'}) {
+	$conf->{snaptime} = $lxc_conf->{'pve.snaptime'};
     }
 
     return $conf;
