@@ -1545,7 +1545,7 @@ sub snapshot_create {
 	&$snapshot_commit($vmid, $snapname);
     };
     if(my $err = $@) {
-	#ToDo implement delete snapshot
+	snapshot_delete($vmid, $snapname, 1);
 	die "$err\n";
     }
 }
@@ -1553,7 +1553,59 @@ sub snapshot_create {
 sub snapshot_delete {
     my ($vmid, $snapname, $force) = @_;
 
-    print "Not implemented\n";
+    my $snap;
+
+    my $conf;
+
+    my $updatefn =  sub {
+
+	$conf = load_config($vmid);
+
+	$snap = $conf->{snapshots}->{$snapname};
+
+	check_lock($conf);
+
+	die "snapshot '$snapname' does not exist\n" if !defined($snap);
+
+	$snap->{'pve.snapstate'} = 'delete';
+
+	PVE::LXC::write_config($vmid, $conf);
+    };
+
+    lock_container($vmid, 10, $updatefn);
+
+    my $storecfg = PVE::Storage::config();
+
+    my $del_snap =  sub {
+
+	check_lock($conf);
+
+	if ($conf->{'pve.parent'} eq $snapname) {
+	    if ($conf->{snapshots}->{$snapname}->{'pve.snapname'}) {
+		$conf->{'pve.parent'} = $conf->{snapshots}->{$snapname}->{'pve.parent'};
+	    } else {
+		delete $conf->{'pve.parent'};
+	    }
+	}
+
+	delete $conf->{snapshots}->{$snapname};
+
+	PVE::LXC::write_config($vmid, $conf);
+    };
+
+    my $volid = $conf->{snapshots}->{$snapname}->{'pve.volid'};
+
+    eval {
+	PVE::Storage::volume_snapshot_delete($storecfg, $volid, $snapname);
+    };
+    my $err = $@;
+
+    if(!$err || ($err && $force)) {
+	lock_container($vmid, 10, $del_snap);
+	if ($err) {
+	    die "Can't delete snapshot: $vmid $snapname $err\n";
+	}
+    }
 }
 
 1;
