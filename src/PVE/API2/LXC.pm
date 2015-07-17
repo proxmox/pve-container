@@ -58,6 +58,11 @@ my $check_ct_modify_config_perm = sub {
     return 1;
 };
 
+PVE::JSONSchema::register_standard_option('pve-lxc-snapshot-name', {
+    description => "The name of the snapshot.",
+    type => 'string', format => 'pve-configid',
+    maxLength => 40,
+});
 
 __PACKAGE__->register_method({
     name => 'vmlist',
@@ -1279,4 +1284,59 @@ __PACKAGE__->register_method({
 	}
     }});
 
+__PACKAGE__->register_method({
+    name => 'snapshot',
+    path => '{vmid}/snapshot',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Snapshot a container.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    vmstate => {
+		optional => 1,
+		type => 'boolean',
+		description => "Save the vmstate",
+	    },
+	    description => {
+		optional => 1,
+		type => 'string',
+		description => "A textual description or comment.",
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $snapname = extract_param($param, 'snapname');
+
+	die "unable to use snapshot name 'current' (reserved name)\n"
+	    if $snapname eq 'current';
+
+	my $realcmd = sub {
+	    PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
+	    PVE::LXC::snapshot_create($vmid, $snapname, $param->{description});
+	};
+
+	return $rpcenv->fork_worker('pctsnapshot', $vmid, $authuser, $realcmd);
+    }});
 1;

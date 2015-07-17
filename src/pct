@@ -123,6 +123,8 @@ my $cmddef = {
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
 
+    snapshot => [ "PVE::API2::LXC", 'snapshot', ['vmid', 'snapname'],
+		  { node => $nodename } , $upid_exit ],
 };
 			      
 my $cmd = shift;

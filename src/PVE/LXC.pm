@@ -1420,6 +1420,14 @@ sub update_ipconfig {
 
     &$change_ip_config(4);
     &$change_ip_config(6);
+
+}
+
+sub snapshot_create {
+    my ($vmid, $snapname, $comment) = @_;
+
+    print "Not implemented\n";
+
 }
 
 1;
