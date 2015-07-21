@@ -57,8 +57,21 @@ sub restore_archive {
     #$cmd = [@$userns_cmd, 'mkdir', '-p', "$rootdir/dev/pts"];
     #PVE::Tools::run_command($cmd);
 
-    # template/OS specific configuration
-    $conf->{'lxc.arch'} = 'i386'; #fixme: || x86_64
+    #determine file type of /usr/bin/file itself to get guests' architecture
+    $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/usr/bin/file"];
+    PVE::Tools::run_command($cmd, outfunc => sub {
+	shift =~ /^ELF (\d{2}-bit)/; # safely assumes x86 linux
+	my $arch_str = $1;
+	$conf->{'lxc.arch'} = 'amd64'; # defaults to 64bit
+	if(defined($arch_str)) {
+	    $conf->{'lxc.arch'} = 'i386' if $arch_str =~ /32/;
+	    print "Detected container architecture: $conf->{'lxc.arch'}\n";
+	} else {
+	    print "CT architecture detection failed, falling back to amd64.\n".
+	          "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}/config".
+	          " to set another arch.\n";
+	}
+    });
 }
 
 sub restore_and_configure {
