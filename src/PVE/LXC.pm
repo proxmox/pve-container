@@ -168,11 +168,8 @@ sub write_lxc_config {
 
     return $raw if !$data;
 
-    my $done_hash = { digest => 1};
-
     my $dump_entry = sub {
-	my ($k, $elem, $done_hash, $snap) = @_;
-	my $value = $elem->{$k};
+	my ($k, $value, $done_hash, $snapshot) = @_;
 	return if !defined($value);
 	return if $done_hash->{$k};
 	$done_hash->{$k} = 1;
@@ -180,11 +177,11 @@ sub write_lxc_config {
 	    die "got unexpected reference for '$k'"
 		if !$lxc_array_configs->{$k};
 	    foreach my $v (@$value) {
-		$raw .= "snap\." if $snap;
+		$raw .= 'snap.' if $snapshot;
 		$raw .= "$k = $v\n";
 	    }
 	} else {
-	    $raw .= "snap\." if $snap;
+	    $raw .= 'snap.' if $snapshot;
 	    $raw .= "$k = $value\n";
 	}
     };
@@ -194,21 +191,21 @@ sub write_lxc_config {
 
 	my $done_hash = { digest => 1};
 
-	if ($elem->{'pve.snapname'}) {
-	     &$dump_entry('pve.snapname', $elem, $done_hash, $snapshot);
+	if (defined(my $value = $elem->{'pve.snapname'})) {
+	     &$dump_entry('pve.snapname', $value, $done_hash, $snapshot);
 	}
 
 	# Note: Order is important! Include defaults first, so that we
 	# can overwrite them later.
-	&$dump_entry('lxc.include', $elem, $done_hash, $snapshot);
+	&$dump_entry('lxc.include', $elem->{'lxc.include'}, $done_hash, $snapshot);
 
 	foreach my $k (sort keys %$elem) {
 	    next if $k !~ m/^lxc\./;
-	    &$dump_entry($k, $elem, $done_hash, $snapshot);
+	    &$dump_entry($k, $elem->{$k}, $done_hash, $snapshot);
 	}
 	foreach my $k (sort keys %$elem) {
 	    next if $k !~ m/^pve\./;
-	    &$dump_entry($k, $elem, $done_hash, $snapshot);
+	    &$dump_entry($k, $elem->{$k}, $done_hash, $snapshot);
 	}
 	my $network_count = 0;
 
@@ -218,15 +215,15 @@ sub write_lxc_config {
 
 	    my $net = $elem->{$k};
 	    $network_count++;
-	    $raw .= "snap\." if $snapshot;
+	    $raw .= 'snap.' if $snapshot;
 	    $raw .= "lxc.network.type = $net->{type}\n";
 	    foreach my $subkey (sort keys %$net) {
 		next if $subkey eq 'type';
 		if ($valid_lxc_network_keys->{$subkey}) {
-		    $raw .= "snap\." if $snapshot;
+		    $raw .= 'snap.' if $snapshot;
 		    $raw .= "lxc.network.$subkey = $net->{$subkey}\n";
 		} elsif ($valid_pve_network_keys->{$subkey}) {
-		    $raw .= "snap\." if $snapshot;
+		    $raw .= 'snap.' if $snapshot;
 		    $raw .= "pve.network.$subkey = $net->{$subkey}\n";
 		} else {
 		    die "found invalid network key '$subkey'";
@@ -234,7 +231,7 @@ sub write_lxc_config {
 	    }
 	}
 	if (!$network_count) {
-	    $raw .= "snap\." if $snapshot;
+	    $raw .= 'snap.' if $snapshot;
 	    $raw .= "lxc.network.type = empty\n";
 	}
 	foreach my $k (sort keys %$elem) {
@@ -247,8 +244,8 @@ sub write_lxc_config {
 
     &$config_writer($data);
 
-    if ($data->{snapshots}){
-	my @tmp = sort  { $data->{snapshots}->{$b}{'pve.snaptime'} <=>
+    if ($data->{snapshots}) {
+	my @tmp = sort { $data->{snapshots}->{$b}{'pve.snaptime'} <=>
 			      $data->{snapshots}->{$a}{'pve.snaptime'} }
 			keys %{$data->{snapshots}};
 	foreach my $snapname (@tmp) {
@@ -311,7 +308,6 @@ sub parse_lxc_config {
 
 	return $sections;
     };
-
 
     my $sec = &$split_config($raw);
 
@@ -429,13 +425,12 @@ sub parse_lxc_config {
 
 	    if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
 		if ($snapname) {
-		    $data->{snapshots}->{$snapname}->{"net$1"} = $net
+		    $data->{snapshots}->{$snapname}->{"net$1"} = $net;
 		} else {
 		    $data->{"net$1"} = $net;
-	    }
+		}
 	    }
 	}
-
     }
 
     return $data;
