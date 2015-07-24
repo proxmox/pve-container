@@ -134,11 +134,9 @@ sub setup_network {
 	}
     }
 
-     return if !scalar(keys %$networks);
+    return if !scalar(keys %$networks);
 
     my $filename = "$rootdir/etc/network/interfaces";
-    my $data = {};
-    my $order = [];
     my $interfaces = "";
 
     my $section;
