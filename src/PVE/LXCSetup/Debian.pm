@@ -113,24 +113,31 @@ sub setup_network {
 	if ($d->{name}) {
 	    my $net = {};
 	    if (defined($d->{ip})) {
-		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
-		$net->{address} = $ipinfo->{address};
-		$net->{netmask} = $ipinfo->{netmask};
+		if ($d->{ip} =~ /^(?:dhcp|manual)$/) {
+		    $net->{address} = $d->{ip};
+		} else {
+		    my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
+		    $net->{address} = $ipinfo->{address};
+		    $net->{netmask} = $ipinfo->{netmask};
+		}
 	    }
 	    if (defined($d->{'gw'})) {
 		$net->{gateway} = $d->{'gw'};
 	    }
 	    if (defined($d->{ip6})) {
-		if ($d->{ip6} !~ /^($IPV6RE)\/(\d+)$/) {
+		if ($d->{ip6} =~ /^(?:dhcp|manual)$/) {
+		    $net->{address6} = $d->{ip6};
+		} elsif ($d->{ip6} !~ /^($IPV6RE)\/(\d+)$/) {
 		    die "unable to parse ipv6 address/prefix\n";
+		} else {
+		    $net->{address6} = $1;
+		    $net->{netmask6} = $2;
 		}
-		$net->{address6} = $1;
-		$net->{netmask6} = $2;
 	    }
 	    if (defined($d->{'gw6'})) {
 		$net->{gateway6} = $d->{'gw6'};
 	    }
-	    $networks->{$d->{name}} = $net;
+	    $networks->{$d->{name}} = $net if keys %$net;
 	}
     }
 
@@ -156,7 +163,9 @@ sub setup_network {
 
 	    $interfaces .= "auto $section->{ifname}\n" if $new;
 
-	    if ($net->{address}) {
+	    if ($net->{address} =~ /^(dhcp|manual)$/) {
+		$interfaces .= "iface $section->{ifname} inet $1\n";
+	    } elsif ($net->{address}) {
 		$interfaces .= "iface $section->{ifname} inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
 		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
@@ -164,8 +173,6 @@ sub setup_network {
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
-	    } else {
-		$interfaces .= "iface $section->{ifname} inet manual\n";		
 	    }
 	    
 	    $interfaces .= "\n";
@@ -173,7 +180,9 @@ sub setup_network {
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$section->{ifname}} = 1;
 	    
-	    if ($net->{address6}) {
+	    if ($net->{address6} =~ /^(dhcp|manual)$/) {
+		$interfaces .= "iface $section->{ifname} inet6 $1\n";
+	    } elsif ($net->{address6}) {
 		$interfaces .= "iface $section->{ifname} inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
 		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
@@ -206,8 +215,9 @@ sub setup_network {
 		}
 		next;
 	    }
-	    if ($line =~ m/^iface\s+(\S+)\s+inet\s+(\S+)\s*$/) {
+	    if ($line =~ m/^\s*iface\s+(\S+)\s+inet\s+(\S+)\s*$/) {
 		my $ifname = $1;
+		&$print_section(); # print previous section
 		if (!$networks->{$ifname}) {
 		    $interfaces .= "$line\n";
 		    next;
@@ -215,14 +225,26 @@ sub setup_network {
 		$section = { type => 'ipv4', ifname => $ifname, attr => []};
 		next;
 	    }
-	    if ($line =~ m/^iface\s+(\S+)\s+inet6\s+(\S+)\s*$/) {
+	    if ($line =~ m/^\s*iface\s+(\S+)\s+inet6\s+(\S+)\s*$/) {
 		my $ifname = $1;
+		&$print_section(); # print previous section
 		if (!$networks->{$ifname}) {
 		    $interfaces .= "$line\n";
 		    next;
 		}
 		$section = { type => 'ipv6', ifname => $ifname, attr => []};
 		next;
+	    }
+	    # Handle other section delimiters:
+	    if ($line =~ m/^\s*(?:mapping\s
+	                         |auto\s
+	                         |allow-
+	                         |source\s
+	                         |source-directory\s
+	                       )/x) {
+	        &$print_section();
+	        $interfaces .= "$line\n";
+	        next;
 	    }
 	    if ($section && $line =~ m/^\s*((\S+)\s(.*))$/) {
 		my ($adata, $aname) = ($1, $2);

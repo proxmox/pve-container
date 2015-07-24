@@ -8,3 +8,4 @@ lxc.network.hwaddr = 26:2B:CC:E5:7F:F9
 pve.network.bridge = vmbr0
 lxc.network.name = eth0
 lxc.network.veth.pair = veth100.0
+pve.network.ip = manual

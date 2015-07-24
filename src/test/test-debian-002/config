@@ -14,3 +14,4 @@ lxc.network.type = veth
 pve.network.bridge = vmbr0
 lxc.network.name = eth2
 lxc.network.veth.pair = veth100i2
+pve.network.ip = manual
