@@ -291,138 +291,49 @@ sub parse_lxc_config {
 
     my $vmid = $1;
 
-    my $split_config = sub {
-	my ($raw) = @_;
-	my $sections = [];
-	my $tmp = '';
-	while ($raw && $raw =~ s/^(.*)?(\n|$)//) {
-	    my $line = $1;
-	    if(!$line) {
-		push(@{$sections},$tmp);
-		$tmp = '';
-	    } else {
-		$tmp .= "$line\n";
+     
+    my $network_counter = 0;
+    my $network_list = [];
+    my $host_ifnames = {};
+    my $snapname;
+    my $network;
+
+    my $find_next_hostif_name = sub {
+	for (my $i = 0; $i < 10; $i++) {
+	    my $name = "veth${vmid}.$i";
+	    if (!$host_ifnames->{$name}) {
+		$host_ifnames->{$name} = 1;
+		return $name;
 	    }
 	}
-	push(@{$sections},$tmp);
 
-	return $sections;
+	die "unable to find free host_ifname"; # should not happen
     };
 
-    my $sec = &$split_config($raw);
-
-    foreach my  $sec_raw (@{$sec}){
-	next if $sec_raw eq '';
-	my $snapname = undef;
-
-	my $network_counter = 0;
-	my $network_list = [];
-	my $host_ifnames = {};
-
-	my $find_next_hostif_name = sub {
-	    for (my $i = 0; $i < 10; $i++) {
-		my $name = "veth${vmid}.$i";
-		if (!$host_ifnames->{$name}) {
-		    $host_ifnames->{$name} = 1;
-		    return $name;
-		}
+    my $push_network = sub {
+	my ($netconf) = @_;
+	return if !$netconf;
+	push @{$network_list}, $netconf;
+	$network_counter++;
+	if (my $netname = $netconf->{'veth.pair'}) {
+	    if ($netname =~ m/^veth(\d+).(\d)$/) {
+		die "wrong vmid for network interface pair\n" if $1 != $vmid;
+		my $host_ifnames->{$netname} = 1;
+	    } else {
+		die "wrong network interface pair\n";
 	    }
-
-	    die "unable to find free host_ifname"; # should not happen
-	};
-
-	my $push_network = sub {
-	    my ($netconf) = @_;
-	    return if !$netconf;
-	    push @{$network_list}, $netconf;
-	    $network_counter++;
-	    if (my $netname = $netconf->{'veth.pair'}) {
-		if ($netname =~ m/^veth(\d+).(\d)$/) {
-		    die "wrong vmid for network interface pair\n" if $1 != $vmid;
-		    my $host_ifnames->{$netname} = 1;
-		} else {
-		    die "wrong network interface pair\n";
-		}
-	    }
-	};
-
-	my $network;
-
-	while ($sec_raw && $sec_raw =~ s/^(.*?)(\n|$)//) {
-	    my $line = $1;
-
-	    next if $line =~ m/^\#/;
-	    next if $line =~ m/^\s*$/;
-
-	    if ($line =~ m/^(snap\.)?lxc\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-		my ($subkey, $value) = ($2, $3);
-		if ($subkey eq 'type') {
-		    &$push_network($network);
-		    $network = { type => $value };
-		} elsif ($valid_lxc_network_keys->{$subkey}) {
-		    $network->{$subkey} = $value;
-		} else {
-		    die "unable to parse config line: $line\n";
-		}
-		next;
-	    }
-	    if ($line =~ m/^(snap\.)?pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-		my ($subkey, $value) = ($2, $3);
-		if ($valid_pve_network_keys->{$subkey}) {
-		    $network->{$subkey} = $value;
-		} else {
-		    die "unable to parse config line: $line\n";
-		}
-		next;
-	    }
-	    if ($line =~ m/^(snap\.)?(pve.snapcomment)\s*=\s*(\S.*)\s*$/) {
-		my ($name, $value) = ($2, $3);
-		if ($snapname) {
-		    $data->{snapshots}->{$snapname}->{$name} = $value;
-		}
-		next;
-	    }
-	    if ($line =~ m/^(snap\.)?pve\.snapname = (\w*)$/) {
-		if (!$snapname) {
-		    $snapname = $2;
-		    $data->{snapshots}->{$snapname}->{'pve.snapname'} = $snapname;
-		} else {
-		    die "Configuarion broken\n";
-		}
-		next;
-	    }
-	    if ($line =~ m/^(snap\.)?((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
-		my ($name, $value) = ($2, $3);
-
-		if ($lxc_array_configs->{$name}) {
-		    $data->{$name} = [] if !defined($data->{$name});
-		    if ($snapname) {
-			push @{$data->{snapshots}->{$snapname}->{$name}},  parse_lxc_option($name, $value);
-		    } else {
-			push @{$data->{$name}},  parse_lxc_option($name, $value);
-		    }
-		} else {
-		    if ($snapname) {
-			die "multiple definitions for $name\n" if defined($data->{snapshots}->{$snapname}->{$name});
-			$data->{snapshots}->{$snapname}->{$name} = parse_lxc_option($name, $value);
-		    } else {
-			die "multiple definitions for $name\n" if defined($data->{$name});
-			$data->{$name} = parse_lxc_option($name, $value);
-		    }
-		}
-
-		next;
-	    }
-	    die "unable to parse config line: $line\n";
 	}
-	&$push_network($network);
+    };
 
+    my $finalize_section = sub {
+	&$push_network($network); # flush
+	
 	foreach my $net (@{$network_list}) {
 	    next if $net->{type} eq 'empty'; # skip
 	    $net->{'veth.pair'} = &$find_next_hostif_name() if !$net->{'veth.pair'};
 	    $net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
 	    die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
-
+	    
 	    if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
 		if ($snapname) {
 		    $data->{snapshots}->{$snapname}->{"net$1"} = $net;
@@ -431,7 +342,70 @@ sub parse_lxc_config {
 		}
 	    }
 	}
+
+	# reset helper vars
+	$network_counter = 0;
+	$network_list = [];
+	$host_ifnames = {};
+	$network = undef;
+    };
+    
+    while ($raw && $raw =~ s/^(.*)?(\n|$)//) {
+	my $line = $1;
+	next if $line =~ m/^\s*$/; # skip empty lines
+	next if $line =~ m/^#/; # skip comments
+
+	# snap.pve.snapname starts new sections
+	if ($line =~ m/^(snap\.)?pve\.snapname\s*=\s*(\w*)\s*$/) {
+	    my $value = $2;
+	    
+	    &$finalize_section();
+
+	    $snapname = $value;
+	    $data->{snapshots}->{$snapname}->{'pve.snapname'} = $snapname;
+	    
+	} elsif ($line =~ m/^(snap\.)?lxc\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
+	    my ($subkey, $value) = ($2, $3);
+	    if ($subkey eq 'type') {
+		&$push_network($network);
+		$network = { type => $value };
+	    } elsif ($valid_lxc_network_keys->{$subkey}) {
+		$network->{$subkey} = $value;
+	    } else {
+		die "unable to parse config line: $line\n";
+	    }
+	} elsif ($line =~ m/^(snap\.)?pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
+	    my ($subkey, $value) = ($2, $3);
+	    if ($valid_pve_network_keys->{$subkey}) {
+		$network->{$subkey} = $value;
+	    } else {
+		die "unable to parse config line: $line\n";
+	    }
+	} elsif ($line =~ m/^(snap\.)?((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
+	    my ($name, $value) = ($2, $3);
+	    
+	    if ($lxc_array_configs->{$name}) {
+		$data->{$name} = [] if !defined($data->{$name});
+		if ($snapname) {
+		    push @{$data->{snapshots}->{$snapname}->{$name}},  parse_lxc_option($name, $value);
+		} else {
+		    push @{$data->{$name}},  parse_lxc_option($name, $value);
+		}
+	    } else {
+		if ($snapname) {
+		    die "multiple definitions for $name\n" if defined($data->{snapshots}->{$snapname}->{$name});
+		    $data->{snapshots}->{$snapname}->{$name} = parse_lxc_option($name, $value);
+		} else {
+		    die "multiple definitions for $name\n" if defined($data->{$name});
+		    $data->{$name} = parse_lxc_option($name, $value);
+		}
+	    }
+	} else {
+	    die "unable to parse config line: $line\n";
+	}
     }
+
+    &$finalize_section();
 
     return $data;
 }
