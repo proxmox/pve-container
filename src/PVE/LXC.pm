@@ -1627,13 +1627,8 @@ sub snapshot_rollback {
 	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n" if $snap->{snapstate};
 
 	check_lock($conf);
-	my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
-
-	eval {
-	    lxc_stop($vmid, $authuser, $rpcenv);
-	};
+	system("lxc-stop -n $vmid --kill") if check_running($vmid);
 
 	die "unable to rollback vm $vmid: vm is running\n"
 	    if check_running($vmid);
@@ -1646,14 +1641,12 @@ sub snapshot_rollback {
 
 	my $tmp_conf = $conf;
 	&$snapshot_copy_config($tmp_conf->{snapshots}->{$snapname}, $conf);
-	print Dumper $conf, $tmp_conf;
 	$conf->{snapshots} = $tmp_conf->{snapshots};
 	delete $conf->{'pve.snaptime'};
 	delete $conf->{'pve.snapname'};
 	$conf->{'pve.parent'} = $snapname;
 
 	PVE::LXC::write_config($vmid, $conf);
-
     };
 
     my $unlockfn = sub {
@@ -1667,4 +1660,5 @@ sub snapshot_rollback {
 
     lock_container($vmid, 5, $unlockfn);
 }
+
 1;
