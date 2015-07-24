@@ -67,6 +67,9 @@ my $valid_lxc_keys = {
     'lxc.mount.entry' => 1,
     'lxc.mount.auto' => 1,
 
+    # security related
+    'lxc.seccomp' => 1,
+
     # not used by pve
     'lxc.tty' => '\d+',
     'lxc.pts' => 1,
