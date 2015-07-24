@@ -174,8 +174,26 @@ sub set_hostname {
 	PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
     } else {
 	my $data = PVE::Tools::file_get_contents($sysconfig_network);
-	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname\n/m) {
+	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname/m) {
 	    $data .= "HOSTNAME=$hostname\n";
+	}
+	my ($has_ipv4, $has_ipv6);
+	foreach my $k (keys %$conf) {
+	    next if $k !~ m/^net(\d+)$/;
+	    my $d = $conf->{$k};
+	    next if !$d->{name};
+	    $has_ipv4 = 1 if defined($d->{ip});
+	    $has_ipv6 = 1 if defined($d->{ip6});
+	}
+	if ($has_ipv4) {
+	    if ($data !~ s/(NETWORKING)=\S+/$1=yes/) {
+		$data .= "NETWORKING=yes\n";
+	    }
+	}
+	if ($has_ipv6) {
+	    if ($data !~ s/(NETWORKING_IPV6)=\S+/$1=yes/) {
+		$data .= "NETWORKING_IPV6=yes\n";
+	    }
 	}
 	PVE::Tools::file_set_contents($sysconfig_network, $data);
     }
@@ -194,12 +212,18 @@ sub setup_network {
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $d = $conf->{$k};
-	if ($d->{name}) {
-	    my $filename = "$rootdir/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
+	next if !$d->{name};
+
+	my $filename = "$rootdir/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
+	my $had_v4 = 0;
+
+	if ($d->{ip} && $d->{ip} ne 'manual') {
 	    my $data = "DEVICE=$d->{name}\n";
 	    $data .= "ONBOOT=yes\n";
-	    $data .= "BOOTPROTO=none\n";
-	    if (defined($d->{ip})) {
+	    if ($d->{ip} eq 'dhcp') {
+		$data .= "BOOTPROTO=dhcp\n";
+	    } else {
+		$data .= "BOOTPROTO=none\n";
 		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
 		$data .= "IPADDR=$ipinfo->{address}\n";
 		$data .= "NETMASK=$ipinfo->{netmask}\n";
@@ -207,11 +231,29 @@ sub setup_network {
 		    $data .= "GATEWAY=$d->{gw}\n";
 		}
 	    }
-	    if (defined($d->{ip6})) {
+	    PVE::Tools::file_set_contents($filename, $data);
+	    # If we also have an IPv6 configuration it'll end up in an alias
+	    # interface becuase otherwise RH doesn't support mixing dhcpv4 with
+	    # a static ipv6 address.
+	    $filename .= ':0';
+	    $had_v4 = 1;
+	}
+
+	if ($d->{ip6} && $d->{ip6} ne 'manual') {
+	    # If we're only on ipv6 delete the :0 alias
+	    unlink "$filename:0"if !$had_v4;
+
+	    my $data = "DEVICE=$d->{name}\n";
+	    $data .= "ONBOOT=yes\n";
+	    $data .= "BOOTPROTO=none\n";
+	    $data .= "IPV6INIT=yes\n";
+	    if ($d->{ip6} eq 'dhcp') {
+		$data .= "DHCPV6C=yes\n";
+	    } else {
 		$data .= "IPV6ADDR=$d->{ip6}\n";
-	    }
-	    if (defined($d->{gw6})) {
-		$data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
+		if (defined($d->{gw6})) {
+		    $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
+		}
 	    }
 	    PVE::Tools::file_set_contents($filename, $data);
 	}
