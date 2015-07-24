@@ -361,6 +361,7 @@ __PACKAGE__->register_method({
 	my $code = sub {
 
 	    my $conf = PVE::LXC::load_config($vmid);
+	    PVE::LXC::check_lock($conf);
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
@@ -590,11 +591,15 @@ __PACKAGE__->register_method({
 	my $vmid = $param->{vmid};
 
 	# test if container exists
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::load_config($vmid);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $code = sub {
+	    # reload config after lock
+	    $conf = PVE::LXC::load_config($vmid);
+	    PVE::LXC::check_lock($conf);
+
 	    PVE::LXC::destory_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_from_pool($vmid);
 	};
@@ -1563,7 +1568,6 @@ __PACKAGE__->register_method({
 	my $updatefn =  sub {
 
 	    my $conf = PVE::LXC::load_config($vmid);
-
 	    PVE::LXC::check_lock($conf);
 
 	    my $snap = $conf->{snapshots}->{$snapname};
