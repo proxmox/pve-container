@@ -1191,9 +1191,21 @@ sub get_primary_ips {
     return undef if !$net;
 
     my $ipv4 = $net->{ip};
-    $ipv4 =~ s!/\d+$!! if $ipv4;
+    if ($ipv4) {
+	if ($ipv4 =~ /^(dhcp|manual)$/) {
+	    $ipv4 = undef
+	} else {
+	    $ipv4 =~ s!/\d+$!!;
+	}
+    }
     my $ipv6 = $net->{ip6};
-    $ipv6 =~ s!/\d+$!! if $ipv6;
+    if ($ipv6) {
+	if ($ipv6 =~ /^(dhcp|manual)$/) {
+	    $ipv6 = undef;
+	} else {
+	    $ipv6 =~ s!/\d+$!!;
+	}
+    }
 
     return ($ipv4, $ipv6);
 }
