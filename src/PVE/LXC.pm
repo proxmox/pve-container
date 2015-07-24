@@ -1192,7 +1192,7 @@ sub get_primary_ips {
 
     my $ipv4 = $net->{ip};
     $ipv4 =~ s!/\d+$!! if $ipv4;
-    my $ipv6 = $net->{ip};
+    my $ipv6 = $net->{ip6};
     $ipv6 =~ s!/\d+$!! if $ipv6;
 
     return ($ipv4, $ipv6);
