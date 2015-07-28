@@ -254,7 +254,7 @@ sub archive {
     my $cmd = "(";
 
     $cmd .= "cd $snapdir;find . $findargs|sed 's/\\\\/\\\\\\\\/g'|";
-    $cmd .= "tar cpf - $taropts --null -T -";
+    $cmd .= "tar cpf - $taropts etc/vzdump/lxc.conf --null -T -";
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
     $cmd .= "|cstream -t $bwl" if $opts->{bwlimit};
     $cmd .= "|$comp" if $comp;
