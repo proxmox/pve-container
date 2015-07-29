@@ -794,8 +794,10 @@ sub vmstatus {
 
 	$d->{mem} = 0;
 	$d->{swap} = 0;
-	$d->{maxmem} = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0) +
-	    ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
+	my $totalmem = ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
+	my $physmem = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0);
+	$d->{maxmem} = $physmem;
+	$d->{maxswap} = $totalmem - $physmem;
 
 	$d->{uptime} = 0;
 	$d->{cpu} = 0;
@@ -1011,7 +1013,7 @@ sub lxc_conf_to_pve {
 	} elsif ($k eq 'swap') {
 	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}) {
 		my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
-		$conf->{$k} = int(($value -$mem) / (1024*1024));
+		$conf->{$k} = int(($value - $mem) / (1024*1024));
 	    }
 	} elsif ($k eq 'cpulimit') {
 	    my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
@@ -1118,6 +1120,30 @@ sub update_lxc_config {
 	}
     }
 
+    # There's no separate swap size to configure, there's memory and "total"
+    # memory (iow. memory+swap). This means we have to change them together.
+    my $wanted_memory = $param->{memory};
+    my $wanted_swap = $param->{swap};
+    if (defined($wanted_memory) || defined($wanted_swap)) {
+	my $old_memory = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0);
+	if (!defined($wanted_memory)) {
+	    $wanted_memory = $old_memory;
+	} else {
+	    $wanted_memory *= 1024*1024;
+	}
+	if (!defined($wanted_swap)) {
+	    my $old_total = ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
+	    $wanted_swap = $old_total - $old_memory;
+	} else {
+	    $wanted_swap *= 1024*1024;
+	}
+	my $total = $wanted_memory + $wanted_swap;
+	$conf->{'lxc.cgroup.memory.limit_in_bytes'} = $wanted_memory;
+	$conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $total;
+	write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", $wanted_memory);
+	write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", $total);
+    }
+
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
@@ -1136,15 +1162,9 @@ sub update_lxc_config {
 	    $conf->{'pve.searchdomain'} = $list;
 	    push @nohotplug, $opt;
 	    next if $running;
-	} elsif ($opt eq 'memory') {
-	    $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $value*1024*1024;
-	    write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", $value*1024*1024);
-	} elsif ($opt eq 'swap') {
-	    my $mem =  $conf->{'lxc.cgroup.memory.limit_in_bytes'};
-	    $mem = $param->{memory}*1024*1024 if $param->{memory};
-	    $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $mem + $value*1024*1024;
-	    write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", $mem + $value*1024*1024);
-
+	} elsif ($opt eq 'memory' || $opt eq 'swap') {
+	    # already handled
+	    next;
 	} elsif ($opt eq 'cpulimit') {
 	    if ($value > 0) {
 		my $cfs_period_us = 100000;
