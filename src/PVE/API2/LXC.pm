@@ -833,7 +833,7 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	# test if VM exists
-	my $conf = PVE::OpenVZ::load_config($param->{vmid});
+	my $conf = PVE::LXC::load_config($param->{vmid});
 
 	my $res = [
 	    { subdir => 'current' },
