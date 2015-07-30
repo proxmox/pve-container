@@ -113,7 +113,7 @@ sub setup_network {
 	if ($d->{name}) {
 	    my $net = {};
 	    if (defined($d->{ip})) {
-		if ($d->{ip} =~ /^(?:auto|dhcp|manual)$/) {
+		if ($d->{ip} =~ /^(?:dhcp|manual)$/) {
 		    $net->{address} = $d->{ip};
 		} else {
 		    my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
@@ -163,7 +163,7 @@ sub setup_network {
 
 	    $interfaces .= "auto $section->{ifname}\n" if $new;
 
-	    if ($net->{address} =~ /^(auto|dhcp|manual)$/) {
+	    if ($net->{address} =~ /^(dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet $1\n";
 	    } elsif ($net->{address}) {
 		$interfaces .= "iface $section->{ifname} inet static\n";
