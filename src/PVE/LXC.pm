@@ -1356,10 +1356,11 @@ sub update_ipconfig {
     my $optdata = $conf->{$opt};
     my $deleted = [];
     my $added = [];
-    my $netcmd = sub {
-	my $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', @_];
-	PVE::Tools::run_command($cmd);
+    my $nscmd = sub {
+	my $cmdargs = shift;
+	PVE::Tools::run_command(['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', @_], %$cmdargs);
     };
+    my $ipcmd = sub { &$nscmd({}, '/sbin/ip', @_) };
 
     my $change_ip_config = sub {
 	my ($ipversion) = @_;
@@ -1380,7 +1381,7 @@ sub update_ipconfig {
 
 	# step 1: add new IP, if this fails we cancel
 	if ($change_ip && $newip && $newip !~ /^(?:auto|dhcp)$/) {
-	    eval { &$netcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
+	    eval { &$ipcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
 	    if (my $err = $@) {
 		warn $err;
 		return;
@@ -1394,19 +1395,19 @@ sub update_ipconfig {
 	# Note: 'ip route replace' can add
 	if ($change_gw) {
 	    if ($newgw) {
-		eval { &$netcmd($family_opt, 'route', 'replace', 'default', 'via', $newgw); };
+		eval { &$ipcmd($family_opt, 'route', 'replace', 'default', 'via', $newgw); };
 		if (my $err = $@) {
 		    warn $err;
 		    # the route was not replaced, the old IP is still available
 		    # rollback (delete new IP) and cancel
 		    if ($change_ip) {
-			eval { &$netcmd($family_opt, 'addr', 'del', $newip, 'dev', $eth); };
+			eval { &$ipcmd($family_opt, 'addr', 'del', $newip, 'dev', $eth); };
 			warn $@ if $@; # no need to die here
 		    }
 		    return;
 		}
 	    } else {
-		eval { &$netcmd($family_opt, 'route', 'del', 'default'); };
+		eval { &$ipcmd($family_opt, 'route', 'del', 'default'); };
 		# if the route was not deleted, the guest might have deleted it manually
 		# warn and continue
 		warn $@ if $@;
@@ -1416,8 +1417,22 @@ sub update_ipconfig {
 	# from this point on we save the configuration
 	# step 3: delete old IP ignoring errors
 	if ($change_ip && $oldip && $oldip !~ /^(?:auto|dhcp)$/) {
-	    eval { &$netcmd($family_opt, 'addr', 'del', $oldip, 'dev', $eth); };
+	    # We need to enable promote_secondaries, otherwise our newly added
+	    # address will be removed along with the old one.
+	    my $promote = 0;
+	    eval {
+		if ($ipversion == 4) {
+		    &$nscmd({ outfunc => sub { $promote = int(shift) } },
+			    'cat', "/proc/sys/net/ipv4/conf/$eth/promote_secondaries");
+		    &$nscmd({}, 'sysctl', "net.ipv4.conf.$eth.promote_secondaries=1");
+		}
+		&$ipcmd($family_opt, 'addr', 'del', $oldip, 'dev', $eth);
+	    };
 	    warn $@ if $@; # no need to die here
+
+	    if ($ipversion == 4) {
+		&$nscmd({}, 'sysctl', "net.ipv4.conf.$eth.promote_secondaries=$promote");
+	    }
 	}
 
 	foreach my $property ($ip, $gw) {
