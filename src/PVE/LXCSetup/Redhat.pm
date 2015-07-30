@@ -247,6 +247,11 @@ sub setup_network {
 	    $data .= "ONBOOT=yes\n";
 	    $data .= "BOOTPROTO=none\n";
 	    $data .= "IPV6INIT=yes\n";
+	    if ($d->{ip6} eq 'auto') {
+		$data .= "IPV6_AUTOCONF=yes\n";
+	    } else {
+		$data .= "IPV6_AUTOCONF=no\n";
+	    }
 	    if ($d->{ip6} eq 'dhcp') {
 		$data .= "DHCPV6C=yes\n";
 	    } else {

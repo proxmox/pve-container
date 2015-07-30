@@ -113,7 +113,7 @@ sub setup_network {
 	if ($d->{name}) {
 	    my $net = {};
 	    if (defined($d->{ip})) {
-		if ($d->{ip} =~ /^(?:dhcp|manual)$/) {
+		if ($d->{ip} =~ /^(?:auto|dhcp|manual)$/) {
 		    $net->{address} = $d->{ip};
 		} else {
 		    my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
@@ -125,7 +125,7 @@ sub setup_network {
 		$net->{gateway} = $d->{'gw'};
 	    }
 	    if (defined($d->{ip6})) {
-		if ($d->{ip6} =~ /^(?:dhcp|manual)$/) {
+		if ($d->{ip6} =~ /^(?:auto|dhcp|manual)$/) {
 		    $net->{address6} = $d->{ip6};
 		} elsif ($d->{ip6} !~ /^($IPV6RE)\/(\d+)$/) {
 		    die "unable to parse ipv6 address/prefix\n";
@@ -163,7 +163,7 @@ sub setup_network {
 
 	    $interfaces .= "auto $section->{ifname}\n" if $new;
 
-	    if ($net->{address} =~ /^(dhcp|manual)$/) {
+	    if ($net->{address} =~ /^(auto|dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet $1\n";
 	    } elsif ($net->{address}) {
 		$interfaces .= "iface $section->{ifname} inet static\n";
@@ -180,7 +180,7 @@ sub setup_network {
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$section->{ifname}} = 1;
 	    
-	    if ($net->{address6} =~ /^(dhcp|manual)$/) {
+	    if ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet6 $1\n";
 	    } elsif ($net->{address6}) {
 		$interfaces .= "iface $section->{ifname} inet6 static\n";
