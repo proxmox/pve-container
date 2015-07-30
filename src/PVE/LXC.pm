@@ -1369,14 +1369,18 @@ sub update_ipconfig {
 	my $gw= "gw$suffix";
 	my $ip= "ip$suffix";
 
-	my $change_ip = &$safe_string_ne($optdata->{$ip}, $newnet->{$ip});
-	my $change_gw = &$safe_string_ne($optdata->{$gw}, $newnet->{$gw});
+	my $newip = $newnet->{$ip};
+	my $newgw = $newnet->{$gw};
+	my $oldip = $optdata->{$ip};
+
+	my $change_ip = &$safe_string_ne($oldip, $newip);
+	my $change_gw = &$safe_string_ne($optdata->{$gw}, $newgw);
 
 	return if !$change_ip && !$change_gw;
 
 	# step 1: add new IP, if this fails we cancel
-	if ($change_ip && $newnet->{$ip}) {
-	    eval { &$netcmd($family_opt, 'addr', 'add', $newnet->{$ip}, 'dev', $eth); };
+	if ($change_ip && $newip && $newip !~ /^(?:auto|dhcp)$/) {
+	    eval { &$netcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
 	    if (my $err = $@) {
 		warn $err;
 		return;
@@ -1389,14 +1393,14 @@ sub update_ipconfig {
 	#   errors. The config is then saved.
 	# Note: 'ip route replace' can add
 	if ($change_gw) {
-	    if ($newnet->{$gw}) {
-		eval { &$netcmd($family_opt, 'route', 'replace', 'default', 'via', $newnet->{$gw}); };
+	    if ($newgw) {
+		eval { &$netcmd($family_opt, 'route', 'replace', 'default', 'via', $newgw); };
 		if (my $err = $@) {
 		    warn $err;
 		    # the route was not replaced, the old IP is still available
 		    # rollback (delete new IP) and cancel
 		    if ($change_ip) {
-			eval { &$netcmd($family_opt, 'addr', 'del', $newnet->{$ip}, 'dev', $eth); };
+			eval { &$netcmd($family_opt, 'addr', 'del', $newip, 'dev', $eth); };
 			warn $@ if $@; # no need to die here
 		    }
 		    return;
@@ -1409,10 +1413,10 @@ sub update_ipconfig {
 	    }
 	}
 
-	# from this point on we safe the configuration
+	# from this point on we save the configuration
 	# step 3: delete old IP ignoring errors
-	if ($change_ip && $optdata->{$ip}) {
-	    eval { &$netcmd($family_opt, 'addr', 'del', $optdata->{$ip}, 'dev', $eth); };
+	if ($change_ip && $oldip && $oldip !~ /^(?:auto|dhcp)$/) {
+	    eval { &$netcmd($family_opt, 'addr', 'del', $oldip, 'dev', $eth); };
 	    warn $@ if $@; # no need to die here
 	}
 
