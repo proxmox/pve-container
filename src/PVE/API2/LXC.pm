@@ -241,10 +241,23 @@ __PACKAGE__->register_method({
 	}
 
 	my $conf = {};
+	if ($restore) {
+	    $conf = PVE::LXCCreate::recover_config($archive, $conf);
 
-	$param->{hostname} ||= "CT$vmid";
-	$param->{memory} ||= 512;
-	$param->{swap} = 512 if !defined($param->{swap});
+	    foreach my $item ( %{$conf}) {
+
+		if ($item =~ m/(net\d+)/) {
+		    my $net = $1;
+		    my $pair = $conf->{$net}->{'veth.pair'};
+		    $pair =~ s/\d+/$vmid/;
+		    $conf->{$net}->{'veth.pair'} = $pair;
+		};
+	    }
+	}
+
+	$param->{hostname} ||= "CT$vmid" if !defined($conf->{'lxc.utsname'});
+	$param->{memory} ||= 512 if !defined($conf->{'lxc.cgroup.memory.limit_in_bytes'});
+	$param->{swap} = 512 if (!defined($param->{swap}) && !defined($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}));
 
 	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param);
 
@@ -268,9 +281,14 @@ __PACKAGE__->register_method({
 		PVE::Cluster::check_vmid_unused($vmid);
 	    }
 	};
-	
+
 	my $code = sub {
-	    
+	    if ($restore && ($ostemplate =~ m/openvz/) ) {
+		print "###########################################################\n";
+		print "Restore from OpenVZ please check the config and add network\n";
+		print "###########################################################\n";
+	    }
+
 	    &$check_vmid_usage(); # final check after locking
 
 	    PVE::Cluster::check_cfs_quorum();

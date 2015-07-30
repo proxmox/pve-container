@@ -9,6 +9,7 @@ use Data::Dumper;
 use PVE::Storage;
 use PVE::LXC;
 use PVE::LXCSetup;
+use PVE::VZDump::ConvertOVZ;
 
 sub next_free_nbd_dev {
     
@@ -51,7 +52,7 @@ sub restore_archive {
    } else {
 	print "extracting archive '$archive'\n";
 	PVE::Tools::run_command($cmd);
-    }
+   }
     
     # is this really required? what for?
     #$cmd = [@$userns_cmd, 'mkdir', '-p', "$rootdir/dev/pts"];
@@ -74,23 +75,93 @@ sub restore_archive {
     });
 }
 
+my $openvz_to_lxc = sub {
+    my ($openvz_conf) = @_;
+
+    my $conf = {};
+
+    return $conf;
+};
+
+sub tar_archive_search_conf {
+    my ($archive) = @_;
+
+    die "ERROR: file '$archive' does not exist\n" if ! -f $archive;
+
+    my $pid = open(my $fh, '-|', 'tar', 'tf', $archive) ||
+	die "unable to open file '$archive'\n";
+
+    my $file;
+    while ($file = <$fh>) {
+	last if ($file =~ m/.*(vps.conf|lxc.conf)/);
+    }
+
+    kill 15, $pid;
+    waitpid $pid, 0;
+    close $fh;
+
+    die "ERROR: archive contaions no config\n" if !$file;
+    chomp $file;
+
+    return $file;
+}
+
+sub recover_config {
+    my ($archive, $conf) = @_;
+
+    my $conf_file = tar_archive_search_conf($archive);
+
+    #untainting var
+    $conf_file =~ m/(etc\/vzdump\/(lxc\.conf|vps\.conf))/;
+    $conf_file = "./$1";
+
+    my ($old_vmid) = $archive =~ /-(\d+)-/;
+
+    my $raw = '';
+    my $out = sub {
+	my $output = shift;
+	$raw .= "$output\n";
+    };
+
+    PVE::Tools::run_command(['tar', '-xpOf', $archive, $conf_file, '--occurrence'], outfunc => $out);
+
+    $conf = undef;
+
+    if ($conf_file =~ m/lxc.conf/) {
+
+	    $conf = PVE::LXC::parse_lxc_config("/lxc/$old_vmid/config" , $raw);
+
+	    delete $conf->{'pve.volid'};
+	    delete $conf->{'lxc.rootfs'};
+	    delete $conf->{snapshots};
+
+    } elsif ($conf_file =~ m/vps.conf/) {
+
+	$conf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
+
+    }
+
+    return $conf;
+}
+
 sub restore_and_configure {
-    my ($vmid, $archive, $rootdir, $conf, $password) = @_;
+    my ($vmid, $archive, $rootdir, $conf, $password, $restore) = @_;
 
     restore_archive($archive, $rootdir, $conf);
 
     PVE::LXC::write_config($vmid, $conf);
 
-    my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir); # detect OS
+    if (!$restore) {
+	my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir); # detect OS
 
-    PVE::LXC::write_config($vmid, $conf); # safe config (after OS detection)
-
-    $lxc_setup->post_create_hook($password);
+	PVE::LXC::write_config($vmid, $conf); # safe config (after OS detection)
+	$lxc_setup->post_create_hook($password);
+    }
 }
 
 # directly use a storage directory
 sub create_rootfs_dir {
-    my ($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password) = @_;
+    my ($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password, $restore) = @_;
 
     # note: there is no size limit
     $conf->{'pve.disksize'} = 0;
@@ -101,12 +172,12 @@ sub create_rootfs_dir {
     push @{$cleanup->{files}}, $private;
     $conf->{'lxc.rootfs'} = $private;
 
-    restore_and_configure($vmid, $archive, $private, $conf, $password);
+    restore_and_configure($vmid, $archive, $private, $conf, $password, $restore);
 }
 
 # use new subvolume API
 sub create_rootfs_subvol {
-    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password, $restore) = @_;
 
     my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol', 
 					  "subvol-$vmid-rootfs", $size);
@@ -118,12 +189,12 @@ sub create_rootfs_subvol {
     $conf->{'lxc.rootfs'} = $private;
     $conf->{'pve.volid'} = $volid;
 
-    restore_and_configure($vmid, $archive, $private, $conf, $password);
+    restore_and_configure($vmid, $archive, $private, $conf, $password, $restore);
 }
 
 # create a raw file, then loop mount
 sub create_rootfs_dir_loop {
-    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password, $restore) = @_;
 
     my $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', "vm-$vmid-rootfs.raw", $size);
     $conf->{'pve.disksize'} = $size/(1024*1024);
@@ -154,7 +225,7 @@ sub create_rootfs_dir_loop {
 	$mountpoint = $tmp;
 
 	$conf->{'pve.volid'} = $volid;
-	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password);
+	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password, $restore);
     };
     if (my $err = $@) {
 	if ($mountpoint) {
@@ -172,7 +243,7 @@ sub create_rootfs_dir_loop {
 
 # create a file, then mount with qemu-nbd
 sub create_rootfs_dir_qemu {
-    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password) = @_;
+    my ($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password, $restore) = @_;
 
     my $format = 'qcow2';
     
@@ -205,7 +276,7 @@ sub create_rootfs_dir_qemu {
 	$mountpoint = $tmp;
 
 	$conf->{'pve.volid'} = $volid;
-	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password);
+	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password, $restore);
     };
     if (my $err = $@) {
 	if ($mountpoint) {
@@ -263,14 +334,14 @@ sub create_rootfs {
 	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
 	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
 	    if ($size > 0) {
-		create_rootfs_dir_loop($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password);
+		create_rootfs_dir_loop($cleanup, $storage_conf, $storage, $size, $vmid, $conf, $archive, $password, $restore);
 	    } else {
-		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password);
+		create_rootfs_dir($cleanup, $storage_conf, $storage, $vmid, $conf, $archive, $password, $restore);
 	    }
 	} elsif ($scfg->{type} eq 'zfspool') {
 
 	    create_rootfs_subvol($cleanup, $storage_conf, $storage, $size, 
-				 $vmid, $conf, $archive, $password);
+				 $vmid, $conf, $archive, $password, $restore);
 	    
 	} else {
 	    
