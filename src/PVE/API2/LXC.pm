@@ -243,7 +243,7 @@ __PACKAGE__->register_method({
 	my $conf = {};
 	
 	if ($restore) {
-	    $conf = PVE::LXCCreate::recover_config($archive, $conf);
+	    $conf = PVE::LXCCreate::recover_config($archive);
 	    PVE::LXC::lxc_config_change_vmid($conf, $vmid);
 	}
 

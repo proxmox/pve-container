@@ -84,30 +84,27 @@ sub tar_archive_search_conf {
 	die "unable to open file '$archive'\n";
 
     my $file;
-    while ($file = <$fh>) {
-	last if ($file =~ m/.*(vps.conf|lxc.conf)/);
+    while (defined($file = <$fh>)) {
+	if ($file =~ m!^(\./etc/vzdump/(lxc|vps)\.conf)$!) {
+	    $file = $1; # untaint
+	    last;
+	}
     }
 
     kill 15, $pid;
     waitpid $pid, 0;
     close $fh;
 
-    die "ERROR: archive contaions no config\n" if !$file;
+    die "ERROR: archive contains no configuration file\n" if !$file;
     chomp $file;
 
     return $file;
 }
 
 sub recover_config {
-    my ($archive, $conf) = @_;
+    my ($archive) = @_;
 
     my $conf_file = tar_archive_search_conf($archive);
-
-    #untainting var
-    $conf_file =~ m/(etc\/vzdump\/(lxc\.conf|vps\.conf))/;
-    $conf_file = "./$1";
-
-    my ($old_vmid) = $archive =~ /-(\d+)-/;
 
     my $raw = '';
     my $out = sub {
@@ -117,20 +114,23 @@ sub recover_config {
 
     PVE::Tools::run_command(['tar', '-xpOf', $archive, $conf_file, '--occurrence'], outfunc => $out);
 
-    $conf = undef;
+    my $conf;
 
-    if ($conf_file =~ m/lxc.conf/) {
+    if ($conf_file =~ m/lxc\.conf/) {
 
-	    $conf = PVE::LXC::parse_lxc_config("/lxc/$old_vmid/config" , $raw);
+	    $conf = PVE::LXC::parse_lxc_config("/lxc/0/config" , $raw);
 
 	    delete $conf->{'pve.volid'};
 	    delete $conf->{'lxc.rootfs'};
 	    delete $conf->{snapshots};
 
-    } elsif ($conf_file =~ m/vps.conf/) {
+    } elsif ($conf_file =~ m/vps\.conf/) {
 
 	$conf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
 
+    } else {
+
+	die "internal error";
     }
 
     return $conf;

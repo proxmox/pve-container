@@ -302,26 +302,20 @@ sub parse_lxc_config {
     $filename =~ m|/lxc/(\d+)/config$|
 	|| die "got strange filename '$filename'";
 
+    # Note: restore pass filename "lxc/0/config"
     my $vmid = $1;
 
-     
+    my $check_net_vmid = sub {
+	my ($netvmid) = @_;
+	$vmid ||= $netvmid;
+	die "wrong vmid for network interface pair\n" if $vmid != $netvmid;
+    };
+    
     my $network_counter = 0;
     my $network_list = [];
     my $host_ifnames = {};
     my $snapname;
     my $network;
-
-    my $find_next_hostif_name = sub {
-	for (my $i = 0; $i < 10; $i++) {
-	    my $name = "veth${vmid}.$i";
-	    if (!$host_ifnames->{$name}) {
-		$host_ifnames->{$name} = 1;
-		return $name;
-	    }
-	}
-
-	die "unable to find free host_ifname"; # should not happen
-    };
 
     my $push_network = sub {
 	my ($netconf) = @_;
@@ -330,8 +324,8 @@ sub parse_lxc_config {
 	$network_counter++;
 	if (my $netname = $netconf->{'veth.pair'}) {
 	    if ($netname =~ m/^veth(\d+).(\d)$/) {
-		die "wrong vmid for network interface pair\n" if $1 != $vmid;
-		my $host_ifnames->{$netname} = 1;
+		&$check_net_vmid($1);
+		$host_ifnames->{$netname} = 1;
 	    } else {
 		die "wrong network interface pair\n";
 	    }
@@ -343,9 +337,9 @@ sub parse_lxc_config {
 	
 	foreach my $net (@{$network_list}) {
 	    next if $net->{type} eq 'empty'; # skip
-	    $net->{'veth.pair'} = &$find_next_hostif_name() if !$net->{'veth.pair'};
 	    $net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
 	    die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
+	    die "undefined veth network pair'\n" if !$net->{'veth.pair'};
 	    
 	    if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
 		if ($snapname) {
