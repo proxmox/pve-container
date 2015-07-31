@@ -274,12 +274,6 @@ __PACKAGE__->register_method({
 	};
 
 	my $code = sub {
-	    if ($restore && ($ostemplate =~ m/openvz/) ) {
-		print "###########################################################\n";
-		print "Restore from OpenVZ please check the config and add network\n";
-		print "###########################################################\n";
-	    }
-
 	    &$check_vmid_usage(); # final check after locking
 
 	    PVE::Cluster::check_cfs_quorum();
