@@ -75,14 +75,6 @@ sub restore_archive {
     });
 }
 
-my $openvz_to_lxc = sub {
-    my ($openvz_conf) = @_;
-
-    my $conf = {};
-
-    return $conf;
-};
-
 sub tar_archive_search_conf {
     my ($archive) = @_;
 
