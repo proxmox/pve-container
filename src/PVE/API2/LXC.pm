@@ -278,6 +278,8 @@ __PACKAGE__->register_method({
 
 	    PVE::Cluster::check_cfs_quorum();
 
+	    $param->{disk} = $conf->{'pve.disksize'} if !$param->{disk} && $restore;
+
 	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $param->{disk}, $vmid, $conf, 
 					  $archive, $password, $restore);
 	};
