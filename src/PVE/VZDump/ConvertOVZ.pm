@@ -296,11 +296,6 @@ my $parse_ovz_config = sub {
 sub convert_ovz {
    my ($raw) = @_;
 
-   print "###########################################################\n";
-   print "Converting OpenVZ configuration to LXC.\n";
-   print "Please check the configuration and reconfigure the network.\n";
-   print "###########################################################\n";
-
    my $conf = {};
 
    my $ovz_conf = &$parse_ovz_config($raw);

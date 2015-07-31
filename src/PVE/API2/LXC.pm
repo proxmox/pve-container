@@ -241,9 +241,10 @@ __PACKAGE__->register_method({
 	}
 
 	my $conf = {};
-	
+	my $ovs;
+
 	if ($restore) {
-	    $conf = PVE::LXCCreate::recover_config($archive);
+	    ($conf, $ovs) = PVE::LXCCreate::recover_config($archive);
 	    PVE::LXC::lxc_config_change_vmid($conf, $vmid);
 	}
 
@@ -279,7 +280,12 @@ __PACKAGE__->register_method({
 	    PVE::Cluster::check_cfs_quorum();
 
 	    $param->{disk} = $conf->{'pve.disksize'} if !$param->{disk} && $restore;
-
+	    if($ovs) {
+		   print "###########################################################\n";
+		   print "Converting OpenVZ configuration to LXC.\n";
+		   print "Please check the configuration and reconfigure the network.\n";
+		   print "###########################################################\n";
+	    }
 	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $param->{disk}, $vmid, $conf, 
 					  $archive, $password, $restore);
 	};

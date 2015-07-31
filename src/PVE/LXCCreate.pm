@@ -106,6 +106,7 @@ sub recover_config {
 
     my $conf_file = tar_archive_search_conf($archive);
 
+    my $ovs;
     my $raw = '';
     my $out = sub {
 	my $output = shift;
@@ -125,7 +126,7 @@ sub recover_config {
 	    delete $conf->{snapshots};
 
     } elsif ($conf_file =~ m/vps\.conf/) {
-
+	$ovs = 1;
 	$conf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
 
     } else {
@@ -133,7 +134,7 @@ sub recover_config {
 	die "internal error";
     }
 
-    return $conf;
+    return $conf, $ovs;
 }
 
 sub restore_and_configure {
