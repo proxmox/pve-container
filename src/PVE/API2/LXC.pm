@@ -249,7 +249,7 @@ __PACKAGE__->register_method({
 
 	$param->{hostname} ||= "CT$vmid" if !defined($conf->{'lxc.utsname'});
 	$param->{memory} ||= 512 if !defined($conf->{'lxc.cgroup.memory.limit_in_bytes'});
-	$param->{swap} = 512 if (!defined($param->{swap}) && !defined($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}));
+	$param->{swap} //= 512 if !defined($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'});
 
 	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param);
 
