@@ -1,3 +1,9 @@
+pve-container (0.9-7) unstable; urgency=medium
+
+  * fixes for container restore
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 31 Jul 2015 12:20:13 +0200
+
 pve-container (0.9-6) unstable; urgency=medium
 
   * fix memory and swap size calculations
