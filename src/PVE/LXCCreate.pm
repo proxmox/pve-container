@@ -304,7 +304,7 @@ sub create_rootfs {
 	foreach my $opt (qw(disk digest)) {
 	    delete $pve_conf->{$opt};
 	}
-	update_lxc_config($vmid, $conf, 0, $pve_conf);
+	PVE::LXC::update_lxc_config($vmid, $conf, 0, $pve_conf);
 	
 	# destroy old container
 	PVE::LXC::destory_lxc_container($storage_conf, $vmid, $old_conf);
