@@ -164,6 +164,16 @@ my $lxc_array_configs = {
     'lxc.cgroup.devices.deny' => 1,
 };
 
+sub lxc_config_change_vmid {
+    my ($conf, $vmid) = @_;
+
+    foreach my $key (keys %$conf) {
+	if ($key =~ m/^net(\d+)$/) {
+	    $conf->{$key}->{'veth.pair'} = "veth$vmid.$1";
+	}
+    }    
+}
+
 sub write_lxc_config {
     my ($filename, $data) = @_;
 

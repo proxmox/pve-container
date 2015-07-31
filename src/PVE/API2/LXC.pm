@@ -241,18 +241,10 @@ __PACKAGE__->register_method({
 	}
 
 	my $conf = {};
+	
 	if ($restore) {
 	    $conf = PVE::LXCCreate::recover_config($archive, $conf);
-
-	    foreach my $item ( %{$conf}) {
-
-		if ($item =~ m/(net\d+)/) {
-		    my $net = $1;
-		    my $pair = $conf->{$net}->{'veth.pair'};
-		    $pair =~ s/\d+/$vmid/;
-		    $conf->{$net}->{'veth.pair'} = $pair;
-		};
-	    }
+	    PVE::LXC::lxc_config_change_vmid($conf, $vmid);
 	}
 
 	$param->{hostname} ||= "CT$vmid" if !defined($conf->{'lxc.utsname'});
