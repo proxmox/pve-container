@@ -9,6 +9,7 @@ use PVE::Cluster qw(cfs_read_file);
 use PVE::Storage;
 use PVE::VZDump;
 use PVE::LXC;
+use PVE::Tools;
 
 use base qw (PVE::VZDump::Plugin);
 
@@ -221,14 +222,18 @@ sub resume_vm {
 sub assemble {
     my ($self, $task, $vmid) = @_;
 
-    my $conffile = PVE::LXC::config_file($vmid);
-
     my $dir = $task->{snapdir};
 
     $task->{cleanup}->{etc_vzdump} = 1;
 
     mkpath "$dir/etc/vzdump/";
-    $self->cmd ("cp '$conffile' '$dir/etc/vzdump/lxc.conf'");
+
+    my $conf = PVE::LXC::load_config($vmid);
+    delete $conf->{snapshots};
+    delete $conf->{'pve.parent'};
+
+    PVE::Tools::file_set_contents("$dir/etc/vzdump/lxc.conf", PVE::LXC::write_lxc_config("/lxc/$vmid/config", $conf));
+
 }
 
 sub archive {
