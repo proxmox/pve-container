@@ -256,9 +256,8 @@ __PACKAGE__->register_method({
 	# assigng default names, so that we can configure network with LXCSetup
 	foreach my $k (keys %$conf) {
 	    next if $k !~ m/^net(\d+)$/;
-	    my $d = $conf->{$k};
 	    my $ind = $1;
-	    $d->{name} = "eth$ind"; # fixme: do not overwrite settings!
+	    $conf->{$k}->{name} ||= "eth$ind"; 
 	}
 
 	# use user namespace ?
