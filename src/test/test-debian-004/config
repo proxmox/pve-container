@@ -1,12 +1,5 @@
-lxc.arch = i386
-lxc.cgroup.memory.limit_in_bytes = 536870912
-lxc.hook.mount = /usr/share/lxc/hooks/lxc-pve-mount-hook
-lxc.include = /usr/share/lxc/config/debian.common.conf
-lxc.utsname = test3
-lxc.network.type = veth
-lxc.network.hwaddr = 26:2B:CC:E5:7F:F9
-pve.network.bridge = vmbr0
-lxc.network.name = eth0
-lxc.network.veth.pair = veth100.0
-pve.network.ip = 1.2.3.2/24
-pve.network.gw = 1.2.3.1
+arch: i386
+memory: 512
+ostype: debian
+hostname: test3
+net0: bridge=vmbr0,name=eth0,hwaddr=26:2B:CC:E5:7F:F9,ip=1.2.3.2/24,gw=1.2.3.1

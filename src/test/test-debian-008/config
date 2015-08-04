@@ -1,18 +1,9 @@
-lxc.arch = i386
-lxc.cgroup.cpu.cfs_period_us = 100000
-lxc.cgroup.cpu.cfs_quota_us = 100000
-lxc.cgroup.memory.limit_in_bytes = 536870912
-lxc.cgroup.memory.memsw.limit_in_bytes = 1073741824
-lxc.hook.mount = /usr/share/lxc/hooks/lxc-pve-mount-hook
-lxc.include = /usr/share/lxc/config/debian.common.conf
-lxc.rootfs = /var/lib/vz/private/102
-lxc.utsname = CT102
-pve.nameserver = 8.8.8.8 8.8.8.9
-pve.searchdomain = proxmox.com
-lxc.network.type = veth
-pve.network.bridge = vmbr0
-pve.network.gw = 192.168.2.1
-lxc.network.hwaddr = 2A:31:01:D5:A4:BF
-pve.network.ip = 192.168.3.102/20
-lxc.network.name = eth0
-lxc.network.veth.pair = veth100.0
+arch: i386
+cpulimit: 1
+memory: 512
+swap: 512
+ostype: debian
+hostname: CT102
+nameserver: 8.8.8.8,8.8.8.9
+searchdomain: proxmox.com
+net0: bridge=vmbr0,name=eth0,hwaddr=2A:31:01:D5:A4:BF,ip=192.168.3.102/20,gw=192.168.2.1

@@ -1,16 +1,4 @@
-lxc.utsname = test1
-lxc.network.type = veth
-pve.network.bridge = vmbr0
-lxc.network.name = eth0
-lxc.network.veth.pair = veth100i0
-pve.network.ip = 1.2.3.4/24
-pve.network.gw = 1.2.3.1
-lxc.network.type = veth
-pve.network.bridge = vmbr0
-lxc.network.name = eth1
-lxc.network.veth.pair = veth100i1
-pve.network.ip = 10.2.3.4/24
-lxc.network.type = veth
-pve.network.bridge = vmbr0
-lxc.network.name = eth2
-lxc.network.veth.pair = veth100i2
+hostname: test1
+net0: bridge=vmbr0,name=eth0,ip=1.2.3.4/24,gw=1.2.3.1
+net1: bridge=vmbr0,name=eth1,ip=10.2.3.4/24
+net2: bridge=vmbr0,name=eth2

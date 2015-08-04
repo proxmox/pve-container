@@ -20,12 +20,12 @@ sub new {
 sub lookup_dns_conf {
     my ($conf) = @_;
 
-    my $nameserver = $conf->{'pve.nameserver'};
-    my $searchdomains = $conf->{'pve.searchdomain'};
+    my $nameserver = $conf->{nameserver};
+    my $searchdomains = $conf->{searchdomain};
 
     if (!($nameserver && $searchdomains)) {
 
-	if ($conf->{'pve.test_mode'}) {
+	if ($conf->{'testmode'}) {
 	    
 	    $nameserver = "8.8.8.8 8.8.8.9";
 	    $searchdomains = "promxox.com";
@@ -154,7 +154,7 @@ sub set_dns {
 sub set_hostname {
     my ($self, $conf) = @_;
     
-    my $hostname = $conf->{'lxc.utsname'} || 'localhost';
+    my $hostname = $conf->{hostname} || 'localhost';
 
     $hostname =~ s/\..*$//;
 
@@ -318,7 +318,7 @@ sub rewrite_ssh_host_keys {
 	ed25519 => 'ssh_host_ed25519_key',
     };
 
-    my $hostname = $conf->{'lxc.utsname'} || 'localhost';
+    my $hostname = $conf->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
 
     foreach my $keytype (keys %$keynames) {

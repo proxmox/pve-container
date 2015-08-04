@@ -300,20 +300,19 @@ sub convert_ovz {
 
    my $ovz_conf = &$parse_ovz_config($raw);
 
-   $conf->{'pve.disksize'} = $ovz_conf->{'diskspace'}->{'bar'} / 1024 / 1024;
-
+   my $disksize = $ovz_conf->{'diskspace'}->{'bar'} / 1024 / 1024;
+   
    my ($mem, $swap) = ovz_config_extract_mem_swap($ovz_conf, 0);
 
-   $conf->{'lxc.cgroup.memory.limit_in_bytes'} = $mem;
+   $conf->{memory} = $mem;
 
-   $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = ($swap + $mem);
+   $conf->{swap} = ($swap + $mem);
 
-   $conf->{'lxc.cgroup.cpu.shares'} = 1024;
+   $conf->{cpuunits} = 1024;
 
-   $conf->{'lxc.cgroup.cpu.cfs_quota_us'} = $ovz_conf->{cpus}->{value} * 100000;
-   $conf->{'lxc.cgroup.cpu.cfs_period_us'} = 100000;
+   $conf->{cpulimit} = $ovz_conf->{cpus}->{value} if $ovz_conf->{cpus};
 
-   $conf->{'lxc.utsname'} = $ovz_conf->{hostname}->{value};
+   $conf->{hostname} = $ovz_conf->{hostname}->{value};
 
-   return $conf;
+   return wantarray ? ($conf, $disksize) : $conf;
 }

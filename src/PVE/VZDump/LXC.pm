@@ -101,14 +101,13 @@ sub prepare {
     my $diskinfo = {};
     $task->{diskinfo} = $diskinfo;
 
-    $task->{hostname} = $conf->{'lxc.utsname'} || "CT$vmid";
+    $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
-    my $volid = $conf->{'pve.volid'};
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $volid = $rootinfo->{volume};
 
-    # fixme: whe do we deactivate ??
+    # fixme: when do we deactivate ??
     PVE::Storage::activate_volumes($self->{storecfg}, [$volid]) if $volid;
-
-    my $rootfs = $conf->{'lxc.rootfs'};
 
     if ($mode eq 'snapshot') {
 
@@ -134,34 +133,28 @@ sub prepare {
 	PVE::Storage::volume_snapshot($self->{storecfg}, $volid, '__vzdump__');
 	$task->{cleanup}->{snap_volid} = $volid;
 	
-	# $diskinfo->{dir} = $rootfs;
 	die "implement me";
 	
     } else {
 
-	if ($rootfs =~ m!^/! && -d $rootfs) {
-	    $diskinfo->{dir} = $rootfs;
-	} else {
-	    if ($mode eq 'stop') {
-		my $mountpoint = "/mnt/vzsnap0";
-		my $path = PVE::Storage::path($self->{storecfg}, $volid);
-		&$loop_mount_image($path, $mountpoint);
-		$task->{cleanup}->{snapshot_mount} = 1;
-		$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
-	    } elsif ($mode eq 'suspend') {
-		my $tasks_fn = "/sys/fs/cgroup/cpu/lxc/$vmid/tasks";
-		my $init_pid = PVE::Tools::file_read_firstline($tasks_fn);
-		if ($init_pid =~ m/^(\d+)$/) { 
-		    $diskinfo->{dir} = "/proc/$1/root";
-		} else {
-		    die "unable to find container init task\n";
-		}
+	if ($mode eq 'stop') {
+	    my $mountpoint = "/mnt/vzsnap0";
+	    my $path = PVE::Storage::path($self->{storecfg}, $volid);
+	    &$loop_mount_image($path, $mountpoint);
+	    $task->{cleanup}->{snapshot_mount} = 1;
+	    $diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+	} elsif ($mode eq 'suspend') {
+	    my $tasks_fn = "/sys/fs/cgroup/cpu/lxc/$vmid/tasks";
+	    my $init_pid = PVE::Tools::file_read_firstline($tasks_fn);
+	    if ($init_pid =~ m/^(\d+)$/) { 
+		$diskinfo->{dir} = "/proc/$1/root";
 	    } else {
-		die "unknown mode '$mode'\n"; # should not happen
+		die "unable to find container init task\n";
 	    }
+	} else {
+	    die "unknown mode '$mode'\n"; # should not happen
 	}
 
-	
 	if ($mode eq 'suspend') {
 	    $task->{snapdir} = $task->{tmpdir};
 	} else {
@@ -232,8 +225,7 @@ sub assemble {
     delete $conf->{snapshots};
     delete $conf->{'pve.parent'};
 
-    PVE::Tools::file_set_contents("$dir/etc/vzdump/lxc.conf", PVE::LXC::write_lxc_config("/lxc/$vmid/config", $conf));
-
+    PVE::Tools::file_set_contents("$dir/etc/vzdump/pct.conf", PVE::LXC::write_pct_config("/lxc/$vmid.conf", $conf));
 }
 
 sub archive {
@@ -259,7 +251,7 @@ sub archive {
     my $cmd = "(";
 
     $cmd .= "cd $snapdir;find . $findargs|sed 's/\\\\/\\\\\\\\/g'|";
-    $cmd .= "tar cpf - $taropts ./etc/vzdump/lxc.conf --null -T -";
+    $cmd .= "tar cpf - $taropts ./etc/vzdump/pct.conf --null -T -";
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
     $cmd .= "|cstream -t $bwl" if $opts->{bwlimit};
     $cmd .= "|$comp" if $comp;

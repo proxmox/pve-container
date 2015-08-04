@@ -36,7 +36,7 @@ sub new {
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
-    $conf->{'lxc.include'} = "/usr/share/lxc/config/ubuntu.common.conf";
+    $conf->{ostype} = "ubuntu";
 
     return bless $self, $class;
 }
@@ -66,7 +66,7 @@ sub template_fixup {
     }
 
     if ($version eq '12.04' || $version eq '14.04') {
-	my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
+	my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
 	for (my $i = $ttycount; $i < 7; $i++) {
 	    unlink "$rootdir/etc/init/tty$i.conf";
 	}

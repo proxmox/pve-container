@@ -24,18 +24,16 @@ die "missing iface parameter\n" if !$iface;
 
 my $conf = PVE::LXC::load_config($vmid);
 
-my $net = undef;
-foreach my $k (keys %$conf) {
-    next if $k !~ m/^net\d+$/;
-    my $d = $conf->{$k};
-    if ($d->{'veth.pair'} eq $iface) {
-	$net = $d;
-	last;
-    }
+my $netconf;
+if ($iface =~ m/^veth(\d+)\.(\d+)$/) {
+    die "got unexpected interface name '$iface'\n" if $1 ne $vmid;
+    $netconf = $conf->{"net$2"};
 }
 
 die "unable to find network definition for interface '$iface'\n"
-    if !$net;
+    if !defined($netconf);
+
+my $net = PVE::LXC::parse_lxc_network($netconf);
     
 my $tag = $net->{tag};
 my $firewall = $net->{firewall};

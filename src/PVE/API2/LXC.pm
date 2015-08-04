@@ -21,17 +21,11 @@ use base qw(PVE::RESTHandler);
 use Data::Dumper; # fixme: remove
 
 my $get_container_storage = sub {
-    my ($stcfg, $vmid, $lxc_conf) = @_;
+    my ($stcfg, $vmid, $pct_conf) = @_;
 
-    if (my $volid = $lxc_conf->{'pve.volid'}) {
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
-	return wantarray ? ($sid, $volname) : $sid;
-    } else {
-	my $path = $lxc_conf->{'lxc.rootfs'};
-	my ($vtype, $volid) = PVE::Storage::path_to_volume_id($stcfg, $path);
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
-	return wantarray ? ($sid, $volname, $path) : $sid;
-    }
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($pct_conf->{rootfs});
+    my ($sid, $volname) = PVE::Storage::parse_volume_id($rootinfo->{volume});
+    return wantarray ? ($sid, $volname) : $sid;
 };
 
 my $check_ct_modify_config_perm = sub {
@@ -56,6 +50,45 @@ my $check_ct_modify_config_perm = sub {
     }
 
     return 1;
+};
+
+my $alloc_rootfs = sub {
+    my ($storage_conf, $storage, $disk_size_gb, $vmid) = @_;
+
+    my $volid;
+
+    my $size = 4*1024*1024; # defaults to 4G
+
+    $size = int($disk_size_gb*1024) * 1024 if defined($disk_size_gb);
+
+    eval {
+	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
+	# fixme: use better naming ct-$vmid-disk-X.raw?
+
+	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+	    if ($size > 0) {
+		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw',
+						   "vm-$vmid-rootfs.raw", $size);
+	    } else {
+		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
+						   "subvol-$vmid-rootfs", 0);
+	    }
+	} elsif ($scfg->{type} eq 'zfspool') {
+
+	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
+					       "subvol-$vmid-rootfs", $size);
+	} else {
+	    die "unable to create containers on storage type '$scfg->{type}'\n";
+	}
+    };
+    if (my $err = $@) {
+	# cleanup
+	eval { PVE::Storage::vdisk_free($storage_conf, $volid) if $volid; };
+	warn $@ if $@;
+	die $err;
+    }
+
+    return $volid;
 };
 
 PVE::JSONSchema::register_standard_option('pve-lxc-snapshot-name', {
@@ -125,7 +158,7 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     parameters => {
     	additionalProperties => 0,
-	properties => PVE::LXC::json_config_properties({
+	properties => PVE::LXC::json_config_properties_no_rootfs({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
 	    ostemplate => {
@@ -144,6 +177,13 @@ __PACKAGE__->register_method({
 		default => 'local',
 		optional => 1,
 	    }),
+	    size => {
+		optional => 1,
+		type => 'number',
+		description => "Amount of disk space for the VM in GB. A zero indicates no limits.",
+		minimum => 0,
+		default => 4,
+	    },
 	    force => {
 		optional => 1,
 		type => 'boolean',
@@ -194,10 +234,10 @@ __PACKAGE__->register_method({
 
 	my $password = extract_param($param, 'password');
 
-	my $storage = extract_param($param, 'storage') || 'local';
+	my $disksize = extract_param($param, 'size');
 
-	my $pool = extract_param($param, 'pool');
-
+	my $storage = extract_param($param, 'storage') // 'local';
+	
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
@@ -205,11 +245,15 @@ __PACKAGE__->register_method({
 	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
 	    if !$scfg->{content}->{rootdir};
 
+	my $pool = extract_param($param, 'pool');
+
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
 	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
 	}
 
+	$rpcenv->check($authuser, "/storage/$storage", ['Datastore.AllocateSpace']);
+	
 	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
 	    # OK
 	} elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
@@ -234,6 +278,8 @@ __PACKAGE__->register_method({
 		if $rpcenv->{type} ne 'cli'; 
 	    die "pipe can only be used with restore tasks\n" 
 		if !$restore;
+	    die "pipe requires --size parameter\n" 
+		if !defined($disksize);
 	    $archive = '-';
 	} else {
 	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
@@ -241,29 +287,8 @@ __PACKAGE__->register_method({
 	}
 
 	my $conf = {};
-	my $ovs;
 
-	if ($restore) {
-	    ($conf, $ovs) = PVE::LXCCreate::recover_config($archive);
-	    PVE::LXC::lxc_config_change_vmid($conf, $vmid);
-	}
-
-	$param->{hostname} ||= "CT$vmid" if !defined($conf->{'lxc.utsname'});
-	$param->{memory} ||= 512 if !defined($conf->{'lxc.cgroup.memory.limit_in_bytes'});
-	$param->{swap} //= 512 if !defined($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'});
-
-	PVE::LXC::update_lxc_config($vmid, $conf, 0, $param);
-
-	# assigng default names, so that we can configure network with LXCSetup
-	foreach my $k (keys %$conf) {
-	    next if $k !~ m/^net(\d+)$/;
-	    my $ind = $1;
-	    $conf->{$k}->{name} ||= "eth$ind"; 
-	}
-
-	# use user namespace ?
-	# disable for now, because kernel 3.10.0 does not support it
-	#$conf->{'lxc.id_map'} = ["u 0 100000 65536", "g 0 100000 65536"];
+	PVE::LXC::update_pct_config($vmid, $conf, 0, $param);
 
 	my $check_vmid_usage = sub {
 	    if ($force) {
@@ -279,15 +304,38 @@ __PACKAGE__->register_method({
 
 	    PVE::Cluster::check_cfs_quorum();
 
-	    $param->{disk} = $conf->{'pve.disksize'} if !$param->{disk} && $restore;
-	    if($ovs) {
-		   print "###########################################################\n";
-		   print "Converting OpenVZ configuration to LXC.\n";
-		   print "Please check the configuration and reconfigure the network.\n";
-		   print "###########################################################\n";
+	    my $volid;
+
+	    eval {
+		if (!defined($disksize)) {
+		    if ($restore) {
+			my (undef, $disksize) = PVE::LXCCreate::recover_config($archive);
+			die "unable to detect disk size - please specify with --size\n"
+			    if !$disksize;
+		    } else {
+			$disksize = 4;
+		    }
+		}
+		$volid = &$alloc_rootfs($storage_cfg, $storage, $disksize, $vmid);
+
+		PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
+					      $archive, $password, $restore);
+
+		$conf->{rootfs} = "$volid,size=$disksize";
+
+		# set some defaults
+		$conf->{hostname} ||= "CT$vmid";
+		$conf->{memory} ||= 512;
+		$conf->{swap} //= 512;
+
+		PVE::LXC::create_config($vmid, $conf);
+	    };
+	    if (my $err = $@) {
+		eval { PVE::Storage::vdisk_free($storage_cfg, $volid) if $volid; };
+		warn $@ if $@;
+		PVE::LXC::destroy_config($vmid);
+		die $err;
 	    }
-	    PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $param->{disk}, $vmid, $conf, 
-					  $archive, $password, $restore);
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
@@ -369,6 +417,8 @@ __PACKAGE__->register_method({
 
 	&$check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, [keys %$param]);
 
+	my $storage_cfg = cfs_read_file("storage.cfg");
+
 	my $code = sub {
 
 	    my $conf = PVE::LXC::load_config($vmid);
@@ -378,9 +428,10 @@ __PACKAGE__->register_method({
 
 	    my $running = PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::update_lxc_config($vmid, $conf, $running, $param, \@delete);
+	    PVE::LXC::update_pct_config($vmid, $conf, $running, $param, \@delete);
 
 	    PVE::LXC::write_config($vmid, $conf);
+	    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 	};
 
 	PVE::LXC::lock_container($vmid, undef, $code);
@@ -558,16 +609,9 @@ __PACKAGE__->register_method({
     code => sub {
 	my ($param) = @_;
 
-	my $lxc_conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::load_config($param->{vmid});
 
-	# NOTE: we only return selected/converted values
-
-	my $conf = PVE::LXC::lxc_conf_to_pve($param->{vmid}, $lxc_conf);
-
-	my $stcfg = PVE::Cluster::cfs_read_file("storage.cfg");
-
-	my ($sid, undef, $path) = &$get_container_storage($stcfg, $param->{vmid}, $lxc_conf);
-	$conf->{storage} = $sid || $path;
+	delete $conf->{snapshots};
 
 	return $conf;
     }});
@@ -611,7 +655,7 @@ __PACKAGE__->register_method({
 	    $conf = PVE::LXC::load_config($vmid);
 	    PVE::LXC::check_lock($conf);
 
-	    PVE::LXC::destory_lxc_container($storage_cfg, $vmid, $conf);
+	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_from_pool($vmid);
 	};
 
@@ -948,10 +992,12 @@ __PACKAGE__->register_method({
 		syslog('info', "starting CT $vmid: $upid\n");
 
 		my $conf = PVE::LXC::load_config($vmid);
-		my $stcfg = cfs_read_file("storage.cfg");
-		if (my $sid = &$get_container_storage($stcfg, $vmid, $conf)) {
-		    PVE::Storage::activate_storage($stcfg, $sid);
+		my $storage_cfg = cfs_read_file("storage.cfg");
+		if (my $sid = &$get_container_storage($storage_cfg, $vmid, $conf)) {
+		    PVE::Storage::activate_storage($storage_cfg, $sid);
 		}
+
+		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 
 		my $cmd = ['lxc-start', '-n', $vmid];
 

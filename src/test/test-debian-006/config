@@ -1,2 +1,2 @@
-lxc.utsname = test1
-lxc.tty = 0
+hostname: test1
+tty: 0

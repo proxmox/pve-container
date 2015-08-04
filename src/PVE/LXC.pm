@@ -17,7 +17,9 @@ use PVE::Network;
 
 use Data::Dumper;
 
-cfs_register_file('/lxc/', \&parse_lxc_config, \&write_lxc_config);
+my $nodename = PVE::INotify::nodename();
+
+cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
 PVE::JSONSchema::register_format('pve-lxc-network', \&verify_lxc_network);
 sub verify_lxc_network {
@@ -30,391 +32,246 @@ sub verify_lxc_network {
     die "unable to parse network setting\n";
 }
 
-my $nodename = PVE::INotify::nodename();
+PVE::JSONSchema::register_format('pve-ct-mountpoint', \&verify_ct_mountpoint);
+sub verify_ct_mountpoint {
+    my ($value, $noerr) = @_;
 
-sub parse_lxc_size {
-    my ($name, $value) = @_;
+    return $value if parse_ct_mountpoint($value);
 
-    if ($value =~ m/^(\d+)(b|k|m|g)?$/i) {
-	my ($res, $unit) = ($1, lc($2 || 'b'));
+    return undef if $noerr;
 
-	return $res if $unit eq 'b';
-	return $res*1024 if $unit eq 'k';
-	return $res*1024*1024 if $unit eq 'm';
-	return $res*1024*1024*1024 if $unit eq 'g';
-    }
-
-    return undef;
+    die "unable to parse CT mountpoint options\n";
 }
 
-my $valid_lxc_keys = {
-    'lxc.arch' => 'i386|x86|i686|x86_64|amd64',
-    'lxc.include' => 1,
-    'lxc.rootfs' => 1,
-    'lxc.mount' => 1,
-    'lxc.utsname' => 1,
+PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
+    type => 'string', format => 'pve-ct-mountpoint',
+    typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+]',
+    description => "Use volume as container root. You can use special '<storage>:<size>' syntax for create/restore, where size specifies the disk size in GB (for example 'local:5.5' to create 5.5GB image on storage 'local').",
+    optional => 1,
+});
 
-    'lxc.id_map' => 1,
-
-    'lxc.cgroup.memory.limit_in_bytes' => \&parse_lxc_size,
-    'lxc.cgroup.memory.memsw.limit_in_bytes' => \&parse_lxc_size,
-    'lxc.cgroup.cpu.cfs_period_us' => '\d+',
-    'lxc.cgroup.cpu.cfs_quota_us' => '\d+',
-    'lxc.cgroup.cpu.shares' => '\d+',
-
-    # mount related
-    'lxc.mount' => 1,
-    'lxc.mount.entry' => 1,
-    'lxc.mount.auto' => 1,
-
-    # security related
-    'lxc.seccomp' => 1,
-
-    # not used by pve
-    'lxc.tty' => '\d+',
-    'lxc.pts' => 1,
-    'lxc.haltsignal' => 1,
-    'lxc.rebootsignal' => 1,
-    'lxc.stopsignal' => 1,
-    'lxc.init_cmd' => 1,
-    'lxc.console' => 1,
-    'lxc.console.logfile' => 1,
-    'lxc.devttydir' => 1,
-    'lxc.autodev' => 1,
-    'lxc.kmsg' => 1,
-    'lxc.cap.drop' => 1,
-    'lxc.cap.keep' => 1,
-    'lxc.aa_profile' => 1,
-    'lxc.aa_allow_incomplete' => 1,
-    'lxc.se_context' => 1,
-    'lxc.loglevel' => 1,
-    'lxc.logfile' => 1,
-    'lxc.environment' => 1,
-    'lxc.cgroup.devices.deny' => 1,
-
-    # autostart
-    'lxc.start.auto' => 1,
-    'lxc.start.delay' => 1,
-    'lxc.start.order' => 1,
-    'lxc.group' => 1,
-
-    # hooks
-    'lxc.hook.pre-start' => 1,
-    'lxc.hook.pre-mount' => 1,
-    'lxc.hook.mount' => 1,
-    'lxc.hook.autodev' => 1,
-    'lxc.hook.start' => 1,
-    'lxc.hook.post-stop' => 1,
-    'lxc.hook.clone' => 1,
-
-    # pve related keys
-    'pve.nameserver' => sub {
-	my ($name, $value) = @_;
-	return verify_nameserver_list($value);
+my $confdesc = {
+    onboot => {
+	optional => 1,
+	type => 'boolean',
+	description => "Specifies whether a VM will be started during system bootup.",
+	default => 0,
     },
-    'pve.searchdomain' => sub {
-	my ($name, $value) = @_;
-	return verify_searchdomain_list($value);
+    startup => get_standard_option('pve-startup-order'),
+    arch => {
+	optional => 1,
+	type => 'string',
+	enum => ['amd64', 'i386'],
+	description => "OS architecture type.",
+	default => 'amd64',
     },
-    'pve.onboot' => '(0|1)',
-    'pve.startup' => sub {
-	my ($name, $value) = @_;
-	return PVE::JSONSchema::pve_verify_startup_order($value);
+    ostype => {
+	optional => 1,
+	type => 'string',
+	enum => ['debian', 'ubuntu', 'centos'],
+	description => "OS type. Corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf.",
     },
-    'pve.comment' => 1,
-    'pve.disksize' => '\d+(\.\d+)?',
-    'pve.volid' => sub {
-	my ($name, $value) = @_;
-	PVE::Storage::parse_volume_id($value);
-	return $value;
+    tty => {
+	optional => 1,
+	type => 'integer',
+	description => "Specify the number of tty available to the container",
+	minimum => 0,
+	maximum => 6,
+	default => 4,
     },
-
-     #pve snapshot
-    'pve.lock' => 1,
-    'pve.snaptime' => 1,
-    'pve.snapcomment' => 1,
-    'pve.parent' => 1,
-    'pve.snapstate' => 1,
-    'pve.snapname' => 1,
+    cpulimit => {
+	optional => 1,
+	type => 'number',
+	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has total of '2' CPU time. Value '0' indicates no CPU limit.",
+	minimum => 0,
+	maximum => 128,
+	default => 0,
+    },
+    cpuunits => {
+	optional => 1,
+	type => 'integer',
+	description => "CPU weight for a VM. Argument is used in the kernel fair scheduler. The larger the number is, the more CPU time this VM gets. Number is relative to weights of all the other running VMs.\n\nNOTE: You can disable fair-scheduler configuration by setting this to 0.",
+	minimum => 0,
+	maximum => 500000,
+	default => 1000,
+    },
+    memory => {
+	optional => 1,
+	type => 'integer',
+	description => "Amount of RAM for the VM in MB.",
+	minimum => 16,
+	default => 512,
+    },
+    swap => {
+	optional => 1,
+	type => 'integer',
+	description => "Amount of SWAP for the VM in MB.",
+	minimum => 0,
+	default => 512,
+    },
+    hostname => {
+	optional => 1,
+	description => "Set a host name for the container.",
+	type => 'string',
+	maxLength => 255,
+    },
+    description => {
+	optional => 1,
+	type => 'string',
+	description => "Container description. Only used on the configuration web interface.",
+    },
+    searchdomain => {
+	optional => 1,
+	type => 'string',
+	description => "Sets DNS search domains for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
+    },
+    nameserver => {
+	optional => 1,
+	type => 'string',
+	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
+    },
+    rootfs => get_standard_option('pve-ct-rootfs'),
 };
 
-my $valid_lxc_network_keys = {
-    type => 1,
-    mtu => 1,
-    name => 1, # ifname inside container
-    'veth.pair' => 1, # ifname at host (eth${vmid}.X)
-    hwaddr => 1,
-};
-
-my $valid_pve_network_keys = {
-    bridge => 1,
-    tag => 1,
-    firewall => 1,
-    ip => 1,
-    gw => 1,
-    ip6 => 1,
-    gw6 => 1,
-};
-
-my $lxc_array_configs = {
-    'lxc.network' => 1,
-    'lxc.mount' => 1,
-    'lxc.include' => 1,
-    'lxc.id_map' => 1,
-    'lxc.cgroup.devices.deny' => 1,
-};
-
-sub lxc_config_change_vmid {
-    my ($conf, $vmid) = @_;
-
-    foreach my $key (keys %$conf) {
-	if ($key =~ m/^net(\d+)$/) {
-	    $conf->{$key}->{'veth.pair'} = "veth$vmid.$1";
-	}
-    }    
+my $MAX_LXC_NETWORKS = 10;
+for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
+    $confdesc->{"net$i"} = {
+	optional => 1,
+	type => 'string', format => 'pve-lxc-network',
+	description => "Specifies network interfaces for the container.\n\n".
+	    "The string should have the follow format:\n\n".
+	    "-net<[0-9]> bridge=<vmbr<Nummber>>[,hwaddr=<MAC>]\n".
+	    "[,mtu=<Number>][,name=<String>][,ip=<IPv4Format/CIDR>]\n".
+	    ",ip6=<IPv6Format/CIDR>][,gw=<GatwayIPv4>]\n".
+	    ",gw6=<GatwayIPv6>][,firewall=<[1|0]>][,tag=<VlanNo>]",
+    };
 }
 
-sub write_lxc_config {
-    my ($filename, $data) = @_;
+sub write_pct_config {
+    my ($filename, $conf) = @_;
 
-    my $raw = "";
+    delete $conf->{snapstate}; # just to be sure
 
-    return $raw if !$data;
+    my $generate_raw_config = sub {
+	my ($conf) = @_;
 
-    my $dump_entry = sub {
-	my ($k, $value, $done_hash, $snapshot) = @_;
-	return if !defined($value);
-	return if $done_hash->{$k};
-	$done_hash->{$k} = 1;
-	if (ref($value)) {
-	    die "got unexpected reference for '$k'"
-		if !$lxc_array_configs->{$k};
-	    foreach my $v (@$value) {
-		$raw .= 'snap.' if $snapshot;
-		$raw .= "$k = $v\n";
-	    }
-	} else {
-	    $raw .= 'snap.' if $snapshot;
-	    $raw .= "$k = $value\n";
+	my $raw = '';
+
+	# add description as comment to top of file
+	my $descr = $conf->{description} || '';
+	foreach my $cl (split(/\n/, $descr)) {
+	    $raw .= '#' .  PVE::Tools::encode_text($cl) . "\n";
 	}
+
+	foreach my $key (sort keys %$conf) {
+	    next if $key eq 'digest' || $key eq 'description' || $key eq 'pending' || $key eq 'snapshots';
+	    $raw .= "$key: $conf->{$key}\n";
+	}
+	return $raw;
     };
 
-    my $config_writer = sub {
-	my ($elem, $snapshot) = @_;
+    my $raw = &$generate_raw_config($conf);
 
-	my $done_hash = { digest => 1};
-
-	if (defined(my $value = $elem->{'pve.snapname'})) {
-	     &$dump_entry('pve.snapname', $value, $done_hash, $snapshot);
-	}
-
-	# Note: Order is important! Include defaults first, so that we
-	# can overwrite them later.
-	&$dump_entry('lxc.include', $elem->{'lxc.include'}, $done_hash, $snapshot);
-
-	foreach my $k (sort keys %$elem) {
-	    next if $k !~ m/^lxc\./;
-	    &$dump_entry($k, $elem->{$k}, $done_hash, $snapshot);
-	}
-	foreach my $k (sort keys %$elem) {
-	    next if $k !~ m/^pve\./;
-	    &$dump_entry($k, $elem->{$k}, $done_hash, $snapshot);
-	}
-	my $network_count = 0;
-
-	foreach my $k (sort keys %$elem) {
-	    next if $k !~ m/^net\d+$/;
-	    $done_hash->{$k} = 1;
-
-	    my $net = $elem->{$k};
-	    $network_count++;
-	    $raw .= 'snap.' if $snapshot;
-	    $raw .= "lxc.network.type = $net->{type}\n";
-	    foreach my $subkey (sort keys %$net) {
-		next if $subkey eq 'type';
-		if ($valid_lxc_network_keys->{$subkey}) {
-		    $raw .= 'snap.' if $snapshot;
-		    $raw .= "lxc.network.$subkey = $net->{$subkey}\n";
-		} elsif ($valid_pve_network_keys->{$subkey}) {
-		    $raw .= 'snap.' if $snapshot;
-		    $raw .= "pve.network.$subkey = $net->{$subkey}\n";
-		} else {
-		    die "found invalid network key '$subkey'";
-		}
-	    }
-	}
-	if (!$network_count) {
-	    $raw .= 'snap.' if $snapshot;
-	    $raw .= "lxc.network.type = empty\n";
-	}
-	foreach my $k (sort keys %$elem) {
-	    next if $k eq 'snapshots';
-	    next if $done_hash->{$k};
-	    die "found un-written value \"$k\" in config - implement this!";
-	}
-
-    };
-
-    &$config_writer($data);
-
-    if ($data->{snapshots}) {
-	my @tmp = sort { $data->{snapshots}->{$b}{'pve.snaptime'} <=>
-			      $data->{snapshots}->{$a}{'pve.snaptime'} }
-			keys %{$data->{snapshots}};
-	foreach my $snapname (@tmp) {
-	    $raw .= "\n";
-	    &$config_writer($data->{snapshots}->{$snapname}, 1);
-	}
+    foreach my $snapname (sort keys %{$conf->{snapshots}}) {
+	$raw .= "\n[$snapname]\n";
+	$raw .= &$generate_raw_config($conf->{snapshots}->{$snapname});
     }
 
     return $raw;
 }
 
-sub parse_lxc_option {
-    my ($name, $value) = @_;
+sub check_type {
+    my ($key, $value) = @_;
 
-    my $parser = $valid_lxc_keys->{$name};
+    die "unknown setting '$key'\n" if !$confdesc->{$key};
 
-    die "invalid key '$name'\n" if !defined($parser);
+    my $type = $confdesc->{$key}->{type};
 
-    if ($parser eq '1') {
-	return $value;
-    } elsif (ref($parser)) {
-	my $res = &$parser($name, $value);
-	return $res if defined($res);
-    } else {
-	# assume regex
-	return $value if $value =~ m/^$parser$/;
+    if (!defined($value)) {
+	die "got undefined value\n";
     }
 
-    die "unable to parse value '$value' for option '$name'\n";
+    if ($value =~ m/[\n\r]/) {
+	die "property contains a line feed\n";
+    }
+
+    if ($type eq 'boolean') {
+	return 1 if ($value eq '1') || ($value =~ m/^(on|yes|true)$/i);
+	return 0 if ($value eq '0') || ($value =~ m/^(off|no|false)$/i);
+	die "type check ('boolean') failed - got '$value'\n";
+    } elsif ($type eq 'integer') {
+	return int($1) if $value =~ m/^(\d+)$/;
+	die "type check ('integer') failed - got '$value'\n";
+    } elsif ($type eq 'number') {
+        return $value if $value =~ m/^(\d+)(\.\d+)?$/;
+        die "type check ('number') failed - got '$value'\n";
+    } elsif ($type eq 'string') {
+	if (my $fmt = $confdesc->{$key}->{format}) {
+	    PVE::JSONSchema::check_format($fmt, $value);
+	    return $value;
+	}
+	return $value;
+    } else {
+	die "internal error"
+    }
 }
 
-sub parse_lxc_config {
+sub parse_pct_config {
     my ($filename, $raw) = @_;
 
     return undef if !defined($raw);
 
-    my $data = {
+    my $res = {
 	digest => Digest::SHA::sha1_hex($raw),
+	snapshots => {},
     };
 
-    $filename =~ m|/lxc/(\d+)/config$|
+    $filename =~ m|/lxc/(\d+).conf$|
 	|| die "got strange filename '$filename'";
 
-    # Note: restore pass filename "lxc/0/config"
     my $vmid = $1;
 
-    my $check_net_vmid = sub {
-	my ($netvmid) = @_;
-	$vmid ||= $netvmid;
-	die "wrong vmid for network interface pair\n" if $vmid != $netvmid;
-    };
-    
-    my $network_counter = 0;
-    my $network_list = [];
-    my $host_ifnames = {};
-    my $snapname;
-    my $network;
+    my $conf = $res;
+    my $descr = '';
+    my $section = '';
 
-    my $push_network = sub {
-	my ($netconf) = @_;
-	return if !$netconf;
-	push @{$network_list}, $netconf;
-	$network_counter++;
-	if (my $netname = $netconf->{'veth.pair'}) {
-	    if ($netname =~ m/^veth(\d+).(\d)$/) {
-		&$check_net_vmid($1);
-		$host_ifnames->{$netname} = 1;
-	    } else {
-		die "wrong network interface pair\n";
-	    }
-	}
-    };
+    my @lines = split(/\n/, $raw);
+    foreach my $line (@lines) {
+	next if $line =~ m/^\s*$/;
 
-    my $finalize_section = sub {
-	&$push_network($network); # flush
-	
-	foreach my $net (@{$network_list}) {
-	    next if $net->{type} eq 'empty'; # skip
-	    $net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
-	    die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
-	    die "undefined veth network pair'\n" if !$net->{'veth.pair'};
-	    
-	    if ($net->{'veth.pair'} =~ m/^veth\d+.(\d+)$/) {
-		if ($snapname) {
-		    $data->{snapshots}->{$snapname}->{"net$1"} = $net;
-		} else {
-		    $data->{"net$1"} = $net;
-		}
-	    }
+	if ($line =~ m/^\[([a-z][a-z0-9_\-]+)\]\s*$/i) {
+	    $section = $1;
+	    $conf->{description} = $descr if $descr;
+	    $descr = '';
+	    $conf = $res->{snapshots}->{$section} = {};
+	    next;
 	}
 
-	# reset helper vars
-	$network_counter = 0;
-	$network_list = [];
-	$host_ifnames = {};
-	$network = undef;
-    };
-    
-    while ($raw && $raw =~ s/^(.*)?(\n|$)//) {
-	my $line = $1;
-	next if $line =~ m/^\s*$/; # skip empty lines
-	next if $line =~ m/^#/; # skip comments
+	if ($line =~ m/^\#(.*)\s*$/) {
+	    $descr .= PVE::Tools::decode_text($1) . "\n";
+	    next;
+	}
 
-	# snap.pve.snapname starts new sections
-	if ($line =~ m/^(snap\.)?pve\.snapname\s*=\s*(\w*)\s*$/) {
+	if ($line =~ m/^(description):\s*(.*\S)\s*$/) {
+	    $descr .= PVE::Tools::decode_text($2);
+	} elsif ($line =~ m/snapstate:\s*(prepare|delete)\s*$/) {
+	    $conf->{snapstate} = $1;
+	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(\S+)\s*$/) {
+	    my $key = $1;
 	    my $value = $2;
-	    
-	    &$finalize_section();
-
-	    $snapname = $value;
-	    $data->{snapshots}->{$snapname}->{'pve.snapname'} = $snapname;
-	    
-	} elsif ($line =~ m/^(snap\.)?lxc\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-	    my ($subkey, $value) = ($2, $3);
-	    if ($subkey eq 'type') {
-		&$push_network($network);
-		$network = { type => $value };
-	    } elsif ($valid_lxc_network_keys->{$subkey}) {
-		$network->{$subkey} = $value;
-	    } else {
-		die "unable to parse config line: $line\n";
-	    }
-	} elsif ($line =~ m/^(snap\.)?pve\.network\.(\S+)\s*=\s*(\S+)\s*$/) {
-	    my ($subkey, $value) = ($2, $3);
-	    if ($valid_pve_network_keys->{$subkey}) {
-		$network->{$subkey} = $value;
-	    } else {
-		die "unable to parse config line: $line\n";
-	    }
-	} elsif ($line =~ m/^(snap\.)?((?:pve|lxc)\.\S+)\s*=\s*(\S.*)\s*$/) {
-	    my ($name, $value) = ($2, $3);
-	    
-	    if ($lxc_array_configs->{$name}) {
-		$data->{$name} = [] if !defined($data->{$name});
-		if ($snapname) {
-		    push @{$data->{snapshots}->{$snapname}->{$name}},  parse_lxc_option($name, $value);
-		} else {
-		    push @{$data->{$name}},  parse_lxc_option($name, $value);
-		}
-	    } else {
-		if ($snapname) {
-		    die "multiple definitions for $name\n" if defined($data->{snapshots}->{$snapname}->{$name});
-		    $data->{snapshots}->{$snapname}->{$name} = parse_lxc_option($name, $value);
-		} else {
-		    die "multiple definitions for $name\n" if defined($data->{$name});
-		    $data->{$name} = parse_lxc_option($name, $value);
-		}
-	    }
+	    eval { $value = check_type($key, $value); };
+	    warn "vm $vmid - unable to parse value of '$key' - $@" if $@;
+	    $conf->{$key} = $value;
 	} else {
-	    die "unable to parse config line: $line\n";
+	    warn "vm $vmid - unable to parse config: $line\n";
 	}
     }
 
-    &$finalize_section();
+    $conf->{description} = $descr if $descr;
 
-    return $data;
+    delete $res->{snapstate}; # just to be sure
+
+    return $res;
 }
 
 sub config_list {
@@ -437,7 +294,7 @@ sub cfs_config_path {
     my ($vmid, $node) = @_;
 
     $node = $nodename if !$node;
-    return "nodes/$node/lxc/$vmid/config";
+    return "nodes/$node/lxc/$vmid.conf";
 }
 
 sub config_file {
@@ -464,17 +321,13 @@ sub create_config {
     my $dir = "/etc/pve/nodes/$nodename/lxc";
     mkdir $dir;
 
-    $dir .= "/$vmid";
-    mkdir($dir) || die "unable to create container configuration directory - $!\n";
-
     write_config($vmid, $conf);
 }
 
 sub destroy_config {
     my ($vmid) = @_;
 
-    my $dir = "/etc/pve/nodes/$nodename/lxc/$vmid";
-    File::Path::rmtree($dir);
+    unlink config_file($vmid, $nodename);
 }
 
 sub write_config {
@@ -483,20 +336,6 @@ sub write_config {
     my $cfspath = cfs_config_path($vmid);
 
     PVE::Cluster::cfs_write_file($cfspath, $conf);
-}
-
-my $tempcounter = 0;
-sub write_temp_config {
-    my ($vmid, $conf) = @_;
-
-    $tempcounter++;
-    my $filename = "/tmp/temp-lxc-conf-$vmid-$$-$tempcounter.conf";
-
-    my $raw =  write_lxc_config($filename, $conf);
-
-    PVE::Tools::file_set_contents($filename, $raw);
-
-    return $filename;
 }
 
 # flock: we use one file handle per process, so lock file
@@ -585,88 +424,6 @@ sub lock_container {
     return $res;
 }
 
-my $confdesc = {
-    onboot => {
-	optional => 1,
-	type => 'boolean',
-	description => "Specifies whether a VM will be started during system bootup.",
-	default => 0,
-    },
-    startup => get_standard_option('pve-startup-order'),
-    cpulimit => {
-	optional => 1,
-	type => 'number',
-	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has total of '2' CPU time. Value '0' indicates no CPU limit.",
-	minimum => 0,
-	maximum => 128,
-	default => 0,
-    },
-    cpuunits => {
-	optional => 1,
-	type => 'integer',
-	description => "CPU weight for a VM. Argument is used in the kernel fair scheduler. The larger the number is, the more CPU time this VM gets. Number is relative to weights of all the other running VMs.\n\nNOTE: You can disable fair-scheduler configuration by setting this to 0.",
-	minimum => 0,
-	maximum => 500000,
-	default => 1000,
-    },
-    memory => {
-	optional => 1,
-	type => 'integer',
-	description => "Amount of RAM for the VM in MB.",
-	minimum => 16,
-	default => 512,
-    },
-    swap => {
-	optional => 1,
-	type => 'integer',
-	description => "Amount of SWAP for the VM in MB.",
-	minimum => 0,
-	default => 512,
-    },
-    disk => {
-	optional => 1,
-	type => 'number',
-	description => "Amount of disk space for the VM in GB. A zero indicates no limits.",
-	minimum => 0,
-	default => 4,
-    },
-    hostname => {
-	optional => 1,
-	description => "Set a host name for the container.",
-	type => 'string',
-	maxLength => 255,
-    },
-    description => {
-	optional => 1,
-	type => 'string',
-	description => "Container description. Only used on the configuration web interface.",
-    },
-    searchdomain => {
-	optional => 1,
-	type => 'string',
-	description => "Sets DNS search domains for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
-    },
-    nameserver => {
-	optional => 1,
-	type => 'string',
-	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
-    },
-};
-
-my $MAX_LXC_NETWORKS = 10;
-for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
-    $confdesc->{"net$i"} = {
-	optional => 1,
-	type => 'string', format => 'pve-lxc-network',
-	description => "Specifies network interfaces for the container.\n\n".
-	    "The string should have the follow format:\n\n".
-	    "-net<[0-9]> bridge=<vmbr<Nummber>>[,hwaddr=<MAC>]\n".
-	    "[,mtu=<Number>][,name=<String>][,ip=<IPv4Format/CIDR>]\n".
-	    ",ip6=<IPv6Format/CIDR>][,gw=<GatwayIPv4>]\n".
-	    ",gw6=<GatwayIPv6>][,firewall=<[1|0]>][,tag=<VlanNo>]",
-    };
-}
-
 sub option_exists {
     my ($name) = @_;
 
@@ -678,6 +435,19 @@ sub json_config_properties {
     my $prop = shift;
 
     foreach my $opt (keys %$confdesc) {
+	next if $prop->{$opt};
+	$prop->{$opt} = $confdesc->{$opt};
+    }
+
+    return $prop;
+}
+
+sub json_config_properties_no_rootfs {
+    my $prop = shift;
+
+    foreach my $opt (keys %$confdesc) {
+	next if $prop->{$opt};
+	next if $opt eq 'rootfs';
 	$prop->{$opt} = $confdesc->{$opt};
     }
 
@@ -699,7 +469,7 @@ sub list_active_containers {
     while (defined(my $line = <$fh>)) {
  	if ($line =~ m/^[a-f0-9]+:\s\S+\s\S+\s\S+\s\S+\s\S+\s\d+\s(\S+)$/) {
 	    my $path = $1;
-	    if ($path =~ m!^@/etc/pve/lxc/(\d+)/command$!) {
+	    if ($path =~ m!^@/var/lib/lxc/(\d+)/command$!) {
 		$res->{$1} = 1;
 	    }
 	}
@@ -766,42 +536,30 @@ sub vmstatus {
 	my $cfspath = cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
 
-	$d->{name} = $conf->{'lxc.utsname'} || "CT$vmid";
+	$d->{name} = $conf->{'hostname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
 
-	$d->{cpus} = 0;
+	$d->{cpus} = $conf->{cpulimit} // 0;
 
-	my $cfs_period_us = $conf->{'lxc.cgroup.cpu.cfs_period_us'};
-	my $cfs_quota_us = $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-
-	if ($cfs_period_us && $cfs_quota_us) {
-	    $d->{cpus} = int($cfs_quota_us/$cfs_period_us);
-	}
-
-	$d->{disk} = 0;
-	$d->{maxdisk} = defined($conf->{'pve.disksize'}) ?
-	    int($conf->{'pve.disksize'}*1024*1024)*1024 : 1024*1024*1024*1024*1024;
-
-	if (my $private = $conf->{'lxc.rootfs'}) {
-	    if ($private =~ m!^/!) {
-		my $res = PVE::Tools::df($private, 2);
-		$d->{disk} = $res->{used};
-		$d->{maxdisk} = $res->{total};
-	    } elsif ($running) {
-		if ($private =~ m!^(?:loop|nbd):(?:\S+)$!) {
-		    my $res = get_container_disk_usage($vmid);
-		    $d->{disk} = $res->{used};
-		    $d->{maxdisk} = $res->{total};
-		}
+	if ($running) {
+	    my $res = get_container_disk_usage($vmid);
+	    $d->{disk} = $res->{used};
+	    $d->{maxdisk} = $res->{total};
+	} else {
+	    $d->{disk} = 0;
+	    # use 4GB by default ??
+	    if (my $rootfs = $conf->{rootfs}) {
+		my $rootinfo = parse_ct_mountpoint($rootfs);
+		$d->{maxdisk} = int(($rootinfo->{size} || 4)*1024*1024)*1024;
+	    } else {
+		$d->{maxdisk} = 4*1024*1024*1024;
 	    }
 	}
 
 	$d->{mem} = 0;
 	$d->{swap} = 0;
-	my $totalmem = ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
-	my $physmem = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0);
-	$d->{maxmem} = $physmem;
-	$d->{maxswap} = $totalmem - $physmem;
+	$d->{maxmem} = $conf->{memory}*1024*1024;
+	$d->{maxswap} = $conf->{swap}*1024*1024;
 
 	$d->{uptime} = 0;
 	$d->{cpu} = 0;
@@ -835,6 +593,55 @@ sub vmstatus {
     return $list;
 }
 
+my $parse_size = sub {
+    my ($value) = @_;
+
+    return undef if $value !~ m/^(\d+(\.\d+)?)([KMG])?$/;
+    my ($size, $unit) = ($1, $3);
+    if ($unit) {
+	if ($unit eq 'K') {
+	    $size = $size * 1024;
+	} elsif ($unit eq 'M') {
+	    $size = $size * 1024 * 1024;
+	} elsif ($unit eq 'G') {
+	    $size = $size * 1024 * 1024 * 1024;
+	}
+    }
+    return int($size);
+};
+
+sub parse_ct_mountpoint {
+    my ($data) = @_;
+
+    $data //= '';
+
+    my $res = {};
+
+    foreach my $p (split (/,/, $data)) {
+	next if $p =~ m/^\s*$/;
+
+	if ($p =~ m/^(volume|backup|size)=(.+)$/) {
+	    my ($k, $v) = ($1, $2);
+	    return undef if defined($res->{$k});
+	} else {
+	    if (!$res->{volume} && $p !~ m/=/) {
+		$res->{volume} = $p;
+	    } else {
+		return undef;
+	    }
+	}
+    }
+
+    return undef if !$res->{volume};
+
+    return undef if $res->{backup} && $res->{backup} !~ m/^(yes|no)$/;
+
+    if ($res->{size}) {
+	return undef if !defined($res->{size} = &$parse_size($res->{size}));
+    }
+
+    return $res;
+}
 
 sub print_lxc_network {
     my $net = shift;
@@ -984,75 +791,71 @@ sub parse_ipv4_cidr {
 sub check_lock {
     my ($conf) = @_;
 
-    die "VM is locked ($conf->{'pve.lock'})\n" if $conf->{'pve.lock'};
+    die "VM is locked ($conf->{'lock'})\n" if $conf->{'lock'};
 }
 
-sub lxc_conf_to_pve {
-    my ($vmid, $lxc_conf) = @_;
+sub update_lxc_config {
+    my ($storage_conf, $vmid, $conf) = @_;
 
-    my $properties = json_config_properties();
+    my $raw = '';
 
-    my $conf = { digest => $lxc_conf->{digest} };
+    die "missing 'arch' - internal error" if !$conf->{arch};
+    $raw .= "lxc.arch = $conf->{arch}\n";
 
-    foreach my $k (keys %$properties) {
-
-	if ($k eq 'description') {
-	    if (my $raw = $lxc_conf->{'pve.comment'}) {
-		$conf->{$k} = PVE::Tools::decode_text($raw);
-	    }
-	} elsif ($k eq 'onboot') {
-	    $conf->{$k} = $lxc_conf->{'pve.onboot'} if  $lxc_conf->{'pve.onboot'};
-	} elsif ($k eq 'startup') {
-	    $conf->{$k} = $lxc_conf->{'pve.startup'} if  $lxc_conf->{'pve.startup'};
-	} elsif ($k eq 'hostname') {
-	    $conf->{$k} = $lxc_conf->{'lxc.utsname'} if $lxc_conf->{'lxc.utsname'};
-	} elsif ($k eq 'nameserver') {
-	    $conf->{$k} = $lxc_conf->{'pve.nameserver'} if $lxc_conf->{'pve.nameserver'};
-	} elsif ($k eq 'searchdomain') {
-	    $conf->{$k} = $lxc_conf->{'pve.searchdomain'} if $lxc_conf->{'pve.searchdomain'};
-	} elsif ($k eq 'memory') {
-	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'}) {
-		$conf->{$k} = int($value / (1024*1024));
-	    }
-	} elsif ($k eq 'swap') {
-	    if (my $value = $lxc_conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}) {
-		my $mem = $lxc_conf->{'lxc.cgroup.memory.limit_in_bytes'} || 0;
-		$conf->{$k} = int(($value - $mem) / (1024*1024));
-	    }
-	} elsif ($k eq 'cpulimit') {
-	    my $cfs_period_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_period_us'};
-	    my $cfs_quota_us = $lxc_conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-
-	    if ($cfs_period_us && $cfs_quota_us) {
-		$conf->{$k} = $cfs_quota_us/$cfs_period_us;
-	    } else {
-		$conf->{$k} = 0;
-	    }
-	} elsif ($k eq 'cpuunits') {
-	    $conf->{$k} = $lxc_conf->{'lxc.cgroup.cpu.shares'} || 1024;
-	} elsif ($k eq 'disk') {
-	    $conf->{$k} = defined($lxc_conf->{'pve.disksize'}) ?
-		$lxc_conf->{'pve.disksize'} : 0;
-	} elsif ($k =~ m/^net\d$/) {
-	    my $net = $lxc_conf->{$k};
-	    next if !$net;
-	    $conf->{$k} = print_lxc_network($net);
-	}
+    my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
+    if ($ostype eq 'debian' || $ostype eq 'ubuntu' || $ostype eq 'centos') {
+	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
+    } else {
+	die "implement me";
     }
 
-    if (my $parent = $lxc_conf->{'pve.parent'}) {
-	    $conf->{parent} = $lxc_conf->{'pve.parent'};
+    my $ttycount = $conf->{tty} // 4;
+    $raw .= "lxc.tty = $ttycount\n";
+
+    my $utsname = $conf->{hostname} || "CT$vmid";
+    $raw .= "lxc.utsname = $utsname\n";
+
+    my $memory = $conf->{memory} || 512;
+    my $swap = $conf->{swap} // 0;
+
+    my $lxcmem = int($memory*1024*1024);
+    $raw .= "lxc.cgroup.memory.limit_in_bytes = $lxcmem\n";
+
+    my $lxcswap = int(($memory + $swap)*1024*1024);
+    $raw .= "lxc.cgroup.memory.memsw.limit_in_bytes = $lxcswap\n";
+
+    if (my $cpulimit = $conf->{cpulimit}) {
+	$raw .= "lxc.cgroup.cpu.cfs_period_us = 100000\n";
+	my $value = int(100000*$cpulimit);
+	$raw .= "lxc.cgroup.cpu.cfs_quota_us = $value\n";
     }
 
-    if (my $parent = $lxc_conf->{'pve.snapcomment'}) {
-	$conf->{description} = $lxc_conf->{'pve.snapcomment'};
+    my $shares = $conf->{cpuunits} || 1024;
+    $raw .= "lxc.cgroup.cpu.shares = $shares\n";
+
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $rootfs = PVE::Storage::path($storage_conf, $rootinfo->{volume});
+    $raw .= "lxc.rootfs = loop:$rootfs\n"; # fixme
+
+    my $netcount = 0;
+    foreach my $k (keys %$conf) {
+	next if $k !~ m/^net(\d+)$/;
+	my $ind = $1;
+	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	$netcount++;
+	$raw .= "lxc.network.type = veth\n";
+	$raw .= "lxc.network.veth.pair = veth$vmid.$ind\n";
+	$raw .= "lxc.network.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
+	$raw .= "lxc.network.name = $d->{name}\n" if defined($d->{name});
+	$raw .= "lxc.network.mtu = $d->{mtu}\n" if defined($d->{mtu});
     }
 
-    if (my $parent = $lxc_conf->{'pve.snaptime'}) {
-	$conf->{snaptime} = $lxc_conf->{'pve.snaptime'};
-    }
+    $raw .= "lxc.network.type = empty\n" if !$netcount;
 
-    return $conf;
+    my $dir = "/var/lib/lxc/$vmid";
+    File::Path::mkpath("$dir/rootfs");
+
+    PVE::Tools::file_set_contents("$dir/config", $raw);
 }
 
 # verify and cleanup nameserver list (replace \0 with ' ')
@@ -1080,7 +883,7 @@ sub verify_searchdomain_list {
     return join(' ', @list);
 }
 
-sub update_lxc_config {
+sub update_pct_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
     my @nohotplug;
@@ -1093,23 +896,15 @@ sub update_lxc_config {
 
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
-	    if ($opt eq 'hostname' || $opt eq 'memory') {
+	    if ($opt eq 'hostname' || $opt eq 'memory' || $opt eq 'rootfs') {
 		die "unable to delete required option '$opt'\n";
 	    } elsif ($opt eq 'swap') {
-		delete $conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'};
+		delete $conf->{$opt};
 		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", -1);
-	    } elsif ($opt eq 'description') {
-		delete $conf->{'pve.comment'};
-	    } elsif ($opt eq 'onboot') {
-		delete $conf->{'pve.onboot'};
-	    } elsif ($opt eq 'startup') {
-		delete $conf->{'pve.startup'};
-	    } elsif ($opt eq 'nameserver') {
-		delete $conf->{'pve.nameserver'};
-		push @nohotplug, $opt;
-		next if $running;
-	    } elsif ($opt eq 'searchdomain') {
-		delete $conf->{'pve.searchdomain'};
+	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup') {
+		delete $conf->{$opt};
+	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain') {
+		delete $conf->{$opt};
 		push @nohotplug, $opt;
 		next if $running;
 	    } elsif ($opt =~ m/^net(\d)$/) {
@@ -1126,75 +921,56 @@ sub update_lxc_config {
 
     # There's no separate swap size to configure, there's memory and "total"
     # memory (iow. memory+swap). This means we have to change them together.
-    my $wanted_memory = $param->{memory};
-    my $wanted_swap = $param->{swap};
+    my $wanted_memory = PVE::Tools::extract_param($param, 'memory');
+    my $wanted_swap =  PVE::Tools::extract_param($param, 'swap');
     if (defined($wanted_memory) || defined($wanted_swap)) {
-	my $old_memory = ($conf->{'lxc.cgroup.memory.limit_in_bytes'}||0);
-	if (!defined($wanted_memory)) {
-	    $wanted_memory = $old_memory;
-	} else {
-	    $wanted_memory *= 1024*1024;
+
+	$wanted_memory //= ($conf->{memory} || 512);
+	$wanted_swap //=  ($conf->{swap} || 0);
+
+        my $total = $wanted_memory + $wanted_swap;
+	if ($running) {
+	    write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", int($wanted_memory*1024*1024));
+	    write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", int($total*1024*1024));
 	}
-	if (!defined($wanted_swap)) {
-	    my $old_total = ($conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'}||0);
-	    $wanted_swap = $old_total - $old_memory;
-	} else {
-	    $wanted_swap *= 1024*1024;
-	}
-	my $total = $wanted_memory + $wanted_swap;
-	$conf->{'lxc.cgroup.memory.limit_in_bytes'} = $wanted_memory;
-	$conf->{'lxc.cgroup.memory.memsw.limit_in_bytes'} = $total;
-	write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", $wanted_memory);
-	write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", $total);
+	$conf->{memory} = $wanted_memory;
+	$conf->{swap} = $wanted_swap;
+
+	PVE::LXC::write_config($vmid, $conf) if $running;
     }
 
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
-	    $conf->{'lxc.utsname'} = $value;
+	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'onboot') {
-	    $conf->{'pve.onboot'} = $value ? 1 : 0;
+	    $conf->{$opt} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
-	    $conf->{'pve.startup'} = $value;
+	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'nameserver') {
 	    my $list = verify_nameserver_list($value);
-	    $conf->{'pve.nameserver'} = $list;
+	    $conf->{$opt} = $list;
 	    push @nohotplug, $opt;
 	    next if $running;
 	} elsif ($opt eq 'searchdomain') {
 	    my $list = verify_searchdomain_list($value);
-	    $conf->{'pve.searchdomain'} = $list;
+	    $conf->{$opt} = $list;
 	    push @nohotplug, $opt;
 	    next if $running;
-	} elsif ($opt eq 'memory' || $opt eq 'swap') {
-	    # already handled
-	    next;
 	} elsif ($opt eq 'cpulimit') {
-	    if ($value > 0) {
-		my $cfs_period_us = 100000;
-		$conf->{'lxc.cgroup.cpu.cfs_period_us'} = $cfs_period_us;
-		$conf->{'lxc.cgroup.cpu.cfs_quota_us'} = $cfs_period_us*$value;
-		write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", $cfs_period_us*$value);
-	    } else {
-		delete $conf->{'lxc.cgroup.cpu.cfs_period_us'};
-		delete $conf->{'lxc.cgroup.cpu.cfs_quota_us'};
-		write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
-	    }
+	    $conf->{$opt} = $value;
+	    push @nohotplug, $opt; # fixme: hotplug
+	    next;
 	} elsif ($opt eq 'cpuunits') {
-	    $conf->{'lxc.cgroup.cpu.shares'} = $value;
+	    $conf->{$opt} = $value;
 	    write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
 	} elsif ($opt eq 'description') {
-	    $conf->{'pve.comment'} = PVE::Tools::encode_text($value);
-	} elsif ($opt eq 'disk') {
-	    $conf->{'pve.disksize'} = $value;
-	    push @nohotplug, $opt;
-	    next if $running;
+	    $conf->{$opt} = PVE::Tools::encode_text($value);
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::parse_lxc_network($value);
-	    $net->{'veth.pair'} = "veth${vmid}.$netid";
- 	    if (!$running) {
-		$conf->{$opt} = $net;
+	    if (!$running) {
+		$conf->{$opt} = print_lxc_network($net);
 	    } else {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
@@ -1214,8 +990,8 @@ sub get_primary_ips {
 
     # return data from net0
 
-    my $net = $conf->{net0};
-    return undef if !$net;
+    return undef if !defined($conf->{net0});
+    my $net = PVE::LXC::parse_lxc_network($conf->{net0});
 
     my $ipv4 = $net->{ip};
     if ($ipv4) {
@@ -1237,23 +1013,21 @@ sub get_primary_ips {
     return ($ipv4, $ipv6);
 }
 
-sub destory_lxc_container {
+sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
-    if (my $volid = $conf->{'pve.volid'}) {
-
-	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volid);
-	die "got strange volid (containe is not owner!)\n" if $vmid != $owner;
-
-	PVE::Storage::vdisk_free($storage_cfg, $volid);
-
-	destroy_config($vmid);
-
-    } else {
-	my $cmd = ['lxc-destroy', '-n', $vmid ];
-
-	PVE::Tools::run_command($cmd);
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    if (defined($rootinfo->{volume})) {
+	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $rootinfo->{volume});
+	PVE::Storage::vdisk_free($storage_cfg, $rootinfo->{volume}) if $vmid == $owner;;
     }
+    rmdir "/var/lib/lxc/$vmid/rootfs";
+    unlink "/var/lib/lxc/$vmid/config";
+    rmdir "/var/lib/lxc/$vmid";
+    destroy_config($vmid);
+
+    #my $cmd = ['lxc-destroy', '-n', $vmid ];
+    #PVE::Tools::run_command($cmd);
 }
 
 my $safe_num_ne = sub {
@@ -1524,7 +1298,7 @@ my $snapshot_commit = sub {
 	die "missing snapshot lock\n"
 	    if !($conf->{'pve.lock'} && $conf->{'pve.lock'} eq 'snapshot');
 
-	die "snapshot '$snapname' does not exist\n" 
+	die "snapshot '$snapname' does not exist\n"
 	    if !defined($conf->{snapshots}->{$snapname});
 
 	die "wrong snapshot state\n"

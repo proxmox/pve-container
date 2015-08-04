@@ -31,9 +31,9 @@ sub run_test {
     
     my $raw = PVE::Tools::file_get_contents($config_fn);
 
-    my $conf = PVE::LXC::parse_lxc_config("/lxc/100/config", $raw);
+    my $conf = PVE::LXC::parse_pct_config("/lxc/100.conf", $raw);
 
-    $conf->{'pve.test_mode'} = 1;
+    $conf->{'testmode'} = 1;
     
     my $lxc_setup = PVE::LXCSetup->new($conf, $rootfs);
 

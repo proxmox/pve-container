@@ -23,11 +23,12 @@ sub new {
 
     $version = $1;
 
-    die "unsupported debian version '$version'\n" if $version < 6;
+    die "unsupported debian version '$version'\n" 
+	if !($version >= 6 && $version < 9);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
-    $conf->{'lxc.include'} = "/usr/share/lxc/config/debian.common.conf";
+    $conf->{ostype} = "debian";
 
     return bless $self, $class;
 }
@@ -85,7 +86,7 @@ sub setup_init {
     if (-f $filename) {
 	my $inittab = $default_inittab;
 
-	my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
+	my $ttycount = defined($conf->{'tty'}) ? $conf->{'tty'} : 4;
 	for (my $i = 1; $i <= $ttycount; $i++) {
 	    next if $i == 7; # reserved for X11
 	    my $levels = ($i == 1) ? '2345' : '23';
@@ -109,7 +110,7 @@ sub setup_network {
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $ind = $1;
-	my $d = $conf->{$k};
+	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	if ($d->{name}) {
 	    my $net = {};
 	    if (defined($d->{ip})) {

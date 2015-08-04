@@ -29,7 +29,7 @@ sub new {
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
-    $conf->{'lxc.include'} = "/usr/share/lxc/config/centos.common.conf";
+    $conf->{ostype} = "centos";
 
     return bless $self, $class;
 }
@@ -129,15 +129,13 @@ sub setup_init {
 
      # edit/etc/securetty
 
-    my $ttycount = defined($conf->{'lxc.tty'}) ? $conf->{'lxc.tty'} : 4;
-
-
+    my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
 }
 
 sub set_hostname {
     my ($self, $conf) = @_;
 
-    my $hostname = $conf->{'lxc.utsname'} || 'localhost';
+    my $hostname = $conf->{hostname} || 'localhost';
 
     $hostname =~ s/\..*$//;
 
@@ -180,7 +178,7 @@ sub set_hostname {
 	my ($has_ipv4, $has_ipv6);
 	foreach my $k (keys %$conf) {
 	    next if $k !~ m/^net(\d+)$/;
-	    my $d = $conf->{$k};
+	    my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	    next if !$d->{name};
 	    $has_ipv4 = 1 if defined($d->{ip});
 	    $has_ipv6 = 1 if defined($d->{ip6});
@@ -211,7 +209,7 @@ sub setup_network {
 
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
-	my $d = $conf->{$k};
+	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	next if !$d->{name};
 
 	my $filename = "$rootdir/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
