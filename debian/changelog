@@ -1,3 +1,9 @@
+pve-container (0.9-8) unstable; urgency=medium
+
+  * use our own configuration format for containers
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 06 Aug 2015 11:28:27 +0200
+
 pve-container (0.9-7) unstable; urgency=medium
 
   * fixes for container restore
