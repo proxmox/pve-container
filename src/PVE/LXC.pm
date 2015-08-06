@@ -815,7 +815,7 @@ sub check_lock {
 }
 
 sub update_lxc_config {
-    my ($storage_conf, $vmid, $conf) = @_;
+    my ($storage_cfg, $vmid, $conf) = @_;
 
     my $raw = '';
 
@@ -854,8 +854,17 @@ sub update_lxc_config {
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
     my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    my $rootfs = PVE::Storage::path($storage_conf, $rootinfo->{volume});
-    $raw .= "lxc.rootfs = loop:$rootfs\n"; # fixme
+    my $volid = $rootinfo->{volume};
+    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+
+    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+    if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
+	$raw .= "lxc.rootfs = loop:$rootfs\n";
+    } elsif ($scfg->{type} eq 'zfspool') {
+	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
+	$raw .= "lxc.rootfs = $rootfs\n";
+    }
 
     my $netcount = 0;
     foreach my $k (keys %$conf) {
