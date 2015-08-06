@@ -25,7 +25,7 @@ die "missing iface parameter\n" if !$iface;
 my $conf = PVE::LXC::load_config($vmid);
 
 my $netconf;
-if ($iface =~ m/^veth(\d+)\.(\d+)$/) {
+if ($iface =~ m/^veth(\d+)i(\d+)$/) {
     die "got unexpected interface name '$iface'\n" if $1 ne $vmid;
     $netconf = $conf->{"net$2"};
 }

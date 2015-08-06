@@ -873,7 +873,7 @@ sub update_lxc_config {
 	my $d = parse_lxc_network($conf->{$k});
 	$netcount++;
 	$raw .= "lxc.network.type = veth\n";
-	$raw .= "lxc.network.veth.pair = veth$vmid.$ind\n";
+	$raw .= "lxc.network.veth.pair = veth${vmid}i${ind}\n";
 	$raw .= "lxc.network.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
 	$raw .= "lxc.network.name = $d->{name}\n" if defined($d->{name});
 	$raw .= "lxc.network.mtu = $d->{mtu}\n" if defined($d->{mtu});
@@ -940,7 +940,7 @@ sub update_pct_config {
 		delete $conf->{$opt};
 		next if !$running;
 		my $netid = $1;
-		PVE::Network::veth_delete("veth${vmid}.$netid");
+		PVE::Network::veth_delete("veth${vmid}i$netid");
 	    } else {
 		die "implement me"
 	    }
@@ -1082,49 +1082,57 @@ my $safe_string_ne = sub {
 sub update_net {
     my ($vmid, $conf, $opt, $newnet, $netid, $rootdir) = @_;
 
-    my $veth = $newnet->{'veth.pair'};
-    my $vethpeer = $veth . "p";
+    if ($newnet->{type} ne 'veth') {
+	# for when there are physical interfaces
+	die "cannot update interface of type $newnet->{type}";
+    }
+
+    my $veth = "veth${vmid}i${netid}";
     my $eth = $newnet->{name};
 
-    if ($conf->{$opt}) {
-	if (&$safe_string_ne($conf->{$opt}->{hwaddr}, $newnet->{hwaddr}) ||
-	    &$safe_string_ne($conf->{$opt}->{name}, $newnet->{name})) {
+    if (my $oldnetcfg = $conf->{$opt}) {
+	my $oldnet = parse_lxc_network($oldnetcfg);
 
-            PVE::Network::veth_delete($veth);
+	if (&$safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr}) ||
+	    &$safe_string_ne($oldnet->{name}, $newnet->{name})) {
+
+	    PVE::Network::veth_delete($veth);
 	    delete $conf->{$opt};
 	    PVE::LXC::write_config($vmid, $conf);
 
-	    hotplug_net($vmid, $conf, $opt, $newnet);
+	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
-	} elsif (&$safe_string_ne($conf->{$opt}->{bridge}, $newnet->{bridge}) ||
-                &$safe_num_ne($conf->{$opt}->{tag}, $newnet->{tag}) ||
-                &$safe_num_ne($conf->{$opt}->{firewall}, $newnet->{firewall})) {
+	} elsif (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
+		 &$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
+		 &$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
 
-		if ($conf->{$opt}->{bridge}){
+		if ($oldnet->{bridge}) {
 		    PVE::Network::tap_unplug($veth);
-		    delete $conf->{$opt}->{bridge};
-		    delete $conf->{$opt}->{tag};
-		    delete $conf->{$opt}->{firewall};
+		    foreach (qw(bridge tag firewall)) {
+			delete $oldnet->{$_};
+		    }
+		    $conf->{$opt} = print_lxc_network($oldnet);
 		    PVE::LXC::write_config($vmid, $conf);
 		}
 
-                PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
-		$conf->{$opt}->{bridge} = $newnet->{bridge} if $newnet->{bridge};
-		$conf->{$opt}->{tag} = $newnet->{tag} if $newnet->{tag};
-		$conf->{$opt}->{firewall} = $newnet->{firewall} if $newnet->{firewall};
+		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+		foreach (qw(bridge tag firewall)) {
+		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
+		}
+		$conf->{$opt} = print_lxc_network($oldnet);
 		PVE::LXC::write_config($vmid, $conf);
 	}
     } else {
-	hotplug_net($vmid, $conf, $opt, $newnet);
+	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
     }
 
     update_ipconfig($vmid, $conf, $opt, $eth, $newnet, $rootdir);
 }
 
 sub hotplug_net {
-    my ($vmid, $conf, $opt, $newnet) = @_;
+    my ($vmid, $conf, $opt, $newnet, $netid) = @_;
 
-    my $veth = $newnet->{'veth.pair'};
+    my $veth = "veth${vmid}i${netid}";
     my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
@@ -1139,18 +1147,11 @@ sub hotplug_net {
     $cmd = ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth ,'up'  ];
     PVE::Tools::run_command($cmd);
 
-    $conf->{$opt}->{type} = 'veth';
-    $conf->{$opt}->{bridge} = $newnet->{bridge} if $newnet->{bridge};
-    $conf->{$opt}->{tag} = $newnet->{tag} if $newnet->{tag};
-    $conf->{$opt}->{firewall} = $newnet->{firewall} if $newnet->{firewall};
-    $conf->{$opt}->{hwaddr} = $newnet->{hwaddr} if $newnet->{hwaddr};
-    $conf->{$opt}->{name} = $newnet->{name} if $newnet->{name};
-    $conf->{$opt}->{'veth.pair'} = $newnet->{'veth.pair'} if $newnet->{'veth.pair'};
-
-    delete $conf->{$opt}->{ip} if $conf->{$opt}->{ip};
-    delete $conf->{$opt}->{ip6} if $conf->{$opt}->{ip6};
-    delete $conf->{$opt}->{gw} if $conf->{$opt}->{gw};
-    delete $conf->{$opt}->{gw6} if $conf->{$opt}->{gw6};
+    my $done = { type => 'veth' };
+    foreach (qw(bridge tag firewall hwaddr name)) {
+	$done->{$_} = $newnet->{$_} if $newnet->{$_};
+    }
+    $conf->{$opt} = print_lxc_network($done);
 
     PVE::LXC::write_config($vmid, $conf);
 }
@@ -1160,7 +1161,7 @@ sub update_ipconfig {
 
     my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
 
-    my $optdata = $conf->{$opt};
+    my $optdata = parse_lxc_network($conf->{$opt});
     my $deleted = [];
     my $added = [];
     my $nscmd = sub {
@@ -1249,6 +1250,7 @@ sub update_ipconfig {
 		delete $optdata->{$property};
 	    }
 	}
+	$conf->{$opt} = print_lxc_network($optdata);
 	PVE::LXC::write_config($vmid, $conf);
 	$lxc_setup->setup_network($conf);
     };
