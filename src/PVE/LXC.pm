@@ -870,7 +870,7 @@ sub update_lxc_config {
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $ind = $1;
-	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	my $d = parse_lxc_network($conf->{$k});
 	$netcount++;
 	$raw .= "lxc.network.type = veth\n";
 	$raw .= "lxc.network.veth.pair = veth$vmid.$ind\n";
@@ -997,7 +997,7 @@ sub update_pct_config {
 	    $conf->{$opt} = PVE::Tools::encode_text($value);
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
-	    my $net = PVE::LXC::parse_lxc_network($value);
+	    my $net = parse_lxc_network($value);
 	    if (!$running) {
 		$conf->{$opt} = print_lxc_network($net);
 	    } else {
@@ -1020,7 +1020,7 @@ sub get_primary_ips {
     # return data from net0
 
     return undef if !defined($conf->{net0});
-    my $net = PVE::LXC::parse_lxc_network($conf->{net0});
+    my $net = parse_lxc_network($conf->{net0});
 
     my $ipv4 = $net->{ip};
     if ($ipv4) {
