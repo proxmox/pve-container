@@ -1363,11 +1363,11 @@ __PACKAGE__->register_method({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
 	    snapname => get_standard_option('pve-lxc-snapshot-name'),
-	    vmstate => {
-		optional => 1,
-		type => 'boolean',
-		description => "Save the vmstate",
-	    },
+#	    vmstate => {
+#		optional => 1,
+#		type => 'boolean',
+#		description => "Save the vmstate",
+#	    },
 	    description => {
 		optional => 1,
 		type => 'string',
@@ -1533,17 +1533,17 @@ __PACKAGE__->register_method({
 	    my $d = $snaphash->{$name};
 	    my $item = {
 		name => $name,
-		snaptime => $d->{'pve.snaptime'} || 0,
-		description => $d->{'pve.snapcomment'} || '',
+		snaptime => $d->{snaptime} || 0,
+		description => $d->{description} || '',
 	    };
-	    $item->{parent} = $d->{'pve.parent'} if $d->{'pve.parent'};
-	    $item->{snapstate} = $d->{'pve.snapstate'} if $d->{'pve.snapstate'};
+	    $item->{parent} = $d->{parent} if defined($d->{parent});
+	    $item->{snapstate} = $d->{snapstate} if $d->{snapstate};
 	    push @$res, $item;
 	}
 
 	my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
 	my $current = { name => 'current', digest => $conf->{digest}, running => $running };
-	$current->{parent} = $conf->{'pve.parent'} if $conf->{'pve.parent'};
+	$current->{parent} = $conf->{parent} if defined($conf->{parent});
 
 	push @$res, $current;
 
@@ -1631,9 +1631,9 @@ __PACKAGE__->register_method({
 
 	    die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-	    $snap->{'pve.snapcomment'} = $param->{description} if defined($param->{description});
+	    $snap->{description} = $param->{description} if defined($param->{description});
 
-	     PVE::LXC::write_config($vmid, $conf, 1);
+	    PVE::LXC::write_config($vmid, $conf, 1);
 	};
 
 	PVE::LXC::lock_container($vmid, 10, $updatefn);
@@ -1670,15 +1670,13 @@ __PACKAGE__->register_method({
 
 	my $snapname = extract_param($param, 'snapname');
 
-	my $lxc_conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::load_config($vmid);
 
-	my $snap = $lxc_conf->{snapshots}->{$snapname};
+	my $snap = $conf->{snapshots}->{$snapname};
 
 	die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-	my $conf = PVE::LXC::lxc_conf_to_pve($param->{vmid}, $snap);
-
-	return $conf;
+	return $snap;
     }});
 
 __PACKAGE__->register_method({

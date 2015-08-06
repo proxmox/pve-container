@@ -51,6 +51,12 @@ PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
 });
 
 my $confdesc = {
+    lock => {
+	optional => 1,
+	type => 'string',
+	description => "Lock/unlock the VM.",
+	enum => [qw(migrate backup snapshot rollback)],
+    },
     onboot => {
 	optional => 1,
 	type => 'boolean',
@@ -131,6 +137,18 @@ my $confdesc = {
 	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
     },
     rootfs => get_standard_option('pve-ct-rootfs'),
+    parent => {
+	optional => 1,
+	type => 'string', format => 'pve-configid',
+	maxLength => 40,
+	description => "Parent snapshot name. This is used internally, and should not be modified.",
+    },
+    snaptime => {
+	optional => 1,
+	description => "Timestamp for snapshots.",
+	type => 'integer',
+	minimum => 0,
+    },
 };
 
 my $MAX_LXC_NETWORKS = 10;
@@ -164,7 +182,8 @@ sub write_pct_config {
 	}
 
 	foreach my $key (sort keys %$conf) {
-	    next if $key eq 'digest' || $key eq 'description' || $key eq 'pending' || $key eq 'snapshots';
+	    next if $key eq 'digest' || $key eq 'description' || $key eq 'pending' || 
+		$key eq 'snapshots' || $key eq 'snapname';
 	    $raw .= "$key: $conf->{$key}\n";
 	}
 	return $raw;
@@ -435,6 +454,7 @@ sub json_config_properties {
     my $prop = shift;
 
     foreach my $opt (keys %$confdesc) {
+	next if $opt eq 'parent' || $opt eq 'snaptime';
 	next if $prop->{$opt};
 	$prop->{$opt} = $confdesc->{$opt};
     }
@@ -447,7 +467,7 @@ sub json_config_properties_no_rootfs {
 
     foreach my $opt (keys %$confdesc) {
 	next if $prop->{$opt};
-	next if $opt eq 'rootfs';
+	next if $opt eq 'parent' || $opt eq 'snaptime' || $opt eq 'rootfs';
 	$prop->{$opt} = $confdesc->{$opt};
     }
 
@@ -1241,11 +1261,12 @@ my $snapshot_copy_config = sub {
 
     foreach my $k (keys %$source) {
 	next if $k eq 'snapshots';
-	next if $k eq 'pve.snapstate';
-	next if $k eq 'pve.snaptime';
-	next if $k eq 'pve.lock';
+	next if $k eq 'snapstate';
+	next if $k eq 'snaptime';
+	next if $k eq 'vmstate';
+	next if $k eq 'lock';
 	next if $k eq 'digest';
-	next if $k eq 'pve.comment';
+	next if $k eq 'description';
 
 	$dest->{$k} = $source->{$k};
     }
@@ -1262,7 +1283,7 @@ my $snapshot_prepare = sub {
 
 	check_lock($conf);
 
-	$conf->{'pve.lock'} = 'snapshot';
+	$conf->{lock} = 'snapshot';
 
 	die "snapshot name '$snapname' already used\n"
 	    if defined($conf->{snapshots}->{$snapname});
@@ -1274,10 +1295,9 @@ my $snapshot_prepare = sub {
 
 	&$snapshot_copy_config($conf, $snap);
 
-	$snap->{'pve.snapstate'} = "prepare";
-	$snap->{'pve.snaptime'} = time();
-	$snap->{'pve.snapname'} = $snapname;
-	$snap->{'pve.snapcomment'} = $comment if $comment;
+	$snap->{'snapstate'} = "prepare";
+	$snap->{'snaptime'} = time();
+	$snap->{'description'} = $comment if $comment;
 	$conf->{snapshots}->{$snapname} = $snap;
 
 	PVE::LXC::write_config($vmid, $conf);
@@ -1296,20 +1316,20 @@ my $snapshot_commit = sub {
 	my $conf = load_config($vmid);
 
 	die "missing snapshot lock\n"
-	    if !($conf->{'pve.lock'} && $conf->{'pve.lock'} eq 'snapshot');
+	    if !($conf->{lock} && $conf->{lock} eq 'snapshot');
 
 	die "snapshot '$snapname' does not exist\n"
 	    if !defined($conf->{snapshots}->{$snapname});
 
 	die "wrong snapshot state\n"
-	    if !($conf->{snapshots}->{$snapname}->{'pve.snapstate'} && $conf->{snapshots}->{$snapname}->{'pve.snapstate'} eq "prepare");
+	    if !($conf->{snapshots}->{$snapname}->{'snapstate'} && 
+		 $conf->{snapshots}->{$snapname}->{'snapstate'} eq "prepare");
 
-	delete $conf->{snapshots}->{$snapname}->{'pve.snapstate'};
-	delete $conf->{'pve.lock'};
-	$conf->{'pve.parent'} = $snapname;
+	delete $conf->{snapshots}->{$snapname}->{'snapstate'};
+	delete $conf->{lock};
+	$conf->{parent} = $snapname;
 
 	PVE::LXC::write_config($vmid, $conf);
-
     };
 
     lock_container($vmid, 10 ,$updatefn);
@@ -1317,10 +1337,12 @@ my $snapshot_commit = sub {
 
 sub has_feature {
     my ($feature, $conf, $storecfg, $snapname) = @_;
+    
     #Fixme add other drives if necessary.
     my $err;
-    my $volid = $conf->{'pve.volid'};
-    $err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $volid, $snapname);
+
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    $err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $rootinfo->{volume}, $snapname);
 
     return $err ? 0 : 1;
 }
@@ -1330,7 +1352,7 @@ sub snapshot_create {
 
     my $snap = &$snapshot_prepare($vmid, $snapname, $comment);
 
-    my $config = load_config($vmid);
+    my $conf = load_config($vmid);
 
     my $cmd = "/usr/bin/lxc-freeze -n $vmid";
     my $running = check_running($vmid);
@@ -1340,7 +1362,8 @@ sub snapshot_create {
 	};
 
 	my $storecfg = PVE::Storage::config();
-	my $volid = $config->{'pve.volid'};
+	my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+	my $volid = $rootinfo->{volume};
 
 	$cmd = "/usr/bin/lxc-unfreeze -n $vmid";
 	if ($running) {
@@ -1373,7 +1396,7 @@ sub snapshot_delete {
 
 	die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-	$snap->{'pve.snapstate'} = 'delete';
+	$snap->{snapstate} = 'delete';
 
 	PVE::LXC::write_config($vmid, $conf);
     };
@@ -1386,11 +1409,11 @@ sub snapshot_delete {
 
 	check_lock($conf);
 
-	if ($conf->{'pve.parent'} eq $snapname) {
-	    if ($conf->{snapshots}->{$snapname}->{'pve.snapname'}) {
-		$conf->{'pve.parent'} = $conf->{snapshots}->{$snapname}->{'pve.parent'};
+	if ($conf->{parent} eq $snapname) {
+	    if ($conf->{snapshots}->{$snapname}->{snapname}) {
+		$conf->{parent} = $conf->{snapshots}->{$snapname}->{parent};
 	    } else {
-		delete $conf->{'pve.parent'};
+		delete $conf->{parent};
 	    }
 	}
 
@@ -1399,7 +1422,9 @@ sub snapshot_delete {
 	PVE::LXC::write_config($vmid, $conf);
     };
 
-    my $volid = $conf->{snapshots}->{$snapname}->{'pve.volid'};
+    my $rootfs = $conf->{snapshots}->{$snapname}->{rootfs};
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($rootfs);
+    my $volid = $rootinfo->{volume};
 
     eval {
 	PVE::Storage::volume_snapshot_delete($storecfg, $volid, $snapname);
@@ -1425,12 +1450,16 @@ sub snapshot_rollback {
 
     die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-    PVE::Storage::volume_rollback_is_possible($storecfg, $snap->{'pve.volid'},
-					      $snapname);
+    my $rootfs = $snap->{rootfs};
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($rootfs);
+    my $volid = $rootinfo->{volume};
+
+    PVE::Storage::volume_rollback_is_possible($storecfg, $volid, $snapname);
 
     my $updatefn = sub {
 
-	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n" if $snap->{snapstate};
+	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n" 
+	    if $snap->{snapstate};
 
 	check_lock($conf);
 
@@ -1439,7 +1468,7 @@ sub snapshot_rollback {
 	die "unable to rollback vm $vmid: vm is running\n"
 	    if check_running($vmid);
 
-	$conf->{'pve.lock'} = 'rollback';
+	$conf->{lock} = 'rollback';
 
 	my $forcemachine;
 
@@ -1448,21 +1477,21 @@ sub snapshot_rollback {
 	my $tmp_conf = $conf;
 	&$snapshot_copy_config($tmp_conf->{snapshots}->{$snapname}, $conf);
 	$conf->{snapshots} = $tmp_conf->{snapshots};
-	delete $conf->{'pve.snaptime'};
-	delete $conf->{'pve.snapname'};
-	$conf->{'pve.parent'} = $snapname;
+	delete $conf->{snaptime};
+	delete $conf->{snapname};
+	$conf->{parent} = $snapname;
 
 	PVE::LXC::write_config($vmid, $conf);
     };
 
     my $unlockfn = sub {
-	delete $conf->{'pve.lock'};
+	delete $conf->{lock};
 	PVE::LXC::write_config($vmid, $conf);
     };
 
     lock_container($vmid, 10, $updatefn);
 
-    PVE::Storage::volume_snapshot_rollback($storecfg, $conf->{'pve.volid'}, $snapname);
+    PVE::Storage::volume_snapshot_rollback($storecfg, $volid, $snapname);
 
     lock_container($vmid, 5, $unlockfn);
 }
