@@ -1,3 +1,17 @@
+pve-container (0.9-9) unstable; urgency=medium
+
+  * Fix: If a Ct are created and a pool are given add the Ct to pool
+
+  * don't set proxy_arp and forwarding on lxc veths
+
+  * activate/deactivates volumes on container start/stop
+
+  * allow to use drbd storage for containers
+
+  * add manual page for container configuration format ("man pct.conf")
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 07 Aug 2015 12:11:22 +0200
+
 pve-container (0.9-8) unstable; urgency=medium
 
   * use our own configuration format for containers
