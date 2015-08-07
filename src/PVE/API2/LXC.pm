@@ -297,7 +297,7 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 	    &$check_vmid_usage(); # final check after locking
-
+	    	    
 	    PVE::Cluster::check_cfs_quorum();
 
 	    my $volid;
@@ -332,6 +332,7 @@ __PACKAGE__->register_method({
 		PVE::LXC::destroy_config($vmid);
 		die $err;
 	    }
+	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
