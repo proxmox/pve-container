@@ -305,7 +305,7 @@ __PACKAGE__->register_method({
 	    eval {
 		if (!defined($disksize)) {
 		    if ($restore) {
-			my (undef, $disksize) = PVE::LXCCreate::recover_config($archive);
+			(undef, $disksize) = PVE::LXCCreate::recover_config($archive);
 			die "unable to detect disk size - please specify with --size\n"
 			    if !$disksize;
 		    } else {

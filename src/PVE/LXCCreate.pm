@@ -108,7 +108,7 @@ sub recover_config {
 
     if ($conf_file =~ m/pct\.conf/) {
 
-	$conf = PVE::LXC::parse_lxc_config("/lxc/0/config" , $raw);
+	$conf = PVE::LXC::parse_pct_config("/lxc/0.conf" , $raw);
 
 	delete $conf->{snapshots};
 	
