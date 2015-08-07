@@ -304,9 +304,9 @@ sub convert_ovz {
    
    my ($mem, $swap) = ovz_config_extract_mem_swap($ovz_conf, 0);
 
-   $conf->{memory} = $mem;
+   $conf->{memory} = $mem / 1024 / 1024;
 
-   $conf->{swap} = ($swap + $mem);
+   $conf->{swap} = ($swap + $mem) / 1024 / 1024;
 
    $conf->{cpuunits} = 1024;
 
