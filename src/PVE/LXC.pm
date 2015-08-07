@@ -721,6 +721,7 @@ sub parse_ct_mountpoint {
 	if ($p =~ m/^(volume|backup|size)=(.+)$/) {
 	    my ($k, $v) = ($1, $2);
 	    return undef if defined($res->{$k});
+	    $res->{$k} = $v;
 	} else {
 	    if (!$res->{volume} && $p !~ m/=/) {
 		$res->{volume} = $p;
