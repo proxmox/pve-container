@@ -1137,6 +1137,7 @@ sub get_primary_ips {
     return ($ipv4, $ipv6);
 }
 
+
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
@@ -1152,6 +1153,18 @@ sub destroy_lxc_container {
 
     #my $cmd = ['lxc-destroy', '-n', $vmid ];
     #PVE::Tools::run_command($cmd);
+}
+
+sub vm_stop_cleanup {
+    my ($storeage_cfg, $vmid, $conf, $keepActive) = @_;
+    
+    eval {
+	if (!$keepActive) {
+	    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+	    PVE::Storage::deactivate_volumes($storeage_cfg, [$rootinfo->{volume}]);
+	}
+    };
+    warn $@ if $@; # avoid errors - just warn
 }
 
 my $safe_num_ne = sub {

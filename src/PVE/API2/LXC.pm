@@ -20,14 +20,6 @@ use base qw(PVE::RESTHandler);
 
 use Data::Dumper; # fixme: remove
 
-my $get_container_storage = sub {
-    my ($stcfg, $vmid, $pct_conf) = @_;
-
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($pct_conf->{rootfs});
-    my ($sid, $volname) = PVE::Storage::parse_volume_id($rootinfo->{volume});
-    return wantarray ? ($sid, $volname) : $sid;
-};
-
 my $check_ct_modify_config_perm = sub {
     my ($rpcenv, $authuser, $vmid, $pool, $key_list) = @_;
 
@@ -998,10 +990,10 @@ __PACKAGE__->register_method({
 
 		my $conf = PVE::LXC::load_config($vmid);
 		my $storage_cfg = cfs_read_file("storage.cfg");
-		if (my $sid = &$get_container_storage($storage_cfg, $vmid, $conf)) {
-		    PVE::Storage::activate_storage($storage_cfg, $sid);
-		}
 
+		my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+		PVE::Storage::activate_volumes($storage_cfg, [$rootinfo->{volume}]);
+		
 		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 
 		my $cmd = ['lxc-start', '-n', $vmid];
@@ -1073,9 +1065,15 @@ __PACKAGE__->register_method({
 
 		syslog('info', "stoping CT $vmid: $upid\n");
 
+		my $conf = PVE::LXC::load_config($vmid);
+
+		my $storage_cfg = PVE::Storage::config();
+
 		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 
 		run_command($cmd);
+
+		PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 
 		return;
 	    };
@@ -1141,18 +1139,26 @@ __PACKAGE__->register_method({
 
 	    $timeout = 60 if !defined($timeout);
 
+	    my $conf = PVE::LXC::load_config($vmid);
+
+	    my $storage_cfg = PVE::Storage::config();
+
 	    push @$cmd, '--timeout', $timeout;
 
 	    eval { run_command($cmd, timeout => $timeout+5); };
 	    my $err = $@;
-	    return if !$err;
+	    if ($err && $param->{forceStop}) {
+		$err = undef;
+		warn "shutdown failed - forcing stop now\n";
 
-	    die $err if !$param->{forceStop};
+		push @$cmd, '--kill';
+		run_command($cmd);
+		
+	    }
 
-	    warn "shutdown failed - forcing stop now\n";
-
-	    push @$cmd, '--kill';
-	    run_command($cmd);
+	    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
+	    
+	    die $err if !$err;
 
 	    return;
 	};
@@ -1739,10 +1745,10 @@ __PACKAGE__->register_method({
 	    die "snapshot '$snapname' does not exist\n" if !defined($snap);
 	    $conf = $snap;
 	}
-	my $storecfg = PVE::Storage::config();
+	my $storage_cfg = PVE::Storage::config();
 	#Maybe include later
-	#my $nodelist = PVE::LXC::shared_nodes($conf, $storecfg);
-	my $hasFeature = PVE::LXC::has_feature($feature, $conf, $storecfg, $snapname);
+	#my $nodelist = PVE::LXC::shared_nodes($conf, $storage_cfg);
+	my $hasFeature = PVE::LXC::has_feature($feature, $conf, $storage_cfg, $snapname);
 
 	return {
 	    hasFeature => $hasFeature,
