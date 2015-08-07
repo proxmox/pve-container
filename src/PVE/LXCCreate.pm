@@ -183,6 +183,36 @@ sub create_rootfs_subvol {
     restore_and_configure($vmid, $archive, $private, $conf, $password, $restore);
 }
 
+# direct mount
+sub create_rootfs_dev {
+    my ($storage_conf, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
+
+    my $image_path = PVE::Storage::path($storage_conf, $volid);
+    
+    my $cmd = ['mkfs.ext4', $image_path];
+    PVE::Tools::run_command($cmd);
+
+    my $mountpoint;
+
+    eval {
+	my $tmp = "/var/lib/lxc/$vmid/rootfs";
+	File::Path::mkpath($tmp);
+	PVE::Tools::run_command(['mount', '-t', 'ext4', $image_path, $tmp]);
+	$mountpoint = $tmp;
+
+	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password, $restore);
+    };
+    if (my $err = $@) {
+	if ($mountpoint) {
+	    eval { PVE::Tools::run_command(['umount', $mountpoint]) };
+	    warn $@ if $@;
+	} 
+	die $err;
+    }
+
+    PVE::Tools::run_command(['umount', '-l', $mountpoint]);
+}
+
 # create a raw file, then loop mount
 sub create_rootfs_dir_loop {
     my ($storage_conf, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
@@ -254,6 +284,8 @@ sub create_rootfs {
 	create_rootfs_dir_loop($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
     } elsif ($scfg->{type} eq 'zfspool') {
 	create_rootfs_subvol($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
+    } elsif ($scfg->{type} eq 'drbd') {
+	create_rootfs_dev($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
     } else {
 	die "unable to create containers on storage type '$scfg->{type}'\n";
     }

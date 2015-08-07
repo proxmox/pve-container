@@ -942,6 +942,11 @@ sub update_lxc_config {
     } elsif ($scfg->{type} eq 'zfspool') {
 	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
 	$raw .= "lxc.rootfs = $rootfs\n";
+    } elsif ($scfg->{type} eq 'drbd') {
+	my $rootdev = PVE::Storage::path($storage_cfg, $volid);
+	$raw .= "lxc.rootfs = $rootdev\n";
+    } else {
+	die "unsupported storage type '$scfg->{type}'\n";
     }
 
     my $netcount = 0;

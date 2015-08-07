@@ -77,6 +77,10 @@ my $alloc_rootfs = sub {
 
 	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
 					       "subvol-$vmid-rootfs", $size);
+	} elsif ($scfg->{type} eq 'drbd') {
+
+	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);
+	    
 	} else {
 	    die "unable to create containers on storage type '$scfg->{type}'\n";
 	}
@@ -243,7 +247,7 @@ __PACKAGE__->register_method({
 	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
 
 	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
-	    if !$scfg->{content}->{rootdir};
+	    if !($scfg->{content}->{images} || $scfg->{content}->{rootdir});
 
 	my $pool = extract_param($param, 'pool');
 
