@@ -42,6 +42,18 @@ character are treated as comments and are also ignored.
 
 One can use the F<pct> command to generate and modify those files.
 
+It is also possible to add low-level lxc style configuration directly, for
+example:
+
+ lxc.init_cmd: /sbin/my_own_init
+
+or 
+
+ lxc.init_cmd = /sbin/my_own_init
+
+Those settings are directly passed to the lxc low-level tools.
+
+
 =head1 OPTIONS
 
 =include format

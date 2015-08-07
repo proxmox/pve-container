@@ -612,6 +612,7 @@ __PACKAGE__->register_method({
 	my $conf = PVE::LXC::load_config($param->{vmid});
 
 	delete $conf->{snapshots};
+	delete $conf->{lxc};
 
 	return $conf;
     }});
@@ -1676,6 +1677,8 @@ __PACKAGE__->register_method({
 
 	die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
+	delete $snap->{lxc};
+	
 	return $snap;
     }});
 

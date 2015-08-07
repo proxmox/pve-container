@@ -151,6 +151,68 @@ my $confdesc = {
     },
 };
 
+my $valid_lxc_conf_keys = {
+    'lxc.include' => 1,
+    'lxc.arch' => 1,
+    'lxc.utsname' => 1,
+    'lxc.haltsignal' => 1,
+    'lxc.rebootsignal' => 1,
+    'lxc.stopsignal' => 1,
+    'lxc.init_cmd' => 1,
+    'lxc.network.type' => 1,
+    'lxc.network.flags' => 1,
+    'lxc.network.link' => 1,
+    'lxc.network.mtu' => 1,
+    'lxc.network.name' => 1,
+    'lxc.network.hwaddr' => 1,
+    'lxc.network.ipv4' => 1,
+    'lxc.network.ipv4.gateway' => 1,
+    'lxc.network.ipv6' => 1,
+    'lxc.network.ipv6.gateway' => 1,
+    'lxc.network.script.up' => 1,
+    'lxc.network.script.down' => 1,
+    'lxc.pts' => 1,
+    'lxc.console.logfile' => 1,
+    'lxc.console' => 1,
+    'lxc.tty' => 1,
+    'lxc.devttydir' => 1,
+    'lxc.hook.autodev' => 1,
+    'lxc.autodev' => 1,
+    'lxc.kmsg' => 1,
+    'lxc.mount' => 1,
+    'lxc.mount.entry' => 1,
+    'lxc.mount.auto' => 1,
+    'lxc.rootfs' => 1,
+    'lxc.rootfs.mount' => 1,
+    'lxc.rootfs.options' => 1,
+    # lxc.cgroup.*
+    'lxc.cap.drop' => 1,
+    'lxc.cap.keep' => 1,
+    'lxc.aa_profile' => 1,
+    'lxc.aa_allow_incomplete' => 1,
+    'lxc.se_context' => 1,
+    'lxc.seccomp' => 1,
+    'lxc.id_map' => 1,
+    'lxc.hook.pre-start' => 1,
+    'lxc.hook.pre-mount' => 1,
+    'lxc.hook.mount' => 1,
+    'lxc.hook.start' => 1,
+    'lxc.hook.post-stop' => 1,
+    'lxc.hook.clone' => 1,
+    'lxc.hook.destroy' => 1,
+    'lxc.loglevel' => 1,
+    'lxc.logfile' => 1,
+    'lxc.start.auto' => 1,
+    'lxc.start.delay' => 1,
+    'lxc.start.order' => 1,
+    'lxc.group' => 1,
+    'lxc.environment' => 1,
+    'lxc.' => 1,
+    'lxc.' => 1,
+    'lxc.' => 1,
+    'lxc.' => 1,
+};
+
 my $MAX_LXC_NETWORKS = 10;
 for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     $confdesc->{"net$i"} = {
@@ -183,9 +245,17 @@ sub write_pct_config {
 
 	foreach my $key (sort keys %$conf) {
 	    next if $key eq 'digest' || $key eq 'description' || $key eq 'pending' || 
-		$key eq 'snapshots' || $key eq 'snapname';
+		$key eq 'snapshots' || $key eq 'snapname' || $key eq 'lxc';
 	    $raw .= "$key: $conf->{$key}\n";
 	}
+
+	if (my $lxcconf = $conf->{lxc}) {
+	    foreach my $entry (@$lxcconf) {
+		my ($k, $v) = @$entry;
+		$raw .= "$k: $v\n";
+	    }
+	}
+	
 	return $raw;
     };
 
@@ -271,7 +341,15 @@ sub parse_pct_config {
 	    next;
 	}
 
-	if ($line =~ m/^(description):\s*(.*\S)\s*$/) {
+	if ($line =~ m/^(lxc\.[a-z0-9\.]+)(:|\s*=)\s*(\S.*)\s*$/) {
+	    my $key = $1;
+	    my $value = $3;
+	    if ($valid_lxc_conf_keys->{$key} || $key =~ m/^lxc\.cgroup\./) {
+		push @{$conf->{lxc}}, [$key, $value];
+	    } else {
+		warn "vm $vmid - unable to parse config: $line\n";
+	    }
+	} elsif ($line =~ m/^(description):\s*(.*\S)\s*$/) {
 	    $descr .= PVE::Tools::decode_text($2);
 	} elsif ($line =~ m/snapstate:\s*(prepare|delete)\s*$/) {
 	    $conf->{snapstate} = $1;
@@ -879,8 +957,16 @@ sub update_lxc_config {
 	$raw .= "lxc.network.mtu = $d->{mtu}\n" if defined($d->{mtu});
     }
 
-    $raw .= "lxc.network.type = empty\n" if !$netcount;
+    if (my $lxcconf = $conf->{lxc}) {
+	foreach my $entry (@$lxcconf) {
+	    my ($k, $v) = @$entry;
+	    $netcount++ if $k eq 'lxc.network.type';
+	    $raw .= "$k = $v\n";
+	}
+    }
 
+    $raw .= "lxc.network.type = empty\n" if !$netcount;
+    
     my $dir = "/var/lib/lxc/$vmid";
     File::Path::mkpath("$dir/rootfs");
 
@@ -976,6 +1062,10 @@ sub update_pct_config {
 	    $conf->{$opt} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
 	    $conf->{$opt} = $value;
+	} elsif ($opt eq 'tty') {
+	    $conf->{$opt} = $value;
+	    push @nohotplug, $opt;
+	    next if $running;
 	} elsif ($opt eq 'nameserver') {
 	    my $list = verify_nameserver_list($value);
 	    $conf->{$opt} = $list;
