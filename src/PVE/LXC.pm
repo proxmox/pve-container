@@ -46,7 +46,7 @@ sub verify_ct_mountpoint {
 PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
     type => 'string', format => 'pve-ct-mountpoint',
     typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+]',
-    description => "Use volume as container root. You can use special '<storage>:<size>' syntax for create/restore, where size specifies the disk size in GB (for example 'local:5.5' to create 5.5GB image on storage 'local').",
+    description => "Use volume as container root.",
     optional => 1,
 });
 
