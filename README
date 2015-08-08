@@ -23,39 +23,13 @@ arbitrary names for containers).
 
 We store LXC container configurations on the cluster file system:
 
- /etc/pve/nodes/<nodeid>/lxc/<CTID>/config
+ /etc/pve/nodes/lxc/<CTID>.conf
 
 There is a symbolic link for the local node at
 
  /etc/pve/lxc => /etc/pve/nodes/<localhost>/lxc
 
-We store PVE related configuration using prefix 'pve', for example:
-
- # lxc config for container 105
- lxc.include = /usr/share/lxc/config/debian.common.conf
- lxc.utsname = ct1
- pve.disksize = 8
- pve.volid = local:105/vm-105-rootfs.raw
- # network config
- lxc.network.type = veth
- pve.network.bridge = vmbr0
- pve.network.gw = 192.168.2.1
- lxc.network.hwaddr = 86:5D:0B:28:E6:23
- pve.network.ip = 192.168.3.106/20
- lxc.network.name = eth0
- lxc.network.veth.pair = veth105.0
-
-Those 'pve.network' entrioes are used by the PVE::LXCSetup classes to
-configure the network inside the containers.
-
-We only allow 'veth' networks, and use 'lxc.network.veth.pair' to
-uniquely identify the network withing the configuration file
-
- veth<vmid>.0 => net0
- veth<vmid>.1 => net1
- veth<vmid>.2 => net2
- ...
-
+see man pct.conf for syntax details.
 
 == CRIU ==
 
