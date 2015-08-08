@@ -656,8 +656,8 @@ sub vmstatus {
 
 	$d->{mem} = 0;
 	$d->{swap} = 0;
-	$d->{maxmem} = $conf->{memory}*1024*1024;
-	$d->{maxswap} = $conf->{swap}*1024*1024;
+	$d->{maxmem} = ($conf->{memory}||512)*1024*1024;
+	$d->{maxswap} = ($conf->{swap}//0)*1024*1024;
 
 	$d->{uptime} = 0;
 	$d->{cpu} = 0;
