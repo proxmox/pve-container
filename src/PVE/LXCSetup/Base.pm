@@ -195,6 +195,46 @@ sub setup_init {
     die "please implement this inside subclass"
 }
 
+sub setup_systemd_console {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+
+    my $systemd_dir_rel = -x "$rootdir/lib/systemd/systemd" ?
+	"/lib/systemd/system" : "/usr/lib/systemd/system";
+
+    my $systemd_dir = "$rootdir/$systemd_dir_rel";
+
+    my $etc_systemd_dir = "$rootdir/etc/systemd/system";
+
+    my $systemd_getty_service_rel = "$systemd_dir_rel/getty\@.service";
+
+    my $systemd_getty_service = "$rootdir/$systemd_getty_service_rel";
+
+    return if ! -f $systemd_getty_service;
+
+    my $raw = PVE::Tools::file_get_contents($systemd_getty_service);
+
+    # found on CenoOS 7.1
+    if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
+	PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+    }
+
+    my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
+
+    for (my $i = 1; $i < 7; $i++) {
+	my $tty_service_lnk = "$etc_systemd_dir/getty.target.wants/getty\@tty$i.service";
+	if ($i > $ttycount) {
+	    unlink $tty_service_lnk;
+	} else {
+	    if (! -l $tty_service_lnk) {
+		unlink $tty_service_lnk;
+		symlink($systemd_getty_service_rel, $tty_service_lnk);
+	    }
+	}
+    }
+}
+
 my $replacepw  = sub {
     my ($file, $user, $epw, $shadow) = @_;
 

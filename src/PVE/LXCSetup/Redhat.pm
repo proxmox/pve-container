@@ -19,8 +19,8 @@ sub new {
 
     my $version;
 
-    if ($release =~ m/release\s+(\d\.\d)\s/) {
-	if ($1 >= 6 && $1 < 7) {
+    if ($release =~ m/release\s+(\d\.\d)(\.\d+)?\s/) {
+	if ($1 >= 6 && $1 < 8) {
 	    $version = $1;
 	}
     }
@@ -121,7 +121,6 @@ sub template_fixup {
     }
 }
 
-    
 sub setup_init {
     my ($self, $conf) = @_;
 
@@ -130,6 +129,8 @@ sub setup_init {
      # edit/etc/securetty
 
     my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
+
+    $self->setup_systemd_console($conf);
 }
 
 sub set_hostname {
