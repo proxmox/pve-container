@@ -34,10 +34,11 @@ lxc-pve-mount-hook.1.pod: lxc-pve-mount-hook
 	perl -I. -T ./lxc-pve-mount-hook printmanpod >$@
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-mount-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz
+install: pct lxc-pve.conf lxc-pve-mount-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config
 	perl -T -I. ./pct verifyapi
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
+	install -m 0755 pve-update-lxc-config ${SBINDIR}
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
 	install -d ${LXC_HOOK_DIR}
