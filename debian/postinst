@@ -30,24 +30,8 @@ case "$1" in
     # error during updates
     if test -f /etc/pve/local/pve-ssl.pem
     then
-        cat <<EOF
->>>
->>> PVE container configuration has changed!
->>> Attempting to upgrade existing configuration...
->>>
-EOF
         /usr/sbin/pve-update-lxc-config
-    else
-        cat <<EOF
->>>
->>> PVE container configuration has changed!
->>> Error: /etc/pve not mounted
->>>   Please run pve-update-lxc-config manually after
->>>   restarting the pve-cluster service!
->>>
-EOF
     fi
-
 
     # There are three sub-cases:
     if test "${2+set}" != set; then

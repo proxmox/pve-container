@@ -1,9 +1,12 @@
 #!/usr/bin/perl
 
+# update old beta1 config
+# todo: remove this script after 4.0 Release
+
 use strict;
 use warnings;
 
-use PVE::Tools qw($IPV6RE $IPV4RE);
+use PVE::Tools;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Network;
 
@@ -565,10 +568,7 @@ sub convert($) {
     my $out = "/etc/pve/lxc/${vmid}.conf";
     my $old = "/etc/pve/lxc/${vmid}/config";
 
-    if (-f $out) {
-	print "skipping already existing $out\n";
-	return;
-    }
+    return if -f $out;
 
     print "converting $old to $out\n";
 
