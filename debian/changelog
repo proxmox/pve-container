@@ -1,3 +1,13 @@
+pve-container (0.9-10) unstable; urgency=medium
+
+  * add support for RHEL/CentOS
+  
+  * allow to set empty lxc.xxx values
+  
+  * added pve-update-lxc-config postinstall hook
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 11 Aug 2015 10:23:33 +0200
+
 pve-container (0.9-9) unstable; urgency=medium
 
   * Fix: If a Ct are created and a pool are given add the Ct to pool
