@@ -289,13 +289,16 @@ sub create_rootfs {
 	create_rootfs_subvol($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
     } elsif ($format eq 'raw') {
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	PVE::Storage::activate_storage($storage_cfg, $storage);
+	PVE::Storage::activate_volumes($storage_cfg, [$volid]);
 	if ($scfg->{path}) {
 	    create_rootfs_dir_loop($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-	} elsif ($scfg->{type} eq 'drbd') {
+	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
 	    create_rootfs_dev($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
 	} else {
 	    die "unable to create containers on storage type '$scfg->{type}'\n";
 	}
+	PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
     } else {
 	die "unsupported image format '$format'\n";
     }

@@ -943,7 +943,7 @@ sub update_lxc_config {
     } elsif ($scfg->{type} eq 'zfspool') {
 	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
 	$raw .= "lxc.rootfs = $rootfs\n";
-    } elsif ($scfg->{type} eq 'drbd') {
+    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
 	my $rootdev = PVE::Storage::path($storage_cfg, $volid);
 	$raw .= "lxc.rootfs = $rootdev\n";
     } else {

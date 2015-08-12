@@ -72,7 +72,12 @@ my $alloc_rootfs = sub {
 	} elsif ($scfg->{type} eq 'drbd') {
 
 	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);
-	    
+
+	} elsif ($scfg->{type} eq 'rbd') {
+
+	    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
+	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);
+
 	} else {
 	    die "unable to create containers on storage type '$scfg->{type}'\n";
 	}
