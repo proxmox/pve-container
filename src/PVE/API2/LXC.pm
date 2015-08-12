@@ -60,15 +60,15 @@ my $alloc_rootfs = sub {
 	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
 	    if ($size > 0) {
 		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw',
-						   "vm-$vmid-rootfs.raw", $size);
+						   undef, $size);
 	    } else {
 		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
-						   "subvol-$vmid-rootfs", 0);
+						   undef, 0);
 	    }
 	} elsif ($scfg->{type} eq 'zfspool') {
 
 	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
-					       "subvol-$vmid-rootfs", $size);
+					       undef, $size);
 	} elsif ($scfg->{type} eq 'drbd') {
 
 	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);

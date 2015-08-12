@@ -278,16 +278,26 @@ sub create_rootfs {
 	PVE::LXC::create_config($vmid, $conf);
     }
 
-    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-    # fixme: if volid format is_subvolume() ... 
-    if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-	create_rootfs_dir_loop($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-    } elsif ($scfg->{type} eq 'zfspool') {
+    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $volid);
+	
+    die "got strange vtype '$vtype'\n" if $vtype ne 'images';
+    
+    die "unable to install into base volume" if $isBase;
+
+    if ($format eq 'subvol') {
 	create_rootfs_subvol($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-    } elsif ($scfg->{type} eq 'drbd') {
-	create_rootfs_dev($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
+    } elsif ($format eq 'raw') {
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	if ($scfg->{path}) {
+	    create_rootfs_dir_loop($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
+	} elsif ($scfg->{type} eq 'drbd') {
+	    create_rootfs_dev($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
+	} else {
+	    die "unable to create containers on storage type '$scfg->{type}'\n";
+	}
     } else {
-	die "unable to create containers on storage type '$scfg->{type}'\n";
+	die "unsupported image format '$format'\n";
     }
 }
 
