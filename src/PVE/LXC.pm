@@ -758,7 +758,7 @@ sub print_ct_mountpoint {
     die "missing volume\n" if !$info->{volume};
 
     foreach my $o ('size', 'backup') {
-	$opts .= ",$o=info->{$o}" if defined($info->{$o});
+	$opts .= ",$o=$info->{$o}" if defined($info->{$o});
     }
 
     return "$info->{volume}$opts";
