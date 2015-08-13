@@ -967,18 +967,26 @@ sub update_lxc_config {
     my $volid = $rootinfo->{volume};
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
 
+    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $volid);
+
+    die "unable to use template as rootfs\n" if $isBase;
+    
     my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-    if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
-	$raw .= "lxc.rootfs = loop:$rootfs\n";
-    } elsif ($scfg->{type} eq 'zfspool') {
-	my $rootfs = PVE::Storage::path($storage_cfg, $volid);
-	$raw .= "lxc.rootfs = $rootfs\n";
-    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-	my $rootdev = PVE::Storage::path($storage_cfg, $volid);
-	$raw .= "lxc.rootfs = $rootdev\n";
+    my $path = PVE::Storage::path($storage_cfg, $volid);
+    
+    if ($format eq 'subvol') {
+	$raw .= "lxc.rootfs = $path\n";
+    } elsif ($format eq 'raw') {
+	if ($scfg->{path}) {
+	    $raw .= "lxc.rootfs = loop:$path\n";
+	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+	    $raw .= "lxc.rootfs = $path\n";
+	} else {
+	    die "unsupported storage type '$scfg->{type}'\n";
+	}
     } else {
-	die "unsupported storage type '$scfg->{type}'\n";
+	die "unsupported image format '$format'\n";
     }
 
     my $netcount = 0;
