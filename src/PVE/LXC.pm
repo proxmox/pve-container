@@ -64,6 +64,12 @@ my $confdesc = {
 	default => 0,
     },
     startup => get_standard_option('pve-startup-order'),
+    template => {
+	optional => 1,
+	type => 'boolean',
+	description => "Enable/disable Template.",
+	default => 0,
+    },
     arch => {
 	optional => 1,
 	type => 'string',
@@ -667,6 +673,8 @@ sub vmstatus {
 
 	$d->{diskread} = 0;
 	$d->{diskwrite} = 0;
+
+	$d->{template} = is_template($conf);
     }
 
     foreach my $vmid (keys %$list) {
@@ -740,6 +748,20 @@ sub parse_ct_mountpoint {
     }
 
     return $res;
+}
+
+sub print_ct_mountpount {
+    my ($info) = @_;
+
+    my $opts = '';
+
+    die "missing volume\n" if !$info->{volume};
+
+    foreach my $o ('size', 'backup') {
+	$opts .= ",$o=info->{$o}" if defined($info->{$o});
+    }
+
+    return "$info->{volume}$opts";
 }
 
 sub print_lxc_network {
@@ -896,6 +918,15 @@ sub check_lock {
 sub update_lxc_config {
     my ($storage_cfg, $vmid, $conf) = @_;
 
+    my $dir = "/var/lib/lxc/$vmid";
+
+    if ($conf->{template}) {
+
+	unlink "$dir/config";
+
+	return;
+    }
+
     my $raw = '';
 
     die "missing 'arch' - internal error" if !$conf->{arch};
@@ -973,7 +1004,6 @@ sub update_lxc_config {
 
     $raw .= "lxc.network.type = empty\n" if !$netcount;
     
-    my $dir = "/var/lib/lxc/$vmid";
     File::Path::mkpath("$dir/rootfs");
 
     PVE::Tools::file_set_contents("$dir/config", $raw);
@@ -1401,6 +1431,9 @@ my $snapshot_prepare = sub {
 
 	my $conf = load_config($vmid);
 
+	die "you can't take a snapshot if it's a template\n"
+	    if is_template($conf);
+
 	check_lock($conf);
 
 	$conf->{lock} = 'snapshot';
@@ -1510,6 +1543,9 @@ sub snapshot_delete {
 
 	$conf = load_config($vmid);
 
+	die "you can't delete a snapshot if vm is a template\n"
+	    if is_template($conf);
+
 	$snap = $conf->{snapshots}->{$snapname};
 
 	check_lock($conf);
@@ -1566,6 +1602,8 @@ sub snapshot_rollback {
 
     my $conf = load_config($vmid);
 
+    die "you can't rollback if vm is a template\n" if is_template($conf);
+
     my $snap = $conf->{snapshots}->{$snapname};
 
     die "snapshot '$snapname' does not exist\n" if !defined($snap);
@@ -1614,6 +1652,32 @@ sub snapshot_rollback {
     PVE::Storage::volume_snapshot_rollback($storecfg, $volid, $snapname);
 
     lock_container($vmid, 5, $unlockfn);
+}
+
+sub template_create {
+    my ($vmid, $conf) = @_;
+
+    my $storecfg = PVE::Storage::config();
+
+    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $volid = $rootinfo->{volume};
+
+    die "Template feature is not available for '$volid'\n"
+	if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
+
+    PVE::Storage::activate_volumes($storecfg, [$volid]);
+
+    my $template_volid = PVE::Storage::vdisk_create_base($storecfg, $volid);
+    $rootinfo->{volume} = $template_volid;
+    $conf->{rootfs} = print_ct_mountpount($rootinfo);
+
+    write_config($vmid, $conf);
+}
+
+sub is_template {
+    my ($conf) = @_;
+
+    return 1 if defined $conf->{template} && $conf->{template} == 1;
 }
 
 1;

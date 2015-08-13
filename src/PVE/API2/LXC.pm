@@ -322,7 +322,7 @@ __PACKAGE__->register_method({
 		PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
 					      $archive, $password, $restore);
 
-		$conf->{rootfs} = "$volid,size=$disksize";
+		$conf->{rootfs} = print_ct_mountpount({volume => $volid, size => $disksize });
 
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
@@ -995,6 +995,10 @@ __PACKAGE__->register_method({
 		syslog('info', "starting CT $vmid: $upid\n");
 
 		my $conf = PVE::LXC::load_config($vmid);
+
+		die "you can't start a CT if it's a template\n"
+		    if PVE::LXC::is_template($conf);
+
 		my $storage_cfg = cfs_read_file("storage.cfg");
 
 		my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
@@ -1761,4 +1765,67 @@ __PACKAGE__->register_method({
 	    #nodes => [ keys %$nodelist ],
 	};
     }});
+
+__PACKAGE__->register_method({
+    name => 'template',
+    path => '{vmid}/template',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Create a Template.",
+    permissions => {
+	description => "You need 'VM.Allocate' permissions on /vms/{vmid}",
+	check => [ 'perm', '/vms/{vmid}', ['VM.Allocate']],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => { type => 'null'},
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $updatefn =  sub {
+
+	    my $conf = PVE::LXC::load_config($vmid);
+	    PVE::LXC::check_lock($conf);
+
+	    die "unable to create template, because CT contains snapshots\n"
+		if $conf->{snapshots} && scalar(keys %{$conf->{snapshots}});
+
+	    die "you can't convert a template to a template\n"
+		if PVE::LXC::is_template($conf);
+
+	    die "you can't convert a CT to template if the CT is running\n"
+		if PVE::LXC::check_running($vmid);
+
+	    my $realcmd = sub {
+		PVE::LXC::template_create($vmid, $conf);
+	    };
+
+	    $conf->{template} = 1;
+
+	    PVE::LXC::write_config($vmid, $conf);
+	    # and remove lxc config
+	    PVE::LXC::update_lxc_config(undef, $vmid, $conf);
+
+	    return $rpcenv->fork_worker('vztemplate', $vmid, $authuser, $realcmd);
+	};
+
+	PVE::LXC::lock_container($vmid, undef, $updatefn);
+
+	return undef;
+    }});
+
 1;

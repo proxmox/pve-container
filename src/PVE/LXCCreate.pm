@@ -111,6 +111,7 @@ sub recover_config {
 	$conf = PVE::LXC::parse_pct_config("/lxc/0.conf" , $raw);
 
 	delete $conf->{snapshots};
+	delete $conf->{template}; # restored CT is never a template
 	
 	if (defined($conf->{rootfs})) {
 	    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
