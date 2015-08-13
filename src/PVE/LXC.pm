@@ -750,7 +750,7 @@ sub parse_ct_mountpoint {
     return $res;
 }
 
-sub print_ct_mountpount {
+sub print_ct_mountpoint {
     my ($info) = @_;
 
     my $opts = '';
@@ -1669,7 +1669,7 @@ sub template_create {
 
     my $template_volid = PVE::Storage::vdisk_create_base($storecfg, $volid);
     $rootinfo->{volume} = $template_volid;
-    $conf->{rootfs} = print_ct_mountpount($rootinfo);
+    $conf->{rootfs} = print_ct_mountpoint($rootinfo);
 
     write_config($vmid, $conf);
 }

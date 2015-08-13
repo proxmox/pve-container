@@ -322,7 +322,7 @@ __PACKAGE__->register_method({
 		PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
 					      $archive, $password, $restore);
 
-		$conf->{rootfs} = print_ct_mountpount({volume => $volid, size => $disksize });
+		$conf->{rootfs} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $disksize });
 
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
