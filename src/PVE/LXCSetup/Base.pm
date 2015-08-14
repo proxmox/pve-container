@@ -215,9 +215,20 @@ sub setup_systemd_console {
 
     my $raw = PVE::Tools::file_get_contents($systemd_getty_service);
 
-    # found on CenoOS 7.1
-    if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
-	PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+    my $systemd_container_getty_service_rel = "$systemd_dir_rel/container-getty\@.service";
+    my $systemd_container_getty_service =  "$rootdir/$systemd_container_getty_service_rel";
+
+    # systemd on CenoOS 7.1 is too old (version 205), so there is no
+    # container-getty service
+    if (! -f $systemd_container_getty_service) {
+	if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
+	    PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+	}
+    } else {
+	# undo above change (in case someone updated systemd)
+	if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
+	    PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+	}
     }
 
     my $ttycount = PVE::LXC::get_tty_count($conf);
