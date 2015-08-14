@@ -239,6 +239,17 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     };
 }
 
+my $MAX_MOUNT_POINTS = 10;
+for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
+    $confdesc->{"mp$i"} = {
+	optional => 1,
+	type => 'string', format => 'pve-ct-mountpoint',
+	typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+] [,mp=mountpoint]',
+	description => "Use volume as container mount point.",
+	optional => 1,
+    };
+}
+
 sub write_pct_config {
     my ($filename, $conf) = @_;
 
@@ -732,7 +743,7 @@ sub parse_ct_mountpoint {
     foreach my $p (split (/,/, $data)) {
 	next if $p =~ m/^\s*$/;
 
-	if ($p =~ m/^(volume|backup|size)=(.+)$/) {
+	if ($p =~ m/^(volume|backup|size|mp)=(.+)$/) {
 	    my ($k, $v) = ($1, $2);
 	    return undef if defined($res->{$k});
 	    $res->{$k} = $v;
