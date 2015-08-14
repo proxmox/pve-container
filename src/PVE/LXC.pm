@@ -1723,4 +1723,17 @@ sub is_template {
     return 1 if defined $conf->{template} && $conf->{template} == 1;
 }
 
+sub foreach_mountpoint {
+    my ($conf, $func) = @_;
+
+    foreach my $ms (keys %$conf) {
+        next if $ms !~ m/^mp(\d+)/ && $ms ne 'rootfs';
+
+	my $mountpoint = parse_ct_mountpoint($conf->{$ms});
+        next if !$mountpoint;
+
+        &$func($ms, $mountpoint);
+    }
+}
+
 1;
