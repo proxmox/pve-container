@@ -83,6 +83,12 @@ my $confdesc = {
 	enum => ['debian', 'ubuntu', 'centos'],
 	description => "OS type. Corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf.",
     },
+    console => {
+	optional => 1,
+	type => 'boolean',
+	description => "Attach a console device (/dev/console) to the container.",
+	default => 1,
+    },
     tty => {
 	optional => 1,
 	type => 'integer',
@@ -939,6 +945,8 @@ sub update_lxc_config {
 	die "implement me";
     }
 
+    $raw .= "lxc.console = none\n" if !$conf->{console};
+
     my $ttycount = $conf->{tty} // 4;
     $raw .= "lxc.tty = $ttycount\n";
 
@@ -1062,7 +1070,8 @@ sub update_pct_config {
 		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", -1);
 	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup') {
 		delete $conf->{$opt};
-	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain') {
+	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
+		     $opt eq 'tty' || $opt eq 'console') {
 		delete $conf->{$opt};
 		push @nohotplug, $opt;
 		next if $running;
@@ -1106,7 +1115,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
 	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'tty') {
+	} elsif ($opt eq 'tty' || $opt eq 'console') {
 	    $conf->{$opt} = $value;
 	    push @nohotplug, $opt;
 	    next if $running;
