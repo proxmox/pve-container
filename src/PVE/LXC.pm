@@ -1230,12 +1230,14 @@ sub destroy_lxc_container {
 }
 
 sub vm_stop_cleanup {
-    my ($storeage_cfg, $vmid, $conf, $keepActive) = @_;
+    my ($storage_cfg, $vmid, $conf, $keepActive) = @_;
     
     eval {
 	if (!$keepActive) {
-	    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-	    PVE::Storage::deactivate_volumes($storeage_cfg, [$rootinfo->{volume}]);
+            PVE::LXC::foreach_mountpoint($conf, sub {
+		my ($ms, $mountpoint) = @_;
+		PVE::Storage::deactivate_volumes($storage_cfg, [$mountpoint->{volume}]);
+            });
 	}
     };
     warn $@ if $@; # avoid errors - just warn
