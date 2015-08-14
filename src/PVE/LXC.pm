@@ -1728,13 +1728,15 @@ sub is_template {
 sub foreach_mountpoint {
     my ($conf, $func) = @_;
 
-    foreach my $ms (keys %$conf) {
-        next if $ms !~ m/^mp(\d+)/ && $ms ne 'rootfs';
+    my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
+    $mountpoint->{mp} = '/'; # just to be sure
+    &$func('rootfs', $mountpoint);
 
-	my $mountpoint = parse_ct_mountpoint($conf->{$ms});
-        next if !$mountpoint;
-
-        &$func($ms, $mountpoint);
+    for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
+	my $key = "mp$i";
+	next if !defined($conf->{$key});
+	$mountpoint = parse_ct_mountpoint($conf->{$key});
+	&$func($key, $mountpoint);
     }
 }
 
