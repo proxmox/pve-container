@@ -945,7 +945,10 @@ sub update_lxc_config {
 	die "implement me";
     }
 
-    $raw .= "lxc.console = none\n" if !$conf->{console};
+    if (defined($conf->{console}) && !$conf->{console}) {
+	$raw .= "lxc.console = none\n";
+	$raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
+    }
 
     my $ttycount = get_tty_count($conf);
     $raw .= "lxc.tty = $ttycount\n";
