@@ -1001,8 +1001,10 @@ __PACKAGE__->register_method({
 
 		my $storage_cfg = cfs_read_file("storage.cfg");
 
-		my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-		PVE::Storage::activate_volumes($storage_cfg, [$rootinfo->{volume}]);
+		PVE::LXC::foreach_mountpoint($conf, sub {
+		    my ($ms, $mountpoint) = @_;
+		    PVE::Storage::activate_volumes($storage_cfg, [$mountpoint->{volume}]);
+		});
 		
 		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 
