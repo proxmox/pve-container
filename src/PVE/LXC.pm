@@ -95,7 +95,7 @@ my $confdesc = {
 	description => "Specify the number of tty available to the container",
 	minimum => 0,
 	maximum => 6,
-	default => 4,
+	default => 2,
     },
     cpulimit => {
 	optional => 1,
@@ -947,7 +947,7 @@ sub update_lxc_config {
 
     $raw .= "lxc.console = none\n" if !$conf->{console};
 
-    my $ttycount = $conf->{tty} // 4;
+    my $ttycount = get_tty_count($conf);
     $raw .= "lxc.tty = $ttycount\n";
 
     my $utsname = $conf->{hostname} || "CT$vmid";
@@ -1155,6 +1155,12 @@ sub update_pct_config {
     if ($running && scalar(@nohotplug)) {
 	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
     }
+}
+
+sub get_tty_count {
+    my ($conf) = @_;
+
+    return $conf->{tty} // $confdesc->{tty}->{default};
 }
 
 sub get_primary_ips {

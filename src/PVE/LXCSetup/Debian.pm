@@ -86,7 +86,7 @@ sub setup_init {
     if (-f $filename) {
 	my $inittab = $default_inittab;
 
-	my $ttycount = defined($conf->{'tty'}) ? $conf->{'tty'} : 4;
+	my $ttycount =  PVE::LXC::get_tty_count($conf);
 	for (my $i = 1; $i <= $ttycount; $i++) {
 	    next if $i == 7; # reserved for X11
 	    my $levels = ($i == 1) ? '2345' : '23';

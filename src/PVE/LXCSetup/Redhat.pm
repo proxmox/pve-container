@@ -128,8 +128,6 @@ sub setup_init {
 
      # edit/etc/securetty
 
-    my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
-
     $self->setup_systemd_console($conf);
 }
 

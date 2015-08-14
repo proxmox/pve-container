@@ -220,7 +220,7 @@ sub setup_systemd_console {
 	PVE::Tools::file_set_contents($systemd_getty_service, $raw);
     }
 
-    my $ttycount = defined($conf->{tty}) ? $conf->{tty} : 4;
+    my $ttycount = PVE::LXC::get_tty_count($conf);
 
     for (my $i = 1; $i < 7; $i++) {
 	my $tty_service_lnk = "$etc_systemd_dir/getty.target.wants/getty\@tty$i.service";
