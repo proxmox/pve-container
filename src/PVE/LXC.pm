@@ -945,7 +945,7 @@ sub update_lxc_config {
 	die "implement me";
     }
 
-    if (defined($conf->{console}) && !$conf->{console}) {
+    if (!has_dev_console($conf)) {
 	$raw .= "lxc.console = none\n";
 	$raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
     }
@@ -1160,6 +1160,12 @@ sub update_pct_config {
     }
 }
 
+sub has_dev_console {
+    my ($conf) = @_;
+
+    return !(defined($conf->{console}) && !$conf->{console});
+}
+	
 sub get_tty_count {
     my ($conf) = @_;
 
