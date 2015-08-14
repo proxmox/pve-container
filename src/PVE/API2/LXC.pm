@@ -659,7 +659,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::check_lock($conf);
 
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
-	    PVE::AccessControl::remove_vm_from_pool($vmid);
+	    PVE::AccessControl::remove_vm_access($vmid);
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
