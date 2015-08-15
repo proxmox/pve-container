@@ -55,9 +55,10 @@ __PACKAGE__->register_method ({
 	my ($param) = @_;
 
 	# test if container exists on this node
-	PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::load_config($param->{vmid});
 
-	exec('lxc-console', '-n',  $param->{vmid});
+	my $cmd = PVE::LXC::get_console_command($param->{vmid}, $conf);
+	exec(@$cmd);
     }});
 
 __PACKAGE__->register_method ({

@@ -161,6 +161,13 @@ my $confdesc = {
 	type => 'integer',
 	minimum => 0,
     },
+    cmode => {
+	optional => 1,
+	description => "Console mode. By default, the console command tries to open a connection to one of the available tty devices. By setting cmode to 'console' it tries to attach to /dev/console instead. If you set cmode to 'shell', it simply invokes a shell inside the container (no login).",
+	type => 'string',
+	enum => ['shell', 'console', 'tty'],
+	default => 'tty',
+    },
 };
 
 my $valid_lxc_conf_keys = {
@@ -1082,7 +1089,8 @@ sub update_pct_config {
 	    } elsif ($opt eq 'swap') {
 		delete $conf->{$opt};
 		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", -1);
-	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup') {
+	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup' ||
+		     $opt eq 'cmode') {
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
 		     $opt eq 'tty' || $opt eq 'console') {
@@ -1128,6 +1136,8 @@ sub update_pct_config {
 	} elsif ($opt eq 'onboot') {
 	    $conf->{$opt} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
+	    $conf->{$opt} = $value;
+	} elsif ($opt eq 'cmode') {
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'tty' || $opt eq 'console') {
 	    $conf->{$opt} = $value;
@@ -1181,6 +1191,28 @@ sub get_tty_count {
     my ($conf) = @_;
 
     return $conf->{tty} // $confdesc->{tty}->{default};
+}
+
+sub get_cmode {
+    my ($conf) = @_;
+
+    return $conf->{cmode} // $confdesc->{cmode}->{default};
+}
+
+sub get_console_command {
+    my ($vmid, $conf) = @_;
+
+    my $cmode = get_cmode($conf);
+
+    if ($cmode eq 'console') {
+	return ['lxc-console', '-n',  $vmid, '-t', 0];
+    } elsif ($cmode eq 'tty') {
+	return ['lxc-console', '-n',  $vmid];
+    } elsif ($cmode eq 'shell') {
+	return ['lxc-attach', '--clear-env', '-n', $vmid];
+    } else {
+	die "internal error";
+    }
 }
 
 sub get_primary_ips {

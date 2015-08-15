@@ -732,10 +732,12 @@ __PACKAGE__->register_method ({
 	my $remcmd = $remip ?
 	    ['/usr/bin/ssh', '-t', $remip] : [];
 
+	my $conf = PVE::LXC::load_config($vmid);
+	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
+
 	my $shcmd = [ '/usr/bin/dtach', '-A',
 		      "/var/run/dtach/vzctlconsole$vmid",
-		      '-r', 'winch', '-z',
-		      'lxc-console', '-n', $vmid ];
+		      '-r', 'winch', '-z', @$concmd];
 
 	my $realcmd = sub {
 	    my $upid = shift;
@@ -851,10 +853,12 @@ __PACKAGE__->register_method ({
 	my $authpath = "/vms/$vmid";
 	my $permissions = 'VM.Console';
 
+	my $conf = PVE::LXC::load_config($vmid);
+	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
+
 	my $shcmd = ['/usr/bin/dtach', '-A',
 		     "/var/run/dtach/vzctlconsole$vmid",
-		     '-r', 'winch', '-z',
-		     'lxc-console', '-n', $vmid];
+		     '-r', 'winch', '-z', @$concmd];
 
 	my $title = "CT $vmid";
 
