@@ -1786,4 +1786,18 @@ sub loopdevices_list {
 
     return $loopdev;
 }
+
+sub blockdevices_list {
+
+    my $bdevs = {};
+    dir_glob_foreach("/sys/dev/block/", '(\d+):(\d+)', sub {
+        my (undef, $major, $minor) = @_;
+        my $bdev = readlink("/sys/dev/block/$major:$minor");
+        $bdev =~ s/\.\.\/\.\.\/devices\/virtual\/block\//\/dev\//;
+        $bdevs->{$bdev}->{major} = $major;
+        $bdevs->{$bdev}->{minor} = $minor;
+    });
+    return $bdevs;
+}
+
 1;
