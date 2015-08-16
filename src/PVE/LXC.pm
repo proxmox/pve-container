@@ -1772,4 +1772,18 @@ sub foreach_mountpoint {
     }
 }
 
+sub loopdevices_list {
+
+    my $loopdev = {};
+    my $parser = sub {
+	my $line = shift;
+	if ($line =~ m/^(\/dev\/loop\d+)\s+\d\s+\d\s+\d\s+\d\s(\S+)$/) {
+	    $loopdev->{$1} = $2;
+	}
+    };
+
+    PVE::Tools::run_command(['losetup'], outfunc => $parser);
+
+    return $loopdev;
+}
 1;
