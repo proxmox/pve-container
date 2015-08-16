@@ -1800,4 +1800,11 @@ sub blockdevices_list {
     return $bdevs;
 }
 
+sub find_loopdev {
+    my ($loopdevs, $path) = @_;
+
+    foreach my $dev (keys %$loopdevs){
+	return $dev if $loopdevs->{$dev} eq $path;
+    }
+}
 1;
