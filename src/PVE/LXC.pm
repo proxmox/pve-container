@@ -1089,11 +1089,10 @@ sub update_pct_config {
 	    } elsif ($opt eq 'swap') {
 		delete $conf->{$opt};
 		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", -1);
-	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup' ||
-		     $opt eq 'cmode') {
+	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup') {
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
-		     $opt eq 'tty' || $opt eq 'console') {
+		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
 		delete $conf->{$opt};
 		push @nohotplug, $opt;
 		next if $running;
@@ -1137,9 +1136,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value ? 1 : 0;
 	} elsif ($opt eq 'startup') {
 	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'cmode') {
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'tty' || $opt eq 'console') {
+	} elsif ($opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
 	    $conf->{$opt} = $value;
 	    push @nohotplug, $opt;
 	    next if $running;
