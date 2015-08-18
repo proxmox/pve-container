@@ -82,6 +82,8 @@ __PACKAGE__->register_method ({
 	
 	my $mountpoint = $ENV{LXC_ROOTFS_MOUNT};
 
+	PVE::LXC::setup_mountpoints($conf, $param->{name}, $mountpoint);
+
 	my $lxc_setup = PVE::LXCSetup->new($conf, $mountpoint);
 	$lxc_setup->pre_start_hook();
 	
