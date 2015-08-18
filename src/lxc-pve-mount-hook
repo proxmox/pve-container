@@ -8,7 +8,6 @@ use File::Path;
 use PVE::SafeSyslog;
 use PVE::Tools;
 use PVE::Cluster;
-use PVE::INotify;
 use PVE::RPCEnvironment;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
@@ -25,16 +24,13 @@ initlog ('lxc-pve-mount-hook');
 
 die "please run as root\n" if $> != 0;
 
-PVE::INotify::inotify_init();
-
 my $rpcenv = PVE::RPCEnvironment->init('cli');
 $rpcenv->set_language($ENV{LANG});
 $rpcenv->set_user('root@pam');
 
 # we cannot use cfs_read here (permission problem)
-#$rpcenv->init_request();
-
-my $nodename = PVE::INotify::nodename();
+# $rpcenv->init_request();
+# PVE::INotify::nodename() also returns wrong value!
 
 __PACKAGE__->register_method ({
     name => 'lxc-pve-mount-hook',
@@ -69,6 +65,8 @@ __PACKAGE__->register_method ({
 
 	return undef if $param->{name} !~ m/^\d+$/;
 
+	my $vmid = $param->{name};
+	
 	# Note: PVE::INotify::nodename() returns wrong value when run
 	# inside container mount hook, so we cannot simply 
 	# use PVE::LXC::load_conf().
@@ -80,11 +78,55 @@ __PACKAGE__->register_method ({
 	my $raw = PVE::Tools::file_get_contents($config_filename);
 	my $conf = PVE::LXC::parse_pct_config($config_filename, $raw);
 	
-	my $mountpoint = $ENV{LXC_ROOTFS_MOUNT};
+	my $rootdir = $ENV{LXC_ROOTFS_MOUNT};
 
-	PVE::LXC::setup_mountpoints($conf, $param->{name}, $mountpoint);
+	# Note: PVE::Storage::config() does not work here
+	my $fn = "/etc/pve/storage.cfg";
+	$raw = -f $fn ? PVE::Tools::file_get_contents($fn) : '';
+	my $storage_cfg = PVE::Storage::Plugin->parse_config($fn, $raw);
 
-	my $lxc_setup = PVE::LXCSetup->new($conf, $mountpoint);
+	my $bdevs = PVE::LXC::blockdevices_list();
+	my $loopdevs =  PVE::LXC::loopdevices_list();
+
+	my $setup_mountpoint = sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    my $volid = $mountpoint->{volume};
+	    return if !$volid;
+
+	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+
+	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+
+	    my $path = PVE::Storage::path($storage_cfg, $volid);
+
+	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+		PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	    return if $format eq 'subvol';
+
+	    if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+		$path = PVE::LXC::find_loopdev($loopdevs, $path);
+	    }
+
+	    if (-l $path) {
+		$path = readlink($path);
+		$path =~ s/\.\.\/\.\.\//\/dev\//;
+	    }
+
+	    if ($bdevs->{$path}) {
+		PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b',  $bdevs->{$path}->{major}, $bdevs->{$path}->{minor}]);
+		PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b $bdevs->{$path}->{major}:$bdevs->{$path}->{minor} rwm");
+	    }
+
+	    if ($mountpoint->{mp} && ($ms ne 'rootfs')) {
+		PVE::Tools::run_command(['mount', $path, "$rootdir$mountpoint->{mp}"]);
+	    }
+	};
+
+	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
+
+	my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();
 	
 	return undef;
