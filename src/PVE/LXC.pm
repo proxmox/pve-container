@@ -12,7 +12,7 @@ use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
-use PVE::Tools qw($IPV6RE $IPV4RE);
+use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach);
 use PVE::Network;
 
 use Data::Dumper;
@@ -992,31 +992,43 @@ sub update_lxc_config {
     my $shares = $conf->{cpuunits} || 1024;
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    my $volid = $rootinfo->{volume};
-    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+    PVE::LXC::foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
 
-    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	PVE::Storage::parse_volname($storage_cfg, $volid);
+	my $volid = $mountpoint->{volume};
+	return if !$volid;
 
-    die "unable to use template as rootfs\n" if $isBase;
-    
-    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-    my $path = PVE::Storage::path($storage_cfg, $volid);
-    
-    if ($format eq 'subvol') {
-	$raw .= "lxc.rootfs = $path\n";
-    } elsif ($format eq 'raw') {
-	if ($scfg->{path}) {
-	    $raw .= "lxc.rootfs = loop:$path\n";
-	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-	    $raw .= "lxc.rootfs = $path\n";
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	my $path = PVE::Storage::path($storage_cfg, $volid);
+
+	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	    PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	die "unable to use template as mountpoint\n" if $isBase;
+
+	if ($format eq 'subvol') {
+	    $mountpoint->{mp} =~ s/^\///s;
+	    if ($ms eq 'rootfs') {
+		$raw .= "lxc.rootfs = $path\n";
+	    } else {
+		$raw .= "lxc.mount.entry = $path $mountpoint->{mp} none defaults,bind 0 0\n";
+	    }
+	} elsif ($format eq 'raw') {
+
+	    if ($scfg->{path}) {
+		$raw .= "lxc.rootfs = loop:$path\n" if $ms eq 'rootfs';
+	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+		$raw .= "lxc.rootfs = $path\n" if $ms eq 'rootfs';
+	    } else {
+		die "unsupported storage type '$scfg->{type}'\n";
+	    }
 	} else {
-	    die "unsupported storage type '$scfg->{type}'\n";
+	    die "unsupported image format '$format'\n";
 	}
-    } else {
-	die "unsupported image format '$format'\n";
-    }
+
+    });
 
     my $netcount = 0;
     foreach my $k (keys %$conf) {
