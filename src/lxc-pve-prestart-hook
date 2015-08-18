@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use POSIX;
+use File::Path;
+
+use PVE::SafeSyslog;
+use PVE::Tools;
+use PVE::Cluster;
+use PVE::INotify;
+use PVE::RPCEnvironment;
+use PVE::JSONSchema qw(get_standard_option);
+use PVE::CLIHandler;
+use PVE::Storage;
+use PVE::LXC;
+use PVE::LXCSetup;
+use Data::Dumper;
+
+use base qw(PVE::CLIHandler);
+
+$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin';
+
+initlog ('lxc-pve-prestart-hook');
+
+die "please run as root\n" if $> != 0;
+
+PVE::INotify::inotify_init();
+
+my $rpcenv = PVE::RPCEnvironment->init('cli');
+$rpcenv->set_language($ENV{LANG});
+$rpcenv->set_user('root@pam');
+
+# we cannot use cfs_read here (permission problem)
+#$rpcenv->init_request();
+
+my $nodename = PVE::INotify::nodename();
+
+__PACKAGE__->register_method ({
+    name => 'lxc-pve-prestart-hook',
+    path => 'lxc-pve-prestart-hook',
+    method => 'GET',
+    description => "Create a new container root directory.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    name => {
+		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>/config (else it is just a NOP).",
+		type => 'string',
+		pattern => '\S+',
+		maxLength => 64,
+	    },
+	    path => {
+		description => "The path to the container configuration directory (LXC internal argument - do not pass manually!).",
+		type => 'string',
+	    },
+	    rootfs => {
+		description => "The path to the container's rootfs (LXC internal argument - do not pass manually!)",
+		type => 'string',
+	    },
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+	return undef if $param->{name} !~ m/^\d+$/;
+
+        my $rootdir = $ENV{LXC_ROOTFS_MOUNT};
+
+	# Note: PVE::INotify::nodename() returns wrong value when run
+	# inside container mount hook, so we cannot simply 
+	# use PVE::LXC::load_conf().
+
+	my $config_filename = "/etc/pve/lxc/$param->{name}.conf";
+
+	return undef if ! -f $config_filename;
+	
+	my $raw = PVE::Tools::file_get_contents($config_filename);
+	my $conf = PVE::LXC::parse_pct_config($config_filename, $raw);
+	
+	my $fn = "/etc/pve/storage.cfg";
+
+	return if ! -f $fn;
+
+	my $raw_storagecfg = PVE::Tools::file_get_contents($fn);
+	my $storage_cfg = PVE::Storage::Plugin->parse_config($fn, $raw_storagecfg);
+
+	PVE::LXC::foreach_mountpoint($conf, sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    my $volid = $mountpoint->{volume};
+	    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
+
+	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+		PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	    if($ms ne 'rootfs' && $format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+		my $path = PVE::Storage::path($storage_cfg, $volid);
+		PVE::Tools::run_command(['losetup', '--find', '--show', $path]);
+	    }
+	});
+
+	return undef;
+    }});
+
+
+push @ARGV, 'help' if !scalar(@ARGV);
+
+my $param = {};
+
+if ((scalar(@ARGV) == 1) && ($ARGV[0] eq 'printmanpod') ||
+    ($ARGV[0] eq 'verifyapi')) {
+    # OK
+} elsif ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'pre-start')) {
+    $param->{name} = $ENV{'LXC_NAME'};
+    die "got wrong name" if $param->{name} ne $ARGV[0];
+
+    $param->{path} = $ENV{'LXC_CONFIG_FILE'};
+    $param->{rootfs} = $ENV{'LXC_ROOTFS_PATH'};
+    @ARGV = ();
+} else {
+    @ARGV = ('help');
+}
+
+my $cmddef = [ __PACKAGE__, 'lxc-pve-prestart-hook', [], $param];
+
+PVE::CLIHandler::handle_simple_cmd($cmddef, \@ARGV, undef, $0);
+
+exit 0;
+
+__END__
+
+=head1 NAME
+
+lxc-pve - LXC pre-start hook for Proxmox VE
+
+=head1 SYNOPSIS
+
+=include synopsis
+
+=head1 DESCRIPTION
+
+This mount hook activate storage and volumes for pve container.
+
+=head1 SEE ALSO
+
+lct(1)
+
+=include pve_copyright

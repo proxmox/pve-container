@@ -30,6 +30,9 @@ pct.1.pod: pct
 pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
 	perl -I. ./gen-pct-conf-pod.pl >$@
 
+lxc-pve-prestart-hook.1.pod: lxc-pve-prestart-hook
+	perl -I. -T ./lxc-pve-prestart-hook printmanpod >$@
+
 lxc-pve-mount-hook.1.pod: lxc-pve-mount-hook
 	perl -I. -T ./lxc-pve-mount-hook printmanpod >$@
 
@@ -37,7 +40,7 @@ lxc-pve-poststop-hook.1.pod: lxc-pve-poststop-hook
 	perl -I. -T ./lxc-pve-poststop-hook printmanpod >$@
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz lxc-pve-poststop-hook.1.pod lxc-pve-poststop-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr lxc-pve-prestart-hook.1.pod lxc-pve-prestart-hook.1.gz lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz lxc-pve-poststop-hook.1.pod lxc-pve-poststop-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config
 	perl -T -I. ./pct verifyapi
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -45,6 +48,7 @@ install: pct lxc-pve.conf lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr l
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
 	install -d ${LXC_HOOK_DIR}
+	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-mount-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-poststop-hook ${LXC_HOOK_DIR}
 	install -d ${LXC_COMMON_CONFIG_DIR}
