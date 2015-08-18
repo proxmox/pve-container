@@ -46,7 +46,7 @@ __PACKAGE__->register_method ({
     	additionalProperties => 0,
 	properties => {
 	    name => {
-		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>/config (else it is just a NOP).",
+		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>.conf (else it is just a NOP).",
 		type => 'string',
 		pattern => '\S+',
 		maxLength => 64,
@@ -57,7 +57,6 @@ __PACKAGE__->register_method ({
 
     code => sub {
 	my ($param) = @_;
-
 
 	return undef if $param->{name} !~ m/^\d+$/;
 
