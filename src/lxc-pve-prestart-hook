@@ -83,6 +83,8 @@ __PACKAGE__->register_method ({
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
+	    return if !$volid || $volid =~ m|^/dev/.+|;
+
 	    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
 
 	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);

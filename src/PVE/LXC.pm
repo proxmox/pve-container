@@ -996,7 +996,7 @@ sub update_lxc_config {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
-	return if !$volid;
+	return if !$volid || $volid =~ m|^/dev/.+|;
 
 	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
 

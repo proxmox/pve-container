@@ -94,6 +94,11 @@ __PACKAGE__->register_method ({
 	    my $volid = $mountpoint->{volume};
 	    return if !$volid;
 
+	    if ($volid =~ m|^/dev/.+| && $mountpoint->{mp} && $ms ne 'rootfs') {
+		PVE::Tools::run_command(['mount', $volid, "$rootdir$mountpoint->{mp}"]);
+		return;
+	    }
+
 	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
 
 	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
