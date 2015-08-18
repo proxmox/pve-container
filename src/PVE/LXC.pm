@@ -1263,9 +1263,28 @@ sub vm_stop_cleanup {
     
     eval {
 	if (!$keepActive) {
+
+	    my $loopdevs = loopdevices_list();
+
             PVE::LXC::foreach_mountpoint($conf, sub {
 		my ($ms, $mountpoint) = @_;
-		PVE::Storage::deactivate_volumes($storage_cfg, [$mountpoint->{volume}]);
+
+		my $volid = $mountpoint->{volume};
+		#detach loopdevices of non rootfs mountpoints 
+		my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+		my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+		my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+		    PVE::Storage::parse_volname($storage_cfg, $volid);
+
+		if($ms ne 'rootfs' && $format eq 'raw' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+		    my $path = PVE::Storage::path($storage_cfg, $volid);
+		    foreach my $dev (keys %$loopdevs){
+			PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
+		    }
+		}
+
+		PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
+
             });
 	}
     };
