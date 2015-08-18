@@ -70,9 +70,11 @@ __PACKAGE__->register_method ({
         my $rootdir = $ENV{LXC_ROOTFS_MOUNT};
 
 	my $vmid = $param->{name};
-	
+
+	PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
+
 	return undef if ! -f PVE::LXC::config_file($vmid);
-	
+
 	my $conf = PVE::LXC::load_config($vmid);
 
 	my $storage_cfg = PVE::Storage::config();
