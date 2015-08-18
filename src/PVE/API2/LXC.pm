@@ -1007,7 +1007,19 @@ __PACKAGE__->register_method({
 
 		PVE::LXC::foreach_mountpoint($conf, sub {
 		    my ($ms, $mountpoint) = @_;
-		    PVE::Storage::activate_volumes($storage_cfg, [$mountpoint->{volume}]);
+
+		    my $volid = $mountpoint->{volume};
+		    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
+
+		    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+		    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+		    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+			PVE::Storage::parse_volname($storage_cfg, $volid);
+
+		    if($ms ne 'rootfs' && $format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+			my $path = PVE::Storage::path($storage_cfg, $volid);
+			PVE::Tools::run_command(['losetup', '--find', '--show', $path]);
+		    }
 		});
 		
 		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
