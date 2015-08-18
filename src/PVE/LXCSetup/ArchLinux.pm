@@ -39,6 +39,9 @@ sub template_fixup {
             "$rootdir/etc/systemd/system/multi-user.target.wants/systemd-networkd.service";
     symlink "/usr/lib/systemd/system/systemd-networkd.socket",
             "$rootdir/etc/systemd/system/socket.target.wants/systemd-networkd.socket";
+
+    # edit /etc/securetty (enable login on console)
+    $self->setup_securetty($conf, qw(pts/0));
 }
 
 sub setup_init {

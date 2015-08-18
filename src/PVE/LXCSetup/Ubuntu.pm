@@ -49,12 +49,7 @@ sub template_fixup {
     
     if ($version eq '15.04') {
 	# edit /etc/securetty (enable login on console)
-	my $filename = "$rootdir/etc/securetty";
-	my $data = PVE::Tools::file_get_contents($filename);
-	if ($data !~ m!^pts/0\s*$!m) {
-	    $data .= "pts/0\n"; 
-	}
-	PVE::Tools::file_set_contents($filename, $data);
+	$self->setup_securetty($conf, qw(pts/0));
     }
 
     if ($version eq '12.04') {

@@ -296,7 +296,21 @@ DATA
 
 	PVE::Tools::file_set_contents($filename, $data);
     }
+}
 
+sub setup_securetty {
+    my ($self, $conf, @add) = @_;
+
+    my $rootdir = $self->{rootdir};
+    my $filename = "$rootdir/etc/securetty";
+    my $data = PVE::Tools::file_get_contents($filename);
+    chomp $data; $data .= "\n";
+    foreach my $dev (@add) {
+	if ($data !~ m!^\Q$dev\E\s*$!m) {
+	    $data .= "$dev\n"; 
+	}
+    }
+    PVE::Tools::file_set_contents($filename, $data);
 }
 
 my $replacepw  = sub {

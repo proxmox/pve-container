@@ -109,15 +109,7 @@ sub template_fixup {
 	PVE::Tools::file_set_contents($filename, $data);
 	
 	# edit /etc/securetty (enable login on console)
-	$filename = "$rootdir/etc/securetty";
-	$data = PVE::Tools::file_get_contents($filename);
-	chomp $data; $data .= "\n";
-	foreach my $dev (qw(console tty1 tty2 tty3 tty4)) {
-	    if ($data !~ m!^lxc/$dev\s*$!m) {
-		$data .= "lxc/$dev\n"; 
-	    }
-	}
-	PVE::Tools::file_set_contents($filename, $data);
+	$self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
     }
 }
 
