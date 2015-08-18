@@ -61,25 +61,15 @@ __PACKAGE__->register_method ({
 
 	return undef if $param->{name} !~ m/^\d+$/;
 
-	# Note: PVE::INotify::nodename() returns wrong value when run
-	# inside container mount hook, so we cannot simply 
-	# use PVE::LXC::load_conf().
+	my $vmid = $param->{name};
 
-	my $config_filename = "/etc/pve/lxc/$param->{name}.conf";
-
-	return undef if ! -f $config_filename;
+	return undef if ! -f PVE::LXC::config_file($vmid);
 	
-	my $raw = PVE::Tools::file_get_contents($config_filename);
-	my $conf = PVE::LXC::parse_pct_config($config_filename, $raw);
+	my $conf = PVE::LXC::load_config($vmid);
 
-	my $storagecfg_filename = "/etc/pve/storage.cfg";
+	my $storage_cfg = PVE::Storage::config();
 
-	return undef if ! -f $storagecfg_filename;
-
-	my $storage_raw = PVE::Tools::file_get_contents($storagecfg_filename);
-	my $storage_cfg = PVE::Storage::Plugin->parse_config($storagecfg_filename, $storage_raw);
-
-        PVE::LXC::vm_stop_cleanup($storage_cfg, $param->{name}, $conf);
+        PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 	
 	return undef;
     }});
