@@ -252,7 +252,7 @@ for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
 	optional => 1,
 	type => 'string', format => 'pve-ct-mountpoint',
 	typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+] [,mp=mountpoint]',
-	description => "Use volume as container mount point.",
+	description => "Use volume as container mount point (experimental feature).",
 	optional => 1,
     };
 }
