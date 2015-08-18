@@ -1101,8 +1101,6 @@ __PACKAGE__->register_method({
 
 		run_command($cmd);
 
-		PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
-
 		return;
 	    };
 
@@ -1184,8 +1182,6 @@ __PACKAGE__->register_method({
 		
 	    }
 
-	    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
-	    
 	    die $err if !$err;
 
 	    return;

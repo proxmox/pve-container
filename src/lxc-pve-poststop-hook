@@ -1,0 +1,128 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use POSIX;
+use File::Path;
+
+use PVE::SafeSyslog;
+use PVE::Tools;
+use PVE::Cluster;
+use PVE::INotify;
+use PVE::RPCEnvironment;
+use PVE::JSONSchema qw(get_standard_option);
+use PVE::CLIHandler;
+use PVE::Storage;
+use PVE::Storage::Plugin;
+use PVE::LXC;
+use PVE::LXCSetup;
+use Data::Dumper;
+
+use base qw(PVE::CLIHandler);
+
+$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin';
+
+initlog ('lxc-pve-poststop-hook');
+
+die "please run as root\n" if $> != 0;
+
+PVE::INotify::inotify_init();
+
+my $rpcenv = PVE::RPCEnvironment->init('cli');
+$rpcenv->set_language($ENV{LANG});
+$rpcenv->set_user('root@pam');
+
+# we cannot use cfs_read here (permission problem)
+#$rpcenv->init_request();
+
+my $nodename = PVE::INotify::nodename();
+
+__PACKAGE__->register_method ({
+    name => 'lxc-pve-poststop-hook',
+    path => 'lxc-pve-poststop-hook',
+    method => 'GET',
+    description => "vm_stop_cleanup.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    name => {
+		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>/config (else it is just a NOP).",
+		type => 'string',
+		pattern => '\S+',
+		maxLength => 64,
+	    }
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+
+	return undef if $param->{name} !~ m/^\d+$/;
+
+	# Note: PVE::INotify::nodename() returns wrong value when run
+	# inside container mount hook, so we cannot simply 
+	# use PVE::LXC::load_conf().
+
+	my $config_filename = "/etc/pve/lxc/$param->{name}.conf";
+
+	return undef if ! -f $config_filename;
+	
+	my $raw = PVE::Tools::file_get_contents($config_filename);
+	my $conf = PVE::LXC::parse_pct_config($config_filename, $raw);
+
+	my $storagecfg_filename = "/etc/pve/storage.cfg";
+
+	return undef if ! -f $storagecfg_filename;
+
+	my $storage_raw = PVE::Tools::file_get_contents($storagecfg_filename);
+	my $storage_cfg = PVE::Storage::Plugin->parse_config($storagecfg_filename, $storage_raw);
+
+        PVE::LXC::vm_stop_cleanup($storage_cfg, $param->{name}, $conf);
+	
+	return undef;
+    }});
+
+
+push @ARGV, 'help' if !scalar(@ARGV);
+
+my $param = {};
+
+if ((scalar(@ARGV) == 1) && ($ARGV[0] eq 'printmanpod') ||
+    ($ARGV[0] eq 'verifyapi')) {
+    # OK
+} elsif ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'post-stop')) {
+    $param->{name} = $ENV{'LXC_NAME'};
+    die "got wrong name" if $param->{name} ne $ARGV[0];
+
+    @ARGV = ();
+} else {
+    @ARGV = ('help');
+}
+
+my $cmddef = [ __PACKAGE__, 'lxc-pve-poststop-hook', [], $param];
+
+PVE::CLIHandler::handle_simple_cmd($cmddef, \@ARGV, undef, $0);
+
+exit 0;
+
+__END__
+
+=head1 NAME
+
+lxc-pve - LXC post stop hook for Proxmox VE
+
+=head1 SYNOPSIS
+
+=include synopsis
+
+=head1 DESCRIPTION
+
+This post stop hook detach loop devices and deactivate volumes for pve container.
+
+=head1 SEE ALSO
+
+lct(1)
+
+=include pve_copyright
