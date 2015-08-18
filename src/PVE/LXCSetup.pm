@@ -7,11 +7,13 @@ use PVE::Tools;
 use PVE::LXCSetup::Debian;
 use PVE::LXCSetup::Ubuntu;
 use PVE::LXCSetup::Redhat;
+use PVE::LXCSetup::ArchLinux;
 
 my $plugins = {
-    debian =>  'PVE::LXCSetup::Debian',
-    ubuntu =>  'PVE::LXCSetup::Ubuntu',
-    redhat =>  'PVE::LXCSetup::Redhat',
+    debian    => 'PVE::LXCSetup::Debian',
+    ubuntu    => 'PVE::LXCSetup::Ubuntu',
+    redhat    => 'PVE::LXCSetup::Redhat',
+    archlinux => 'PVE::LXCSetup::ArchLinux',
 };
 
 my $autodetect_type = sub {
@@ -27,6 +29,8 @@ my $autodetect_type = sub {
 	return "debian";
     } elsif (-f  "$rootdir/etc/redhat-release") {
 	return "redhat";
+    } elsif (-f  "$rootdir/etc/arch-release") {
+	return "archlinux";
     }
     die "unable to detect OS disribution\n";
 };

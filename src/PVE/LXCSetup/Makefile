@@ -1,4 +1,4 @@
-SOURCES=Base.pm Debian.pm Ubuntu.pm Redhat.pm
+SOURCES=Base.pm Debian.pm Ubuntu.pm Redhat.pm ArchLinux.pm
 
 .PHONY: install
 install:

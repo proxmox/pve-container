@@ -246,6 +246,59 @@ sub setup_systemd_console {
     }
 }
 
+sub setup_systemd_networkd {
+    my ($self, $conf) = @_;
+
+    my $rootdir = $self->{rootdir};
+
+    foreach my $k (keys %$conf) {
+	next if $k !~ m/^net(\d+)$/;
+	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	next if !$d->{name};
+
+	my $filename = "$rootdir/etc/systemd/network/$d->{name}.network";
+
+	my $data = <<"DATA";
+[Match]
+Name = $d->{name}
+
+[Network]
+Description = Interface $d->{name} autoconfigured by PVE
+DATA
+	# DHCP bitflags:
+	my @DHCPMODES = ('none', 'v4', 'v6', 'both');
+	my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
+	my $dhcp = $NONE;
+
+	if (defined(my $ip = $d->{ip})) {
+	    if ($ip eq 'dhcp') {
+		$dhcp |= $DHCP4;
+	    } elsif ($ip ne 'manual') {
+		$data .= "Address = $ip\n";
+	    }
+	}
+	if (defined(my $gw = $d->{gw})) {
+	    $data .= "Gateway = $gw\n";
+	}
+
+	if (defined(my $ip = $d->{ip6})) {
+	    if ($ip eq 'dhcp') {
+		$dhcp |= $DHCP6;
+	    } elsif ($ip ne 'manual') {
+		$data .= "Address = $ip\n";
+	    }
+	}
+	if (defined(my $gw = $d->{gw6})) {
+	    $data .= "Gateway = $gw\n";
+	}
+
+	$data .= "DHCP = $DHCPMODES[$dhcp]\n";
+
+	PVE::Tools::file_set_contents($filename, $data);
+    }
+
+}
+
 my $replacepw  = sub {
     my ($file, $user, $epw, $shadow) = @_;
 

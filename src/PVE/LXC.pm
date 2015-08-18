@@ -957,7 +957,7 @@ sub update_lxc_config {
     $raw .= "lxc.arch = $conf->{arch}\n";
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype eq 'debian' || $ostype eq 'ubuntu' || $ostype eq 'centos') {
+    if ($ostype =~ /^(?:debian | ubuntu | centos | archlinux)$/x) {
 	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
     } else {
 	die "implement me";
