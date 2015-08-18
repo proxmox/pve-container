@@ -69,23 +69,13 @@ __PACKAGE__->register_method ({
 
         my $rootdir = $ENV{LXC_ROOTFS_MOUNT};
 
-	# Note: PVE::INotify::nodename() returns wrong value when run
-	# inside container mount hook, so we cannot simply 
-	# use PVE::LXC::load_conf().
-
-	my $config_filename = "/etc/pve/lxc/$param->{name}.conf";
-
-	return undef if ! -f $config_filename;
+	my $vmid = $param->{name};
 	
-	my $raw = PVE::Tools::file_get_contents($config_filename);
-	my $conf = PVE::LXC::parse_pct_config($config_filename, $raw);
+	return undef if ! -f PVE::LXC::config_file($vmid);
 	
-	my $fn = "/etc/pve/storage.cfg";
+	my $conf = PVE::LXC::load_config($vmid);
 
-	return if ! -f $fn;
-
-	my $raw_storagecfg = PVE::Tools::file_get_contents($fn);
-	my $storage_cfg = PVE::Storage::Plugin->parse_config($fn, $raw_storagecfg);
+	my $storage_cfg = PVE::Storage::config();
 
 	PVE::LXC::foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
