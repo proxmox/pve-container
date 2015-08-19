@@ -1,4 +1,4 @@
-package PVE::LXCSetup::Ubuntu;
+package PVE::LXC::Setup::Ubuntu;
 
 use strict;
 use warnings;
@@ -7,9 +7,9 @@ use PVE::Tools;
 use PVE::LXC;
 use File::Path;
 
-use PVE::LXCSetup::Debian;
+use PVE::LXC::Setup::Debian;
 
-use base qw(PVE::LXCSetup::Debian);
+use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
     '15.04' => 1, # vivid

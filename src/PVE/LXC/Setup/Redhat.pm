@@ -1,4 +1,4 @@
-package PVE::LXCSetup::Redhat;
+package PVE::LXC::Setup::Redhat;
 
 use strict;
 use warnings;
@@ -6,9 +6,9 @@ use Data::Dumper;
 use PVE::Tools;
 use PVE::LXC;
 
-use PVE::LXCSetup::Base;
+use PVE::LXC::Setup::Base;
 
-use base qw(PVE::LXCSetup::Base);
+use base qw(PVE::LXC::Setup::Base);
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
@@ -146,9 +146,9 @@ sub set_hostname {
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
-    my ($searchdomains) = PVE::LXCSetup::Base::lookup_dns_conf($conf);
+    my ($searchdomains) = PVE::LXC::Setup::Base::lookup_dns_conf($conf);
 
-    $etc_hosts_data = PVE::LXCSetup::Base::update_etc_hosts($etc_hosts_data, $hostip, $oldname,
+    $etc_hosts_data = PVE::LXC::Setup::Base::update_etc_hosts($etc_hosts_data, $hostip, $oldname,
 							    $hostname, $searchdomains);
 
     if ($self->ct_file_exists($hostname_fn)) {

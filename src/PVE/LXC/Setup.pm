@@ -1,19 +1,19 @@
-package PVE::LXCSetup;
+package PVE::LXC::Setup;
 
 use strict;
 use warnings;
 use PVE::Tools;
 
-use PVE::LXCSetup::Debian;
-use PVE::LXCSetup::Ubuntu;
-use PVE::LXCSetup::Redhat;
-use PVE::LXCSetup::ArchLinux;
+use PVE::LXC::Setup::Debian;
+use PVE::LXC::Setup::Ubuntu;
+use PVE::LXC::Setup::Redhat;
+use PVE::LXC::Setup::ArchLinux;
 
 my $plugins = {
-    debian    => 'PVE::LXCSetup::Debian',
-    ubuntu    => 'PVE::LXCSetup::Ubuntu',
-    redhat    => 'PVE::LXCSetup::Redhat',
-    archlinux => 'PVE::LXCSetup::ArchLinux',
+    debian    => 'PVE::LXC::Setup::Debian',
+    ubuntu    => 'PVE::LXC::Setup::Ubuntu',
+    redhat    => 'PVE::LXC::Setup::Redhat',
+    archlinux => 'PVE::LXC::Setup::ArchLinux',
 };
 
 my $autodetect_type = sub {

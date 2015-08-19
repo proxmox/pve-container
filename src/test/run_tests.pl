@@ -7,7 +7,7 @@ use PVE::Tools qw(run_command);
 use lib qw(..);
 
 use PVE::LXC;
-use PVE::LXCSetup;
+use PVE::LXC::Setup;
 
 sub test_file {
     my ($exp_fn, $real_fn) = @_;
@@ -35,7 +35,7 @@ sub run_test {
 
     $conf->{'testmode'} = 1;
     
-    my $lxc_setup = PVE::LXCSetup->new($conf, $rootfs);
+    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootfs);
 
     for (my $i = 0; $i < 2; $i++) {
 	# run tests twice, to make sure scripts are idempotent

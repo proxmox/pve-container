@@ -1,13 +1,13 @@
-package PVE::LXCSetup::ArchLinux;
+package PVE::LXC::Setup::ArchLinux;
 
 use strict;
 use warnings;
 
 use File::Path 'make_path';
 
-use PVE::LXCSetup::Base;
+use PVE::LXC::Setup::Base;
 
-use base qw(PVE::LXCSetup::Base);
+use base qw(PVE::LXC::Setup::Base);
 
 sub new {
     my ($class, $conf, $rootdir) = @_;

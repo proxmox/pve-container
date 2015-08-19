@@ -14,7 +14,6 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::LXC;
-use PVE::LXCSetup;
 use Data::Dumper;
 
 use base qw(PVE::CLIHandler);

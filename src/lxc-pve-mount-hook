@@ -13,7 +13,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::LXC;
-use PVE::LXCSetup;
+use PVE::LXC::Setup;
 use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
@@ -131,7 +131,7 @@ __PACKAGE__->register_method ({
 
 	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
 
-	my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
+	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();
 	
 	return undef;

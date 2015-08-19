@@ -1,4 +1,4 @@
-package PVE::LXCCreate;
+package PVE::LXC::Create;
 
 use strict;
 use warnings;
@@ -8,7 +8,7 @@ use Data::Dumper;
 
 use PVE::Storage;
 use PVE::LXC;
-use PVE::LXCSetup;
+use PVE::LXC::Setup;
 use PVE::VZDump::ConvertOVZ;
 
 sub next_free_nbd_dev {
@@ -136,7 +136,7 @@ sub restore_and_configure {
     restore_archive($archive, $rootdir, $conf);
 
     if (!$restore) {
-	my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir); # detect OS
+	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 
 	PVE::LXC::write_config($vmid, $conf); # safe config (after OS detection)
 	$lxc_setup->post_create_hook($password);

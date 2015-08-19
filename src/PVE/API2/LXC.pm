@@ -13,7 +13,7 @@ use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
-use PVE::LXCCreate;
+use PVE::LXC::Create;
 use PVE::HA::Config;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
@@ -310,7 +310,7 @@ __PACKAGE__->register_method({
 	    eval {
 		if (!defined($disksize)) {
 		    if ($restore) {
-			(undef, $disksize) = PVE::LXCCreate::recover_config($archive);
+			(undef, $disksize) = PVE::LXC::Create::recover_config($archive);
 			die "unable to detect disk size - please specify with --size\n"
 			    if !$disksize;
 		    } else {
@@ -319,8 +319,8 @@ __PACKAGE__->register_method({
 		}
 		$volid = &$alloc_rootfs($storage_cfg, $storage, $disksize, $vmid);
 
-		PVE::LXCCreate::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
-					      $archive, $password, $restore);
+		PVE::LXC::Create::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
+						$archive, $password, $restore);
 
 		$conf->{rootfs} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $disksize });
 

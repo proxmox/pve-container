@@ -1,4 +1,4 @@
-package PVE::LXCSetup::Base;
+package PVE::LXC::Setup::Base;
 
 use strict;
 use warnings;

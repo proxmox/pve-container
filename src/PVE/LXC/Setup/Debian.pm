@@ -1,4 +1,4 @@
-package PVE::LXCSetup::Debian;
+package PVE::LXC::Setup::Debian;
 
 use strict;
 use warnings;
@@ -7,9 +7,9 @@ use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
 use File::Path;
 
-use PVE::LXCSetup::Base;
+use PVE::LXC::Setup::Base;
 
-use base qw(PVE::LXCSetup::Base);
+use base qw(PVE::LXC::Setup::Base);
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
