@@ -1,3 +1,29 @@
+pve-container (0.9-11) unstable; urgency=medium
+
+  * add mpX mountpoint configuration (experimental)
+  
+  * remove <vmid>.fw file after lxc vm destroy
+
+  * cleanup directory structure
+
+  * add file access methods to LXCSetup::Base
+
+  * mountpoint: add support for host /dev/xxx block device passthrough
+
+  * Added PVE::LXCSetup::Base::setup_securetty
+
+  * archlinux template support
+
+  * implement new cmode option
+
+  * implement template creation
+
+  * add rbd storage type support
+
+  * do not use hardcoded disk image names
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 19 Aug 2015 15:51:13 +0200
+
 pve-container (0.9-10) unstable; urgency=medium
 
   * add support for RHEL/CentOS
