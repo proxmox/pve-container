@@ -5,7 +5,6 @@ use warnings;
 use Data::Dumper;
 use PVE::Tools;
 use PVE::LXC;
-use File::Path;
 
 use PVE::LXCSetup::Base;
 
@@ -82,31 +81,28 @@ __EOD__
 sub template_fixup {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
-    
     if ($self->{version} < 7) {
 	# re-create emissing files for tty
 
-	mkpath "$rootdir/etc/init";
+	$self->ct_mkpath('/etc/init');
 
-	my $filename = "$rootdir/etc/init/tty.conf";
-	PVE::Tools::file_set_contents($filename, $tty_conf)
-	    if ! -f $filename;
+	my $filename = "/etc/init/tty.conf";
+	$self->ct_file_set_contents($filename, $tty_conf)
+	    if ! $self->ct_file_exists($filename);
 
+	$filename = "/etc/init/start-ttys.conf";
+	$self->ct_file_set_contents($filename, $start_ttys_conf)
+	    if ! $self->ct_file_exists($filename);
 
-	$filename = "$rootdir/etc/init/start-ttys.conf";
-	PVE::Tools::file_set_contents($filename, $start_ttys_conf)
-	    if ! -f $filename;
-
-	$filename = "$rootdir/etc/init/power-status-changed.conf";
-	PVE::Tools::file_set_contents($filename, $power_status_changed_conf)
-	    if ! -f $filename;
+	$filename = "/etc/init/power-status-changed.conf";
+	$self->ct_file_set_contents($filename, $power_status_changed_conf)
+	    if ! $self->ct_file_exists($filename);
 
 	# do not start udevd
-	$filename = "$rootdir/etc/rc.d/rc.sysinit";
-	my $data = PVE::Tools::file_get_contents($filename);
+	$filename = "/etc/rc.d/rc.sysinit";
+	my $data = $self->ct_file_get_contents($filename);
 	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
-	PVE::Tools::file_set_contents($filename, $data);
+	$self->ct_file_set_contents($filename, $data);
 	
 	# edit /etc/securetty (enable login on console)
 	$self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
@@ -115,8 +111,6 @@ sub template_fixup {
 
 sub setup_init {
     my ($self, $conf) = @_;
-
-    my $rootdir = $self->{rootdir};
 
      # edit/etc/securetty
 
@@ -130,25 +124,23 @@ sub set_hostname {
 
     $hostname =~ s/\..*$//;
 
-    my $rootdir = $self->{rootdir};
-
-    my $hostname_fn = "$rootdir/etc/hostname";
-    my $sysconfig_network = "$rootdir/etc/sysconfig/network";
+    my $hostname_fn = "/etc/hostname";
+    my $sysconfig_network = "/etc/sysconfig/network";
 
     my $oldname;
-    if (-f $hostname_fn) {
-	$oldname = PVE::Tools::file_read_firstline($hostname_fn) || 'localhost';
+    if ($self->ct_file_exists($hostname_fn)) {
+	$oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
     } else {
-	my $data = PVE::Tools::file_get_contents($sysconfig_network);
+	my $data = $self->ct_file_get_contents($sysconfig_network);
 	if ($data =~ m/^HOSTNAME=\s*(\S+)\s*$/m) {
 	    $oldname = $1;
 	}
     }
 
-    my $hosts_fn = "$rootdir/etc/hosts";
+    my $hosts_fn = "/etc/hosts";
     my $etc_hosts_data = '';
-    if (-f $hosts_fn) {
-	$etc_hosts_data =  PVE::Tools::file_get_contents($hosts_fn);
+    if ($self->ct_file_exists($hosts_fn)) {
+	$etc_hosts_data =  $self->ct_file_get_contents($hosts_fn);
     }
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
@@ -159,10 +151,10 @@ sub set_hostname {
     $etc_hosts_data = PVE::LXCSetup::Base::update_etc_hosts($etc_hosts_data, $hostip, $oldname,
 							    $hostname, $searchdomains);
 
-    if (-f $hostname_fn) {
-	PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
+    if ($self->ct_file_exists($hostname_fn)) {
+	$self->ct_file_set_contents($hostname_fn, "$hostname\n");
     } else {
-	my $data = PVE::Tools::file_get_contents($sysconfig_network);
+	my $data = $self->ct_file_get_contents($sysconfig_network);
 	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname/m) {
 	    $data .= "HOSTNAME=$hostname\n";
 	}
@@ -184,26 +176,25 @@ sub set_hostname {
 		$data .= "NETWORKING_IPV6=yes\n";
 	    }
 	}
-	PVE::Tools::file_set_contents($sysconfig_network, $data);
+	$self->ct_file_set_contents($sysconfig_network, $data);
     }
 
-    PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
+    $self->ct_file_set_contents($hosts_fn, $etc_hosts_data);
 }
 
 sub setup_network {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
     my ($gw, $gw6);
 
-    mkpath "$rootdir/etc/sysconfig/network-scripts";
+    $self->ct_mkpath('/etc/sysconfig/network-scripts');
 
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	next if !$d->{name};
 
-	my $filename = "$rootdir/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
+	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
 	my $had_v4 = 0;
 
 	if ($d->{ip} && $d->{ip} ne 'manual') {
@@ -220,7 +211,7 @@ sub setup_network {
 		    $data .= "GATEWAY=$d->{gw}\n";
 		}
 	    }
-	    PVE::Tools::file_set_contents($filename, $data);
+	    $self->ct_file_set_contents($filename, $data);
 	    # If we also have an IPv6 configuration it'll end up in an alias
 	    # interface becuase otherwise RH doesn't support mixing dhcpv4 with
 	    # a static ipv6 address.
@@ -230,7 +221,7 @@ sub setup_network {
 
 	if ($d->{ip6} && $d->{ip6} ne 'manual') {
 	    # If we're only on ipv6 delete the :0 alias
-	    unlink "$filename:0"if !$had_v4;
+	    $self->ct_unlink("$filename:0") if !$had_v4;
 
 	    my $data = "DEVICE=$d->{name}\n";
 	    $data .= "ONBOOT=yes\n";
@@ -249,7 +240,7 @@ sub setup_network {
 		    $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
 		}
 	    }
-	    PVE::Tools::file_set_contents($filename, $data);
+	    $self->ct_file_set_contents($filename, $data);
 	}
     }
 }

@@ -7,6 +7,7 @@ use File::stat;
 use Digest::SHA;
 use IO::File;
 use Encode;
+use File::Path;
 
 use PVE::INotify;
 use PVE::Tools;
@@ -476,6 +477,77 @@ sub post_create_hook {
     $self->rewrite_ssh_host_keys($conf);
     
     # fixme: what else ?
+}
+
+sub ct_mkdir {
+    my ($self, $file, $mask) = @_;
+    my $root = $self->{rootdir};
+    $file //= $_; # emulate mkdir parameters
+    return CORE::mkdir("$root/$file", $mask) if defined ($mask);
+    return CORE::mkdir("$root/$file");
+}
+
+sub ct_unlink {
+    my $self = shift;
+    my $root = $self->{rootdir};
+    return CORE::unlink("$root/$_") if !@_; # emulate unlink parameters
+    return CORE::unlink(map { "$root/$_" } @_);
+}
+
+sub ct_open_file {
+    my $self = shift;
+    my $file = $self->{rootdir} . '/' . shift;
+    return IO::File->new($file, @_);
+}
+
+sub ct_make_path {
+    my $self = shift;
+    my $root = $self->{rootdir};
+    my $opt = pop;
+    $opt = "$root/$opt" if ref($opt) ne 'HASH';
+    return File::Path::make_path(map { "$root/$_" } @_, $opt);
+}
+
+sub ct_mkpath {
+    my $self = shift;
+    my $root = $self->{rootdir};
+
+    my $first = shift;
+    return File::Path::mkpath(map { "$root/$_" } @$first, @_) if ref($first) eq 'ARRAY';
+    unshift @_, $first;
+    my $last = pop;
+    return File::Path::mkpath(map { "$root/$_" } @_, $last) if ref($last) eq 'HASH';
+    return File::Path::mkpath(map { "$root/$_" } (@_, $last||()));
+}
+
+sub ct_symlink {
+    my ($self, $old, $new) = @_;
+    my $root = $self->{rootdir};
+    return CORE::symlink($old, "$root/$new");
+}
+
+sub ct_file_exists {
+    my ($self, $file) = @_;
+    my $root = $self->{rootdir};
+    return -f "$root/$file";
+}
+
+sub ct_file_read_firstline {
+    my ($self, $file) = @_;
+    my $root = $self->{rootdir};
+    return PVE::Tools::file_read_firstline("$root/$file");
+}
+
+sub ct_file_get_contents {
+    my ($self, $file) = @_;
+    my $root = $self->{rootdir};
+    return PVE::Tools::file_get_contents("$root/$file");
+}
+
+sub ct_file_set_contents {
+    my ($self, $file, $data) = @_;
+    my $root = $self->{rootdir};
+    return PVE::Tools::file_set_contents("$root/$file", $data);
 }
 
 1;

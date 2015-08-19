@@ -44,7 +44,6 @@ sub new {
 sub template_fixup {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
     my $version = $self->{version};
     
     if ($version eq '15.04') {
@@ -54,23 +53,22 @@ sub template_fixup {
 
     if ($version eq '12.04') {
 	# suppress log level output for udev
-	my $filename = "$rootdir/etc/udev/udev.conf";
-	my $data = PVE::Tools::file_get_contents($filename);
+	my $filename = '/etc/udev/udev.conf';
+	my $data = $self->ct_file_get_contents($filename);
 	$data =~ s/=\"err\"/=0/m;
-	PVE::Tools::file_set_contents($filename, $data);
+	$self->ct_file_set_contents($filename, $data);
     }
 }
 
 sub setup_init {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
     my $version = $self->{version};
 
     if ($version eq '12.04' || $version eq '14.04') {
 	my $ttycount =  PVE::LXC::get_tty_count($conf);
 	for (my $i = 1; $i < 7; $i++) {
-	    my $filename = "$rootdir/etc/init/tty$i.conf";
+	    my $filename = "/etc/init/tty$i.conf";
 	    if ($i <= $ttycount) {
 		my $tty_conf = <<__EOD__;
 # tty$i - getty
@@ -88,10 +86,10 @@ stop on runlevel [!2345]
 respawn
 exec /sbin/getty -8 38400 tty$i
 __EOD__
-                PVE::Tools::file_set_contents($filename, $tty_conf);
+                $self->ct_file_set_contents($filename, $tty_conf);
 	    } else {
 		for (my $i = $ttycount + 1; $i < 7; $i++) {
-		    unlink $filename;
+		    $self->ct_unlink($filename);
 		}
 	    }
 	}

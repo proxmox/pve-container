@@ -33,12 +33,12 @@ sub template_fixup {
     my $rootdir = $self->{rootdir};
 
     # systemctl enable systemd-networkd
-    make_path("$rootdir/etc/systemd/system/multi-user.target.wants");
-    make_path("$rootdir/etc/systemd/system/socket.target.wants");
-    symlink "/usr/lib/systemd/system/systemd-networkd.service",
-            "$rootdir/etc/systemd/system/multi-user.target.wants/systemd-networkd.service";
-    symlink "/usr/lib/systemd/system/systemd-networkd.socket",
-            "$rootdir/etc/systemd/system/socket.target.wants/systemd-networkd.socket";
+    $self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
+    $self->ct_mkdir('/etc/systemd/system/socket.target.wants');
+    $self->ct_symlink('/usr/lib/systemd/system/systemd-networkd.service',
+                      '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service');
+    $self->ct_symlink('/usr/lib/systemd/system/systemd-networkd.socket',
+                      '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
 
     # edit /etc/securetty (enable login on console)
     $self->setup_securetty($conf, qw(pts/0));

@@ -79,11 +79,9 @@ __EOD__
 sub setup_init {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
+    my $filename = "/etc/inittab";
 
-    my $filename = "$rootdir/etc/inittab";
-
-    if (-f $filename) {
+    if ($self->ct_file_exists($filename)) {
 	my $inittab = $default_inittab;
 
 	my $ttycount =  PVE::LXC::get_tty_count($conf);
@@ -97,14 +95,12 @@ sub setup_init {
 	    }
 	}
 	
-	PVE::Tools::file_set_contents($filename, $inittab);
+	$self->ct_file_set_contents($filename, $inittab);
     }
 }
 
 sub setup_network {
     my ($self, $conf) = @_;
-
-    my $rootdir = $self->{rootdir};
 
     my $networks = {};
     foreach my $k (keys %$conf) {
@@ -144,7 +140,7 @@ sub setup_network {
 
     return if !scalar(keys %$networks);
 
-    my $filename = "$rootdir/etc/network/interfaces";
+    my $filename = "/etc/network/interfaces";
     my $interfaces = "";
 
     my $section;
@@ -201,7 +197,7 @@ sub setup_network {
 	$section = undef;
     };
 	
-    if (my $fh = IO::File->new($filename, "r")) {
+    if (my $fh = $self->ct_open_file($filename, "r")) {
 	while (defined (my $line = <$fh>)) {
 	    chomp $line;
 	    if ($line =~ m/^#/) {
@@ -280,7 +276,7 @@ sub setup_network {
 	}
     }
     
-    PVE::Tools::file_set_contents($filename, $interfaces);
+    $self->ct_file_set_contents($filename, $interfaces);
 }
 
 1;
