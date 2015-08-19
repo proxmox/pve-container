@@ -9,6 +9,7 @@ use PVE::Exception qw(raise raise_param_exc);
 use PVE::INotify;
 use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
+use PVE::Firewall;
 use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
@@ -660,6 +661,7 @@ __PACKAGE__->register_method({
 
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_access($vmid);
+	    PVE::Firewall::remove_vmfw_conf($vmid);
 	};
 
 	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
