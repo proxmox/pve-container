@@ -12,6 +12,9 @@ use PVE::RPCEnvironment;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
 use PVE::API2::LXC;
+use PVE::API2::LXC::Config;
+use PVE::API2::LXC::Status;
+use PVE::API2::LXC::Snapshot;
 
 use Data::Dumper;
 
@@ -94,7 +97,7 @@ my $cmddef = {
 	    printf($format, $d->{vmid}, $d->{status}, $d->{name});
 	}
     }],
-    config => [ "PVE::API2::LXC", 'vm_config', ['vmid'], 
+    config => [ "PVE::API2::LXC::Config", 'vm_config', ['vmid'], 
 		{ node => $nodename }, sub {
 		    my $config = shift;
 		    foreach my $k (sort (keys %$config)) {
@@ -106,16 +109,17 @@ my $cmddef = {
 			print "$k: $v\n";
 		    }
 		}],
-    set => [ 'PVE::API2::LXC', 'update_vm', ['vmid'], { node => $nodename }],
+    set => [ 'PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
     
     create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
     restore => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename, restore => 1 }, $upid_exit ],
 
-    start => [ 'PVE::API2::LXC', 'vm_start', ['vmid'], { node => $nodename }, $upid_exit],
-    suspend => [ 'PVE::API2::LXC', 'vm_suspend', ['vmid'], { node => $nodename }, $upid_exit],
-    resume => [ 'PVE::API2::LXC', 'vm_resume', ['vmid'], { node => $nodename }, $upid_exit],
-    shutdown => [ 'PVE::API2::LXC', 'vm_shutdown', ['vmid'], { node => $nodename }, $upid_exit],
-    stop => [ 'PVE::API2::LXC', 'vm_stop', ['vmid'], { node => $nodename }, $upid_exit],
+    start => [ 'PVE::API2::LXC::Status', 'vm_start', ['vmid'], { node => $nodename }, $upid_exit],
+    suspend => [ 'PVE::API2::LXC::Status', 'vm_suspend', ['vmid'], { node => $nodename }, $upid_exit],
+    resume => [ 'PVE::API2::LXC::Status', 'vm_resume', ['vmid'], { node => $nodename }, $upid_exit],
+    shutdown => [ 'PVE::API2::LXC::Status', 'vm_shutdown', ['vmid'], { node => $nodename }, $upid_exit],
+    stop => [ 'PVE::API2::LXC::Status', 'vm_stop', ['vmid'], { node => $nodename }, $upid_exit],
+    
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
     
     console => [ __PACKAGE__, 'console', ['vmid']],
@@ -124,12 +128,12 @@ my $cmddef = {
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
 
-    snapshot => [ "PVE::API2::LXC", 'snapshot', ['vmid', 'snapname'],
+    snapshot => [ "PVE::API2::LXC::Snapshot", 'snapshot', ['vmid', 'snapname'],
 		  { node => $nodename } , $upid_exit ],
 
-    delsnapshot => [ "PVE::API2::LXC", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
+    delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 
-    rollback => [ "PVE::API2::LXC", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
+    rollback => [ "PVE::API2::LXC::Snapshot", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 
     template => [ "PVE::API2::LXC", 'template', ['vmid'], { node => $nodename }],
 };

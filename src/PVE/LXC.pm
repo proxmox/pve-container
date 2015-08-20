@@ -14,6 +14,7 @@ use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach);
 use PVE::Network;
+use PVE::AccessControl;
 
 use Data::Dumper;
 
@@ -48,6 +49,12 @@ PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
     typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+]',
     description => "Use volume as container root.",
     optional => 1,
+});
+
+PVE::JSONSchema::register_standard_option('pve-lxc-snapshot-name', {
+    description => "The name of the snapshot.",
+    type => 'string', format => 'pve-configid',
+    maxLength => 40,
 });
 
 my $confdesc = {
@@ -1834,6 +1841,30 @@ sub find_loopdev {
     foreach my $dev (keys %$loopdevs){
 	return $dev if $loopdevs->{$dev} eq $path;
     }
+}
+
+sub check_ct_modify_config_perm {
+    my ($rpcenv, $authuser, $vmid, $pool, $key_list) = @_;
+
+    return 1 if $authuser ne 'root@pam';
+
+    foreach my $opt (@$key_list) {
+
+	if ($opt eq 'cpus' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.CPU']);
+	} elsif ($opt eq 'disk') {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
+	} elsif ($opt eq 'memory' || $opt eq 'swap') {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
+	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
+		 $opt eq 'searchdomain' || $opt eq 'hostname') {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
+	} else {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
+	}
+    }
+
+    return 1;
 }
 
 1;
