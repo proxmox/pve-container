@@ -20,7 +20,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
 
 __PACKAGE__->register_method({
-    name => 'snapshot_list',
+    name => 'list',
     path => '',
     method => 'GET',
     description => "List all snapshots.",
