@@ -174,86 +174,6 @@ sub restore_and_configure {
     }
 }
 
-# use new subvolume API
-sub create_rootfs_subvol {
-    my ($storage_conf, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
-
-    my $private = PVE::Storage::path($storage_conf, $volid);
-    (-d $private) || die "unable to get container private dir '$private' - $!\n";
-
-    restore_and_configure($vmid, $archive, $private, $conf, $password, $restore);
-}
-
-# direct mount
-sub create_rootfs_dev {
-    my ($storage_conf, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
-
-    my $image_path = PVE::Storage::path($storage_conf, $volid);
-    
-    my $cmd = ['mkfs.ext4', $image_path];
-    PVE::Tools::run_command($cmd);
-
-    my $mountpoint;
-
-    eval {
-	my $tmp = "/var/lib/lxc/$vmid/rootfs";
-	File::Path::mkpath($tmp);
-	PVE::Tools::run_command(['mount', '-t', 'ext4', $image_path, $tmp]);
-	$mountpoint = $tmp;
-
-	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password, $restore);
-    };
-    if (my $err = $@) {
-	if ($mountpoint) {
-	    eval { PVE::Tools::run_command(['umount', $mountpoint]) };
-	    warn $@ if $@;
-	} 
-	die $err;
-    }
-
-    PVE::Tools::run_command(['umount', '-l', $mountpoint]);
-}
-
-# create a raw file, then loop mount
-sub create_rootfs_dir_loop {
-    my ($storage_conf, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
-
-    my $image_path = PVE::Storage::path($storage_conf, $volid);
-
-    my $cmd = ['mkfs.ext4', $image_path];
-    PVE::Tools::run_command($cmd);
-
-    my $mountpoint;
-
-    my $loopdev;
-    eval {
-	my $parser = sub {
-	    my $line = shift;
-	    $loopdev = $line if $line =~m|^/dev/loop\d+$|;
-	};
-	PVE::Tools::run_command(['losetup', '--find', '--show', $image_path], outfunc => $parser);
-
-	my $tmp = "/var/lib/lxc/$vmid/rootfs";
-	File::Path::mkpath($tmp);
-	PVE::Tools::run_command(['mount', '-t', 'ext4', $loopdev, $tmp]);
-	$mountpoint = $tmp;
-
-	restore_and_configure($vmid, $archive, $mountpoint, $conf, $password, $restore);
-    };
-    if (my $err = $@) {
-	if ($mountpoint) {
-	    eval { PVE::Tools::run_command(['umount', '-d', $mountpoint]) };
-	    warn $@ if $@;
-	} else {
-	    eval { PVE::Tools::run_command(['losetup', '-d', $loopdev]) if $loopdev; };
-	    warn $@ if $@;
-	}
-	die $err;
-    }
-
-    PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
-}
-
 sub create_rootfs {
     my ($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
 
@@ -279,30 +199,37 @@ sub create_rootfs {
 	PVE::LXC::create_config($vmid, $conf);
     }
 
-    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	PVE::Storage::parse_volname($storage_cfg, $volid);
-	
-    die "got strange vtype '$vtype'\n" if $vtype ne 'images';
-    
-    die "unable to install into base volume" if $isBase;
+    my $image_path = PVE::Storage::path($storage_cfg, $volid);
+    my $mountpoint_path = "/var/lib/lxc/$vmid/rootfs";
+    my $mountpoint = { volume => $volid, mp => "/" };
+    my $ms = "rootfs";
 
-    if ($format eq 'subvol') {
-	create_rootfs_subvol($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-    } elsif ($format eq 'raw') {
-	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-	PVE::Storage::activate_storage($storage_cfg, $storage);
-	PVE::Storage::activate_volumes($storage_cfg, [$volid]);
-	if ($scfg->{path}) {
-	    create_rootfs_dir_loop($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-	    create_rootfs_dev($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore);
-	} else {
-	    die "unable to create containers on storage type '$scfg->{type}'\n";
+    eval {
+        PVE::Storage::activate_volumes($storage_cfg, [$volid]);
+        my $loopdevs = PVE::LXC::attach_loops($storage_cfg, [$volid]);
+
+	if (!-d $image_path) {
+	    my $cmd = ['mkfs.ext4', $image_path];
+	    PVE::Tools::run_command($cmd);
 	}
-	PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
-    } else {
-	die "unsupported image format '$format'\n";
+
+        PVE::LXC::mountpoint_mount($ms, $mountpoint, $mountpoint_path, $storage_cfg, $loopdevs);
+
+        restore_and_configure($vmid, $archive, $mountpoint_path, $conf, $password, $restore);
+    };
+    if (my $err = $@) {
+	eval {
+            PVE::LXC::dettach_loops($storage_cfg, [$volid]);
+            PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
+	};
+	warn $@ if $@;
+        die $err;
     }
+
+    PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint_path]);
+    PVE::LXC::dettach_loops($storage_cfg, [$volid]);
+    PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
+
 }
 
 1;
