@@ -1867,4 +1867,40 @@ sub check_ct_modify_config_perm {
     return 1;
 }
 
+
+sub volid_path {
+    my ($volid, $ms, $storage_cfg, $loopdevs) = @_;
+
+        my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+        my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+        my $path = PVE::Storage::path($storage_cfg, $volid);
+
+        my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+            PVE::Storage::parse_volname($storage_cfg, $volid);
+
+        die "unable to use template as mountpoint\n" if $isBase;
+
+        if ($format eq 'subvol') {
+	    #do nothing
+        } elsif ($format eq 'raw') {
+
+            if ($scfg->{path}) {
+		if ($ms eq 'rootfs') {
+		    $path = "loop:$path\n" if $ms eq 'rootfs';
+		} elsif ($loopdevs) {
+		    $path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
+		}
+		
+            } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+		#do nothing
+            } else {
+                die "unsupported storage type '$scfg->{type}'\n";
+            }
+        } else {
+            die "unsupported image format '$format'\n";
+        }
+
+	return $path;
+
+}
 1;
