@@ -92,27 +92,38 @@ __PACKAGE__->register_method ({
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
-	    return if !$volid;
+	    return if !$volid || $ms eq 'rootfs' || !$mountpoint->{mp};
 
-	    if ($volid =~ m|^/dev/.+| && $mountpoint->{mp} && $ms ne 'rootfs') {
-		PVE::Tools::run_command(['mount', $volid, "$rootdir$mountpoint->{mp}"]);
-		return;
-	    }
+	    eval {
+		my $mount_path = $rootdir.$mountpoint->{mp};
+		if (! -d $mount_path) {
+		    mkdir($mount_path) || $! == EEXIST || die "unable to create directory '$mount_path' - $!\n";
+ 		}
 
-	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+		if ($volid =~ m|^/dev/.+|) {
+		    PVE::Tools::run_command(['mount', $volid, $mount_path]);
+		    return;
+		}
 
-	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+		my $path = PVE::LXC::volid_path($volid, $ms, $storage_cfg, $loopdevs);
 
-	    my $path = PVE::Storage::path($storage_cfg, $volid);
+		if ($path !~ m|^/dev/.+|) {
+		    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
+		    return;
+		}
 
-	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-		PVE::Storage::parse_volname($storage_cfg, $volid);
+		PVE::Tools::run_command(['mount', $path, $mount_path]);
+	    };
+	    warn $@ if $@;
+	};
 
-	    return if $format eq 'subvol';
+	my $setup_cgroup_device = sub {
+	    my ($ms, $mountpoint) = @_;
 
-	    if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-		$path = PVE::LXC::find_loopdev($loopdevs, $path);
-	    }
+	    my $volid = $mountpoint->{volume};
+	    return if !$volid || $volid =~ m|^/dev/.+|;
+
+	    my $path = PVE::LXC::volid_path($volid, $ms, $storage_cfg, $loopdevs);
 
 	    if (-l $path) {
 		$path = readlink($path);
@@ -123,13 +134,11 @@ __PACKAGE__->register_method ({
 		PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b',  $bdevs->{$path}->{major}, $bdevs->{$path}->{minor}]);
 		PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b $bdevs->{$path}->{major}:$bdevs->{$path}->{minor} rwm");
 	    }
-
-	    if ($mountpoint->{mp} && ($ms ne 'rootfs')) {
-		PVE::Tools::run_command(['mount', $path, "$rootdir$mountpoint->{mp}"]);
-	    }
 	};
 
 	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
+
+	PVE::LXC::foreach_mountpoint($conf, $setup_cgroup_device);
 
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();
