@@ -999,6 +999,7 @@ sub update_lxc_config {
     my $shares = $conf->{cpuunits} || 1024;
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
+    
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
@@ -1006,7 +1007,12 @@ sub update_lxc_config {
 	my $volid = $mountpoint->{volume};
 	return if !$volid || $volid =~ m|^/dev/.+|;
 
-	my $path = volid_path ($volid, $ms, $storage_cfg);
+	my $path = volid_path ($volid, $storage_cfg);
+
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	$path = "loop:".$path if $scfg->{path};
+
 	$raw .= "lxc.rootfs = $path\n";
     });
 
@@ -1834,7 +1840,7 @@ sub check_ct_modify_config_perm {
 
 
 sub volid_path {
-    my ($volid, $ms, $storage_cfg, $loopdevs) = @_;
+    my ($volid, $storage_cfg, $loopdevs) = @_;
 
         my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
         my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
@@ -1850,12 +1856,7 @@ sub volid_path {
         } elsif ($format eq 'raw') {
 
             if ($scfg->{path}) {
-		if ($ms eq 'rootfs') {
-		    $path = "loop:$path\n" if $ms eq 'rootfs';
-		} elsif ($loopdevs) {
-		    $path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
-		}
-		
+		$path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
             } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
 		#do nothing
             } else {
@@ -1938,7 +1939,7 @@ sub mountpoint_mount {
 	    return;
 	}
 
-	my $path = PVE::LXC::volid_path($volid, $ms, $storage_cfg, $loopdevs);
+	my $path = PVE::LXC::volid_path($volid, $storage_cfg, $loopdevs);
 
 	if ($path !~ m|^/dev/.+|) {
 	    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
