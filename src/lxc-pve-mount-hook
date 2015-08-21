@@ -91,30 +91,8 @@ __PACKAGE__->register_method ({
 	my $setup_mountpoint = sub {
 	    my ($ms, $mountpoint) = @_;
 
-	    my $volid = $mountpoint->{volume};
-	    return if !$volid || $ms eq 'rootfs' || !$mountpoint->{mp};
-
-	    eval {
-		my $mount_path = $rootdir.$mountpoint->{mp};
-		if (! -d $mount_path) {
-		    mkdir($mount_path) || $! == EEXIST || die "unable to create directory '$mount_path' - $!\n";
- 		}
-
-		if ($volid =~ m|^/dev/.+|) {
-		    PVE::Tools::run_command(['mount', $volid, $mount_path]);
-		    return;
-		}
-
-		my $path = PVE::LXC::volid_path($volid, $ms, $storage_cfg, $loopdevs);
-
-		if ($path !~ m|^/dev/.+|) {
-		    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
-		    return;
-		}
-
-		PVE::Tools::run_command(['mount', $path, $mount_path]);
-	    };
-	    warn $@ if $@;
+	    return if $ms eq 'rootfs';
+  	    PVE::LXC::mountpoint_mount($ms, $mountpoint, $rootdir, $storage_cfg, $loopdevs);
 	};
 
 	my $setup_cgroup_device = sub {

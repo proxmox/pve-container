@@ -1920,4 +1920,34 @@ sub dettach_loops {
     }
 }
 
+
+sub mountpoint_mount {
+    my ($ms, $mountpoint, $rootdir, $storage_cfg, $loopdevs) = @_;
+
+    my $volid = $mountpoint->{volume};
+    my $mount = $mountpoint->{mp};
+
+    return if !$volid || !$mount;
+
+    eval {
+	my $mount_path = $rootdir.$mount;
+	File::Path::mkpath($mount_path);
+
+	if ($volid =~ m|^/dev/.+|) {
+	    PVE::Tools::run_command(['mount', $volid, $mount_path]);
+	    return;
+	}
+
+	my $path = PVE::LXC::volid_path($volid, $ms, $storage_cfg, $loopdevs);
+
+	if ($path !~ m|^/dev/.+|) {
+	    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
+	    return;
+	}
+
+	PVE::Tools::run_command(['mount', $path, $mount_path]);
+    };
+    warn $@ if $@;
+}
+
 1;
