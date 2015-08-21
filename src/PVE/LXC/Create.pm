@@ -202,7 +202,6 @@ sub create_rootfs {
     my $image_path = PVE::Storage::path($storage_cfg, $volid);
     my $mountpoint_path = "/var/lib/lxc/$vmid/rootfs";
     my $mountpoint = { volume => $volid, mp => "/" };
-    my $ms = "rootfs";
 
     eval {
         PVE::Storage::activate_volumes($storage_cfg, [$volid]);
@@ -213,7 +212,7 @@ sub create_rootfs {
 	    PVE::Tools::run_command($cmd);
 	}
 
-        PVE::LXC::mountpoint_mount($ms, $mountpoint, $mountpoint_path, $storage_cfg, $loopdevs);
+        PVE::LXC::mountpoint_mount($mountpoint, $mountpoint_path, $storage_cfg, $loopdevs);
 
         restore_and_configure($vmid, $archive, $mountpoint_path, $conf, $password, $restore);
     };

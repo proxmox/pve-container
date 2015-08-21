@@ -92,7 +92,7 @@ __PACKAGE__->register_method ({
 	    my ($ms, $mountpoint) = @_;
 
 	    return if $ms eq 'rootfs';
-  	    PVE::LXC::mountpoint_mount($ms, $mountpoint, $rootdir, $storage_cfg, $loopdevs);
+	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
 	};
 
 	my $setup_cgroup_device = sub {

@@ -1923,7 +1923,7 @@ sub dettach_loops {
 
 
 sub mountpoint_mount {
-    my ($ms, $mountpoint, $rootdir, $storage_cfg, $loopdevs) = @_;
+    my ($mountpoint, $rootdir, $storage_cfg, $loopdevs) = @_;
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
