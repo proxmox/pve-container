@@ -1002,39 +1002,12 @@ sub update_lxc_config {
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
+	return if $ms ne 'rootfs';
 	my $volid = $mountpoint->{volume};
 	return if !$volid || $volid =~ m|^/dev/.+|;
 
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-
-	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-	my $path = PVE::Storage::path($storage_cfg, $volid);
-
-	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	    PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	die "unable to use template as mountpoint\n" if $isBase;
-
-	if ($format eq 'subvol') {
-	    $mountpoint->{mp} =~ s/^\///s;
-	    if ($ms eq 'rootfs') {
-		$raw .= "lxc.rootfs = $path\n";
-	    } else {
-		$raw .= "lxc.mount.entry = $path $mountpoint->{mp} none defaults,bind 0 0\n";
-	    }
-	} elsif ($format eq 'raw') {
-
-	    if ($scfg->{path}) {
-		$raw .= "lxc.rootfs = loop:$path\n" if $ms eq 'rootfs';
-	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-		$raw .= "lxc.rootfs = $path\n" if $ms eq 'rootfs';
-	    } else {
-		die "unsupported storage type '$scfg->{type}'\n";
-	    }
-	} else {
-	    die "unsupported image format '$format'\n";
-	}
-
+	my $path = volid_path ($volid, $ms, $storage_cfg);
+	$raw .= "lxc.rootfs = $path\n";
     });
 
     my $netcount = 0;
