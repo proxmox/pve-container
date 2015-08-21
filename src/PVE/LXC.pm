@@ -1876,4 +1876,34 @@ sub volid_path {
 	return $path;
 
 }
+
+sub attach_loops {
+    my ($storage_cfg, $vollist) = @_;
+
+    my $loopdevs = {};
+
+    foreach my $volid (@$vollist) {
+
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+
+	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	    PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	if($format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+	    my $path = PVE::Storage::path($storage_cfg, $volid);
+	    my $loopdev;
+
+	    my $parser = sub {
+		my $line = shift;
+		$loopdev = $line if $line =~m|^/dev/loop\d+$|;
+		$loopdevs->{$loopdev} = $path;
+	    };
+
+	    PVE::Tools::run_command(['losetup', '--find', '--show', $path], outfunc => $parser);
+	}
+    }
+    return $loopdevs;
+}
+
 1;
