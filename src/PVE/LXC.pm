@@ -1256,28 +1256,20 @@ sub vm_stop_cleanup {
     eval {
 	if (!$keepActive) {
 
-	    my $loopdevs = loopdevices_list();
+	    my $vollist = [];
+	    my $loopdevlist = [];
 
-            PVE::LXC::foreach_mountpoint($conf, sub {
+	    PVE::LXC::foreach_mountpoint($conf, sub {
 		my ($ms, $mountpoint) = @_;
 
 		my $volid = $mountpoint->{volume};
-		#detach loopdevices of non rootfs mountpoints 
-		my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-		my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-		my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-		    PVE::Storage::parse_volname($storage_cfg, $volid);
+		return if !$volid || $volid =~ m|^/dev/.+|;
+		push @$vollist, $volid;
+		push @$loopdevlist, $volid if $ms ne 'rootfs';
+	    });
 
-		if($ms ne 'rootfs' && $format eq 'raw' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
-		    my $path = PVE::Storage::path($storage_cfg, $volid);
-		    foreach my $dev (keys %$loopdevs){
-			PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
-		    }
-		}
-
-		PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
-
-            });
+	    PVE::LXC::dettach_loops($storage_cfg, $loopdevlist);
+	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
 	}
     };
     warn $@ if $@; # avoid errors - just warn
@@ -1904,6 +1896,28 @@ sub attach_loops {
 	}
     }
     return $loopdevs;
+}
+
+sub dettach_loops {
+    my ($storage_cfg, $vollist) = @_;
+
+    my $loopdevs = loopdevices_list();
+
+    foreach my $volid (@$vollist) {
+
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+
+	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	    PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	if($format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+	    my $path = PVE::Storage::path($storage_cfg, $volid);
+            foreach my $dev (keys %$loopdevs){
+		PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
+	    }
+	}
+    }
 }
 
 1;
