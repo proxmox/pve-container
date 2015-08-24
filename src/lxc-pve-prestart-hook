@@ -78,17 +78,8 @@ __PACKAGE__->register_method ({
 
 	my $storage_cfg = PVE::Storage::config();
 
-	my $vollist = [];
-	my $loopdevlist = [];
-
-	PVE::LXC::foreach_mountpoint($conf, sub {
-	    my ($ms, $mountpoint) = @_;
-
-	    my $volid = $mountpoint->{volume};
-	    return if !$volid || $volid =~ m|^/dev/.+|;
-	    push @$vollist, $volid;
-	    push @$loopdevlist, $volid if $ms ne 'rootfs';
-	});
+	my $vollist = PVE::LXC::get_vm_volumes($conf);
+	my $loopdevlist = PVE::LXC::get_vm_volumes($conf, 'rootfs');
 
 	PVE::Storage::activate_volumes($storage_cfg, $vollist);
 	PVE::LXC::attach_loops($storage_cfg, $loopdevlist);

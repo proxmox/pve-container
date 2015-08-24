@@ -1257,17 +1257,8 @@ sub vm_stop_cleanup {
     eval {
 	if (!$keepActive) {
 
-	    my $vollist = [];
-	    my $loopdevlist = [];
-
-	    PVE::LXC::foreach_mountpoint($conf, sub {
-		my ($ms, $mountpoint) = @_;
-
-		my $volid = $mountpoint->{volume};
-		return if !$volid || $volid =~ m|^/dev/.+|;
-		push @$vollist, $volid;
-		push @$loopdevlist, $volid if $ms ne 'rootfs';
-	    });
+            my $vollist = get_vm_volumes($conf);
+            my $loopdevlist = get_vm_volumes($conf, 'rootfs');
 
 	    PVE::LXC::dettach_loops($storage_cfg, $loopdevlist);
 	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
