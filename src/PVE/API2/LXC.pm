@@ -44,52 +44,68 @@ __PACKAGE__->register_method ({
     path => '{vmid}/firewall',
 });
  
-my $alloc_rootfs = sub {
-    my ($storage_conf, $storage, $disk_size_gb, $vmid) = @_;
+my $create_disks = sub {
+    my ($storecfg, $vmid, $settings, $conf, $default_storage) = @_;
 
-    my $volid;
+    my $vollist = [];
 
-    my $size = 4*1024*1024; # defaults to 4G
+    PVE::LXC::foreach_mountpoint($settings, sub {
+        my ($ms, $mountpoint) = @_;
 
-    $size = int($disk_size_gb*1024) * 1024 if defined($disk_size_gb);
+        my $volid = $mountpoint->{volume};
+        my $mp = $mountpoint->{mp};
 
-    eval {
-	my $scfg = PVE::Storage::storage_config($storage_conf, $storage);
-	# fixme: use better naming ct-$vmid-disk-X.raw?
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-	    if ($size > 0) {
-		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw',
-						   undef, $size);
-	    } else {
-		$volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
-						   undef, 0);
-	    }
-	} elsif ($scfg->{type} eq 'zfspool') {
+        return if !$storage;
 
-	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'subvol',
+	if ($volid =~ m/^(([^:\s]+):)?(\d+(\.\d+)?)$/) {
+            my ($storeid, $size) = ($2 || $default_storage, $3);
+
+	    $size = int($size*1024) * 1024;
+
+	    eval {
+		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
+		# fixme: use better naming ct-$vmid-disk-X.raw?
+
+		if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+		    if ($size > 0) {
+			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
+							   undef, $size);
+		    } else {
+			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
+							   undef, 0);
+		    }
+		} elsif ($scfg->{type} eq 'zfspool') {
+
+		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 					       undef, $size);
-	} elsif ($scfg->{type} eq 'drbd') {
+		} elsif ($scfg->{type} eq 'drbd') {
 
-	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);
+		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
 
-	} elsif ($scfg->{type} eq 'rbd') {
+		} elsif ($scfg->{type} eq 'rbd') {
 
-	    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
-	    $volid = PVE::Storage::vdisk_alloc($storage_conf, $storage, $vmid, 'raw', undef, $size);
-
-	} else {
-	    die "unable to create containers on storage type '$scfg->{type}'\n";
+		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
+		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
+		} else {
+		    die "unable to create containers on storage type '$scfg->{type}'\n";
+		}
+	    };
+            push @$vollist, $volid;
+	    $conf->{$ms} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $size, mp => $mp });
 	}
-    };
+    });
+    # free allocated images on error
     if (my $err = $@) {
-	# cleanup
-	eval { PVE::Storage::vdisk_free($storage_conf, $volid) if $volid; };
-	warn $@ if $@;
-	die $err;
+        syslog('err', "VM $vmid creating disks failed");
+        foreach my $volid (@$vollist) {
+            eval { PVE::Storage::vdisk_free($storecfg, $volid); };
+            warn $@ if $@;
+        }
+        die $err;
     }
-
-    return $volid;
+    return $vollist;
 };
 
 __PACKAGE__->register_method({
@@ -153,7 +169,7 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     parameters => {
     	additionalProperties => 0,
-	properties => PVE::LXC::json_config_properties_no_rootfs({
+	properties => PVE::LXC::json_config_properties({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
 	    ostemplate => {
@@ -168,17 +184,10 @@ __PACKAGE__->register_method({
 		minLength => 5,
 	    },
 	    storage => get_standard_option('pve-storage-id', {
-		description => "Target storage.",
+		description => "Default Storage.",
 		default => 'local',
 		optional => 1,
 	    }),
-	    size => {
-		optional => 1,
-		type => 'number',
-		description => "Amount of disk space for the VM in GB. A zero indicates no limits.",
-		minimum => 0,
-		default => 4,
-	    },
 	    force => {
 		optional => 1,
 		type => 'boolean',
@@ -229,8 +238,6 @@ __PACKAGE__->register_method({
 
 	my $password = extract_param($param, 'password');
 
-	my $disksize = extract_param($param, 'size');
-
 	my $storage = extract_param($param, 'storage') // 'local';
 	
 	my $storage_cfg = cfs_read_file("storage.cfg");
@@ -268,13 +275,13 @@ __PACKAGE__->register_method({
 
 	my $archive;
 
+	$param->{rootfs} = $storage if !$param->{rootfs};
+
 	if ($ostemplate eq '-') {
 	    die "pipe requires cli environment\n" 
 		if $rpcenv->{type} ne 'cli'; 
 	    die "pipe can only be used with restore tasks\n" 
 		if !$restore;
-	    die "pipe requires --size parameter\n" 
-		if !defined($disksize);
 	    $archive = '-';
 	} else {
 	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
@@ -298,36 +305,43 @@ __PACKAGE__->register_method({
 	    &$check_vmid_usage(); # final check after locking
 	    	    
 	    PVE::Cluster::check_cfs_quorum();
-
-	    my $volid;
+	    my $vollist = [];
 
 	    eval {
-		if (!defined($disksize)) {
-		    if ($restore) {
-			(undef, $disksize) = PVE::LXC::Create::recover_config($archive);
-			die "unable to detect disk size - please specify with --size\n"
-			    if !$disksize;
-		    } else {
-			$disksize = 4;
-		    }
-		}
-		$volid = &$alloc_rootfs($storage_cfg, $storage, $disksize, $vmid);
+                my $rootmp = PVE::LXC::parse_ct_mountpoint($param->{rootfs});
+		my $root_volid = $rootmp->{volume};
+		my $disksize = undef;
 
-		PVE::LXC::Create::create_rootfs($storage_cfg, $storage, $volid, $vmid, $conf,
-						$archive, $password, $restore);
+		if ($root_volid =~ m/^(([^:\s]+):)?(\d+)?/) {
 
-		$conf->{rootfs} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $disksize });
+		    my ($storeid, $disksize) = ($2 || $storage, $3);
 
+                    if (!defined($disksize)) {
+                        if ($restore) {
+                            (undef, $disksize) = PVE::LXC::Create::recover_config($archive);
+                            die "unable to detect disk size - please specify rootfs size\n"
+                                if !$disksize;
+                        } else {
+                            $disksize = 4;
+                        }
+                        $param->{rootfs} = "$storeid:$disksize";
+                    }
+                }
+		$vollist = &$create_disks($storage_cfg, $vmid, $param, $conf, $storage);
+
+		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;
 		$conf->{swap} //= 512;
-
 		PVE::LXC::create_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
-		eval { PVE::Storage::vdisk_free($storage_cfg, $volid) if $volid; };
-		warn $@ if $@;
+		foreach my $volid (@$vollist) {
+		    eval { PVE::Storage::vdisk_free($storage_cfg, $volid); };
+		    warn $@ if $@;
+		}
+
 		PVE::LXC::destroy_config($vmid);
 		die $err;
 	    }

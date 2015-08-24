@@ -177,7 +177,7 @@ sub restore_and_configure {
 }
 
 sub create_rootfs {
-    my ($storage_cfg, $storage, $volid, $vmid, $conf, $archive, $password, $restore) = @_;
+    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore) = @_;
 
     my $config_fn = PVE::LXC::config_file($vmid);
     if (-f $config_fn) {
@@ -201,14 +201,17 @@ sub create_rootfs {
 	PVE::LXC::create_config($vmid, $conf);
     }
 
+    my $mountpoint = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    $mountpoint->{mp} = '/' if !$mountpoint->{mp};
+
+    my $volid = $mountpoint->{volume};
+
     my $image_path = PVE::Storage::path($storage_cfg, $volid);
     my $mountpoint_path = "/var/lib/lxc/$vmid/rootfs";
-    my $mountpoint = { volume => $volid, mp => "/" };
 
     eval {
         PVE::Storage::activate_volumes($storage_cfg, [$volid]);
         my $loopdevs = PVE::LXC::attach_loops($storage_cfg, [$volid]);
-
 	if (!-d $image_path) {
 	    my $cmd = ['mkfs.ext4', $image_path];
 	    PVE::Tools::run_command($cmd);
