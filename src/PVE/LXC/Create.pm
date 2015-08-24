@@ -184,7 +184,7 @@ sub create_rootfs {
 	my $old_conf = PVE::LXC::load_config($vmid);
 	
 	# destroy old container volume
-	PVE::LXC::destory_lxc_container($storage_cfg, $vmid, $old_conf);
+	PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
 
 	# do not copy all settings to restored container
 	foreach my $opt (qw(rootfs digest snapshots)) {
