@@ -160,6 +160,8 @@ sub restore_and_configure {
 	    print "Please check the configuration and reconfigure the network.\n";
 	    print "###########################################################\n";
 
+	    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
+	    $conf->{ostype} = $lxc_setup->{conf}->{ostype};
 	    my $raw = PVE::Tools::file_get_contents($ovz_cfg_fn);
 	    my $oldconf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
 	    foreach my $key (keys %$oldconf) {
