@@ -1842,29 +1842,39 @@ sub check_ct_modify_config_perm {
 sub volid_path {
     my ($volid, $storage_cfg, $loopdevs) = @_;
 
-        my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-        my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-        my $path = PVE::Storage::path($storage_cfg, $volid);
+        my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+	my $path = "";
+	if($storage) {
 
-        my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-            PVE::Storage::parse_volname($storage_cfg, $volid);
+	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	    $path = PVE::Storage::path($storage_cfg, $volid);
 
-        die "unable to use template as mountpoint\n" if $isBase;
+	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+		PVE::Storage::parse_volname($storage_cfg, $volid);
 
-        if ($format eq 'subvol') {
-	    #do nothing
-        } elsif ($format eq 'raw') {
+	    die "unable to use template as mountpoint\n" if $isBase;
 
-            if ($scfg->{path}) {
-		$path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
-            } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+	    if ($format eq 'subvol') {
 		#do nothing
-            } else {
-                die "unsupported storage type '$scfg->{type}'\n";
-            }
-        } else {
-            die "unsupported image format '$format'\n";
-        }
+	    } elsif ($format eq 'raw') {
+
+		if ($scfg->{path}) {
+		    $path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
+	        } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+		#do nothing
+		} else {
+		    die "unsupported storage type '$scfg->{type}'\n";
+		}
+	    } else {
+		die "unsupported image format '$format'\n";
+	    }
+	} elsif ($volid =~ m|^/dev/.+|) {
+	    $path = $volid;
+	} elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
+	    $path = $volid;
+	} else {
+	    die "unsupported storage";
+	}
 
 	return $path;
 
