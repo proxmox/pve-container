@@ -999,22 +999,17 @@ sub update_lxc_config {
     my $shares = $conf->{cpuunits} || 1024;
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
-    
-    PVE::LXC::foreach_mountpoint($conf, sub {
-	my ($ms, $mountpoint) = @_;
+    my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
+    my $volid = $mountpoint->{volume};
+    my $path = volid_path ($volid, $storage_cfg);
+    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-	return if $ms ne 'rootfs';
-	my $volid = $mountpoint->{volume};
-	return if !$volid || $volid =~ m|^/dev/.+|;
-
-	my $path = volid_path ($volid, $storage_cfg);
-
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
+    if ($storage) {
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-	$path = "loop:".$path if $scfg->{path};
+	$path = "loop:$path" if $scfg->{path};
+    }
 
-	$raw .= "lxc.rootfs = $path\n";
-    });
+    $raw .= "lxc.rootfs = $path\n";
 
     my $netcount = 0;
     foreach my $k (keys %$conf) {
