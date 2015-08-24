@@ -1957,4 +1957,27 @@ sub mountpoint_mount {
     PVE::Tools::run_command(['mount', $path, $mount_path]);
 }
 
+sub get_vm_volumes {
+    my ($conf, $excludes) = @_;
+
+    my $vollist = [];
+
+    PVE::LXC::foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	return if $excludes && $ms eq $excludes;
+
+	my $volid = $mountpoint->{volume};
+
+        return if !$volid || $volid =~ m|^/|;
+
+        my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+        return if !$sid;
+
+        push @$vollist, $volid;
+    });
+
+    return $vollist;
+}
+
 1;
