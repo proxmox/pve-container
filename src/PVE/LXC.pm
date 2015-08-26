@@ -1842,42 +1842,43 @@ sub check_ct_modify_config_perm {
 sub volid_path {
     my ($volid, $storage_cfg, $loopdevs) = @_;
 
-        my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-	my $path = "";
-	if($storage) {
+    my $path;
 
-	    my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-	    $path = PVE::Storage::path($storage_cfg, $volid);
+    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-		PVE::Storage::parse_volname($storage_cfg, $volid);
+    if ($storage) {
 
-	    die "unable to use template as mountpoint\n" if $isBase;
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	$path = PVE::Storage::path($storage_cfg, $volid);
 
-	    if ($format eq 'subvol') {
-		#do nothing
-	    } elsif ($format eq 'raw') {
+	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
-		if ($scfg->{path}) {
-		    $path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
-	        } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-		#do nothing
-		} else {
-		    die "unsupported storage type '$scfg->{type}'\n";
-		}
+	die "unable to use template as mountpoint\n" if $isBase;
+
+	if ($format eq 'subvol') {
+	    # do nothing
+	} elsif ($format eq 'raw') {
+
+	    if ($scfg->{path}) {
+		$path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
+	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+		# do nothing
 	    } else {
-		die "unsupported image format '$format'\n";
+		die "unsupported storage type '$scfg->{type}'\n";
 	    }
-	} elsif ($volid =~ m|^/dev/.+|) {
-	    $path = $volid;
-	} elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
-	    $path = $volid;
 	} else {
-	    die "unsupported storage";
+	    die "unsupported image format '$format'\n";
 	}
+    } elsif ($volid =~ m|^/dev/.+|) {
+	$path = $volid;
+    } elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
+	$path = $volid;
+    } else {
+	die "unsupported storage";
+    }
 
-	return $path;
-
+    return $path;
 }
 
 sub attach_loops {
