@@ -114,13 +114,12 @@ sub prepare {
     my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
     my $volid = $rootinfo->{volume};
 
+    die "missing root volid (no volid)\n" if !$volid;
+
     # fixme: when do we deactivate ??
-    PVE::Storage::activate_volumes($self->{storecfg}, [$volid]) if $volid;
+    PVE::Storage::activate_volumes($self->{storecfg}, [$volid]);
 
     if ($mode eq 'snapshot') {
-
-	die "mode failure - storage does not support snapshots (no volid)\n" 
-	    if !$volid;
 
 	die "mode failure - storage does not support snapshots\n"
 	    if !PVE::Storage::volume_has_feature($self->{storecfg}, 'snapshot', $volid);
