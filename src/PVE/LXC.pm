@@ -1368,7 +1368,7 @@ sub hotplug_net {
 sub update_ipconfig {
     my ($vmid, $conf, $opt, $eth, $newnet, $rootdir) = @_;
 
-    my $lxc_setup = PVE::LXCSetup->new($conf, $rootdir);
+    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 
     my $optdata = parse_lxc_network($conf->{$opt});
     my $deleted = [];
