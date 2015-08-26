@@ -1883,7 +1883,8 @@ sub attach_loops {
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
-	if($format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+	if (($format ne 'subvol') &&
+	    ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
 	    my $path = PVE::Storage::path($storage_cfg, $volid);
 	    my $loopdev;
 
@@ -1896,6 +1897,7 @@ sub attach_loops {
 	    PVE::Tools::run_command(['losetup', '--find', '--show', $path], outfunc => $parser);
 	}
     }
+
     return $loopdevs;
 }
 
@@ -1931,7 +1933,8 @@ sub mountpoint_mount {
     return if !$volid || !$mount;
 
     eval {
-	my $mount_path = $rootdir.$mount;
+	$rootdir =~ s!/+$!!;
+	my $mount_path = "$rootdir/$mount";
 	File::Path::mkpath($mount_path);
 
 	if ($volid =~ m|^/dev/.+|) {
