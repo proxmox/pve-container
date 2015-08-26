@@ -439,9 +439,10 @@ sub config_file {
 }
 
 sub load_config {
-    my ($vmid) = @_;
+    my ($vmid, $node) = @_;
 
-    my $cfspath = cfs_config_path($vmid);
+    $node = $nodename if !$node;
+    my $cfspath = cfs_config_path($vmid, $node);
 
     my $conf = PVE::Cluster::cfs_read_file($cfspath);
     die "container $vmid does not exists\n" if !defined($conf);

@@ -593,7 +593,7 @@ __PACKAGE__->register_method ({
 	my $remcmd = $remip ?
 	    ['/usr/bin/ssh', '-t', $remip] : [];
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::load_config($vmid, $node);
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
 
 	my $shcmd = [ '/usr/bin/dtach', '-A',
