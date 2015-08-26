@@ -125,7 +125,7 @@ sub prepare {
 	die "mode failure - storage does not support snapshots\n"
 	    if !PVE::Storage::volume_has_feature($self->{storecfg}, 'snapshot', $volid);
 	
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 
 	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $sid);
 
