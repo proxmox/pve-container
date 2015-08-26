@@ -96,6 +96,14 @@ sub prepare {
 
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
 
+    PVE::LXC::foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	return if $ms eq 'rootfs';
+	# TODO: implement support for mountpoints
+	die "unable to backup mountpoint '$ms' - feature not implemented\n";
+    });
+
     my $running = PVE::LXC::check_running($vmid);
 
     my $diskinfo = {};
