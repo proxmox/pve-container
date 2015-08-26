@@ -202,28 +202,29 @@ sub resume_vm {
 sub assemble {
     my ($self, $task, $vmid) = @_;
 
-    my $dir = $task->{snapdir};
+    my $tmpdir = $task->{tmpdir};
 
-    $task->{cleanup}->{etc_vzdump} = 1;
-
-    mkpath "$dir/etc/vzdump/";
+    mkpath "$tmpdir/etc/vzdump/";
 
     my $conf = PVE::LXC::load_config($vmid);
     delete $conf->{snapshots};
     delete $conf->{'pve.parent'};
 
-    PVE::Tools::file_set_contents("$dir/etc/vzdump/pct.conf", PVE::LXC::write_pct_config("/lxc/$vmid.conf", $conf));
+    PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::write_pct_config("/lxc/$vmid.conf", $conf));
 }
 
 sub archive {
     my ($self, $task, $vmid, $filename, $comp) = @_;
-    
+
     my $findexcl = $self->{vzdump}->{findexcl};
+    push @$findexcl, "'('", '-path', "./etc/vzdump", "-prune", "')'", '-o';
+
     my $findargs = join (' ', @$findexcl) . ' -print0';
     my $opts = $self->{vzdump}->{opts};
 
     my $srcdir = $task->{diskinfo}->{dir};
     my $snapdir = $task->{snapdir};
+    my $tmpdir = $task->{tmpdir};
 
     my $taropts = "--totals --sparse --numeric-owner --no-recursion --xattrs --one-file-system";
 
@@ -238,7 +239,12 @@ sub archive {
     my $cmd = "(";
 
     $cmd .= "cd $snapdir;find . $findargs|sed 's/\\\\/\\\\\\\\/g'|";
-    $cmd .= "tar cpf - $taropts ./etc/vzdump/pct.conf --null -T -";
+    $cmd .= "tar cpf - $taropts ";
+    # The directory parameter can give a alternative directory as source.
+    # the second parameter gives the structure in the tar.
+    $cmd .= "--directory=$tmpdir ./etc/vzdump/pct.conf ";
+    $cmd .= "--directory=$snapdir --null -T -";
+
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
     $cmd .= "|cstream -t $bwl" if $opts->{bwlimit};
     $cmd .= "|$comp" if $comp;
@@ -268,12 +274,6 @@ sub cleanup {
     if (my $volid = $task->{cleanup}->{snap_volid}) {
 	eval { PVE::Storage::volume_snapshot_delete($self->{storecfg}, $volid, '__vzdump__'); };
 	warn $@ if $@;
-    }
-
-    if ($task->{cleanup}->{etc_vzdump}) {
-	my $dir = "$task->{snapdir}/etc/vzdump";
-	eval { rmtree $dir if -d $dir; };
-	$self->logerr ($@) if $@;
     }
 }
 
