@@ -63,32 +63,14 @@ sub vm_status {
     return wantarray ? ($running, $running ? 'running' : 'stopped') : $running; 
 }
 
-my $loop_mount_image = sub {
-    my ($image_path, $mountpoint) = @_;
-    
-    my $loopdev;
-    my $mounted;
-    eval {
-	my $parser = sub {
-	    my $line = shift;
-	    $loopdev = $line if $line =~m|^/dev/loop\d+$|;
-	};
-	PVE::Tools::run_command(['losetup', '--find', '--show', $image_path], outfunc => $parser);
+my $check_mointpoint_empty = sub {
+    my ($mountpoint) = @_;
 
-	File::Path::mkpath($mountpoint);
-	PVE::Tools::run_command(['mount', '-t', 'ext4', $loopdev, $mountpoint]);
-	$mounted = 1;
-    };
-    if (my $err = $@) {
-	if ($mounted) {
-	    eval { PVE::Tools::run_command(['umount', '-d', $mountpoint]) };
-	    warn $@ if $@;
-	} else {
-	    eval { PVE::Tools::run_command(['losetup', '-d', $loopdev]) if $loopdev; };
-	    warn $@ if $@;
-	}
-	die $err;
-    }
+    PVE::Tools::dir_glob_foreach($mountpoint, qr/.*/, sub {
+	my $entry = shift;
+	return if $entry eq '.' || $entry eq '..';
+	die "mointpoint '$mountpoint' not empty\n";
+    });
 };
 
 sub prepare {
@@ -133,6 +115,7 @@ sub prepare {
 
 	if ($scfg->{type} ne 'zfs') {
 	    $diskinfo->{mountpoint} = "/mnt/vzsnap0";
+	    &$check_mointpoint_empty($diskinfo->{mountpoint});
 	} else {
 	    die "mode failure - storage does not support snapshot mount\n"
 	}
@@ -144,9 +127,14 @@ sub prepare {
 	
     } elsif ($mode eq 'stop') {
 	my $mountpoint = "/mnt/vzsnap0";
-	my $path = PVE::Storage::path($self->{storecfg}, $volid);
-	&$loop_mount_image($path, $mountpoint);
-	$task->{cleanup}->{snapshot_mount} = 1;
+
+	&$check_mointpoint_empty($mountpoint);
+
+	my $volid_list = [$volid];
+	$task->{cleanup}->{dettach_loops} = $volid_list;
+	my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list);
+	my $mp = { volume => $volid, mp => "/" };
+	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs);
 	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
 	$task->{snapdir} = $diskinfo->{dir};
     } elsif ($mode eq 'suspend') {
@@ -269,26 +257,24 @@ sub cleanup {
 
     my $di = $task->{diskinfo};
 
-    if ($task->{cleanup}->{snapshot_mount}) {
-	# Note: sleep to avoid 'device is busy' message.
-	# Seems Kernel need some time to cleanup open file list,
-	# for example when we stop the tar with kill (stop task)
-	# We use -d to automatically free used loop devices
-	sleep(1); 
-	$self->cmd_noerr("umount -d $di->{mountpoint}");
+    if (my $mountpoint = $di->{mountpoint}) {
+	PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
+    };
+
+    if (my $volid_list = $task->{cleanup}->{dettach_loops}) {
+	PVE::LXC::dettach_loops($self->{storecfg}, $volid_list);
     }
 
     if (my $volid = $task->{cleanup}->{snap_volid}) {
 	eval { PVE::Storage::volume_snapshot_delete($self->{storecfg}, $volid, '__vzdump__'); };
 	warn $@ if $@;
     }
-    
+
     if ($task->{cleanup}->{etc_vzdump}) {
 	my $dir = "$task->{snapdir}/etc/vzdump";
 	eval { rmtree $dir if -d $dir; };
 	$self->logerr ($@) if $@;
     }
-
 }
 
 1;
