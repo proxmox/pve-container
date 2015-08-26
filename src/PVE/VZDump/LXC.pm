@@ -135,33 +135,25 @@ sub prepare {
 	
 	die "implement me";
 	
+    } elsif ($mode eq 'stop') {
+	my $mountpoint = "/mnt/vzsnap0";
+	my $path = PVE::Storage::path($self->{storecfg}, $volid);
+	&$loop_mount_image($path, $mountpoint);
+	$task->{cleanup}->{snapshot_mount} = 1;
+	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+	$task->{snapdir} = $diskinfo->{dir};
+    } elsif ($mode eq 'suspend') {
+	my $tasks_fn = "/sys/fs/cgroup/cpu/lxc/$vmid/tasks";
+	my $init_pid = PVE::Tools::file_read_firstline($tasks_fn);
+	if ($init_pid =~ m/^(\d+)$/) {
+	    $diskinfo->{dir} = "/proc/$1/root";
+	} else {
+	    die "unable to find container init task\n";
+	}
+	$task->{snapdir} = $task->{tmpdir};
     } else {
-
-	if ($mode eq 'stop') {
-	    my $mountpoint = "/mnt/vzsnap0";
-	    my $path = PVE::Storage::path($self->{storecfg}, $volid);
-	    &$loop_mount_image($path, $mountpoint);
-	    $task->{cleanup}->{snapshot_mount} = 1;
-	    $diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
-	} elsif ($mode eq 'suspend') {
-	    my $tasks_fn = "/sys/fs/cgroup/cpu/lxc/$vmid/tasks";
-	    my $init_pid = PVE::Tools::file_read_firstline($tasks_fn);
-	    if ($init_pid =~ m/^(\d+)$/) { 
-		$diskinfo->{dir} = "/proc/$1/root";
-	    } else {
-		die "unable to find container init task\n";
-	    }
-	} else {
-	    die "unknown mode '$mode'\n"; # should not happen
-	}
-
-	if ($mode eq 'suspend') {
-	    $task->{snapdir} = $task->{tmpdir};
-	} else {
-	    $task->{snapdir} = $diskinfo->{dir};
-	}
+	die "unknown mode '$mode'\n"; # should not happen
     }
-    
 }
 
 sub lock_vm {
