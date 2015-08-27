@@ -43,28 +43,37 @@ __PACKAGE__->register_method ({
     subclass => "PVE::API2::Firewall::CT",
     path => '{vmid}/firewall',
 });
+
+my $destroy_disks = sub {
+    my ($storecfg, $vollist) = @_;
+
+    foreach my $volid (@$vollist) {
+	eval { PVE::Storage::vdisk_free($storecfg, $volid); };
+	warn $@ if $@;
+    }
+};
  
 my $create_disks = sub {
     my ($storecfg, $vmid, $settings, $conf, $default_storage) = @_;
 
     my $vollist = [];
 
-    PVE::LXC::foreach_mountpoint($settings, sub {
-        my ($ms, $mountpoint) = @_;
+    eval {
+	PVE::LXC::foreach_mountpoint($settings, sub {
+	    my ($ms, $mountpoint) = @_;
 
-        my $volid = $mountpoint->{volume};
-        my $mp = $mountpoint->{mp};
+	    my $volid = $mountpoint->{volume};
+	    my $mp = $mountpoint->{mp};
 
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-        return if !$storage;
+	    return if !$storage;
 
-	if ($volid =~ m/^(([^:\s]+):)?(\d+(\.\d+)?)$/) {
-            my ($storeid, $size) = ($2 || $default_storage, $3);
+	    if ($volid =~ m/^(([^:\s]+):)?(\d+(\.\d+)?)$/) {
+		my ($storeid, $size) = ($2 || $default_storage, $3);
 
-	    $size = int($size*1024) * 1024;
+		$size = int($size*1024) * 1024;
 
-	    eval {
 		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
 		# fixme: use better naming ct-$vmid-disk-X.raw?
 
@@ -91,18 +100,17 @@ my $create_disks = sub {
 		} else {
 		    die "unable to create containers on storage type '$scfg->{type}'\n";
 		}
-	    };
-            push @$vollist, $volid;
-	    $conf->{$ms} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $size, mp => $mp });
-	}
-    });
+		push @$vollist, $volid;
+		$conf->{$ms} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $size, mp => $mp });
+	    } else {
+		# use specified/existing volid
+	    }
+	});
+    };
     # free allocated images on error
     if (my $err = $@) {
         syslog('err', "VM $vmid creating disks failed");
-        foreach my $volid (@$vollist) {
-            eval { PVE::Storage::vdisk_free($storecfg, $volid); };
-            warn $@ if $@;
-        }
+	&$destroy_disks($storecfg, $vollist);
         die $err;
     }
     return $vollist;
@@ -337,11 +345,7 @@ __PACKAGE__->register_method({
 		PVE::LXC::create_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
-		foreach my $volid (@$vollist) {
-		    eval { PVE::Storage::vdisk_free($storage_cfg, $volid); };
-		    warn $@ if $@;
-		}
-
+		&$destroy_disks($storage_cfg, $vollist);
 		PVE::LXC::destroy_config($vmid);
 		die $err;
 	    }
