@@ -283,14 +283,13 @@ __PACKAGE__->register_method({
 
 	my $archive;
 
-	$param->{rootfs} = $storage if !$param->{rootfs};
-
 	if ($ostemplate eq '-') {
 	    die "pipe requires cli environment\n" 
 		if $rpcenv->{type} ne 'cli'; 
 	    die "pipe can only be used with restore tasks\n" 
 		if !$restore;
 	    $archive = '-';
+	    die "restore from pipe requires rootfs parameter\n" if !defined($param->{rootfs});
 	} else {
 	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
@@ -298,7 +297,12 @@ __PACKAGE__->register_method({
 
 	my $conf = {};
 
-	PVE::LXC::update_pct_config($vmid, $conf, 0, $param);
+	my $no_disk_param = {};
+	foreach my $opt (keys %$param) {
+	    next if $opt eq 'rootfs' || $opt =~ m/^mp\d+$/;
+	    $no_disk_param->{$opt} = $param->{$opt};
+	}
+	PVE::LXC::update_pct_config($vmid, $conf, 0, $no_disk_param);
 
 	my $check_vmid_usage = sub {
 	    if ($force) {
@@ -316,25 +320,17 @@ __PACKAGE__->register_method({
 	    my $vollist = [];
 
 	    eval {
-                my $rootmp = PVE::LXC::parse_ct_mountpoint($param->{rootfs});
-		my $root_volid = $rootmp->{volume};
-		my $disksize = undef;
+		if (!defined($param->{rootfs})) {
+		    if ($restore) {
+			my (undef, $disksize) = PVE::LXC::Create::recover_config($archive);
+			die "unable to detect disk size - please specify rootfs (size)\n"
+			    if !$disksize;
+			$param->{rootfs} = $disksize;
+		    } else {
+			$param->{rootfs} = 4; # defaults to 4GB
+		    }
+		}
 
-		if ($root_volid =~ m/^(([^:\s]+):)?(\d+)?/) {
-
-		    my ($storeid, $disksize) = ($2 || $storage, $3);
-
-                    if (!defined($disksize)) {
-                        if ($restore) {
-                            (undef, $disksize) = PVE::LXC::Create::recover_config($archive);
-                            die "unable to detect disk size - please specify rootfs size\n"
-                                if !$disksize;
-                        } else {
-                            $disksize = 4;
-                        }
-                        $param->{rootfs} = "$storeid:$disksize";
-                    }
-                }
 		$vollist = &$create_disks($storage_cfg, $vmid, $param, $conf, $storage);
 
 		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);

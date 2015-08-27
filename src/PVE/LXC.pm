@@ -1096,7 +1096,7 @@ sub update_pct_config {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
 	    } elsif ($opt eq 'rootfs' || $opt =~ m/^mp(\d+)$/) {
-		#implement me
+		die "implement me"
 	    } else {
 		die "implement me"
 	    }
@@ -1164,7 +1164,7 @@ sub update_pct_config {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
         } elsif ($opt eq 'rootfs' || $opt =~ m/^mp(\d+)$/) {
-                #implement me
+	    die "implement me: $opt";
 	} else {
 	    die "implement me: $opt";
 	}
