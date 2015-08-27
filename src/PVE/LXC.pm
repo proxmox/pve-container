@@ -1565,11 +1565,17 @@ my $snapshot_commit = sub {
 sub has_feature {
     my ($feature, $conf, $storecfg, $snapname) = @_;
     
-    #Fixme add other drives if necessary.
     my $err;
 
-    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
-    $err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $rootinfo->{volume}, $snapname);
+    foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname);
+
+	# TODO: implement support for mountpoints
+	die "unable to handle mountpoint '$ms' - feature not implemented\n"
+	    if $ms ne 'rootfs';
+    });
 
     return $err ? 0 : 1;
 }
