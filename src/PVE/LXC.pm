@@ -1570,6 +1570,8 @@ sub has_feature {
     foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
+	return if $err; # skip further test
+	
 	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname);
 
 	# TODO: implement support for mountpoints
