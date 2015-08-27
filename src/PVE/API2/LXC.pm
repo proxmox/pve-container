@@ -734,6 +734,9 @@ __PACKAGE__->register_method ({
 	my $permissions = 'VM.Console';
 
 	my $conf = PVE::LXC::load_config($vmid);
+
+	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
+
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
 
 	my $shcmd = ['/usr/bin/dtach', '-A',
