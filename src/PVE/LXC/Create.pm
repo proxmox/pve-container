@@ -206,7 +206,7 @@ sub create_rootfs {
     }
 
     my $mountpoint = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    $mountpoint->{mp} = '/' if !$mountpoint->{mp};
+    $mountpoint->{mp} = '/';
 
     my $volid = $mountpoint->{volume};
 
