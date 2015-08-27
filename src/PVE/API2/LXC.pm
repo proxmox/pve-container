@@ -54,7 +54,7 @@ my $destroy_disks = sub {
 };
  
 my $create_disks = sub {
-    my ($storecfg, $vmid, $settings, $conf, $default_storage) = @_;
+    my ($storecfg, $vmid, $settings, $conf) = @_;
 
     my $vollist = [];
 
@@ -69,8 +69,8 @@ my $create_disks = sub {
 
 	    return if !$storage;
 
-	    if ($volid =~ m/^(([^:\s]+):)?(\d+(\.\d+)?)$/) {
-		my ($storeid, $size) = ($2 || $default_storage, $3);
+	    if ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/) {
+		my ($storeid, $size) = ($1, $2);
 
 		$size = int($size*1024) * 1024;
 
@@ -299,8 +299,13 @@ __PACKAGE__->register_method({
 
 	my $no_disk_param = {};
 	foreach my $opt (keys %$param) {
-	    next if $opt eq 'rootfs' || $opt =~ m/^mp\d+$/;
-	    $no_disk_param->{$opt} = $param->{$opt};
+	    my $value = $param->{$opt};
+	    if ($opt eq 'rootfs' || $opt =~ m/^mp\d+$/) {
+		# allow to use simple numbers (add default storage in that case)
+		$param->{$opt} = "$storage:$value" if $value =~ m/^\d+(\.\d+)?$/;
+	    } else {
+		$no_disk_param->{$opt} = $value;
+	    }
 	}
 	PVE::LXC::update_pct_config($vmid, $conf, 0, $no_disk_param);
 
@@ -325,13 +330,13 @@ __PACKAGE__->register_method({
 			my (undef, $disksize) = PVE::LXC::Create::recover_config($archive);
 			die "unable to detect disk size - please specify rootfs (size)\n"
 			    if !$disksize;
-			$param->{rootfs} = $disksize;
+			$param->{rootfs} = "$storage:$disksize";
 		    } else {
-			$param->{rootfs} = 4; # defaults to 4GB
+			$param->{rootfs} = "$storage:4"; # defaults to 4GB
 		    }
 		}
 
-		$vollist = &$create_disks($storage_cfg, $vmid, $param, $conf, $storage);
+		$vollist = &$create_disks($storage_cfg, $vmid, $param, $conf);
 
 		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);
 		# set some defaults
