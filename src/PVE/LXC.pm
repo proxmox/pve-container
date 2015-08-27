@@ -482,7 +482,7 @@ my $lockdir = "/run/lock/lxc";
 sub lock_filename {
     my ($vmid) = @_;
 
-    return "$lockdir/pve-config-{$vmid}.lock";
+    return "$lockdir/pve-config-${vmid}.lock";
 }
 
 sub lock_aquire {
@@ -517,10 +517,10 @@ sub lock_aquire {
 		die "can't aquire lock - $!\n";
 	    }
 
-	    $lock_handles->{$$}->{$filename}->{refcount}++;
-
 	    print STDERR " OK\n";
 	}
+	
+	$lock_handles->{$$}->{$filename}->{refcount}++;
     };
 
     eval { PVE::Tools::run_with_timeout($timeout, $lock_func); };
