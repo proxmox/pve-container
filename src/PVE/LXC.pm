@@ -1100,7 +1100,7 @@ sub update_pct_config {
 	    } else {
 		die "implement me"
 	    }
-	    PVE::LXC::write_config($vmid, $conf) if $running;
+	    write_config($vmid, $conf) if $running;
 	}
     }
 
@@ -1121,7 +1121,7 @@ sub update_pct_config {
 	$conf->{memory} = $wanted_memory;
 	$conf->{swap} = $wanted_swap;
 
-	PVE::LXC::write_config($vmid, $conf) if $running;
+	write_config($vmid, $conf) if $running;
     }
 
     foreach my $opt (keys %$param) {
@@ -1168,7 +1168,7 @@ sub update_pct_config {
 	} else {
 	    die "implement me: $opt";
 	}
-	PVE::LXC::write_config($vmid, $conf) if $running;
+	write_config($vmid, $conf) if $running;
     }
 
     if ($running && scalar(@nohotplug)) {
@@ -1242,7 +1242,7 @@ sub get_primary_ips {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
     if (defined($rootinfo->{volume})) {
 	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $rootinfo->{volume});
 	PVE::Storage::vdisk_free($storage_cfg, $rootinfo->{volume}) if $vmid == $owner;;
@@ -1265,7 +1265,7 @@ sub vm_stop_cleanup {
             my $vollist = get_vm_volumes($conf);
             my $loopdevlist = get_vm_volumes($conf, 'rootfs');
 
-	    PVE::LXC::dettach_loops($storage_cfg, $loopdevlist);
+	    dettach_loops($storage_cfg, $loopdevlist);
 	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
 	}
     };
@@ -1311,7 +1311,7 @@ sub update_net {
 
 	    PVE::Network::veth_delete($veth);
 	    delete $conf->{$opt};
-	    PVE::LXC::write_config($vmid, $conf);
+	    write_config($vmid, $conf);
 
 	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
@@ -1325,7 +1325,7 @@ sub update_net {
 			delete $oldnet->{$_};
 		    }
 		    $conf->{$opt} = print_lxc_network($oldnet);
-		    PVE::LXC::write_config($vmid, $conf);
+		    write_config($vmid, $conf);
 		}
 
 		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
@@ -1333,7 +1333,7 @@ sub update_net {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
 		$conf->{$opt} = print_lxc_network($oldnet);
-		PVE::LXC::write_config($vmid, $conf);
+		write_config($vmid, $conf);
 	}
     } else {
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
@@ -1366,7 +1366,7 @@ sub hotplug_net {
     }
     $conf->{$opt} = print_lxc_network($done);
 
-    PVE::LXC::write_config($vmid, $conf);
+    write_config($vmid, $conf);
 }
 
 sub update_ipconfig {
@@ -1464,7 +1464,7 @@ sub update_ipconfig {
 	    }
 	}
 	$conf->{$opt} = print_lxc_network($optdata);
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
 	$lxc_setup->setup_network($conf);
     };
 
@@ -1527,7 +1527,7 @@ my $snapshot_prepare = sub {
 	$snap->{'description'} = $comment if $comment;
 	$conf->{snapshots}->{$snapname} = $snap;
 
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     lock_container($vmid, 10, $updatefn);
@@ -1556,7 +1556,7 @@ my $snapshot_commit = sub {
 	delete $conf->{lock};
 	$conf->{parent} = $snapname;
 
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     lock_container($vmid, 10 ,$updatefn);
@@ -1568,7 +1568,7 @@ sub has_feature {
     #Fixme add other drives if necessary.
     my $err;
 
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
     $err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $rootinfo->{volume}, $snapname);
 
     return $err ? 0 : 1;
@@ -1589,7 +1589,7 @@ sub snapshot_create {
 	};
 
 	my $storecfg = PVE::Storage::config();
-	my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+	my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
 	my $volid = $rootinfo->{volume};
 
 	$cmd = "/usr/bin/lxc-unfreeze -n $vmid";
@@ -1628,7 +1628,7 @@ sub snapshot_delete {
 
 	$snap->{snapstate} = 'delete';
 
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     lock_container($vmid, 10, $updatefn);
@@ -1649,11 +1649,11 @@ sub snapshot_delete {
 
 	delete $conf->{snapshots}->{$snapname};
 
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     my $rootfs = $conf->{snapshots}->{$snapname}->{rootfs};
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($rootfs);
+    my $rootinfo = parse_ct_mountpoint($rootfs);
     my $volid = $rootinfo->{volume};
 
     eval {
@@ -1683,7 +1683,7 @@ sub snapshot_rollback {
     die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
     my $rootfs = $snap->{rootfs};
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($rootfs);
+    my $rootinfo = parse_ct_mountpoint($rootfs);
     my $volid = $rootinfo->{volume};
 
     PVE::Storage::volume_rollback_is_possible($storecfg, $volid, $snapname);
@@ -1713,12 +1713,12 @@ sub snapshot_rollback {
 	delete $conf->{snapname};
 	$conf->{parent} = $snapname;
 
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     my $unlockfn = sub {
 	delete $conf->{lock};
-	PVE::LXC::write_config($vmid, $conf);
+	write_config($vmid, $conf);
     };
 
     lock_container($vmid, 10, $updatefn);
@@ -1733,7 +1733,7 @@ sub template_create {
 
     my $storecfg = PVE::Storage::config();
 
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
     my $volid = $rootinfo->{volume};
 
     die "Template feature is not available for '$volid'\n"
@@ -1852,7 +1852,7 @@ sub volid_path {
 	} elsif ($format eq 'raw') {
 
 	    if ($scfg->{path}) {
-		$path = PVE::LXC::find_loopdev($loopdevs, $path) if $loopdevs;
+		$path = find_loopdev($loopdevs, $path) if $loopdevs;
 	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
 		# do nothing
 	    } else {
@@ -1943,7 +1943,7 @@ sub mountpoint_mount {
 	return;
     }
 
-    my $path = PVE::LXC::volid_path($volid, $storage_cfg, $loopdevs);
+    my $path = volid_path($volid, $storage_cfg, $loopdevs);
 
     if ($path !~ m|^/dev/.+|) {
 	PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
@@ -1958,7 +1958,7 @@ sub get_vm_volumes {
 
     my $vollist = [];
 
-    PVE::LXC::foreach_mountpoint($conf, sub {
+    foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $excludes && $ms eq $excludes;
