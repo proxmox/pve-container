@@ -13,6 +13,8 @@ use PVE::Tools;
 
 use base qw (PVE::VZDump::Plugin);
 
+my $default_mount_point = "/mnt/vzsnap0";
+
 my $rsync_vm = sub {
     my ($self, $task, $from, $to, $text) = @_;
 
@@ -63,13 +65,15 @@ sub vm_status {
     return wantarray ? ($running, $running ? 'running' : 'stopped') : $running; 
 }
 
-my $check_mointpoint_empty = sub {
+my $check_mountpoint_empty = sub {
     my ($mountpoint) = @_;
+
+    die "mountpoint '$mountpoint' is not a directory\n" if ! -d $mountpoint;
 
     PVE::Tools::dir_glob_foreach($mountpoint, qr/.*/, sub {
 	my $entry = shift;
 	return if $entry eq '.' || $entry eq '..';
-	die "mointpoint '$mountpoint' not empty\n";
+	die "mountpoint '$mountpoint' not empty\n";
     });
 };
 
@@ -88,52 +92,47 @@ sub prepare {
 
     my $running = PVE::LXC::check_running($vmid);
 
-    my $diskinfo = {};
-    $task->{diskinfo} = $diskinfo;
+    my $diskinfo = $task->{diskinfo} = {};
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
     my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    my $volid = $rootinfo->{volume};
+    $diskinfo->{volid} = $rootinfo->{volume};
 
-    die "missing root volid (no volid)\n" if !$volid;
+    die "missing root volid (no volid)\n" if !$diskinfo->{volid};
 
     # fixme: when do we deactivate ??
-    PVE::Storage::activate_volumes($self->{storecfg}, [$volid]);
+    PVE::Storage::activate_volumes($self->{storecfg}, [$diskinfo->{volid}]);
 
+    $self->loginfo("TEST: prepare");
     if ($mode eq 'snapshot') {
 
-	die "mode failure - storage does not support snapshots\n"
-	    if !PVE::Storage::volume_has_feature($self->{storecfg}, 'snapshot', $volid);
-	
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
-
-	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $sid);
-
-	# we only handle well known types for now, because the storage
-	# library dos not handle mount/unmount of snapshots
-
-	if ($scfg->{type} ne 'zfs') {
-	    $diskinfo->{mountpoint} = "/mnt/vzsnap0";
-	    &$check_mointpoint_empty($diskinfo->{mountpoint});
-	} else {
-	    die "mode failure - storage does not support snapshot mount\n"
+	if (!PVE::LXC::has_feature('snapshot', $conf, $self->{storecfg})) {
+	    die "mode failure - some volumes does not support snapshots\n";
 	}
-	
-	PVE::Storage::volume_snapshot($self->{storecfg}, $volid, '__vzdump__');
-	$task->{cleanup}->{snap_volid} = $volid;
-	
-	die "implement me";
+
+	if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
+	    $self->loginfo("found old vzdump snapshot (force removal)");
+	    PVE::LXC::snapshot_delete($vmid, 'vzdump', 0);
+	}
+
+	my $mountpoint = $default_mount_point;
+	mkpath $mountpoint;
+	&$check_mountpoint_empty($mountpoint);
+
+	# set snapshot_count (freezes CT it snapshot_count > 1)
+	my $volid_list = PVE::LXC::get_vm_volumes($conf);
+	$task->{snapshot_count} = scalar(@$volid_list);
 	
     } elsif ($mode eq 'stop') {
-	my $mountpoint = "/mnt/vzsnap0";
+	my $mountpoint = $default_mount_point;
+	mkpath $mountpoint;
+	&$check_mountpoint_empty($mountpoint);
 
-	&$check_mointpoint_empty($mountpoint);
-
-	my $volid_list = [$volid];
+	my $volid_list = [$diskinfo->{volid}];
 	$task->{cleanup}->{dettach_loops} = $volid_list;
 	my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list);
-	my $mp = { volume => $volid, mp => "/" };
+	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
 	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs);
 	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
 	$task->{snapdir} = $diskinfo->{dir};
@@ -156,6 +155,38 @@ sub unlock_vm {
     my ($self, $vmid) = @_;
 
     PVE::LXC::lock_release($vmid);
+}
+
+sub snapshot {
+    my ($self, $task, $vmid) = @_;
+
+    my $diskinfo = $task->{diskinfo};
+
+    $self->loginfo("create storage snapshot snapshot");
+
+    # todo: freeze/unfreeze if we have more than one volid
+    PVE::LXC::snapshot_create($vmid, 'vzdump', "vzdump backup snapshot");
+    $task->{cleanup}->{remove_snapshot} = 1;
+    
+    # reload config
+    my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
+    die "unable to read vzdump shanpshot config - internal error"
+	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
+
+    # my $snapconf = $conf->{snapshots}->{vzdump};
+    # my $volid_list = PVE::LXC::get_vm_volumes($snapconf);
+    my $volid_list = [$diskinfo->{volid}];
+
+    $task->{cleanup}->{dettach_loops} = $volid_list;
+    my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list, 'vzdump');
+
+    my $mountpoint = $default_mount_point;
+	
+    my $mp = { volume => $diskinfo->{volid}, mp => "/" };
+    PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs, 'vzdump');
+ 
+    $diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+    $task->{snapdir} = $diskinfo->{dir};
 }
 
 sub copy_data_phase1 {
@@ -256,19 +287,27 @@ sub archive {
 sub cleanup {
     my ($self, $task, $vmid) = @_;
 
-    my $di = $task->{diskinfo};
+    my $diskinfo = $task->{diskinfo};
 
-    if (my $mountpoint = $di->{mountpoint}) {
+    if (my $mountpoint = $diskinfo->{mountpoint}) {
 	PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
     };
 
-    if (my $volid_list = $task->{cleanup}->{dettach_loops}) {
-	PVE::LXC::dettach_loops($self->{storecfg}, $volid_list);
+    if (my $volid_list = $task->{cleanup}->{dettach_vzdump_snapshot_loops}) {
+	PVE::LXC::dettach_loops($self->{storecfg}, $volid_list, 'vzdump');
     }
 
-    if (my $volid = $task->{cleanup}->{snap_volid}) {
-	eval { PVE::Storage::volume_snapshot_delete($self->{storecfg}, $volid, '__vzdump__'); };
-	warn $@ if $@;
+    if (my $volid_list = $task->{cleanup}->{dettach_loops}) {
+	if ($task->{cleanup}->{remove_snapshot}) {
+	    PVE::LXC::dettach_loops($self->{storecfg}, $volid_list, 'vzdump');
+	} else {
+	    PVE::LXC::dettach_loops($self->{storecfg}, $volid_list);
+	}
+    }
+
+    if ($task->{cleanup}->{remove_snapshot}) {
+	$self->loginfo("remove vzdump snapshot");
+	PVE::LXC::snapshot_delete($vmid, 'vzdump', 0);
     }
 }
 
