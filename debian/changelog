@@ -1,3 +1,18 @@
+pve-container (0.9-14) unstable; urgency=medium
+
+  * vm_create : add support for mountpoints
+  
+  * run spiceterm and return spiceproxy config only if CT is running
+
+  * vzdump: correctly implement snapshot backup
+
+  * vzdump: use correct pid to access container root (fix suspend mode
+  backup)
+
+  * fix bug #691: fix vzdump stop mode backup on zfs
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 28 Aug 2015 11:47:32 +0200
+
 pve-container (0.9-13) unstable; urgency=medium
 
   * detect ostype when restoring OpenVZ containers
