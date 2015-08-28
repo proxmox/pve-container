@@ -1001,8 +1001,10 @@ sub update_lxc_config {
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
     my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
+    $mountpoint->{mp} = '/';
     my $volid = $mountpoint->{volume};
-    my $path = volid_path ($volid, $storage_cfg);
+    my $path = mountpoint_mount_path($mountpoint, $storage_cfg);
+    
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
     if ($storage) {
@@ -1837,51 +1839,8 @@ sub check_ct_modify_config_perm {
     return 1;
 }
 
-
-sub volid_path {
-    my ($volid, $storage_cfg, $loopdevs) = @_;
-
-    my $path;
-
-    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-
-    if ($storage) {
-
-	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-	$path = PVE::Storage::path($storage_cfg, $volid);
-
-	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	    PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	die "unable to use template as mountpoint\n" if $isBase;
-
-	if ($format eq 'subvol') {
-	    # do nothing
-	} elsif ($format eq 'raw') {
-
-	    if ($scfg->{path}) {
-		$path = find_loopdev($loopdevs, $path) if $loopdevs;
-	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
-		# do nothing
-	    } else {
-		die "unsupported storage type '$scfg->{type}'\n";
-	    }
-	} else {
-	    die "unsupported image format '$format'\n";
-	}
-    } elsif ($volid =~ m|^/dev/.+|) {
-	$path = $volid;
-    } elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
-	$path = $volid;
-    } else {
-	die "unsupported storage";
-    }
-
-    return $path;
-}
-
 sub attach_loops {
-    my ($storage_cfg, $vollist) = @_;
+    my ($storage_cfg, $vollist, $snapname) = @_;
 
     my $loopdevs = {};
 
@@ -1895,7 +1854,7 @@ sub attach_loops {
 
 	if (($format ne 'subvol') &&
 	    ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
-	    my $path = PVE::Storage::path($storage_cfg, $volid);
+	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
 	    my $loopdev;
 
 	    my $parser = sub {
@@ -1912,7 +1871,7 @@ sub attach_loops {
 }
 
 sub dettach_loops {
-    my ($storage_cfg, $vollist) = @_;
+    my ($storage_cfg, $vollist, $snapname) = @_;
 
     my $loopdevs = loopdevices_list();
 
@@ -1925,7 +1884,7 @@ sub dettach_loops {
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
 	if($format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
-	    my $path = PVE::Storage::path($storage_cfg, $volid);
+	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
             foreach my $dev (keys %$loopdevs){
 		PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
 	    }
@@ -1933,32 +1892,87 @@ sub dettach_loops {
     }
 }
 
+sub mountpoint_mount_path {
+    my ($mountpoint, $storage_cfg, $loopdevs, $snapname) = @_;
 
+    return mountpoint_mount($mountpoint, undef, $storage_cfg, $loopdevs, $snapname);
+}
+
+# use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
-    my ($mountpoint, $rootdir, $storage_cfg, $loopdevs) = @_;
+    my ($mountpoint, $rootdir, $storage_cfg, $loopdevs, $snapname) = @_;
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
-
+    
     return if !$volid || !$mount;
 
-    $rootdir =~ s!/+$!!;
-    my $mount_path = "$rootdir/$mount";
-    File::Path::mkpath($mount_path);
-
-    if ($volid =~ m|^/dev/.+|) {
-	PVE::Tools::run_command(['mount', $volid, $mount_path]);
-	return;
+    my $mount_path;
+    
+    if (defined($rootdir)) {
+	$rootdir =~ s!/+$!!;
+	$mount_path = "$rootdir/$mount";
+	File::Path::mkpath($mount_path);
     }
+    
+    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-    my $path = volid_path($volid, $storage_cfg, $loopdevs);
+    die "unknown snapshot path for '$volid'" if !$storage && defined($snapname);
 
-    if ($path !~ m|^/dev/.+|) {
-	PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
-	return;
+    if ($storage) {
+
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+	my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
+
+	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	    PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	if ($format eq 'subvol') {
+	    
+	    if ($mount_path) {
+		if ($snapname) {
+		    if ($scfg->{type} eq 'zfspool') {
+			my $path_arg = $path;
+			$path_arg =~ s!^/+!!;
+			PVE::Tools::run_command(['mount', '-o', 'ro', '-t', 'zfs', $path_arg, $mount_path]);
+		    } else {
+			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
+		    }		
+		} else {
+		    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
+		}
+	    }
+	    return $path;
+	    
+	} elsif ($format eq 'raw') {
+
+	    if ($scfg->{path}) {
+		$path = find_loopdev($loopdevs, $path) if $loopdevs;
+	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
+		# do nothing
+	    } else {
+		die "unsupported storage type '$scfg->{type}'\n";
+	    }
+	    if ($mount_path) {
+		if ($isBase || defined($snapname)) {
+		    PVE::Tools::run_command(['mount', '-o', 'ro', $path, $mount_path]);
+		} else {
+		    PVE::Tools::run_command(['mount', $path, $mount_path]);
+		}
+	    }
+	    return $path;
+	} else {
+	    die "unsupported image format '$format'\n";
+	}
+    } elsif ($volid =~ m|^/dev/.+|) {
+	PVE::Tools::run_command(['mount', $volid, $mount_path]) if $mount_path;
+	return $volid;
+    } elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
+	PVE::Tools::run_command(['mount', '-o', 'bind', $volid, $mount_path]) if $mount_path;
+	return $volid;
     }
-
-    PVE::Tools::run_command(['mount', $path, $mount_path]);
+    
+    die "unsupported storage";
 }
 
 sub get_vm_volumes {

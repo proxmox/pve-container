@@ -101,7 +101,7 @@ __PACKAGE__->register_method ({
 	    my $volid = $mountpoint->{volume};
 	    return if !$volid || $volid =~ m|^/dev/.+|;
 
-	    my $path = PVE::LXC::volid_path($volid, $storage_cfg, $loopdevs);
+	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg, $loopdevs);
 
 	    if (-l $path) {
 		$path = readlink($path);
