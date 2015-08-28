@@ -532,7 +532,7 @@ __PACKAGE__->register_method({
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	die "unable to delete CT $vmid - used in HA resources\n"
+	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
 
 	my $code = sub {
