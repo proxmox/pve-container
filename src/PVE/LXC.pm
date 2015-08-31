@@ -378,7 +378,7 @@ sub parse_pct_config {
 	    next;
 	}
 
-	if ($line =~ m/^(lxc\.[a-z0-9\.]+)(:|\s*=)\s*(.*?)\s*$/) {
+	if ($line =~ m/^(lxc\.[a-z0-9_\.]+)(:|\s*=)\s*(.*?)\s*$/) {
 	    my $key = $1;
 	    my $value = $3;
 	    if ($valid_lxc_conf_keys->{$key} || $key =~ m/^lxc\.cgroup\./) {
