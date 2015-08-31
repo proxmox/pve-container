@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 
+exit 0 if $ENV{LXC_NAME} !~ /^\d+$/;
+
 use PVE::LXC;
 use PVE::Tools qw(run_command);
 use PVE::Network;
