@@ -205,39 +205,18 @@ sub create_rootfs {
 	PVE::LXC::create_config($vmid, $conf);
     }
 
-    my $mountpoint = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    $mountpoint->{mp} = '/';
-
-    my $volid = $mountpoint->{volume};
-
-    my $image_path = PVE::Storage::path($storage_cfg, $volid);
-    my $mountpoint_path = "/var/lib/lxc/$vmid/rootfs";
-
     eval {
-        PVE::Storage::activate_volumes($storage_cfg, [$volid]);
-        my $loopdevs = PVE::LXC::attach_loops($storage_cfg, [$volid]);
-	if (!-d $image_path) {
-	    my $cmd = ['mkfs.ext4', $image_path];
-	    PVE::Tools::run_command($cmd);
-	}
-
-        PVE::LXC::mountpoint_mount($mountpoint, $mountpoint_path, $storage_cfg, $loopdevs);
-
-        restore_and_configure($vmid, $archive, $mountpoint_path, $conf, $password, $restore);
+	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
+        restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore);
     };
     if (my $err = $@) {
-	eval {
-            PVE::LXC::dettach_loops($storage_cfg, [$volid]);
-            PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
-	};
-	warn $@ if $@;
-        die $err;
+	warn $err;
+	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 1);
+    } else {
+	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 0);
     }
 
-    PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint_path]);
-    PVE::LXC::dettach_loops($storage_cfg, [$volid]);
     PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
-
 }
 
 1;

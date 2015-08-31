@@ -1764,19 +1764,40 @@ sub is_template {
     return 1 if defined $conf->{template} && $conf->{template} == 1;
 }
 
+sub mountpoint_names {
+    my ($reverse) = @_;
+
+    my @names = ('rootfs');
+
+    for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
+	push @names, "mp$i";
+    }
+
+    return $reverse ? reverse @names : @names;
+}
+
+sub foreach_mountpoint_full {
+    my ($conf, $reverse, $func) = @_;
+
+    foreach my $key (mountpoint_names($reverse)) {
+	my $value = $conf->{$key};
+	next if !defined($value);
+	my $mountpoint = parse_ct_mountpoint($value);
+	$mountpoint->{mp} = '/' if $key eq 'rootfs'; # just to be sure
+	&$func($key, $mountpoint);
+    }
+}
+
 sub foreach_mountpoint {
     my ($conf, $func) = @_;
 
-    my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
-    $mountpoint->{mp} = '/'; # just to be sure
-    &$func('rootfs', $mountpoint);
+    foreach_mountpoint_full($conf, 0, $func);
+}
 
-    for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
-	my $key = "mp$i";
-	next if !defined($conf->{$key});
-	$mountpoint = parse_ct_mountpoint($conf->{$key});
-	&$func($key, $mountpoint);
-    }
+sub foreach_mountpoint_reverse {
+    my ($conf, $func) = @_;
+
+    foreach_mountpoint_full($conf, 1, $func);
 }
 
 sub loopdevices_list {
@@ -1891,6 +1912,84 @@ sub dettach_loops {
 	}
     }
 }
+
+sub umount_all {
+    my ($vmid, $storage_cfg, $conf, $noerr) = @_;
+
+    my $loopdevs = loopdevices_list();
+
+    my $rootdir = "/var/lib/lxc/$vmid/rootfs";
+    my $volid_list = get_vm_volumes($conf);
+
+    foreach_mountpoint_reverse($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	my $volid = $mountpoint->{volume};
+	my $mount = $mountpoint->{mp};
+
+	return if !$volid || !$mount;
+
+	$mount_path = "$rootdir/$mount";
+
+	# fixme: test if mounted?
+	eval {
+	    PVE::Tools::run_command(['umount', '-d', $mountpoint_path]);
+	};
+	if (my $err = $@) {
+	    if ($noerr) {
+		warn $err;
+	    } else {
+		die $err;
+	    }
+	}
+    });
+
+    PVE::LXC::dettach_loops($storage_cfg, $volid_list);
+}
+
+sub mount_all {
+    my ($vmid, $storage_cfg, $conf, $format_raw_images) = @_;
+
+    my $rootdir = "/var/lib/lxc/$vmid/rootfs";
+
+    my $volid_list = get_vm_volumes($conf);
+    PVE::Storage::activate_volumes($storage_cfg, $volid_list);
+
+    eval {
+	my $loopdevs = attach_loops($storage_cfg, $volid_list);
+
+	foreach_mountpoint($conf, sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    my $volid = $mountpoint->{volume};
+	    my $mount = $mountpoint->{mp};
+
+	    return if !$volid || !$mount;
+
+	    my $image_path = PVE::Storage::path($storage_cfg, $volid);
+	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+		PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	    die "unable to mount base volume - internal error" if $isBase;
+
+	    if ($format_raw_images && $format eq 'raw') {
+		my $cmd = ['mkfs.ext4', $image_path];
+		PVE::Tools::run_command($cmd);
+	    }
+
+	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
+        });
+    };
+    if (my $err = $@) {
+	warn "mounting container failed - $err";
+	umount_all($vmid, $storage_cfg, $conf, 1);
+    } else {
+	umount_all($vmid, $storage_cfg, $conf, 0);
+    }
+
+    return $rootdir;
+}
+
 
 sub mountpoint_mount_path {
     my ($mountpoint, $storage_cfg, $loopdevs, $snapname) = @_;
