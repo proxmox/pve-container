@@ -311,7 +311,7 @@ __PACKAGE__->register_method({
 
 	my $check_vmid_usage = sub {
 	    if ($force) {
-		die "cant overwrite running container\n"
+		die "can't overwrite running container\n"
 		    if PVE::LXC::check_running($vmid);
 	    } else {
 		PVE::Cluster::check_vmid_unused($vmid);
@@ -804,7 +804,7 @@ __PACKAGE__->register_method({
 
 	# try to detect errors early
 	if (PVE::LXC::check_running($vmid)) {
-	    die "cant migrate running container without --online\n"
+	    die "can't migrate running container without --online\n"
 		if !$param->{online};
 	}
 
