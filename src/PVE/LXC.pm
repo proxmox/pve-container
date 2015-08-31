@@ -1873,8 +1873,7 @@ sub attach_loops {
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
-	if (($format ne 'subvol') &&
-	    ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+	if ($format eq 'raw' && $scfg->{path}) {
 	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
 	    my $loopdev;
 
@@ -1904,7 +1903,7 @@ sub dettach_loops {
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
-	if($format ne 'subvol' && ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs')) {
+	if ($format eq 'raw' && $scfg->{path}) {
 	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
             foreach my $dev (keys %$loopdevs){
 		PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
