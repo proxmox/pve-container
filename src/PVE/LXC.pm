@@ -771,7 +771,7 @@ sub parse_ct_mountpoint {
 	}
     }
 
-    return undef if !$res->{volume};
+    return undef if !defined($res->{volume});
 
     return undef if $res->{backup} && $res->{backup} !~ m/^(yes|no)$/;
 
