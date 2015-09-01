@@ -1928,11 +1928,11 @@ sub umount_all {
 
 	return if !$volid || !$mount;
 
-	$mount_path = "$rootdir/$mount";
+	my $mount_path = "$rootdir/$mount";
 
 	# fixme: test if mounted?
 	eval {
-	    PVE::Tools::run_command(['umount', '-d', $mountpoint_path]);
+	    PVE::Tools::run_command(['umount', '-d', $mount_path]);
 	};
 	if (my $err = $@) {
 	    if ($noerr) {
