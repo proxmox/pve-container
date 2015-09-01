@@ -51,7 +51,7 @@ sub prepare {
 	PVE::Storage::storage_check_node($self->{storecfg}, $storage, $self->{node});
 
 	die "unable to migrate local mountpoint '$volid' while CT is running"
-	    if !$scfg->{shared};
+	    if !$scfg->{shared} && $running;
 
     });
 
@@ -100,8 +100,8 @@ sub phase1 {
 	}
     });
 
-    my $conffile = PVE::OpenVZ::config_file($vmid);
-    my $newconffile = PVE::OpenVZ::config_file($vmid, $self->{node});
+    my $conffile = PVE::LXC::config_file($vmid);
+    my $newconffile = PVE::LXC::config_file($vmid, $self->{node});
 
     if ($self->{running}) {
 	die "implement me";
