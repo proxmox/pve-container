@@ -15,6 +15,7 @@ use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
 use PVE::LXC::Create;
+use PVE::LXC::Migrate;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
@@ -831,8 +832,7 @@ __PACKAGE__->register_method({
 	    my $realcmd = sub {
 		my $upid = shift;
 
-		# fixme: implement lxc container migration
-		die "lxc container migration not implemented\n";
+		PVE::LXC::Migrate->migrate($target, $targetip, $vmid, $param);
 
 		return;
 	    };
