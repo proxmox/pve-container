@@ -1982,8 +1982,6 @@ sub mount_all {
     if (my $err = $@) {
 	warn "mounting container failed - $err";
 	umount_all($vmid, $storage_cfg, $conf, 1);
-    } else {
-	umount_all($vmid, $storage_cfg, $conf, 0);
     }
 
     return $rootdir;
