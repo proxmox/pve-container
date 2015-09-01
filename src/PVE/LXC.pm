@@ -1244,11 +1244,12 @@ sub get_primary_ips {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
-    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
-    if (defined($rootinfo->{volume})) {
-	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $rootinfo->{volume});
-	PVE::Storage::vdisk_free($storage_cfg, $rootinfo->{volume}) if $vmid == $owner;;
-    }
+    foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $mountpoint->{volume});
+	PVE::Storage::vdisk_free($storage_cfg, $mountpoint->{volume}) if $vmid == $owner;
+    });
+
     rmdir "/var/lib/lxc/$vmid/rootfs";
     unlink "/var/lib/lxc/$vmid/config";
     rmdir "/var/lib/lxc/$vmid";
