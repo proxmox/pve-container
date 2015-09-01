@@ -216,7 +216,7 @@ sub create_rootfs {
 	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 0);
     }
 
-    PVE::Storage::deactivate_volumes($storage_cfg, [$volid]);
+    PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::get_vm_volumes($conf));
 }
 
 1;
