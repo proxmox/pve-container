@@ -230,11 +230,7 @@ __PACKAGE__->register_method({
 	    my $realcmd = sub {
 		my $upid = shift;
 
-		syslog('info', "stoping CT $vmid: $upid\n");
-
-		my $conf = PVE::LXC::load_config($vmid);
-
-		my $storage_cfg = PVE::Storage::config();
+		syslog('info', "stopping CT $vmid: $upid\n");
 
 		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 
