@@ -1929,6 +1929,7 @@ sub umount_all {
 	return if !$volid || !$mount;
 
 	my $mount_path = "$rootdir/$mount";
+	$mount_path =~ s!/+!/!g;
 
 	# fixme: test if mounted?
 	eval {
@@ -2008,6 +2009,7 @@ sub mountpoint_mount {
     if (defined($rootdir)) {
 	$rootdir =~ s!/+$!!;
 	$mount_path = "$rootdir/$mount";
+	$mount_path =~ s!/+!/!g;
 	File::Path::mkpath($mount_path);
     }
     
