@@ -1973,7 +1973,7 @@ sub mount_all {
 	    die "unable to mount base volume - internal error" if $isBase;
 
 	    if ($format_raw_images && $format eq 'raw') {
-		my $cmd = ['mkfs.ext4', $image_path];
+		my $cmd = ['mkfs.ext4', '-O', 'mmp', $image_path];
 		PVE::Tools::run_command($cmd);
 	    }
 
