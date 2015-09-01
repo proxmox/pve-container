@@ -86,6 +86,32 @@ __PACKAGE__->register_method ({
 	exec('lxc-attach', '-n',  $param->{vmid});
     }});
 
+__PACKAGE__->register_method ({
+    name => 'exec',
+    path => 'exec',
+    method => 'GET',
+    description => "Launch a command inside the specified container.",
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid'),
+	    'extra-args' => get_standard_option('extra-args'),
+	},
+    },
+    returns => { type => 'null' },
+
+    code => sub {
+	my ($param) = @_;
+
+	# test if container exists on this node
+	PVE::LXC::load_config($param->{vmid});
+
+	if (!@{$param->{'extra-args'}}) {
+	    die "missing command";
+	}
+	exec('lxc-attach', '-n', $param->{vmid}, '--', @{$param->{'extra-args'}});
+    }});
+
 my $cmddef = {
     #test => [ __PACKAGE__, 'test', [], {}, sub {} ],
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
@@ -124,6 +150,7 @@ my $cmddef = {
     
     console => [ __PACKAGE__, 'console', ['vmid']],
     enter => [ __PACKAGE__, 'enter', ['vmid']],
+    exec => [ __PACKAGE__, 'exec', ['vmid', 'extra-args']],
     
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
