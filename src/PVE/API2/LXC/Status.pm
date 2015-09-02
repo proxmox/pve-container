@@ -312,9 +312,8 @@ __PACKAGE__->register_method({
 		$err = undef;
 		warn "shutdown failed - forcing stop now\n";
 
-		push @$cmd, '--kill';
+		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 		run_command($cmd);
-		
 	    }
 
 	    die $err if !$err;
