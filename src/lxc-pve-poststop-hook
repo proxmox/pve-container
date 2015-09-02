@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-exit 0 if $ENV{'LXC_NAME'} !~ /^\d+$/;
+exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use POSIX;
 use File::Path;
