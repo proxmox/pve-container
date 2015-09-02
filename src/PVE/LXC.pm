@@ -87,7 +87,7 @@ my $confdesc = {
     ostype => {
 	optional => 1,
 	type => 'string',
-	enum => ['debian', 'ubuntu', 'centos'],
+	enum => ['debian', 'ubuntu', 'centos', 'archlinux'],
 	description => "OS type. Corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf.",
     },
     console => {
