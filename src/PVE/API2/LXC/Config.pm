@@ -34,7 +34,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	},
     },
     returns => {
@@ -80,7 +80,7 @@ __PACKAGE__->register_method({
 	properties => PVE::LXC::json_config_properties(
 	    {
 		node => get_standard_option('pve-node'),
-		vmid => get_standard_option('pve-vmid'),
+		vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 		delete => {
 		    type => 'string', format => 'pve-configid-list',
 		    description => "A list of settings you want to delete.",

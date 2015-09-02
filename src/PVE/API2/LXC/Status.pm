@@ -110,7 +110,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
 	},
     },
     returns => {
@@ -188,7 +188,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	},
     },
     returns => {
@@ -257,7 +257,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    timeout => {
 		description => "Wait maximal timeout seconds.",
 		type => 'integer',
@@ -341,7 +341,7 @@ __PACKAGE__->register_method({
         additionalProperties => 0,
         properties => {
             node => get_standard_option('pve-node'),
-            vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
         },
     },
     returns => {
@@ -391,7 +391,7 @@ __PACKAGE__->register_method({
         additionalProperties => 0,
         properties => {
             node => get_standard_option('pve-node'),
-            vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
         },
     },
     returns => {

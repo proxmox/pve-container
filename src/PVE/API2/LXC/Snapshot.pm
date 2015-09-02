@@ -32,7 +32,7 @@ __PACKAGE__->register_method({
     parameters => {
 	additionalProperties => 0,
 	properties => {
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	    node => get_standard_option('pve-node'),
 	},
     },
@@ -90,7 +90,7 @@ __PACKAGE__->register_method({
 	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	    snapname => get_standard_option('pve-lxc-snapshot-name'),
 #	    vmstate => {
 #		optional => 1,

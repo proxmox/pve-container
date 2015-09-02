@@ -49,7 +49,7 @@ __PACKAGE__->register_method ({
     parameters => {
     	additionalProperties => 0,
 	properties => {
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	},
     },
     returns => { type => 'null' },
@@ -72,7 +72,7 @@ __PACKAGE__->register_method ({
     parameters => {
     	additionalProperties => 0,
 	properties => {
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	},
     },
     returns => { type => 'null' },

@@ -180,11 +180,12 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => PVE::LXC::json_config_properties({
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_next_vmid }),
 	    ostemplate => {
 		description => "The OS template or backup file.",
 		type => 'string',
 		maxLength => 255,
+		completion => \&PVE::LXC::complete_os_templates,
 	    },
 	    password => {
 		optional => 1,
@@ -513,7 +514,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
 	},
     },
     returns => {
@@ -767,8 +768,11 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
-	    target => get_standard_option('pve-node', { description => "Target node." }),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    target => get_standard_option('pve-node', {
+		description => "Target node.",
+		completion => \&PVE::LXC::complete_migration_target,
+	    }),
 	    online => {
 		type => 'boolean',
 		description => "Use online/live migration.",
@@ -920,7 +924,7 @@ __PACKAGE__->register_method({
 	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
 	},
     },
     returns => { type => 'null'},

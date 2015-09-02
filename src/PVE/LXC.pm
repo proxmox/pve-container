@@ -2096,4 +2096,89 @@ sub get_vm_volumes {
     return $vollist;
 }
 
+# bash completion helper
+
+sub complete_os_templates {
+    my ($cmdname, $pname, $cvalue) = @_;
+
+    my $cfg = PVE::Storage::config();
+
+     my $storeid;
+
+    if ($cvalue =~ m/^([^:]+):/) {
+	$storeid = $1;
+    }
+
+    my $vtype = $cmdname eq 'restore' ? 'backup' : 'vztmpl';
+    my $data = PVE::Storage::template_list($cfg, $storeid, $vtype);
+
+    my $res = [];
+    foreach my $id (keys %$data) {
+	foreach my $item (@{$data->{$id}}) {
+	    push @$res, $item->{volid} if defined($item->{volid});
+	}
+    }
+
+    return $res;
+}
+
+sub complete_migration_target {
+
+    my $res = [];
+
+    my $nodelist = PVE::Cluster::get_nodelist();
+    foreach my $node (@$nodelist) {
+	next if $node eq $nodename;
+	push @$res, $node;
+    }
+
+    return $res;
+}
+
+sub complete_next_vmid {
+
+    my $vmlist = PVE::Cluster::get_vmlist() || {};
+    my $idlist = $vmlist->{ids} || {};
+
+    for (my $i = 100; $i < 10000; $i++) {
+	return [$i] if !defined($idlist->{$i});
+    }
+
+    return [];
+}
+
+my $complete_ctid_full = sub {
+    my ($running) = @_;
+
+    my $idlist = vmstatus();
+
+    my $active_hash = list_active_containers();
+
+    my $res = [];
+
+    foreach my $id (keys %$idlist) {
+	my $d = $idlist->{$id};
+	if (defined($running)) {
+	    next if $d->{template};
+	    next if $running && !$active_hash->{$id};
+	    next if !$running && $active_hash->{$id};
+	}
+	push @$res, $id;
+
+    }
+    return $res;
+};
+
+sub complete_ctid {
+    return &$complete_ctid_full();
+}
+
+sub complete_ctid_stopped {
+    return &$complete_ctid_full(0);
+}
+
+sub complete_ctid_running {
+    return &$complete_ctid_full(1);
+}
+
 1;

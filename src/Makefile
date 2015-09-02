@@ -12,6 +12,7 @@ LXC_COMMON_CONFIG_DIR=${LXC_SCRIPT_DIR}/config/common.conf.d
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
 MAN5DIR=${MANDIR}/man5/
+BASHCOMPLDIR=${PREFIX}/share/bash-completion/completions/
 export PERLDIR=${PREFIX}/share/perl5
 
 all:
@@ -40,7 +41,7 @@ lxc-pve-poststop-hook.1.pod: lxc-pve-poststop-hook
 	perl -I. -T ./lxc-pve-poststop-hook printmanpod >$@
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr lxc-pve-prestart-hook.1.pod lxc-pve-prestart-hook.1.gz lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz lxc-pve-poststop-hook.1.pod lxc-pve-poststop-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr lxc-pve-prestart-hook.1.pod lxc-pve-prestart-hook.1.gz lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz lxc-pve-poststop-hook.1.pod lxc-pve-poststop-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
 	perl -T -I. ./pct verifyapi
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -53,6 +54,7 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-posts
 	install -m 0755 lxc-pve-poststop-hook ${LXC_HOOK_DIR}
 	install -d ${LXC_COMMON_CONFIG_DIR}
 	install -m 0644 lxc-pve.conf ${LXC_COMMON_CONFIG_DIR}/01-pve.conf
+	install -m 0644 -D pct.bash-completion ${BASHCOMPLDIR}/pct
 	make -C PVE install
 	install -d ${MAN1DIR}
 	install -d ${MAN5DIR}
