@@ -1914,9 +1914,9 @@ sub detach_loops {
 }
 
 sub umount_all {
-    my ($vmid, $storage_cfg, $conf, $noerr) = @_;
+    my ($vmid, $storage_cfg, $conf, $noerr, $loopdevs) = @_;
 
-    my $loopdevs = loopdevices_list();
+    $loopdevs ||= loopdevices_list();
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     my $volid_list = get_vm_volumes($conf);
@@ -1949,15 +1949,16 @@ sub umount_all {
 }
 
 sub mount_all {
-    my ($vmid, $storage_cfg, $conf, $format_raw_images) = @_;
+    my ($vmid, $storage_cfg, $conf) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
 
     my $volid_list = get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
+    my $loopdevs;
     eval {
-	my $loopdevs = attach_loops($storage_cfg, $volid_list);
+	$loopdevs = attach_loops($storage_cfg, $volid_list);
 
 	foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
@@ -1973,11 +1974,6 @@ sub mount_all {
 
 	    die "unable to mount base volume - internal error" if $isBase;
 
-	    if ($format_raw_images && $format eq 'raw') {
-		my $cmd = ['mkfs.ext4', '-O', 'mmp', $image_path];
-		PVE::Tools::run_command($cmd);
-	    }
-
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
         });
     };
@@ -1986,6 +1982,7 @@ sub mount_all {
 	umount_all($vmid, $storage_cfg, $conf, 1);
     }
 
+    return ($rootdir, $loopdevs) if wantarray;
     return $rootdir;
 }
 

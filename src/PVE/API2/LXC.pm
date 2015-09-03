@@ -53,6 +53,33 @@ my $destroy_disks = sub {
 	warn $@ if $@;
     }
 };
+
+sub mkfs {
+    my ($dev) = @_;
+    my $cmd = ['mkfs.ext4', '-O', 'mmp', $dev];
+    PVE::Tools::run_command($cmd);
+}
+
+sub format_disk {
+    my ($storage_cfg, $volid) = @_;
+
+    if ($volid =~ m@^/dev/.+@) {
+	return mkfs($volid);
+    }
+
+    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+
+    die "cannot format volume $volid with no storage" if !$storage;
+
+    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
+
+    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $volid);
+
+    if ($format eq 'raw' || $format eq 'subvol') {
+	return mkfs($path);
+    }
+}
  
 my $create_disks = sub {
     my ($storecfg, $vmid, $settings, $conf) = @_;
@@ -82,6 +109,7 @@ my $create_disks = sub {
 		    if ($size > 0) {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
 							   undef, $size);
+			format_disk($storecfg, $volid);
 		    } else {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 							   undef, 0);
@@ -93,11 +121,13 @@ my $create_disks = sub {
 		} elsif ($scfg->{type} eq 'drbd') {
 
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
+		    format_disk($storecfg, $volid);
 
 		} elsif ($scfg->{type} eq 'rbd') {
 
 		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
+		    format_disk($storecfg, $volid);
 		} else {
 		    die "unable to create containers on storage type '$scfg->{type}'\n";
 		}

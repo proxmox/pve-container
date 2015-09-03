@@ -205,15 +205,20 @@ sub create_rootfs {
 	PVE::LXC::create_config($vmid, $conf);
     }
 
+    my $loopdevs;
     eval {
-	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
+	(my $rootdir, $loopdevs) = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
         restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore);
     };
     if (my $err = $@) {
 	warn $err;
-	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 1);
+	if ($loopdevs) {
+	    # mount_all unmounts on error so we only need to unmount
+	    # if it actually returns valid $loopdevs
+	    PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 1, $loopdevs);
+	}
     } else {
-	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 0);
+	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 0, $loopdevs);
     }
 
     PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::get_vm_volumes($conf));
