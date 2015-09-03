@@ -26,23 +26,14 @@ all:
 	cat $<|pod2man -n $* -s 5 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@
 
 pct.1.pod: pct
-	perl -I. -T ./pct printmanpod >$@
+	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_pod_manpage();" >$@
 
 pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
 	perl -I. ./gen-pct-conf-pod.pl >$@
 
-lxc-pve-prestart-hook.1.pod: lxc-pve-prestart-hook
-	perl -I. -T ./lxc-pve-prestart-hook printmanpod >$@
-
-lxc-pve-mount-hook.1.pod: lxc-pve-mount-hook
-	perl -I. -T ./lxc-pve-mount-hook printmanpod >$@
-
-lxc-pve-poststop-hook.1.pod: lxc-pve-poststop-hook
-	perl -I. -T ./lxc-pve-poststop-hook printmanpod >$@
-
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr lxc-pve-prestart-hook.1.pod lxc-pve-prestart-hook.1.gz lxc-pve-mount-hook.1.pod lxc-pve-mount-hook.1.gz lxc-pve-poststop-hook.1.pod lxc-pve-poststop-hook.1.gz pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
-	perl -T -I. ./pct verifyapi
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
+	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
 	install -m 0755 pve-update-lxc-config ${SBINDIR}

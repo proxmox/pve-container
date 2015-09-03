@@ -7,5 +7,6 @@ install: ${SOURCES}
 	make -C API2 install
 	make -C LXC install
 	make -C VZDump install
+	make -C CLI install
 
 
