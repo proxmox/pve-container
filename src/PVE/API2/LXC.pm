@@ -83,7 +83,7 @@ sub format_disk {
     mkfs($path);
 }
  
-my $create_disks = sub {
+sub create_disks {
     my ($storecfg, $vmid, $settings, $conf) = @_;
 
     my $vollist = [];
@@ -147,7 +147,7 @@ my $create_disks = sub {
         die $err;
     }
     return $vollist;
-};
+}
 
 __PACKAGE__->register_method({
     name => 'vmlist',
@@ -371,7 +371,7 @@ __PACKAGE__->register_method({
 		    }
 		}
 
-		$vollist = &$create_disks($storage_cfg, $vmid, $param, $conf);
+		$vollist = create_disks($storage_cfg, $vmid, $param, $conf);
 
 		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);
 		# set some defaults

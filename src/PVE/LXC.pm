@@ -783,7 +783,7 @@ sub parse_ct_mountpoint {
 }
 
 sub print_ct_mountpoint {
-    my ($info) = @_;
+    my ($info, $nomp) = @_;
 
     my $opts = '';
 
@@ -792,6 +792,7 @@ sub print_ct_mountpoint {
     foreach my $o ('size', 'backup') {
 	$opts .= ",$o=$info->{$o}" if defined($info->{$o});
     }
+    $opts .= ",mp=$info->{mp}" if !$nomp;
 
     return "$info->{volume}$opts";
 }
@@ -1072,6 +1073,8 @@ sub update_pct_config {
 
     my @nohotplug;
 
+    my $new_disks = [];
+
     my $rootdir;
     if ($running) {
 	my $pid = find_lxc_pid($vmid);
@@ -1097,7 +1100,11 @@ sub update_pct_config {
 		next if !$running;
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
-	    } elsif ($opt eq 'rootfs' || $opt =~ m/^mp(\d+)$/) {
+	    } elsif ($opt =~ m/^mp(\d+)$/) {
+		delete $conf->{$opt};
+		push @nohotplug, $opt;
+		next if $running;
+	    } elsif ($opt eq 'rootfs') {
 		die "implement me"
 	    } else {
 		die "implement me"
@@ -1165,7 +1172,12 @@ sub update_pct_config {
 	    } else {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
-        } elsif ($opt eq 'rootfs' || $opt =~ m/^mp(\d+)$/) {
+        } elsif ($opt =~ m/^mp(\d+)$/) {
+	    $conf->{$opt} = $value;
+	    push @$new_disks, $opt;
+	    push @nohotplug, $opt;
+	    next;
+        } elsif ($opt eq 'rootfs') {
 	    die "implement me: $opt";
 	} else {
 	    die "implement me: $opt";
@@ -1175,6 +1187,13 @@ sub update_pct_config {
 
     if ($running && scalar(@nohotplug)) {
 	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
+    }
+
+    if (@$new_disks) {
+	my $storage_cfg = PVE::Storage::config();
+	PVE::API2::LXC::create_disks($storage_cfg, $vmid, $conf, $conf);
+	mount_all($vmid, $storage_cfg, $conf, $new_disks, 1);
+	umount_all($vmid, $storage_cfg, $conf, 0);
     }
 }
 
@@ -1754,7 +1773,7 @@ sub template_create {
 
     my $template_volid = PVE::Storage::vdisk_create_base($storecfg, $volid);
     $rootinfo->{volume} = $template_volid;
-    $conf->{rootfs} = print_ct_mountpoint($rootinfo);
+    $conf->{rootfs} = print_ct_mountpoint($rootinfo, 1);
 
     write_config($vmid, $conf);
 }
@@ -1949,7 +1968,7 @@ sub umount_all {
 }
 
 sub mount_all {
-    my ($vmid, $storage_cfg, $conf) = @_;
+    my ($vmid, $storage_cfg, $conf, $mkdirs) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
 
@@ -1974,6 +1993,7 @@ sub mount_all {
 
 	    die "unable to mount base volume - internal error" if $isBase;
 
+	    File::Path::make_path "$rootdir/$mount" if $mkdirs;
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
         });
     };
