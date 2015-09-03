@@ -1268,7 +1268,7 @@ sub vm_stop_cleanup {
             my $vollist = get_vm_volumes($conf);
             my $loopdevlist = get_vm_volumes($conf, 'rootfs');
 
-	    dettach_loops($storage_cfg, $loopdevlist);
+	    detach_loops($storage_cfg, $loopdevlist);
 	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
 	}
     };
@@ -1891,7 +1891,7 @@ sub attach_loops {
     return $loopdevs;
 }
 
-sub dettach_loops {
+sub detach_loops {
     my ($storage_cfg, $vollist, $snapname) = @_;
 
     my $loopdevs = loopdevices_list();
@@ -1945,7 +1945,7 @@ sub umount_all {
 	}
     });
 
-    PVE::LXC::dettach_loops($storage_cfg, $volid_list);
+    PVE::LXC::detach_loops($storage_cfg, $volid_list);
 }
 
 sub mount_all {

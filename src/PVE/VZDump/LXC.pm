@@ -130,7 +130,7 @@ sub prepare {
 	&$check_mountpoint_empty($mountpoint);
 
 	my $volid_list = [$diskinfo->{volid}];
-	$task->{cleanup}->{dettach_loops} = $volid_list;
+	$task->{cleanup}->{detach_loops} = $volid_list;
 	my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list);
 	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
 	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs);
@@ -177,7 +177,7 @@ sub snapshot {
     # my $volid_list = PVE::LXC::get_vm_volumes($snapconf);
     my $volid_list = [$diskinfo->{volid}];
 
-    $task->{cleanup}->{dettach_loops} = $volid_list;
+    $task->{cleanup}->{detach_loops} = $volid_list;
     my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list, 'vzdump');
 
     my $mountpoint = $default_mount_point;
@@ -293,15 +293,15 @@ sub cleanup {
 	PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
     };
 
-    if (my $volid_list = $task->{cleanup}->{dettach_vzdump_snapshot_loops}) {
-	PVE::LXC::dettach_loops($self->{storecfg}, $volid_list, 'vzdump');
+    if (my $volid_list = $task->{cleanup}->{detach_vzdump_snapshot_loops}) {
+	PVE::LXC::detach_loops($self->{storecfg}, $volid_list, 'vzdump');
     }
 
-    if (my $volid_list = $task->{cleanup}->{dettach_loops}) {
+    if (my $volid_list = $task->{cleanup}->{detach_loops}) {
 	if ($task->{cleanup}->{remove_snapshot}) {
-	    PVE::LXC::dettach_loops($self->{storecfg}, $volid_list, 'vzdump');
+	    PVE::LXC::detach_loops($self->{storecfg}, $volid_list, 'vzdump');
 	} else {
-	    PVE::LXC::dettach_loops($self->{storecfg}, $volid_list);
+	    PVE::LXC::detach_loops($self->{storecfg}, $volid_list);
 	}
     }
 
