@@ -176,6 +176,12 @@ my $confdesc = {
 	enum => ['shell', 'console', 'tty'],
 	default => 'tty',
     },
+    protection => {
+	optional => 1,
+	type => 'boolean',
+	description => "Sets the protection flag of the container. This will prevent the remove operation.",
+	default => 0,
+    },
 };
 
 my $valid_lxc_conf_keys = {
@@ -1101,6 +1107,8 @@ sub update_pct_config {
 		next if !$running;
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
+	    } elsif ($opt eq 'protection') {
+		delete $conf->{$opt};
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
 		delete $conf->{$opt};
 		push @nohotplug, $opt;
@@ -1173,6 +1181,8 @@ sub update_pct_config {
 	    } else {
 		update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    }
+	} elsif ($opt eq 'protection') {
+	    $conf->{$opt} = $value ? 1 : 0;
         } elsif ($opt =~ m/^mp(\d+)$/) {
 	    $conf->{$opt} = $value;
 	    push @$new_disks, $opt;
