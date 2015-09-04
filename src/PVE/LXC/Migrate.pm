@@ -116,6 +116,8 @@ sub phase1 {
     # move config
     die "Failed to move config to node '$self->{node}' - rename failed: $!\n"
 	if !rename($conffile, $newconffile);
+
+    $self->{conf_migrated} = 1;
 }
 
 sub phase1_cleanup {
@@ -152,12 +154,17 @@ sub final_cleanup {
 
     $self->log('info', "start final cleanup");
 
-    my $conf = $self->{vmconf};
-    delete $conf->{lock};
+    if (!$self->{conf_migrated}) {
+	my $conf = $self->{vmconf};
+	delete $conf->{lock};
 
-    eval { PVE::LXC::write_config($vmid, $conf); };
-    if (my $err = $@) {
-	$self->log('err', $err);
+	eval { PVE::LXC::write_config($vmid, $conf); };
+	if (my $err = $@) {
+	    $self->log('err', $err);
+	}
+    } else {
+	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
+	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");	
     }
 }
 
