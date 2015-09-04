@@ -28,6 +28,32 @@ my $upid_exit = sub {
 };
 
 __PACKAGE__->register_method ({
+    name => 'unlock',
+    path => 'unlock',
+    method => 'PUT',
+    description => "Unlock the VM.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => { type => 'null'},
+    code => sub {
+	my ($param) = @_;
+
+	my $vmid = $param->{vmid};
+
+	PVE::LXC::lock_container($vmid, 5, sub {
+	    my $conf = PVE::LXC::load_config($vmid);
+	    delete $conf->{lock};
+	    PVE::LXC::write_config($vmid, $conf);
+	});
+
+	return undef;
+    }});
+
+__PACKAGE__->register_method ({
     name => 'console',
     path => 'console',
     method => 'GET',
@@ -135,6 +161,7 @@ our $cmddef = {
     
     console => [ __PACKAGE__, 'console', ['vmid']],
     enter => [ __PACKAGE__, 'enter', ['vmid']],
+    unlock => [ __PACKAGE__, 'unlock', ['vmid']],
     exec => [ __PACKAGE__, 'exec', ['vmid', 'extra-args']],
     
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
