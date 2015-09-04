@@ -15,6 +15,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach);
 use PVE::Network;
 use PVE::AccessControl;
+use PVE::ProcFSTools;
 
 use Data::Dumper;
 
@@ -1951,7 +1952,8 @@ sub umount_all {
 	my $mount_path = "$rootdir/$mount";
 	$mount_path =~ s!/+!/!g;
 
-	# fixme: test if mounted?
+	return if !PVE::ProcFSTools::is_mounted($mount_path);
+
 	eval {
 	    PVE::Tools::run_command(['umount', '-d', $mount_path]);
 	};
