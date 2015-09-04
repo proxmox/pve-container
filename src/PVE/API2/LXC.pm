@@ -180,7 +180,7 @@ __PACKAGE__->register_method({
     	additionalProperties => 0,
 	properties => PVE::LXC::json_config_properties({
 	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_next_vmid }),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::Cluster::complete_next_vmid }),
 	    ostemplate => {
 		description => "The OS template or backup file.",
 		type => 'string',

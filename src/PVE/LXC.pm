@@ -2136,18 +2136,6 @@ sub complete_migration_target {
     return $res;
 }
 
-sub complete_next_vmid {
-
-    my $vmlist = PVE::Cluster::get_vmlist() || {};
-    my $idlist = $vmlist->{ids} || {};
-
-    for (my $i = 100; $i < 10000; $i++) {
-	return [$i] if !defined($idlist->{$i});
-    }
-
-    return [];
-}
-
 my $complete_ctid_full = sub {
     my ($running) = @_;
 
