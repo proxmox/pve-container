@@ -28,6 +28,9 @@ all:
 pct.1.pod: pct
 	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_pod_manpage();" >$@
 
+pct.bash-completion:
+	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@
+
 pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
 	perl -I. ./gen-pct-conf-pod.pl >$@
 
@@ -62,7 +65,7 @@ test:
 .PHONY: clean
 clean: 	
 	make -C test clean
-	rm -rf *.1.pod *.1.gz
+	rm -rf *.1.pod *.1.gz *.bash-completion
 	find . -name '*~' -exec rm {} ';'
 
 .PHONY: distclean
