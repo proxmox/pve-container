@@ -5,4 +5,4 @@ use warnings;
 
 use PVE::CLI::pct;
 
-PVE::CLI::pct->run();
+PVE::CLI::pct->run_cli();

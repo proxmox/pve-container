@@ -2104,7 +2104,7 @@ sub complete_os_templates {
 
     my $cfg = PVE::Storage::config();
 
-     my $storeid;
+    my $storeid;
 
     if ($cvalue =~ m/^([^:]+):/) {
 	$storeid = $1;
