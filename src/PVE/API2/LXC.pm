@@ -45,110 +45,6 @@ __PACKAGE__->register_method ({
     path => '{vmid}/firewall',
 });
 
-my $destroy_disks = sub {
-    my ($storecfg, $vollist) = @_;
-
-    foreach my $volid (@$vollist) {
-	eval { PVE::Storage::vdisk_free($storecfg, $volid); };
-	warn $@ if $@;
-    }
-};
-
-sub mkfs {
-    my ($dev) = @_;
-
-    PVE::Tools::run_command(['mkfs.ext4', '-O', 'mmp', $dev]);
-}
-
-sub format_disk {
-    my ($storage_cfg, $volid) = @_;
-
-    if ($volid =~ m!^/dev/.+!) {
-	mkfs($volid);
-	return;
-    }
-
-    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-
-    die "cannot format volume '$volid' with no storage\n" if !$storage;
-
-    my $path = PVE::Storage::path($storage_cfg, $volid);
-
-    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	PVE::Storage::parse_volname($storage_cfg, $volid);
-
-    die "cannot format volume '$volid' (format == $format)\n"
-	if $format ne 'raw';
-
-    mkfs($path);
-}
- 
-sub create_disks {
-    my ($storecfg, $vmid, $settings, $conf) = @_;
-
-    my $vollist = [];
-
-    eval {
-	PVE::LXC::foreach_mountpoint($settings, sub {
-	    my ($ms, $mountpoint) = @_;
-
-	    my $volid = $mountpoint->{volume};
-	    my $mp = $mountpoint->{mp};
-
-	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-
-	    return if !$storage;
-
-	    if ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/) {
-		my ($storeid, $size) = ($1, $2);
-
-		$size = int($size*1024) * 1024;
-
-		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
-		# fixme: use better naming ct-$vmid-disk-X.raw?
-
-		if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-		    if ($size > 0) {
-			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
-							   undef, $size);
-			format_disk($storecfg, $volid);
-		    } else {
-			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
-							   undef, 0);
-		    }
-		} elsif ($scfg->{type} eq 'zfspool') {
-
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
-					       undef, $size);
-		} elsif ($scfg->{type} eq 'drbd') {
-
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
-		    format_disk($storecfg, $volid);
-
-		} elsif ($scfg->{type} eq 'rbd') {
-
-		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
-		    format_disk($storecfg, $volid);
-		} else {
-		    die "unable to create containers on storage type '$scfg->{type}'\n";
-		}
-		push @$vollist, $volid;
-		$conf->{$ms} = PVE::LXC::print_ct_mountpoint({volume => $volid, size => $size, mp => $mp });
-	    } else {
-		# use specified/existing volid
-	    }
-	});
-    };
-    # free allocated images on error
-    if (my $err = $@) {
-        syslog('err', "VM $vmid creating disks failed");
-	&$destroy_disks($storecfg, $vollist);
-        die $err;
-    }
-    return $vollist;
-}
-
 __PACKAGE__->register_method({
     name => 'vmlist',
     path => '',
@@ -371,7 +267,7 @@ __PACKAGE__->register_method({
 		    }
 		}
 
-		$vollist = create_disks($storage_cfg, $vmid, $param, $conf);
+		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $param, $conf);
 
 		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);
 		# set some defaults
@@ -381,7 +277,7 @@ __PACKAGE__->register_method({
 		PVE::LXC::create_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
-		&$destroy_disks($storage_cfg, $vollist);
+		PVE::LXC::destroy_disks($storage_cfg, $vollist);
 		PVE::LXC::destroy_config($vmid);
 		die $err;
 	    }
