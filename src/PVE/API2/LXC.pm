@@ -56,14 +56,14 @@ my $destroy_disks = sub {
 
 sub mkfs {
     my ($dev) = @_;
-    my $cmd = ['mkfs.ext4', '-O', 'mmp', $dev];
-    PVE::Tools::run_command($cmd);
+
+    PVE::Tools::run_command(['mkfs.ext4', '-O', 'mmp', $dev]);
 }
 
 sub format_disk {
     my ($storage_cfg, $volid) = @_;
 
-    if ($volid =~ m@^/dev/.+@) {
+    if ($volid =~ m!^/dev/.+!) {
 	return mkfs($volid);
     }
 
@@ -71,7 +71,7 @@ sub format_disk {
 
     die "cannot format volume $volid with no storage" if !$storage;
 
-    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
+    my $path = PVE::Storage::path($storage_cfg, $volid);
 
     my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	PVE::Storage::parse_volname($storage_cfg, $volid);
