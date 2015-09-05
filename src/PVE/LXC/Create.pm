@@ -212,11 +212,7 @@ sub create_rootfs {
     };
     if (my $err = $@) {
 	warn $err;
-	if ($loopdevs) {
-	    # mount_all unmounts on error so we only need to unmount
-	    # if it actually returns valid $loopdevs
-	    PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 1, $loopdevs);
-	}
+	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 1, $loopdevs);
     } else {
 	PVE::LXC::umount_all($vmid, $storage_cfg, $conf, 0, $loopdevs);
     }
