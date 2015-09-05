@@ -64,21 +64,23 @@ sub format_disk {
     my ($storage_cfg, $volid) = @_;
 
     if ($volid =~ m!^/dev/.+!) {
-	return mkfs($volid);
+	mkfs($volid);
+	return;
     }
 
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-    die "cannot format volume $volid with no storage" if !$storage;
+    die "cannot format volume '$volid' with no storage\n" if !$storage;
 
     my $path = PVE::Storage::path($storage_cfg, $volid);
 
     my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	PVE::Storage::parse_volname($storage_cfg, $volid);
 
-    if ($format eq 'raw' || $format eq 'subvol') {
-	return mkfs($path);
-    }
+    die "cannot format volume '$volid' (format == $format)\n"
+	if $format ne 'raw';
+
+    mkfs($path);
 }
  
 my $create_disks = sub {
