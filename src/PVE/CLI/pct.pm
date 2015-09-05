@@ -80,7 +80,7 @@ __PACKAGE__->register_method ({
     parameters => {
     	additionalProperties => 0,
 	properties => {
-	    vmid => get_standard_option('pve-vmid'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    'extra-args' => get_standard_option('extra-args'),
 	},
     },
