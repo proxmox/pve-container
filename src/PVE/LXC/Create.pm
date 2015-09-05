@@ -207,7 +207,7 @@ sub create_rootfs {
 
     my $loopdevs;
     eval {
-	(my $rootdir, $loopdevs) = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
+	my ($rootdir, $loopdevs) = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
         restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore);
     };
     if (my $err = $@) {

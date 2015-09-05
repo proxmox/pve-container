@@ -1982,8 +1982,7 @@ sub mount_all {
 	umount_all($vmid, $storage_cfg, $conf, 1);
     }
 
-    return ($rootdir, $loopdevs) if wantarray;
-    return $rootdir;
+    return wantarray ? ($rootdir, $loopdevs) : $rootdir;
 }
 
 
