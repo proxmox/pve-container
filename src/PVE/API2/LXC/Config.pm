@@ -178,7 +178,7 @@ __PACKAGE__->register_method({
 	properties => PVE::LXC::json_config_properties(
 	    {
 		node => get_standard_option('pve-node'),
-		vmid => get_standard_option('pve-vmid'),
+		vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 		disk => {
 		    type => 'string',
 		    description => "The disk you want to resize.",
