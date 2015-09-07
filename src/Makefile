@@ -19,20 +19,25 @@ all:
 
 %.1.gz: %.1.pod
 	rm -f $@
-	cat $<|pod2man -n $* -s 1 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@
+	cat $<|pod2man -n $* -s 1 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@.tmp
+	mv $@.tmp $@
 
 %.5.gz: %.5.pod
 	rm -f $@
-	cat $<|pod2man -n $* -s 5 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@
+	cat $<|pod2man -n $* -s 5 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@.tmp
+	mv $@.tmp $@
 
 pct.1.pod: pct
-	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_pod_manpage();" >$@
+	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_pod_manpage();" >$@.tmp
+	mv $@.tmp $@
 
 pct.bash-completion:
-	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@
+	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@.tmp
+	mv $@.tmp $@
 
 pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
-	perl -I. ./gen-pct-conf-pod.pl >$@
+	perl -I. ./gen-pct-conf-pod.pl >$@.tmp
+	mv $@.tmp $@
 
 .PHONY: install
 install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
@@ -65,7 +70,7 @@ test:
 .PHONY: clean
 clean: 	
 	make -C test clean
-	rm -rf *.1.pod *.1.gz *.bash-completion
+	rm -rf *.1.pod *.1.gz *.tmp *.bash-completion
 	find . -name '*~' -exec rm {} ';'
 
 .PHONY: distclean
