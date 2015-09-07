@@ -700,7 +700,7 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	    target => get_standard_option('pve-node', {
 		description => "Target node.",
-		completion => \&PVE::LXC::complete_migration_target,
+		completion => \&PVE::Cluster::complete_migration_target,
 	    }),
 	    online => {
 		type => 'boolean',

@@ -2245,19 +2245,6 @@ sub complete_os_templates {
     return $res;
 }
 
-sub complete_migration_target {
-
-    my $res = [];
-
-    my $nodelist = PVE::Cluster::get_nodelist();
-    foreach my $node (@$nodelist) {
-	next if $node eq $nodename;
-	push @$res, $node;
-    }
-
-    return $res;
-}
-
 my $complete_ctid_full = sub {
     my ($running) = @_;
 
