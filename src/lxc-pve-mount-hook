@@ -7,6 +7,7 @@ exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use POSIX;
 use File::Path;
+use Fcntl ':mode';
 
 use PVE::SafeSyslog;
 use PVE::Tools;
@@ -88,8 +89,6 @@ __PACKAGE__->register_method ({
 	$raw = -f $fn ? PVE::Tools::file_get_contents($fn) : '';
 	my $storage_cfg = PVE::Storage::Plugin->parse_config($fn, $raw);
 
-	my $bdevs = PVE::LXC::blockdevices_list();
-
 	my $setup_mountpoint = sub {
 	    my ($ms, $mountpoint) = @_;
 
@@ -101,18 +100,18 @@ __PACKAGE__->register_method ({
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
-	    return if !$volid || $volid =~ m|^/dev/.+|;
+	    return if !$volid || $volid !~ m|^/dev/.+|;
 
 	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg);
 
-	    if (-l $path) {
-		$path = readlink($path);
-		$path =~ s/\.\.\/\.\.\//\/dev\//;
-	    }
-
-	    if ($bdevs->{$path}) {
-		PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b',  $bdevs->{$path}->{major}, $bdevs->{$path}->{minor}]);
-		PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b $bdevs->{$path}->{major}:$bdevs->{$path}->{minor} rwm");
+	    my (undef, undef, $mode, undef, undef, undef, $rdev) = stat($path);
+	    if ($mode && S_ISBLK($mode) && $rdev) {
+		my $major = int($rdev / 0x100);
+		my $minor = $rdev % 0x100;
+		if ($major != 7) { # must not be a loop device
+		    PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b', $major, $minor]);
+		    PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b ${major}:${minor} rwm");
+		}
 	    }
 	};
 
