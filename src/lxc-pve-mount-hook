@@ -89,13 +89,12 @@ __PACKAGE__->register_method ({
 	my $storage_cfg = PVE::Storage::Plugin->parse_config($fn, $raw);
 
 	my $bdevs = PVE::LXC::blockdevices_list();
-	my $loopdevs =  PVE::LXC::loopdevices_list();
 
 	my $setup_mountpoint = sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    return if $ms eq 'rootfs';
-	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
+	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
 	};
 
 	my $setup_cgroup_device = sub {
@@ -104,7 +103,7 @@ __PACKAGE__->register_method ({
 	    my $volid = $mountpoint->{volume};
 	    return if !$volid || $volid =~ m|^/dev/.+|;
 
-	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg, $loopdevs);
+	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg);
 
 	    if (-l $path) {
 		$path = readlink($path);

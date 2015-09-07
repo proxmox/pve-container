@@ -130,10 +130,8 @@ sub prepare {
 	&$check_mountpoint_empty($mountpoint);
 
 	my $volid_list = [$diskinfo->{volid}];
-	$task->{cleanup}->{detach_loops} = $volid_list;
-	my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list);
 	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs);
+	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg});
 	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
 	$task->{snapdir} = $diskinfo->{dir};
     } elsif ($mode eq 'suspend') {
@@ -177,13 +175,10 @@ sub snapshot {
     # my $volid_list = PVE::LXC::get_vm_volumes($snapconf);
     my $volid_list = [$diskinfo->{volid}];
 
-    $task->{cleanup}->{detach_loops} = $volid_list;
-    my $loopdevs = PVE::LXC::attach_loops($self->{storecfg}, $volid_list, 'vzdump');
-
     my $mountpoint = $default_mount_point;
 	
     my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-    PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, $loopdevs, 'vzdump');
+    PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, 'vzdump');
  
     $diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
     $task->{snapdir} = $diskinfo->{dir};
@@ -292,18 +287,6 @@ sub cleanup {
     if (my $mountpoint = $diskinfo->{mountpoint}) {
 	PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
     };
-
-    if (my $volid_list = $task->{cleanup}->{detach_vzdump_snapshot_loops}) {
-	PVE::LXC::detach_loops($self->{storecfg}, $volid_list, 'vzdump');
-    }
-
-    if (my $volid_list = $task->{cleanup}->{detach_loops}) {
-	if ($task->{cleanup}->{remove_snapshot}) {
-	    PVE::LXC::detach_loops($self->{storecfg}, $volid_list, 'vzdump');
-	} else {
-	    PVE::LXC::detach_loops($self->{storecfg}, $volid_list);
-	}
-    }
 
     if ($task->{cleanup}->{remove_snapshot}) {
 	$self->loginfo("remove vzdump snapshot");

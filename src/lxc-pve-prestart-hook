@@ -85,7 +85,6 @@ __PACKAGE__->register_method ({
 	my $loopdevlist = PVE::LXC::get_vm_volumes($conf, 'rootfs');
 
 	PVE::Storage::activate_volumes($storage_cfg, $vollist);
-	PVE::LXC::attach_loops($storage_cfg, $loopdevlist);
 	return undef;
     }});
 

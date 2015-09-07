@@ -1286,9 +1286,6 @@ sub vm_stop_cleanup {
 	if (!$keepActive) {
 
             my $vollist = get_vm_volumes($conf);
-            my $loopdevlist = get_vm_volumes($conf, 'rootfs');
-
-	    detach_loops($storage_cfg, $loopdevlist);
 	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
 	}
     };
@@ -1821,21 +1818,6 @@ sub foreach_mountpoint_reverse {
     foreach_mountpoint_full($conf, 1, $func);
 }
 
-sub loopdevices_list {
-
-    my $loopdev = {};
-    my $parser = sub {
-	my $line = shift;
-	if ($line =~ m/^(\/dev\/loop\d+)\s+\d\s+\d\s+\d\s+\d\s(\S+)$/) {
-	    $loopdev->{$1} = $2;
-	}
-    };
-
-    PVE::Tools::run_command(['losetup'], outfunc => $parser);
-
-    return $loopdev;
-}
-
 sub blockdevices_list {
 
     my $bdevs = {};
@@ -1847,14 +1829,6 @@ sub blockdevices_list {
         $bdevs->{$bdev}->{minor} = $minor;
     });
     return $bdevs;
-}
-
-sub find_loopdev {
-    my ($loopdevs, $path) = @_;
-
-    foreach my $dev (keys %$loopdevs){
-	return $dev if $loopdevs->{$dev} eq $path;
-    }
 }
 
 sub check_ct_modify_config_perm {
@@ -1881,62 +1855,8 @@ sub check_ct_modify_config_perm {
     return 1;
 }
 
-sub attach_loops {
-    my ($storage_cfg, $vollist, $snapname) = @_;
-
-    my $loopdevs = {};
-
-    foreach my $volid (@$vollist) {
-
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-
-	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	    PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	if ($format eq 'raw' && $scfg->{path}) {
-	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
-	    my $loopdev;
-
-	    my $parser = sub {
-		my $line = shift;
-		$loopdev = $line if $line =~m|^/dev/loop\d+$|;
-		$loopdevs->{$loopdev} = $path;
-	    };
-
-	    PVE::Tools::run_command(['losetup', '--find', '--show', $path], outfunc => $parser);
-	}
-    }
-
-    return $loopdevs;
-}
-
-sub detach_loops {
-    my ($storage_cfg, $vollist, $snapname) = @_;
-
-    my $loopdevs = loopdevices_list();
-
-    foreach my $volid (@$vollist) {
-
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
-
-	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-	    PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	if ($format eq 'raw' && $scfg->{path}) {
-	    my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
-            foreach my $dev (keys %$loopdevs){
-		PVE::Tools::run_command(['losetup', '-d', $dev]) if $loopdevs->{$dev} eq $path;
-	    }
-	}
-    }
-}
-
 sub umount_all {
-    my ($vmid, $storage_cfg, $conf, $noerr, $loopdevs) = @_;
-
-    $loopdevs ||= loopdevices_list();
+    my ($vmid, $storage_cfg, $conf, $noerr) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     my $volid_list = get_vm_volumes($conf);
@@ -1965,8 +1885,6 @@ sub umount_all {
 	    }
 	}
     });
-
-    PVE::LXC::detach_loops($storage_cfg, $volid_list);
 }
 
 sub mount_all {
@@ -1977,10 +1895,7 @@ sub mount_all {
     my $volid_list = get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
-    my $loopdevs;
     eval {
-	$loopdevs = attach_loops($storage_cfg, $volid_list);
-
 	foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 
@@ -1996,7 +1911,7 @@ sub mount_all {
 	    die "unable to mount base volume - internal error" if $isBase;
 
 	    File::Path::make_path "$rootdir/$mount" if $mkdirs;
-	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $loopdevs);
+	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
         });
     };
     if (my $err = $@) {
@@ -2004,19 +1919,19 @@ sub mount_all {
 	umount_all($vmid, $storage_cfg, $conf, 1);
     }
 
-    return wantarray ? ($rootdir, $loopdevs) : $rootdir;
+    return $rootdir;
 }
 
 
 sub mountpoint_mount_path {
-    my ($mountpoint, $storage_cfg, $loopdevs, $snapname) = @_;
+    my ($mountpoint, $storage_cfg, $snapname) = @_;
 
-    return mountpoint_mount($mountpoint, undef, $storage_cfg, $loopdevs, $snapname);
+    return mountpoint_mount($mountpoint, undef, $storage_cfg, $snapname);
 }
 
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
-    my ($mountpoint, $rootdir, $storage_cfg, $loopdevs, $snapname) = @_;
+    my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
@@ -2040,42 +1955,37 @@ sub mountpoint_mount {
 
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
 	my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
+	return $path if !$mount_path;
 
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
 	if ($format eq 'subvol') {
-	    
-	    if ($mount_path) {
-		if ($snapname) {
-		    if ($scfg->{type} eq 'zfspool') {
-			my $path_arg = $path;
-			$path_arg =~ s!^/+!!;
-			PVE::Tools::run_command(['mount', '-o', 'ro', '-t', 'zfs', $path_arg, $mount_path]);
-		    } else {
-			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
-		    }		
+	    if ($snapname) {
+		if ($scfg->{type} eq 'zfspool') {
+		    my $path_arg = $path;
+		    $path_arg =~ s!^/+!!;
+		    PVE::Tools::run_command(['mount', '-o', 'ro', '-t', 'zfs', $path_arg, $mount_path]);
 		} else {
-		    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
-		}
+		    die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
+		}		
+	    } else {
+		PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
 	    }
 	    return $path;
-	    
 	} elsif ($format eq 'raw') {
-
+	    my @extra_opts;
 	    if ($scfg->{path}) {
-		$path = find_loopdev($loopdevs, $path) if $loopdevs;
+		push @extra_opts, '-o', 'loop';
 	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'rbd') {
 		# do nothing
 	    } else {
 		die "unsupported storage type '$scfg->{type}'\n";
 	    }
-	    if ($mount_path) {
-		if ($isBase || defined($snapname)) {
-		    PVE::Tools::run_command(['mount', '-o', 'ro', $path, $mount_path]);
-		} else {
-		    PVE::Tools::run_command(['mount', $path, $mount_path]);
-		}
+	    if ($isBase || defined($snapname)) {
+		PVE::Tools::run_command(['mount', '-o', "ro", @extra_opts, $path, $mount_path]);
+	    } else {
+		PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
 	    }
 	    return $path;
 	} else {
