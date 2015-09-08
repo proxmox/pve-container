@@ -1,3 +1,29 @@
+pve-container (0.9-15) unstable; urgency=medium
+
+  * add bash completion support
+
+  * support resizing of owned container disks
+
+  * get rid of most of the loop-devices code
+
+  * fix unlock handling after migration
+
+  * add command to unlock a Container if it is locked
+
+  * add support to add mountpoints with pct set
+
+  * added pct exec command
+
+  * add missing archlinux ostype confdesc enum entry
+
+  * destroy owned mountpoints on pct destroy
+
+  * use multiple mount protection (mmp)
+
+  * many bug fixes
+      
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 08 Sep 2015 07:28:41 +0200
+
 pve-container (0.9-14) unstable; urgency=medium
 
   * vm_create : add support for mountpoints
