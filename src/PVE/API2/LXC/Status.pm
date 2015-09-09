@@ -316,7 +316,7 @@ __PACKAGE__->register_method({
 		run_command($cmd);
 	    }
 
-	    die $err if !$err;
+	    die $err if $err;
 
 	    return;
 	};
