@@ -2,6 +2,8 @@ pve-container (0.9-18) unstable; urgency=medium
 
   * fix bug #710: use correct size for OpenVZ restore
 
+  * format_disk: call activate_volume()
+
  -- Proxmox Support Team <support@proxmox.com>  Thu, 10 Sep 2015 10:13:29 +0200
 
 pve-container (0.9-17) unstable; urgency=medium
