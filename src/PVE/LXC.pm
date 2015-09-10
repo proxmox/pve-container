@@ -2063,6 +2063,8 @@ sub format_disk {
 
     die "cannot format volume '$volid' with no storage\n" if !$storage;
 
+    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
+
     my $path = PVE::Storage::path($storage_cfg, $volid);
 
     my ($vtype, undef, undef, undef, undef, $isBase, $format) =
