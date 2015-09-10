@@ -1888,6 +1888,7 @@ sub mount_all {
     my ($vmid, $storage_cfg, $conf, $mkdirs) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
+    File::Path::make_path($rootdir);
 
     my $volid_list = get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
