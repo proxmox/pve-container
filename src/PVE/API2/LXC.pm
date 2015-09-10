@@ -464,7 +464,7 @@ __PACKAGE__->register_method({
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	die  "can't remove CT $vmid - protection mode enabled\n"
-	    if ($conf->{protection} == 1);
+	    if $conf->{protection};
 
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
