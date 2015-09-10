@@ -300,7 +300,7 @@ sub convert_ovz {
 
    my $ovz_conf = &$parse_ovz_config($raw);
 
-   my $disksize = $ovz_conf->{'diskspace'}->{'bar'} / 1024 / 1024;
+   my $disksize = $ovz_conf->{'diskspace'}->{'bar'} * 1024;
    
    my ($mem, $swap) = ovz_config_extract_mem_swap($ovz_conf, 0);
 

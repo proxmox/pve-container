@@ -755,6 +755,23 @@ my $parse_size = sub {
     return int($size);
 };
 
+my $format_size = sub {
+    my ($size) = @_;
+
+    $size = int($size);
+
+    my $kb = int($size/1024);
+    return $size if $kb*1024 != $size;
+
+    my $mb = int($kb/1024);
+    return "${kb}K" if $mb*1024 != $kb;
+
+    my $gb = int($mb/1024);
+    return "${mb}M" if $gb*1024 != $mb;
+
+    return "${gb}G";
+};
+
 sub parse_ct_mountpoint {
     my ($data) = @_;
 
@@ -796,9 +813,14 @@ sub print_ct_mountpoint {
 
     die "missing volume\n" if !$info->{volume};
 
-    foreach my $o ('size', 'backup') {
+    foreach my $o (qw(backup)) {
 	$opts .= ",$o=$info->{$o}" if defined($info->{$o});
     }
+
+    if ($info->{size}) {
+	$opts .= ",size=" . &$format_size($info->{size});
+    }
+
     $opts .= ",mp=$info->{mp}" if !$nomp;
 
     return "$info->{volume}$opts";
@@ -2078,17 +2100,17 @@ sub create_disks {
 	    return if !$storage;
 
 	    if ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/) {
-		my ($storeid, $size) = ($1, $2);
+		my ($storeid, $size_gb) = ($1, $2);
 
-		$size = int($size*1024) * 1024;
+		my $size_kb = int(${size_gb}*1024) * 1024;
 
 		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
 		# fixme: use better naming ct-$vmid-disk-X.raw?
 
 		if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-		    if ($size > 0) {
+		    if ($size_kb > 0) {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
-							   undef, $size);
+							   undef, $size_kb);
 			format_disk($storecfg, $volid);
 		    } else {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
@@ -2097,22 +2119,22 @@ sub create_disks {
 		} elsif ($scfg->{type} eq 'zfspool') {
 
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
-					       undef, $size);
+					               undef, $size_kb);
 		} elsif ($scfg->{type} eq 'drbd') {
 
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
+		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 		    format_disk($storecfg, $volid);
 
 		} elsif ($scfg->{type} eq 'rbd') {
 
 		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size);
+		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 		    format_disk($storecfg, $volid);
 		} else {
 		    die "unable to create containers on storage type '$scfg->{type}'\n";
 		}
 		push @$vollist, $volid;
-                my $new_mountpoint = { volume => $volid, size => $size, mp => $mp };
+                my $new_mountpoint = { volume => $volid, size => $size_kb*1024, mp => $mp };
 		$conf->{$ms} = print_ct_mountpoint($new_mountpoint, $ms eq 'rootfs');
 	    } else {
 		# use specified/existing volid
