@@ -104,7 +104,6 @@ sub prepare {
     # fixme: when do we deactivate ??
     PVE::Storage::activate_volumes($self->{storecfg}, [$diskinfo->{volid}]);
 
-    $self->loginfo("TEST: prepare");
     if ($mode eq 'snapshot') {
 
 	if (!PVE::LXC::has_feature('snapshot', $conf, $self->{storecfg})) {
