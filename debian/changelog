@@ -2,6 +2,8 @@ pve-container (0.9-19) unstable; urgency=medium
 
   * allow older debian versions (>= 4 (etch))
 
+  * fix subvolume mounts (do not use loop device)
+
  -- Proxmox Support Team <support@proxmox.com>  Fri, 11 Sep 2015 09:19:03 +0200
 
 pve-container (0.9-18) unstable; urgency=medium
