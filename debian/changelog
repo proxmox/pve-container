@@ -1,3 +1,11 @@
+pve-container (0.9-20) unstable; urgency=medium
+
+  * fix bug #712: fix stop mode backups when container is running
+
+  * add support for LVM
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 14 Sep 2015 09:29:57 +0200
+
 pve-container (0.9-19) unstable; urgency=medium
 
   * allow older debian versions (>= 4 (etch))
