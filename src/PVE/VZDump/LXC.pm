@@ -127,12 +127,6 @@ sub prepare {
 	my $mountpoint = $default_mount_point;
 	mkpath $mountpoint;
 	&$check_mountpoint_empty($mountpoint);
-
-	my $volid_list = [$diskinfo->{volid}];
-	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg});
-	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
-	$task->{snapdir} = $diskinfo->{dir};
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	$diskinfo->{dir} = "/proc/$pid/root";
@@ -235,6 +229,20 @@ sub assemble {
 
 sub archive {
     my ($self, $task, $vmid, $filename, $comp) = @_;
+
+    if ($task->{mode} eq 'stop') {
+	my $mountpoint = $default_mount_point;
+	my $diskinfo = $task->{diskinfo};
+
+	my $volid_list = [$diskinfo->{volid}];
+	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
+
+	$self->loginfo("mounting container root at '$mountpoint'");
+	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg});
+
+	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+	$task->{snapdir} = $diskinfo->{dir};
+    }
 
     my $findexcl = $self->{vzdump}->{findexcl};
     push @$findexcl, "'('", '-path', "./etc/vzdump", "-prune", "')'", '-o';
