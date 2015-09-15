@@ -263,16 +263,11 @@ sub archive {
 	$task->{snapdir} = $rootdir;
     }
 
-    my $findexcl = $self->{vzdump}->{findexcl};
-    push @$findexcl, "'('", '-path', "./etc/vzdump", "-prune", "')'", '-o';
-
-    my $findargs = join (' ', @$findexcl) . ' -print0';
     my $opts = $self->{vzdump}->{opts};
-
     my $snapdir = $task->{snapdir};
     my $tmpdir = $task->{tmpdir};
 
-    my $taropts = "--totals --sparse --numeric-owner --no-recursion --xattrs --one-file-system";
+    my $taropts = "--totals --sparse --numeric-owner --xattrs --one-file-system";
 
     # note: --remove-files does not work because we do not 
     # backup all files (filters). tar complains:
@@ -282,25 +277,31 @@ sub archive {
     #       $taropts .= " --remove-files"; # try to save space
     #}
 
-    my $cmd = "(";
-
-    $cmd .= "cd $snapdir;find . $findargs|sed 's/\\\\/\\\\\\\\/g'|";
-    $cmd .= "tar cpf - $taropts ";
+    my $cmd = "tar cpf - $taropts ";
     # The directory parameter can give a alternative directory as source.
     # the second parameter gives the structure in the tar.
     $cmd .= "--directory=$tmpdir ./etc/vzdump/pct.conf ";
-    $cmd .= "--directory=$snapdir --null -T -";
+    $cmd .= "--directory=$snapdir";
+
+    foreach my $exclude (@{$self->{vzdump}->{findexcl}}) {
+	$cmd .= " --exclude=.$exclude";
+    }
+
+    # add every enabled mountpoint (since we use --one-file-system)
+    my $disks = $task->{disks};
+    # mp already starts with a / so we only need to add the dot
+    foreach my $disk (@$disks) {
+	$cmd .= " .$disk->{mp}";
+    }
 
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
     $cmd .= "|cstream -t $bwl" if $opts->{bwlimit};
     $cmd .= "|$comp" if $comp;
 
-    $cmd .= ")";
-
     if ($opts->{stdout}) {
 	$self->cmd ($cmd, output => ">&" . fileno($opts->{stdout}));
     } else {
-	$self->cmd ("$cmd >$filename");
+	$self->cmd ("$cmd >" . PVE::Tools::shellquote($filename));
     }
 }
 
