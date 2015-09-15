@@ -115,18 +115,18 @@ sub prepare {
 	    PVE::LXC::snapshot_delete($vmid, 'vzdump', 0);
 	}
 
-	my $mountpoint = $default_mount_point;
-	mkpath $mountpoint;
-	&$check_mountpoint_empty($mountpoint);
+	my $rootdir = $default_mount_point;
+	mkpath $rootdir;
+	&$check_mountpoint_empty($rootdir);
 
 	# set snapshot_count (freezes CT it snapshot_count > 1)
 	my $volid_list = PVE::LXC::get_vm_volumes($conf);
 	$task->{snapshot_count} = scalar(@$volid_list);
 	
     } elsif ($mode eq 'stop') {
-	my $mountpoint = $default_mount_point;
-	mkpath $mountpoint;
-	&$check_mountpoint_empty($mountpoint);
+	my $rootdir = $default_mount_point;
+	mkpath $rootdir;
+	&$check_mountpoint_empty($rootdir);
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	$diskinfo->{dir} = "/proc/$pid/root";
@@ -168,12 +168,12 @@ sub snapshot {
     # my $volid_list = PVE::LXC::get_vm_volumes($snapconf);
     my $volid_list = [$diskinfo->{volid}];
 
-    my $mountpoint = $default_mount_point;
+    my $rootdir = $default_mount_point;
 	
     my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-    PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg}, 'vzdump');
+    PVE::LXC::mountpoint_mount($mp, $rootdir, $self->{storecfg}, 'vzdump');
  
-    $diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+    $diskinfo->{dir} = $diskinfo->{mountpoint} = $rootdir;
     $task->{snapdir} = $diskinfo->{dir};
 }
 
@@ -231,16 +231,16 @@ sub archive {
     my ($self, $task, $vmid, $filename, $comp) = @_;
 
     if ($task->{mode} eq 'stop') {
-	my $mountpoint = $default_mount_point;
+	my $rootdir = $default_mount_point;
 	my $diskinfo = $task->{diskinfo};
 
 	my $volid_list = [$diskinfo->{volid}];
 	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
 
-	$self->loginfo("mounting container root at '$mountpoint'");
-	PVE::LXC::mountpoint_mount($mp, $mountpoint, $self->{storecfg});
+	$self->loginfo("mounting container root at '$rootdir'");
+	PVE::LXC::mountpoint_mount($mp, $rootdir, $self->{storecfg});
 
-	$diskinfo->{dir} = $diskinfo->{mountpoint} = $mountpoint;
+	$diskinfo->{dir} = $diskinfo->{mountpoint} = $rootdir;
 	$task->{snapdir} = $diskinfo->{dir};
     }
 
@@ -291,8 +291,8 @@ sub cleanup {
 
     my $diskinfo = $task->{diskinfo};
 
-    if (my $mountpoint = $diskinfo->{mountpoint}) {
-	PVE::Tools::run_command(['umount', '-l', '-d', $mountpoint]);
+    if (my $rootdir = $diskinfo->{mountpoint}) {
+	PVE::Tools::run_command(['umount', '-l', '-d', $rootdir]);
     };
 
     if ($task->{cleanup}->{remove_snapshot}) {
