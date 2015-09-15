@@ -16,20 +16,25 @@ use base qw (PVE::VZDump::Plugin);
 my $default_mount_point = "/mnt/vzsnap0";
 
 my $rsync_vm = sub {
-    my ($self, $task, $from, $to, $text) = @_;
+    my ($self, $task, $to, $text) = @_;
 
+    my $disks = $task->{disks};
+    my $from = $disks->[0]->{dir} . '/';
     $self->loginfo ("starting $text sync $from to $to");
-
-    my $starttime = time();
 
     my $opts = $self->{vzdump}->{opts};
 
-    my $rsyncopts = "--stats -x -X --numeric-ids";
+    my $base = ['rsync', '--stats', '-x', '-X', '--numeric-ids',
+                '-aH', '--delete', '--no-whole-file', '--inplace'];
+    push @$base, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
+    push @$base, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
+    push @$base, map { "--exclude=$_" } @{$task->{exclude_dirs}};
 
-    $rsyncopts .= " --bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
+    # FIXME: to support --one-file-system we have to make all exclude paths
+    # relative to the current mountpoint
 
-    $self->cmd ("rsync $rsyncopts -aH --delete --no-whole-file --inplace '$from' '$to'");
-
+    my $starttime = time();
+    $self->cmd([@$base, $from, $to]);
     my $delay = time () - $starttime;
 
     $self->loginfo ("$text sync finished ($delay seconds)");
@@ -197,13 +202,13 @@ sub snapshot {
 sub copy_data_phase1 {
     my ($self, $task) = @_;
 
-    $self->$rsync_vm($task, $task->{disks}->[0]->{dir}.'/', $task->{snapdir}, "first");
+    $self->$rsync_vm($task, $task->{snapdir}, "first");
 }
 
 sub copy_data_phase2 {
     my ($self, $task) = @_;
 
-    $self->$rsync_vm($task, $task->{disks}->[0]->{dir}.'/', $task->{snapdir}, "final");
+    $self->$rsync_vm($task, $task->{snapdir}, "final");
 }
 
 sub stop_vm {
