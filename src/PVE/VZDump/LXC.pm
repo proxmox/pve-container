@@ -81,6 +81,7 @@ sub prepare {
     my ($self, $task, $vmid, $mode) = @_;
 
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
+    my $storage_cfg = $self->{storecfg};
 
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
@@ -102,11 +103,10 @@ sub prepare {
     die "missing root volid (no volid)\n" if !$diskinfo->{volid};
 
     # fixme: when do we deactivate ??
-    PVE::Storage::activate_volumes($self->{storecfg}, [$diskinfo->{volid}]);
+    PVE::Storage::activate_volumes($storage_cfg, [$diskinfo->{volid}]);
 
     if ($mode eq 'snapshot') {
-
-	if (!PVE::LXC::has_feature('snapshot', $conf, $self->{storecfg})) {
+	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg)) {
 	    die "mode failure - some volumes does not support snapshots\n";
 	}
 
@@ -122,7 +122,6 @@ sub prepare {
 	# set snapshot_count (freezes CT it snapshot_count > 1)
 	my $volid_list = PVE::LXC::get_vm_volumes($conf);
 	$task->{snapshot_count} = scalar(@$volid_list);
-	
     } elsif ($mode eq 'stop') {
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
