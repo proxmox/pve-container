@@ -77,33 +77,51 @@ my $check_mountpoint_empty = sub {
     });
 };
 
+# The container might have *different* symlinks than the host. realpath/abs_path
+# use the actual filesystem to resolve links.
+sub sanitize_mountpoint {
+    my ($mp) = @_;
+    $mp = '/' . $mp; # we always start with a slash
+    $mp =~ s@/{2,}@/@g; # collapse sequences of slashes
+    $mp =~ s@/\./@@g; # collapse /./
+    $mp =~ s@/\.(/)?$@$1@; # collapse a trailing /. or /./
+    $mp =~ s@(.*)/[^/]+/\.\./@$1/@g; # collapse /../ without regard for symlinks
+    $mp =~ s@/\.\.(/)?$@$1@; # collapse trailing /.. or /../ disregarding symlinks
+    return $mp;
+}
+
 sub prepare {
     my ($self, $task, $vmid, $mode) = @_;
 
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
     my $storage_cfg = $self->{storecfg};
 
-    PVE::LXC::foreach_mountpoint($conf, sub {
-	my ($ms, $mountpoint) = @_;
-
-	return if $ms eq 'rootfs';
-	# TODO: implement support for mountpoints
-	die "unable to backup mountpoint '$ms' - feature not implemented\n";
-    });
-
     my $running = PVE::LXC::check_running($vmid);
 
-    my $diskinfo = $task->{diskinfo} = {};
+    my $disks = $task->{disks} = [];
+    my $exclude_dirs = $task->{exclude_dirs} = [];
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
-    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
-    $diskinfo->{volid} = $rootinfo->{volume};
-
-    die "missing root volid (no volid)\n" if !$diskinfo->{volid};
-
     # fixme: when do we deactivate ??
-    PVE::Storage::activate_volumes($storage_cfg, [$diskinfo->{volid}]);
+    PVE::LXC::foreach_mountpoint($conf, sub {
+	my ($name, $data) = @_;
+	my $volid = $data->{volume};
+	my $mount = $data->{mp};
+
+	$mount = $data->{mp} = sanitize_mountpoint($mount);
+
+	return if !$volid || !$mount || $volid =~ m|^/|;
+
+	if ($name ne 'rootfs' && !$data->{backup}) {
+	    push @$exclude_dirs, $mount;
+	    return;
+	}
+
+	push @$disks, $data;
+    });
+    my $volid_list = [map { $_->{volume} } @$disks];
+    PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
     if ($mode eq 'snapshot') {
 	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg)) {
@@ -120,7 +138,6 @@ sub prepare {
 	&$check_mountpoint_empty($rootdir);
 
 	# set snapshot_count (freezes CT it snapshot_count > 1)
-	my $volid_list = PVE::LXC::get_vm_volumes($conf);
 	$task->{snapshot_count} = scalar(@$volid_list);
     } elsif ($mode eq 'stop') {
 	my $rootdir = $default_mount_point;
@@ -128,7 +145,9 @@ sub prepare {
 	&$check_mountpoint_empty($rootdir);
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
-	$diskinfo->{dir} = "/proc/$pid/root";
+	foreach my $disk (@$disks) {
+	    $disk->{dir} = "/proc/$pid/root$disk->{mp}";
+	}
 	$task->{snapdir} = $task->{tmpdir};
     } else {
 	die "unknown mode '$mode'\n"; # should not happen
@@ -150,8 +169,6 @@ sub unlock_vm {
 sub snapshot {
     my ($self, $task, $vmid) = @_;
 
-    my $diskinfo = $task->{diskinfo};
-
     $self->loginfo("create storage snapshot snapshot");
 
     # todo: freeze/unfreeze if we have more than one volid
@@ -163,29 +180,30 @@ sub snapshot {
     die "unable to read vzdump shanpshot config - internal error"
 	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
-    # my $snapconf = $conf->{snapshots}->{vzdump};
-    # my $volid_list = PVE::LXC::get_vm_volumes($snapconf);
-    my $volid_list = [$diskinfo->{volid}];
+    my $disks = $task->{disks};
+    my $volid_list = [map { $_->{volume} } @$disks];
 
     my $rootdir = $default_mount_point;
-	
-    my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-    PVE::LXC::mountpoint_mount($mp, $rootdir, $self->{storecfg}, 'vzdump');
- 
-    $diskinfo->{dir} = $diskinfo->{mountpoint} = $rootdir;
-    $task->{snapdir} = $diskinfo->{dir};
+    my $storage_cfg = $self->{storecfg};
+
+    foreach my $disk (@$disks) {
+	$disk->{dir} = "${rootdir}$disk->{mp}";
+	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump');
+    }
+
+    $task->{snapdir} = $rootdir;
 }
 
 sub copy_data_phase1 {
     my ($self, $task) = @_;
 
-    $self->$rsync_vm($task, "$task->{diskinfo}->{dir}/", $task->{snapdir}, "first");
+    $self->$rsync_vm($task, $task->{disks}->[0]->{dir}.'/', $task->{snapdir}, "first");
 }
 
 sub copy_data_phase2 {
     my ($self, $task) = @_;
 
-    $self->$rsync_vm ($task, "$task->{diskinfo}->{dir}/", $task->{snapdir}, "final");
+    $self->$rsync_vm($task, $task->{disks}->[0]->{dir}.'/', $task->{snapdir}, "final");
 }
 
 sub stop_vm {
@@ -231,16 +249,13 @@ sub archive {
 
     if ($task->{mode} eq 'stop') {
 	my $rootdir = $default_mount_point;
-	my $diskinfo = $task->{diskinfo};
-
-	my $volid_list = [$diskinfo->{volid}];
-	my $mp = { volume => $diskinfo->{volid}, mp => "/" };
-
-	$self->loginfo("mounting container root at '$rootdir'");
-	PVE::LXC::mountpoint_mount($mp, $rootdir, $self->{storecfg});
-
-	$diskinfo->{dir} = $diskinfo->{mountpoint} = $rootdir;
-	$task->{snapdir} = $diskinfo->{dir};
+	my $disks = $task->{disks};
+	my $storage_cfg = $self->{storecfg};
+	foreach my $disk (@$disks) {
+	    $disk->{dir} = "${rootdir}$disk->{mp}";
+	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg);
+	}
+	$task->{snapdir} = $rootdir;
     }
 
     my $findexcl = $self->{vzdump}->{findexcl};
@@ -249,7 +264,6 @@ sub archive {
     my $findargs = join (' ', @$findexcl) . ' -print0';
     my $opts = $self->{vzdump}->{opts};
 
-    my $srcdir = $task->{diskinfo}->{dir};
     my $snapdir = $task->{snapdir};
     my $tmpdir = $task->{tmpdir};
 
@@ -288,11 +302,13 @@ sub archive {
 sub cleanup {
     my ($self, $task, $vmid) = @_;
 
-    my $diskinfo = $task->{diskinfo};
+    my $conf = PVE::LXC::load_config($vmid);
 
-    if (my $rootdir = $diskinfo->{mountpoint}) {
-	PVE::Tools::run_command(['umount', '-l', '-d', $rootdir]);
-    };
+    my $rootdir = $default_mount_point;
+    my $disks = $task->{disks};
+    foreach my $disk (reverse @$disks) {
+	PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
+    }
 
     if ($task->{cleanup}->{remove_snapshot}) {
 	$self->loginfo("remove vzdump snapshot");
