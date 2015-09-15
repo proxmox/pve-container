@@ -267,42 +267,41 @@ sub archive {
     my $snapdir = $task->{snapdir};
     my $tmpdir = $task->{tmpdir};
 
-    my $taropts = "--totals --sparse --numeric-owner --xattrs --one-file-system";
+    my $tar = ['tar', 'cpf', '-',
+               '--totals', '--sparse', '--numeric-owner', '--xattrs',
+               '--one-file-system'];
 
     # note: --remove-files does not work because we do not 
     # backup all files (filters). tar complains:
     # Cannot rmdir: Directory not empty
     # we we disable this optimization for now
     #if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
-    #       $taropts .= " --remove-files"; # try to save space
+    #       push @$tar, "--remove-files"; # try to save space
     #}
 
-    my $cmd = "tar cpf - $taropts ";
     # The directory parameter can give a alternative directory as source.
     # the second parameter gives the structure in the tar.
-    $cmd .= "--directory=$tmpdir ./etc/vzdump/pct.conf ";
-    $cmd .= "--directory=$snapdir";
-
-    foreach my $exclude (@{$self->{vzdump}->{findexcl}}) {
-	$cmd .= " --exclude=.$exclude";
-    }
+    push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
+    push @$tar, "--directory=$snapdir";
+    push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
 
     # add every enabled mountpoint (since we use --one-file-system)
     my $disks = $task->{disks};
     # mp already starts with a / so we only need to add the dot
-    foreach my $disk (@$disks) {
-	$cmd .= " .$disk->{mp}";
-    }
+    push @$tar, map { '.' . $_->{mp} } @$disks;
+
+    my $cmd = [ $tar ];
 
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
-    $cmd .= "|cstream -t $bwl" if $opts->{bwlimit};
-    $cmd .= "|$comp" if $comp;
+    push @$cmd, [ 'cstream', '-t', $bwl ] if $opts->{bwlimit};
+    push @$cmd, [ $comp ] if $comp;
 
     if ($opts->{stdout}) {
-	$self->cmd ($cmd, output => ">&" . fileno($opts->{stdout}));
+	push @{$cmd->[-1]}, \(">&" . fileno($opts->{stdout}));
     } else {
-	$self->cmd ("$cmd >" . PVE::Tools::shellquote($filename));
+	push @{$cmd->[-1]}, \(">" . PVE::Tools::shellquote($filename));
     }
+    $self->cmd($cmd);
 }
 
 sub cleanup {
