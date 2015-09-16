@@ -252,9 +252,10 @@ sub assemble {
 sub archive {
     my ($self, $task, $vmid, $filename, $comp) = @_;
 
+    my $disks = $task->{disks};
+
     if ($task->{mode} eq 'stop') {
 	my $rootdir = $default_mount_point;
-	my $disks = $task->{disks};
 	my $storage_cfg = $self->{storecfg};
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
@@ -286,7 +287,6 @@ sub archive {
     push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
 
     # add every enabled mountpoint (since we use --one-file-system)
-    my $disks = $task->{disks};
     # mp already starts with a / so we only need to add the dot
     push @$tar, map { '.' . $_->{mp} } @$disks;
 
