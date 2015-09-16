@@ -1,3 +1,11 @@
+pve-container (0.9-21) unstable; urgency=medium
+
+  * vzdump: support mountpoints
+
+  * change tar/rsync_vm to use the new exclude pattern method
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 16 Sep 2015 11:38:24 +0200
+
 pve-container (0.9-20) unstable; urgency=medium
 
   * fix bug #712: fix stop mode backups when container is running
