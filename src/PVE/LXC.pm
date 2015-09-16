@@ -1096,7 +1096,7 @@ sub update_pct_config {
 
     my @nohotplug;
 
-    my $new_disks = [];
+    my $new_disks = 0;
 
     my $rootdir;
     if ($running) {
@@ -1201,7 +1201,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value ? 1 : 0;
         } elsif ($opt =~ m/^mp(\d+)$/) {
 	    $conf->{$opt} = $value;
-	    push @$new_disks, $opt;
+	    $new_disks = 1;
 	    push @nohotplug, $opt;
 	    next;
         } elsif ($opt eq 'rootfs') {
@@ -1216,11 +1216,9 @@ sub update_pct_config {
 	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
     }
 
-    if (@$new_disks) {
+    if ($new_disks) {
 	my $storage_cfg = PVE::Storage::config();
 	create_disks($storage_cfg, $vmid, $conf, $conf);
-	mount_all($vmid, $storage_cfg, $conf, $new_disks, 1);
-	umount_all($vmid, $storage_cfg, $conf, 0);
     }
 }
 
@@ -1901,7 +1899,7 @@ sub umount_all {
 }
 
 sub mount_all {
-    my ($vmid, $storage_cfg, $conf, $mkdirs) = @_;
+    my ($vmid, $storage_cfg, $conf) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     File::Path::make_path($rootdir);
@@ -1924,7 +1922,6 @@ sub mount_all {
 
 	    die "unable to mount base volume - internal error" if $isBase;
 
-	    File::Path::make_path "$rootdir/$mount" if $mkdirs;
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
         });
     };
