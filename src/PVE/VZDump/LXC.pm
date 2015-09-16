@@ -24,12 +24,12 @@ my $rsync_vm = sub {
 
     my $opts = $self->{vzdump}->{opts};
 
-    my $base = ['rsync', '--stats', '-X', '--numeric-ids',
-                '-aH', '--delete', '--no-whole-file', '--inplace',
-                '--one-file-system', '--relative'];
-    push @$base, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
-    push @$base, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
-    push @$base, map { "--exclude=$_" } @{$task->{exclude_dirs}};
+    my $rsync = ['rsync', '--stats', '-X', '--numeric-ids',
+                 '-aH', '--delete', '--no-whole-file', '--inplace',
+                 '--one-file-system', '--relative'];
+    push @$rsync, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
+    push @$rsync, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
+    push @$rsync, map { "--exclude=$_" } @{$task->{exclude_dirs}};
 
     my $starttime = time();
     # See the rsync(1) manpage for --relative in conjunction with /./ in paths.
@@ -42,9 +42,9 @@ my $rsync_vm = sub {
     # relative to the rootdir, while rsync treats them as relative to the
     # source dir.
     foreach my $disk (@$disks) {
-	push @$base, "$from/.$disk->{mp}";
+	push @$rsync, "$from/.$disk->{mp}";
     }
-    $self->cmd([@$base, $to]);
+    $self->cmd([@$rsync, $to]);
     my $delay = time () - $starttime;
 
     $self->loginfo ("$text sync finished ($delay seconds)");
