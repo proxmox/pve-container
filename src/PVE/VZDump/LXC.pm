@@ -24,17 +24,27 @@ my $rsync_vm = sub {
 
     my $opts = $self->{vzdump}->{opts};
 
-    my $base = ['rsync', '--stats', '-x', '-X', '--numeric-ids',
-                '-aH', '--delete', '--no-whole-file', '--inplace'];
+    my $base = ['rsync', '--stats', '-X', '--numeric-ids',
+                '-aH', '--delete', '--no-whole-file', '--inplace',
+                '--one-file-system', '--relative'];
     push @$base, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
     push @$base, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
     push @$base, map { "--exclude=$_" } @{$task->{exclude_dirs}};
 
-    # FIXME: to support --one-file-system we have to make all exclude paths
-    # relative to the current mountpoint
-
     my $starttime = time();
-    $self->cmd([@$base, $from, $to]);
+    # See the rsync(1) manpage for --relative in conjunction with /./ in paths.
+    # This is the only way to have exclude-dirs work together with the
+    # --one-file-system option.
+    # This way we can pass multiple source paths and tell rsync which directory
+    # they're supposed to be relative to.
+    # Otherwise with eg. using multiple rsync commands means the --exclude
+    # directives need to be modified for every command as they are meant to be
+    # relative to the rootdir, while rsync treats them as relative to the
+    # source dir.
+    foreach my $disk (@$disks) {
+	push @$base, "$from/.$disk->{mp}";
+    }
+    $self->cmd([@$base, $to]);
     my $delay = time () - $starttime;
 
     $self->loginfo ("$text sync finished ($delay seconds)");
@@ -253,6 +263,7 @@ sub archive {
     my ($self, $task, $vmid, $filename, $comp) = @_;
 
     my $disks = $task->{disks};
+    my @sources;
 
     if ($task->{mode} eq 'stop') {
 	my $rootdir = $default_mount_point;
@@ -260,8 +271,15 @@ sub archive {
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
 	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg);
+	    # add every enabled mountpoint (since we use --one-file-system)
+	    # mp already starts with a / so we only need to add the dot
+	    push @sources, ".$disk->{mp}";
 	}
 	$task->{snapdir} = $rootdir;
+    } else {
+	# the data was rsynced to a temporary location, only use '.' to avoid
+	# having mountpoints duplicated
+	push @sources, '.';
     }
 
     my $opts = $self->{vzdump}->{opts};
@@ -286,9 +304,7 @@ sub archive {
     push @$tar, "--directory=$snapdir";
     push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
 
-    # add every enabled mountpoint (since we use --one-file-system)
-    # mp already starts with a / so we only need to add the dot
-    push @$tar, map { '.' . $_->{mp} } @$disks;
+    push @$tar, @sources;
 
     my $cmd = [ $tar ];
 
