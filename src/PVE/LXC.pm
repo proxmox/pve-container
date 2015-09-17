@@ -1851,7 +1851,7 @@ sub check_ct_modify_config_perm {
 
 	if ($opt eq 'cpus' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.CPU']);
-	} elsif ($opt eq 'disk') {
+	} elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
