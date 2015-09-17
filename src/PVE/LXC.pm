@@ -5,6 +5,8 @@ use warnings;
 use POSIX qw(EINTR);
 
 use File::Path;
+use File::Spec;
+use Cwd qw();
 use Fcntl ':flock';
 
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
@@ -1960,6 +1962,15 @@ sub mountpoint_mount_path {
     return mountpoint_mount($mountpoint, undef, $storage_cfg, $snapname);
 }
 
+my $check_mount_path = sub {
+    my ($path) = @_;
+    $path = File::Spec->canonpath($path);
+    my $real = Cwd::realpath($path);
+    if ($real ne $path) {
+	die "mount path modified by symlink: $path != $real";
+    }
+};
+
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;
@@ -1975,6 +1986,7 @@ sub mountpoint_mount {
 	$rootdir =~ s!/+$!!;
 	$mount_path = "$rootdir/$mount";
 	$mount_path =~ s!/+!/!g;
+	&$check_mount_path($mount_path);
 	File::Path::mkpath($mount_path);
     }
     
@@ -2031,6 +2043,7 @@ sub mountpoint_mount {
 	PVE::Tools::run_command(['mount', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
     } elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
+	&$check_mount_path($volid);
 	PVE::Tools::run_command(['mount', '-o', 'bind', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
     }
