@@ -152,6 +152,13 @@ sub prepare {
     } else {
 	die "unknown mode '$mode'\n"; # should not happen
     }
+
+    if ($mode ne 'suspend') {
+	# If we preform mount operations, let's unshare the mount namespace
+	# to not influence the running host.
+	PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
+	PVE::Tools::run_command(['mount', '--make-rprivate', '/']);
+    }
 }
 
 sub lock_vm {
