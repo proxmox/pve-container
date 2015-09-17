@@ -325,7 +325,7 @@ sub cleanup {
 
     my $conf = PVE::LXC::load_config($vmid);
 
-    if ($task->{mode} ne 'snapshot') {
+    if ($task->{mode} ne 'suspend') {
 	my $rootdir = $default_mount_point;
 	my $disks = $task->{disks};
 	foreach my $disk (reverse @$disks) {
