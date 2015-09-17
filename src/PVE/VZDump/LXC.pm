@@ -309,10 +309,12 @@ sub cleanup {
 
     my $conf = PVE::LXC::load_config($vmid);
 
-    my $rootdir = $default_mount_point;
-    my $disks = $task->{disks};
-    foreach my $disk (reverse @$disks) {
-	PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
+    if ($task->{mode} ne 'snapshot') {
+	my $rootdir = $default_mount_point;
+	my $disks = $task->{disks};
+	foreach my $disk (reverse @$disks) {
+	    PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
+	}
     }
 
     if ($task->{cleanup}->{remove_snapshot}) {
