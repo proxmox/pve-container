@@ -92,19 +92,6 @@ my $check_mountpoint_empty = sub {
     });
 };
 
-# The container might have *different* symlinks than the host. realpath/abs_path
-# use the actual filesystem to resolve links.
-sub sanitize_mountpoint {
-    my ($mp) = @_;
-    $mp = '/' . $mp; # we always start with a slash
-    $mp =~ s@/{2,}@/@g; # collapse sequences of slashes
-    $mp =~ s@/\./@@g; # collapse /./
-    $mp =~ s@/\.(/)?$@$1@; # collapse a trailing /. or /./
-    $mp =~ s@(.*)/[^/]+/\.\./@$1/@g; # collapse /../ without regard for symlinks
-    $mp =~ s@/\.\.(/)?$@$1@; # collapse trailing /.. or /../ disregarding symlinks
-    return $mp;
-}
-
 sub prepare {
     my ($self, $task, $vmid, $mode) = @_;
 
@@ -123,8 +110,6 @@ sub prepare {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
 	my $mount = $data->{mp};
-
-	$mount = $data->{mp} = sanitize_mountpoint($mount);
 
 	return if !$volid || !$mount || $volid =~ m|^/|;
 

@@ -1818,6 +1818,19 @@ sub mountpoint_names {
     return $reverse ? reverse @names : @names;
 }
 
+# The container might have *different* symlinks than the host. realpath/abs_path
+# use the actual filesystem to resolve links.
+sub sanitize_mountpoint {
+    my ($mp) = @_;
+    $mp = '/' . $mp; # we always start with a slash
+    $mp =~ s@/{2,}@/@g; # collapse sequences of slashes
+    $mp =~ s@/\./@@g; # collapse /./
+    $mp =~ s@/\.(/)?$@$1@; # collapse a trailing /. or /./
+    $mp =~ s@(.*)/[^/]+/\.\./@$1/@g; # collapse /../ without regard for symlinks
+    $mp =~ s@/\.\.(/)?$@$1@; # collapse trailing /.. or /../ disregarding symlinks
+    return $mp;
+}
+
 sub foreach_mountpoint_full {
     my ($conf, $reverse, $func) = @_;
 
@@ -1825,7 +1838,14 @@ sub foreach_mountpoint_full {
 	my $value = $conf->{$key};
 	next if !defined($value);
 	my $mountpoint = parse_ct_mountpoint($value);
-	$mountpoint->{mp} = '/' if $key eq 'rootfs'; # just to be sure
+
+	# just to be sure: rootfs is /
+	my $path = $key eq 'rootfs' ? '/' : $mountpoint->{mp};
+	$mountpoint->{mp} = sanitize_mountpoint($path);
+
+	$path = $mountpoint->{volume};
+	$mountpoint->{volume} = sanitize_mountpoint($path) if $path =~ m|^/|;
+
 	&$func($key, $mountpoint);
     }
 }
