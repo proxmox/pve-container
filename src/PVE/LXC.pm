@@ -140,7 +140,7 @@ my $confdesc = {
     hostname => {
 	optional => 1,
 	description => "Set a host name for the container.",
-	type => 'string',
+	type => 'string', format => 'dns-name',
 	maxLength => 255,
     },
     description => {
@@ -150,12 +150,12 @@ my $confdesc = {
     },
     searchdomain => {
 	optional => 1,
-	type => 'string',
+	type => 'string', format => 'dns-name-list',
 	description => "Sets DNS search domains for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
     },
     nameserver => {
 	optional => 1,
-	type => 'string',
+	type => 'string', format => 'address-list',
 	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
     },
     rootfs => get_standard_option('pve-ct-rootfs'),
