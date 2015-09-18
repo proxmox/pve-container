@@ -401,7 +401,7 @@ sub parse_pct_config {
 	    $descr .= PVE::Tools::decode_text($2);
 	} elsif ($line =~ m/snapstate:\s*(prepare|delete)\s*$/) {
 	    $conf->{snapstate} = $1;
-	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(\S+)\s*$/) {
+	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(\S.*)\s*$/) {
 	    my $key = $1;
 	    my $value = $2;
 	    eval { $value = check_type($key, $value); };
