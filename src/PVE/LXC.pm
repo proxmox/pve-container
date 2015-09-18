@@ -292,7 +292,9 @@ sub write_pct_config {
 	foreach my $key (sort keys %$conf) {
 	    next if $key eq 'digest' || $key eq 'description' || $key eq 'pending' || 
 		$key eq 'snapshots' || $key eq 'snapname' || $key eq 'lxc';
-	    $raw .= "$key: $conf->{$key}\n";
+	    my $value = $conf->{$key};
+	    die "detected invalid newline inside property '$key'\n" if $value =~ m/\n/;
+	    $raw .= "$key: $value\n";
 	}
 
 	if (my $lxcconf = $conf->{lxc}) {
@@ -387,7 +389,7 @@ sub parse_pct_config {
 	    next;
 	}
 
-	if ($line =~ m/^(lxc\.[a-z0-9_\.]+)(:|\s*=)\s*(.*?)\s*$/) {
+	if ($line =~ m/^(lxc\.[a-z0-9_\-\.]+)(:|\s*=)\s*(.*?)\s*$/) {
 	    my $key = $1;
 	    my $value = $3;
 	    if ($valid_lxc_conf_keys->{$key} || $key =~ m/^lxc\.cgroup\./) {
