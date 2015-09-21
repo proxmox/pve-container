@@ -1,3 +1,19 @@
+pve-container (0.9-22) unstable; urgency=medium
+
+  * allow to parse configuration values with spaces
+
+  * specify data format for hostname, searchdomain and nameserver
+
+  * add check for newlines before writing configuration
+
+  * vzdump fixes
+
+  * mountpoint_mount: disallow symlinks in bind mounts
+
+  * lxc API: use new disk option names in permission check
+  
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 21 Sep 2015 12:14:31 +0200
+
 pve-container (0.9-21) unstable; urgency=medium
 
   * vzdump: support mountpoints
