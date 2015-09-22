@@ -1303,6 +1303,12 @@ sub destroy_lxc_container {
 
     foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
+
+	# skip bind mounts and block devices
+	if ($mountpoint->{volume} =~ m|^/|) {
+		return;
+	}
+
 	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $mountpoint->{volume});
 	PVE::Storage::vdisk_free($storage_cfg, $mountpoint->{volume}) if $vmid == $owner;
     });
