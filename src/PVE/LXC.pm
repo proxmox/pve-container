@@ -25,31 +25,30 @@ my $nodename = PVE::INotify::nodename();
 
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
-PVE::JSONSchema::register_format('pve-lxc-network', \&verify_lxc_network);
-sub verify_lxc_network {
-    my ($value, $noerr) = @_;
-
-    return $value if parse_lxc_network($value);
-
-    return undef if $noerr;
-
-    die "unable to parse network setting\n";
-}
-
-PVE::JSONSchema::register_format('pve-ct-mountpoint', \&verify_ct_mountpoint);
-sub verify_ct_mountpoint {
-    my ($value, $noerr) = @_;
-
-    return $value if parse_ct_mountpoint($value);
-
-    return undef if $noerr;
-
-    die "unable to parse CT mountpoint options\n";
-}
+my $rootfs_desc = {
+    volume => {
+	type => 'string',
+	default_key => 1,
+	format_description => 'volume',
+	description => 'Volume, device or directory to mount into the container.',
+    },
+    backup => {
+	type => 'boolean',
+	format_description => '[1|0]',
+	description => 'Whether to include the mountpoint in backups.',
+	optional => 1,
+    },
+    size => {
+	type => 'string',
+	format_description => 'DiskSize',
+	pattern => '\d+[TGMK]?',
+	description => 'Volume size (read only value).',
+	optional => 1,
+    },
+};
 
 PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
-    type => 'string', format => 'pve-ct-mountpoint',
-    typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+]',
+    type => 'string', format => $rootfs_desc,
     description => "Use volume as container root.",
     optional => 1,
 });
@@ -248,26 +247,108 @@ my $valid_lxc_conf_keys = {
     'lxc.' => 1,
 };
 
+my $netconf_desc = {
+    type => {
+	type => 'string',
+	optional => 1,
+	description => "Network interface type.",
+	enum => [qw(veth)],
+    },
+    name => {
+	type => 'string',
+	format_description => 'String',
+	description => 'Name of the network device as seen from inside the container. (lxc.network.name)',
+	pattern => '[-_.\w\d]+',
+    },
+    bridge => {
+	type => 'string',
+	format_description => 'vmbr<Number>',
+	description => 'Bridge to attach the network device to.',
+	pattern => '[-_.\w\d]+',
+    },
+    hwaddr => {
+	type => 'string',
+	format_description => 'MAC',
+	description => 'Bridge to attach the network device to. (lxc.network.hwaddr)',
+	pattern => qr/(?:[a-f0-9]{2}:){5}[a-f0-9]{2}/i,
+	optional => 1,
+    },
+    mtu => {
+	type => 'integer',
+	format_description => 'Number',
+	description => 'Maximum transfer unit of the interface. (lxc.network.mtu)',
+	optional => 1,
+    },
+    ip => {
+	type => 'string',
+	format => 'pve-ipv4-config',
+	format_description => 'IPv4Format/CIDR',
+	description => 'IPv4 address in CIDR format.',
+	optional => 1,
+    },
+    gw => {
+	type => 'string',
+	format => 'ipv4',
+	format_description => 'GatewayIPv4',
+	description => 'Default gateway for IPv4 traffic.',
+	optional => 1,
+    },
+    ip6 => {
+	type => 'string',
+	format => 'pve-ipv6-config',
+	format_description => 'IPv6Format/CIDR',
+	description => 'IPv6 address in CIDR format.',
+	optional => 1,
+    },
+    gw6 => {
+	type => 'string',
+	format => 'ipv6',
+	format_description => 'GatewayIPv6',
+	description => 'Default gateway for IPv6 traffic.',
+	optional => 1,
+    },
+    firewall => {
+	type => 'boolean',
+	format_description => '[1|0]',
+	description => "Controls whether this interface's firewall rules should be used.",
+	optional => 1,
+    },
+    tag => {
+	type => 'integer',
+	format_description => 'VlanNo',
+	minimum => '2',
+	maximum => '4094',
+	description => "VLAN tag foro this interface.",
+	optional => 1,
+    },
+};
+PVE::JSONSchema::register_format('pve-lxc-network', $netconf_desc);
+
 my $MAX_LXC_NETWORKS = 10;
 for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     $confdesc->{"net$i"} = {
 	optional => 1,
 	type => 'string', format => 'pve-lxc-network',
-	description => "Specifies network interfaces for the container.\n\n".
-	    "The string should have the follow format:\n\n".
-	    "-net<[0-9]> bridge=<vmbr<Nummber>>[,hwaddr=<MAC>]\n".
-	    "[,mtu=<Number>][,name=<String>][,ip=<IPv4Format/CIDR>]\n".
-	    ",ip6=<IPv6Format/CIDR>][,gw=<GatwayIPv4>]\n".
-	    ",gw6=<GatwayIPv6>][,firewall=<[1|0]>][,tag=<VlanNo>]",
+	description => "Specifies network interfaces for the container.",
     };
 }
+
+my $mp_desc = {
+    %$rootfs_desc,
+    mp => {
+	type => 'string',
+	format_description => 'Path',
+	description => 'Path to the mountpoint as seen from inside the container.',
+	optional => 1,
+    },
+};
+PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
 
 my $MAX_MOUNT_POINTS = 10;
 for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
     $confdesc->{"mp$i"} = {
 	optional => 1,
-	type => 'string', format => 'pve-ct-mountpoint',
-	typetext => '[volume=]volume,] [,backup=yes|no] [,size=\d+] [,mp=mountpoint]',
+	type => 'string', format => $mp_desc,
 	description => "Use volume as container mount point (experimental feature).",
 	optional => 1,
     };
