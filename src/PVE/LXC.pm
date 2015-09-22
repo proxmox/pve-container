@@ -862,27 +862,14 @@ sub parse_ct_mountpoint {
 
     $data //= '';
 
-    my $res = {};
-
-    foreach my $p (split (/,/, $data)) {
-	next if $p =~ m/^\s*$/;
-
-	if ($p =~ m/^(volume|backup|size|mp)=(.+)$/) {
-	    my ($k, $v) = ($1, $2);
-	    return undef if defined($res->{$k});
-	    $res->{$k} = $v;
-	} else {
-	    if (!$res->{volume} && $p !~ m/=/) {
-		$res->{volume} = $p;
-	    } else {
-		return undef;
-	    }
-	}
+    my $res;
+    eval { $res = PVE::JSONSchema::parse_property_string($mp_desc, $data) };
+    if ($@) {
+	warn $@;
+	return undef;
     }
 
     return undef if !defined($res->{volume});
-
-    return undef if $res->{backup} && $res->{backup} !~ m/^(yes|no)$/;
 
     if ($res->{size}) {
 	return undef if !defined($res->{size} = &$parse_size($res->{size}));
@@ -933,12 +920,10 @@ sub parse_lxc_network {
 
     return $res if !$data;
 
-    foreach my $pv (split (/,/, $data)) {
-	if ($pv =~ m/^(bridge|hwaddr|mtu|name|ip|ip6|gw|gw6|firewall|tag)=(\S+)$/) {
-	    $res->{$1} = $2;
-	} else {
-	    return undef;
-	}
+    eval { $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data) };
+    if ($@) {
+	warn $@;
+	return undef;
     }
 
     $res->{type} = 'veth';
