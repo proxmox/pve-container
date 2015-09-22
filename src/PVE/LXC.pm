@@ -181,7 +181,7 @@ my $confdesc = {
     protection => {
 	optional => 1,
 	type => 'boolean',
-	description => "Sets the protection flag of the container. This will prevent the remove operation.",
+	description => "Sets the protection flag of the container. This will prevent the remove operation. This will prevent the CT or CT's disk remove/update operation.",
 	default => 0,
     },
 };
@@ -981,6 +981,14 @@ sub check_lock {
     die "VM is locked ($conf->{'lock'})\n" if $conf->{'lock'};
 }
 
+sub check_protection {
+    my ($vm_conf, $err_msg) = @_;
+
+    if ($vm_conf->{protection}) {
+	die "$err_msg - protection mode enabled\n";
+    }
+}
+
 sub update_lxc_config {
     my ($storage_cfg, $vmid, $conf) = @_;
 
@@ -1130,11 +1138,10 @@ sub update_pct_config {
 	    } elsif ($opt eq 'protection') {
 		delete $conf->{$opt};
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
+		check_protection($conf, "can't remove CT $vmid drive '$opt'");
 		delete $conf->{$opt};
 		push @nohotplug, $opt;
 		next if $running;
-	    } elsif ($opt eq 'rootfs') {
-		die "implement me"
 	    } else {
 		die "implement me"
 	    }
@@ -1204,11 +1211,13 @@ sub update_pct_config {
 	} elsif ($opt eq 'protection') {
 	    $conf->{$opt} = $value ? 1 : 0;
         } elsif ($opt =~ m/^mp(\d+)$/) {
+	    check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    $conf->{$opt} = $value;
 	    $new_disks = 1;
 	    push @nohotplug, $opt;
 	    next;
         } elsif ($opt eq 'rootfs') {
+	    check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    die "implement me: $opt";
 	} else {
 	    die "implement me: $opt";

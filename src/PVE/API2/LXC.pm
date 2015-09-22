@@ -172,6 +172,9 @@ __PACKAGE__->register_method({
 
 	if (!($same_container_exists && $restore && $force)) {
 	    PVE::Cluster::check_vmid_unused($vmid);
+	} else {
+	    my $conf = PVE::LXC::load_config($vmid);
+	    PVE::LXC::check_protection($conf, "unable to restore CT $vmid");
 	}
 
 	my $password = extract_param($param, 'password');
@@ -463,8 +466,7 @@ __PACKAGE__->register_method({
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	die  "can't remove CT $vmid - protection mode enabled\n"
-	    if $conf->{protection};
+	PVE::LXC::check_protection($conf, "can't remove CT $vmid");
 
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
