@@ -280,7 +280,7 @@ sub archive {
 
     my $tar = ['tar', 'cpf', '-',
                '--totals', '--sparse', '--numeric-owner', '--xattrs',
-               '--one-file-system'];
+               '--one-file-system', '--warning=no-file-ignored'];
 
     # note: --remove-files does not work because we do not 
     # backup all files (filters). tar complains:
