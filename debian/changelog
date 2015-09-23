@@ -1,3 +1,16 @@
+pve-container (0.9-23) unstable; urgency=medium
+
+  * Use format hashes in json schemas
+
+  * When destroying a container, remove bind mounts and block devices
+    from the list of volumes to delete.
+
+  * improve CT protection mode
+
+  * vzdump: tar: disable warnings about ignored files
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 23 Sep 2015 10:11:31 +0200
+
 pve-container (0.9-22) unstable; urgency=medium
 
   * allow to parse configuration values with spaces
