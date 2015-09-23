@@ -328,7 +328,7 @@ my $MAX_LXC_NETWORKS = 10;
 for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     $confdesc->{"net$i"} = {
 	optional => 1,
-	type => 'string', format => 'pve-lxc-network',
+	type => 'string', format => $netconf_desc,
 	description => "Specifies network interfaces for the container.",
     };
 }
