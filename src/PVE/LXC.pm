@@ -2090,7 +2090,7 @@ sub mountpoint_mount {
 		    if ($scfg->{type} eq 'zfspool') {
 			my $path_arg = $path;
 			$path_arg =~ s!^/+!!;
-			PVE::Tools::run_command(['mount', '-o', 'ro', '-t', 'zfs', $path_arg, $mount_path]);
+			PVE::Tools::run_command(['mount', '-o', 'ro,noload', '-t', 'zfs', $path_arg, $mount_path]);
 		    } else {
 			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
 		    }
@@ -2112,7 +2112,7 @@ sub mountpoint_mount {
 	    }
 	    if ($mount_path) {
 		if ($isBase || defined($snapname)) {
-		    PVE::Tools::run_command(['mount', '-o', "ro", @extra_opts, $path, $mount_path]);
+		    PVE::Tools::run_command(['mount', '-o', 'ro,noload', @extra_opts, $path, $mount_path]);
 		} else {
 		    PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
 		}
