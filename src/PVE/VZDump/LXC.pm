@@ -105,7 +105,6 @@ sub prepare {
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
-    # fixme: when do we deactivate ??
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
@@ -121,7 +120,6 @@ sub prepare {
 	push @$disks, $data;
     });
     my $volid_list = [map { $_->{volume} } @$disks];
-    PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
     if ($mode eq 'snapshot') {
 	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg)) {
@@ -143,6 +141,7 @@ sub prepare {
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
+	PVE::Storage::activate_volumes($storage_cfg, $volid_list);
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	foreach my $disk (@$disks) {
@@ -193,6 +192,7 @@ sub snapshot {
     my $rootdir = $default_mount_point;
     my $storage_cfg = $self->{storecfg};
 
+    PVE::Storage::activate_volumes($storage_cfg, $volid_list, 'vzdump');
     foreach my $disk (@$disks) {
 	$disk->{dir} = "${rootdir}$disk->{mp}";
 	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump');
