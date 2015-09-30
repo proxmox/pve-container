@@ -986,7 +986,7 @@ sub find_lxc_pid {
         my $line = shift;
         $pid = $1 if $line =~ m/^PID:\s+(\d+)$/;
     };
-    PVE::Tools::run_command(['lxc-info', '-n', $vmid], outfunc => $parser);
+    PVE::Tools::run_command(['lxc-info', '-n', $vmid, '-p'], outfunc => $parser);
 
     die "unable to get PID for CT $vmid (not running?)\n" if !$pid;
 
