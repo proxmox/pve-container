@@ -1087,6 +1087,9 @@ sub update_lxc_config {
     my $ttycount = get_tty_count($conf);
     $raw .= "lxc.tty = $ttycount\n";
 
+    # some init scripts expects a linux terminal (turnkey).
+    $raw .= "lxc.environment = TERM=linux\n";
+    
     my $utsname = $conf->{hostname} || "CT$vmid";
     $raw .= "lxc.utsname = $utsname\n";
 
