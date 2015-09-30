@@ -805,7 +805,9 @@ sub vmstatus {
 	my $d = $list->{$vmid};
 	next if $d->{status} ne 'running';
 
-	$d->{uptime} = 100; # fixme:
+	my $pid = find_lxc_pid($vmid);
+	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
+	$d->{uptime} = time - $ctime; # the method lxcfs uses
 
 	$d->{mem} = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
 	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $d->{mem};
