@@ -125,6 +125,7 @@ __PACKAGE__->register_method({
 		description => "Default Storage.",
 		default => 'local',
 		optional => 1,
+		completion => \&PVE::Storage::complete_storage_enabled,
 	    }),
 	    force => {
 		optional => 1,
