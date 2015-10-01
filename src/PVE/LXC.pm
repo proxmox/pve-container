@@ -1312,10 +1312,6 @@ sub update_pct_config {
 	write_config($vmid, $conf) if $running;
     }
 
-    if ($running && scalar(@nohotplug)) {
-	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
-    }
-
     if (@deleted_volumes) {
 	my $storage_cfg = PVE::Storage::config();
 	foreach my $volume (@deleted_volumes) {
@@ -1326,6 +1322,11 @@ sub update_pct_config {
     if ($new_disks) {
 	my $storage_cfg = PVE::Storage::config();
 	create_disks($storage_cfg, $vmid, $conf, $conf);
+    }
+
+    # This should be the last thing we do here
+    if ($running && scalar(@nohotplug)) {
+	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
     }
 }
 
