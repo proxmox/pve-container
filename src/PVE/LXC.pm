@@ -1196,6 +1196,14 @@ sub update_pct_config {
 	$rootdir = "/proc/$pid/root";
     }
 
+    my $hotplug_error = sub { 0 };
+    if ($running) {
+	$hotplug_error = sub {
+	    push @nohotplug, @_;
+	    return 1;
+	}
+    }
+
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
 	    if ($opt eq 'hostname' || $opt eq 'memory' || $opt eq 'rootfs') {
@@ -1207,9 +1215,8 @@ sub update_pct_config {
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
 		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
+		next if $hotplug_error->($opt);
 		delete $conf->{$opt};
-		push @nohotplug, $opt;
-		next if $running;
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		delete $conf->{$opt};
 		next if !$running;
@@ -1218,18 +1225,16 @@ sub update_pct_config {
 	    } elsif ($opt eq 'protection') {
 		delete $conf->{$opt};
 	    } elsif ($opt =~ m/^unused(\d+)$/) {
+		next if $hotplug_error->($opt);
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
 		push @deleted_volumes, $conf->{$opt};
 		delete $conf->{$opt};
-		push @nohotplug, $opt;
-		next if $running;
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
+		next if $hotplug_error->($opt);
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
 		my $mountpoint = parse_ct_mountpoint($conf->{$opt});
 		add_unused_volume($conf, $mountpoint->{volume});
 		delete $conf->{$opt};
-		push @nohotplug, $opt;
-		next if $running;
 	    } else {
 		die "implement me"
 	    }
@@ -1266,23 +1271,19 @@ sub update_pct_config {
 	} elsif ($opt eq 'startup') {
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
+	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
-	    push @nohotplug, $opt;
-	    next if $running;
 	} elsif ($opt eq 'nameserver') {
+	    next if $hotplug_error->($opt);
 	    my $list = verify_nameserver_list($value);
 	    $conf->{$opt} = $list;
-	    push @nohotplug, $opt;
-	    next if $running;
 	} elsif ($opt eq 'searchdomain') {
+	    next if $hotplug_error->($opt);
 	    my $list = verify_searchdomain_list($value);
 	    $conf->{$opt} = $list;
-	    push @nohotplug, $opt;
-	    next if $running;
 	} elsif ($opt eq 'cpulimit') {
+	    next if $hotplug_error->($opt); # FIXME: hotplug
 	    $conf->{$opt} = $value;
-	    push @nohotplug, $opt; # fixme: hotplug
-	    next;
 	} elsif ($opt eq 'cpuunits') {
 	    $conf->{$opt} = $value;
 	    write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
@@ -1299,11 +1300,10 @@ sub update_pct_config {
 	} elsif ($opt eq 'protection') {
 	    $conf->{$opt} = $value ? 1 : 0;
         } elsif ($opt =~ m/^mp(\d+)$/) {
+	    next if $hotplug_error->($opt);
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    $conf->{$opt} = $value;
 	    $new_disks = 1;
-	    push @nohotplug, $opt;
-	    next;
         } elsif ($opt eq 'rootfs') {
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    die "implement me: $opt";
