@@ -1196,13 +1196,14 @@ sub update_pct_config {
 	$rootdir = "/proc/$pid/root";
     }
 
-    my $hotplug_error = sub { 0 };
-    if ($running) {
-	$hotplug_error = sub {
+    my $hotplug_error = sub {
+	if ($running) {
 	    push @nohotplug, @_;
 	    return 1;
+	} else {
+	    return 0;
 	}
-    }
+    };
 
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
