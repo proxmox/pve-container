@@ -277,6 +277,7 @@ my $netconf_desc = {
 	type => 'integer',
 	format_description => 'Number',
 	description => 'Maximum transfer unit of the interface. (lxc.network.mtu)',
+	minimum => 64, # minimum ethernet frame is 64 bytes
 	optional => 1,
     },
     ip => {
