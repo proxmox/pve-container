@@ -344,6 +344,12 @@ my $mp_desc = {
 };
 PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
 
+my $unuseddesc = {
+    optional => 1,
+    type => 'string', format => 'pve-volume-id',
+    description => "Reference to unused volumes.",
+};
+
 my $MAX_MOUNT_POINTS = 10;
 for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
     $confdesc->{"mp$i"} = {
@@ -352,6 +358,11 @@ for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
 	description => "Use volume as container mount point (experimental feature).",
 	optional => 1,
     };
+}
+
+my $MAX_UNUSED_DISKS = $MAX_MOUNT_POINTS;
+for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
+    $confdesc->{"unused$i"} = $unuseddesc;
 }
 
 sub write_pct_config {
@@ -1150,12 +1161,33 @@ sub verify_searchdomain_list {
     return join(' ', @list);
 }
 
+sub add_unused_volume {
+    my ($config, $volid) = @_;
+
+    my $key;
+    for (my $ind = $MAX_UNUSED_DISKS - 1; $ind >= 0; $ind--) {
+	my $test = "unused$ind";
+	if (my $vid = $config->{$test}) {
+	    return if $vid eq $volid; # do not add duplicates
+	} else {
+	    $key = $test;
+	}
+    }
+
+    die "To many unused volume - please delete them first.\n" if !$key;
+
+    $config->{$key} = $volid;
+
+    return $key;
+}
+
 sub update_pct_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
     my @nohotplug;
 
     my $new_disks = 0;
+    my @deleted_volumes;
 
     my $rootdir;
     if ($running) {
@@ -1184,8 +1216,16 @@ sub update_pct_config {
 		PVE::Network::veth_delete("veth${vmid}i$netid");
 	    } elsif ($opt eq 'protection') {
 		delete $conf->{$opt};
+	    } elsif ($opt =~ m/^unused(\d+)$/) {
+		check_protection($conf, "can't remove CT $vmid drive '$opt'");
+		push @deleted_volumes, $conf->{$opt};
+		delete $conf->{$opt};
+		push @nohotplug, $opt;
+		next if $running;
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
+		my $mountpoint = parse_ct_mountpoint($conf->{$opt});
+		add_unused_volume($conf, $mountpoint->{volume});
 		delete $conf->{$opt};
 		push @nohotplug, $opt;
 		next if $running;
@@ -1274,6 +1314,13 @@ sub update_pct_config {
 
     if ($running && scalar(@nohotplug)) {
 	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
+    }
+
+    if (@deleted_volumes) {
+	my $storage_cfg = PVE::Storage::config();
+	foreach my $volume (@deleted_volumes) {
+	    delete_mountpoint_volume($storage_cfg, $vmid, $volume);
+	}
     }
 
     if ($new_disks) {
