@@ -882,37 +882,13 @@ sub parse_ct_mountpoint {
 
 sub print_ct_mountpoint {
     my ($info, $nomp) = @_;
-
-    my $opts = '';
-
-    die "missing volume\n" if !$info->{volume};
-
-    foreach my $o (qw(backup)) {
-	$opts .= ",$o=$info->{$o}" if defined($info->{$o});
-    }
-
-    if ($info->{size}) {
-	$opts .= ",size=" . &$format_size($info->{size});
-    }
-
-    $opts .= ",mp=$info->{mp}" if !$nomp;
-
-    return "$info->{volume}$opts";
+    my $skip = $nomp ? ['mp'] : [];
+    return PVE::JSONSchema::print_property_string($info, $mp_desc, $skip);
 }
 
 sub print_lxc_network {
     my $net = shift;
-
-    die "no network name defined\n" if !$net->{name};
-
-    my $res = "name=$net->{name}";
-
-    foreach my $k (qw(hwaddr mtu bridge ip gw ip6 gw6 firewall tag)) {
-	next if !defined($net->{$k});
-	$res .= ",$k=$net->{$k}";
-    }
-
-    return $res;
+    return PVE::JSONSchema::print_property_string($net, $netconf_desc);
 }
 
 sub parse_lxc_network {
