@@ -1165,6 +1165,9 @@ sub verify_searchdomain_list {
 sub add_unused_volume {
     my ($config, $volid) = @_;
 
+    # skip bind mounts and block devices
+    return if $volid =~ m|^/|;
+
     my $key;
     for (my $ind = $MAX_UNUSED_DISKS - 1; $ind >= 0; $ind--) {
 	my $test = "unused$ind";
