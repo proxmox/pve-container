@@ -1344,20 +1344,24 @@ sub get_primary_ips {
     return ($ipv4, $ipv6);
 }
 
+sub delete_mountpoint_volume {
+    my ($storage_cfg, $vmid, $volume) = @_;
+
+    # skip bind mounts and block devices
+    if ($volume =~ m|^/|) {
+	    return;
+    }
+
+    my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volume);
+    PVE::Storage::vdisk_free($storage_cfg, $volume) if $vmid == $owner;
+}
 
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
     foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
-
-	# skip bind mounts and block devices
-	if ($mountpoint->{volume} =~ m|^/|) {
-		return;
-	}
-
-	my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $mountpoint->{volume});
-	PVE::Storage::vdisk_free($storage_cfg, $mountpoint->{volume}) if $vmid == $owner;
+	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
     });
 
     rmdir "/var/lib/lxc/$vmid/rootfs";
