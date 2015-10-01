@@ -230,6 +230,7 @@ my $valid_lxc_conf_keys = {
     'lxc.hook.pre-mount' => 1,
     'lxc.hook.mount' => 1,
     'lxc.hook.start' => 1,
+    'lxc.hook.stop' => 1,
     'lxc.hook.post-stop' => 1,
     'lxc.hook.clone' => 1,
     'lxc.hook.destroy' => 1,
