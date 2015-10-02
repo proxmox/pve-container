@@ -1,3 +1,9 @@
+pve-container (1.0-5) unstable; urgency=medium
+
+  * lxc hooks: use run_cli_handler(), remove stale docs
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 02 Oct 2015 13:47:30 +0200
+
 pve-container (1.0-4) unstable; urgency=medium
 
   * remove 'noload' option from zfspool mounts
