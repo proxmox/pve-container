@@ -280,8 +280,6 @@ __PACKAGE__->register_method({
 	    if ($format eq 'raw') {
 		my $path = PVE::Storage::path($storage_cfg, $volid, undef);
 		if ($running) {
-		    # NOTE: do not use loopdevices_list as losetup's paths get scrambled after a container started
-		    # (possibly due to namespaces?)
 		    $path = &$query_loopdev($path);
 		    die "internal error: CT running but mountpoint not attached to a loop device"
 			if !$path; # fixme: zvols and other storages?
