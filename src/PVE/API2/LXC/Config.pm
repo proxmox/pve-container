@@ -212,8 +212,9 @@ __PACKAGE__->register_method({
 	my $digest = extract_param($param, 'digest');
 
 	my $sizestr = extract_param($param, 'size');
-	die "invalid size string" if $sizestr !~ m/^(\+)?(\d+(\.\d+)?)([KMGT])?$/;
-	my ($ext, $newsize, $unit) = ($1, $2, $4);
+	my $ext = ($sizestr =~ s/^\+//);
+	my $newsize = PVE::JSONSchema::parse_size($sizestr);
+	die "invalid size string" if !defined($newsize);
 
 	die "no options specified\n" if !scalar(keys %$param);
 
@@ -248,18 +249,6 @@ __PACKAGE__->register_method({
 	    $rpcenv->check($authuser, "/storage/$storeid", ['Datastore.AllocateSpace']);
 
 	    my $size = PVE::Storage::volume_size_info($storage_cfg, $volid, 5);
-	    # FIXME: also in PVE::API2::Qemu (PVE::Tools candidate?)
-	    if ($unit) {
-		if ($unit eq 'K') {
-		    $newsize = $newsize * 1024;
-		} elsif ($unit eq 'M') {
-		    $newsize = $newsize * 1024 * 1024;
-		} elsif ($unit eq 'G') {
-		    $newsize = $newsize * 1024 * 1024 * 1024;
-		} elsif ($unit eq 'T') {
-		    $newsize = $newsize * 1024 * 1024 * 1024 * 1024;
-		}
-	    }
 	    $newsize += $size if $ext;
 	    $newsize = int($newsize);
 
