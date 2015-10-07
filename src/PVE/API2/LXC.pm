@@ -262,9 +262,9 @@ __PACKAGE__->register_method({
 		if (!defined($param->{rootfs})) {
 		    if ($restore) {
 			my (undef, $disksize) = PVE::LXC::Create::recover_config($archive);
-			$disksize /= 1024 * 1024 * 1024; # create_disks expects GB as unit size
 			die "unable to detect disk size - please specify rootfs (size)\n"
 			    if !$disksize;
+			$disksize /= 1024 * 1024 * 1024; # create_disks expects GB as unit size
 			$param->{rootfs} = "$storage:$disksize";
 		    } else {
 			$param->{rootfs} = "$storage:4"; # defaults to 4GB
