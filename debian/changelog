@@ -1,3 +1,9 @@
+pve-container (1.0-7) unstable; urgency=medium
+
+  * Create /fastboot to skip run fsck
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 08 Oct 2015 11:47:47 +0200
+
 pve-container (1.0-6) unstable; urgency=medium
 
   * cleanup: replace disk-size calculation in pct resize
