@@ -100,6 +100,9 @@ sub rewrite_ssh_host_keys {
 sub pre_start_hook {
     my ($self) = @_;
 
+    # Create /fastboot to skip run fsck
+    $self->{plugin}->ct_file_set_contents('/fastboot', '');
+
     $self->{plugin}->pre_start_hook($self->{conf});
 }
 
