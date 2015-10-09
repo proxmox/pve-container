@@ -113,6 +113,10 @@ sub phase1 {
 
     PVE::LXC::umount_all($vmid, $self->{storecfg}, $conf);
 
+    #to be sure there are no active volumes
+    my $vollist = PVE::LXC::get_vm_volumes($conf);
+    PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
+
     # move config
     die "Failed to move config to node '$self->{node}' - rename failed: $!\n"
 	if !rename($conffile, $newconffile);
