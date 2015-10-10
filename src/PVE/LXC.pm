@@ -265,6 +265,7 @@ my $netconf_desc = {
 	format_description => 'vmbr<Number>',
 	description => 'Bridge to attach the network device to.',
 	pattern => '[-_.\w\d]+',
+	optional => 1,
     },
     hwaddr => {
 	type => 'string',
