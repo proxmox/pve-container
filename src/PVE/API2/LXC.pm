@@ -187,7 +187,7 @@ __PACKAGE__->register_method({
 	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
 
 	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
-	    if !($scfg->{content}->{images} || $scfg->{content}->{rootdir});
+	    if !$scfg->{content}->{rootdir};
 
 	my $pool = extract_param($param, 'pool');
 

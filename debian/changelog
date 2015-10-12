@@ -2,6 +2,8 @@ pve-container (1.0-8) unstable; urgency=medium
 
   * make bridge parameter option - required for hotplug code
 
+  * fix test if storage allows containers
+
  -- Proxmox Support Team <support@proxmox.com>  Sat, 10 Oct 2015 17:24:31 +0200
 
 pve-container (1.0-7) unstable; urgency=medium
