@@ -4,6 +4,8 @@ pve-container (1.0-8) unstable; urgency=medium
 
   * fix test if storage allows containers
 
+  * fix bug #752: correct size of mount point after resize
+
  -- Proxmox Support Team <support@proxmox.com>  Sat, 10 Oct 2015 17:24:31 +0200
 
 pve-container (1.0-7) unstable; urgency=medium

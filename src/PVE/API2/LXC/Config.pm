@@ -261,7 +261,7 @@ __PACKAGE__->register_method({
 	    # FIXME: volume_resize doesn't do anything if $running=1?
 	    PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
 
-	    $mp->{size} = $newsize/1024; # kB
+	    $mp->{size} = $newsize;
 	    $conf->{$disk} = PVE::LXC::print_ct_mountpoint($mp, $disk eq 'rootfs');
 
 	    PVE::LXC::write_config($vmid, $conf);
