@@ -124,6 +124,88 @@ __PACKAGE__->register_method ({
 	exec('lxc-attach', '-n', $param->{vmid}, '--', @{$param->{'extra-args'}});
     }});
 
+    __PACKAGE__->register_method ({
+    name => 'fsck',
+    path => 'fsck',
+    method => 'PUT',
+    description => "Run a filesystem check on a container volume",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
+	    force => {
+		optional => 1,
+		type => 'boolean',
+		description => "Force checking, even if the filesystem seems clean",
+		default => 0,
+	    },
+	    device => {
+		optional => 1,
+		type => 'string',
+		description => "A volume on which to run the filesystem check",
+		enum => [PVE::LXC::mountpoint_names()],
+	    },
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+
+	my ($param) = @_;
+	my $vmid = $param->{'vmid'};
+	my $device = defined($param->{'device'}) ? $param->{'device'} : 'rootfs';
+
+	my $command = ['fsck', '-a', '-l'];
+	push(@$command, '-f') if $param->{force};
+
+	# critical path: all of this will be done while the container is locked
+	my $do_fsck = sub {
+
+	    my $conf = PVE::LXC::load_config($vmid);
+	    my $storage_cfg = PVE::Storage::config();
+
+	    defined($conf->{$device}) || die "cannot run command on unexisting mountpoint $device\n";
+
+	    my $mount_point = PVE::LXC::parse_ct_mountpoint($conf->{$device});
+	    my $volid = $mount_point->{volume};
+
+	    my $path;
+	    my $storage_id = PVE::Storage::parse_volume_id($volid, 1);
+
+	    if ($storage_id) {
+		# skip zfs datasets
+		my (undef, undef, undef, undef, undef, undef, $format) =
+		  PVE::Storage::parse_volname($storage_cfg, $volid);
+		my $storage_id_cfg = PVE::Storage::storage_config($storage_cfg, $storage_id);
+
+		if (($storage_id_cfg->{'type'} eq 'zfspool') && ($format eq 'subvol')) {
+		    die "cannot run command, $device does not point to a block device or volume\n";
+		}
+
+		$path = PVE::Storage::path($storage_cfg, $volid);
+
+	    } else {
+		# todo: move both checks to utility function
+		# skip bind mounts
+		if ($volid =~ m|^/.+| && $volid !~ m|^/dev/.+|) {
+		    die "cannot run command, $device does not point to a block device or volume\n";
+		} elsif ($volid =~ m|^/dev/.+|) {
+		    # pass block devices directly
+		    $path = $volid;
+		} else {
+		    die "unknown storage configuration";
+		}
+	    }
+
+	    push(@$command, $path);
+
+	    PVE::LXC::check_running($vmid) && die "cannot run command on active container\n";
+	    PVE::Tools::run_command($command);
+	};
+
+	PVE::LXC::lock_container($vmid, undef, $do_fsck);
+	return undef;
+    }});
+
 our $cmddef = {
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
@@ -165,6 +247,7 @@ our $cmddef = {
     enter => [ __PACKAGE__, 'enter', ['vmid']],
     unlock => [ __PACKAGE__, 'unlock', ['vmid']],
     exec => [ __PACKAGE__, 'exec', ['vmid', 'extra-args']],
+    fsck => [ __PACKAGE__, 'fsck', ['vmid']],
     
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
