@@ -838,40 +838,6 @@ sub vmstatus {
     return $list;
 }
 
-my $parse_size = sub {
-    my ($value) = @_;
-
-    return undef if $value !~ m/^(\d+(\.\d+)?)([KMG])?$/;
-    my ($size, $unit) = ($1, $3);
-    if ($unit) {
-	if ($unit eq 'K') {
-	    $size = $size * 1024;
-	} elsif ($unit eq 'M') {
-	    $size = $size * 1024 * 1024;
-	} elsif ($unit eq 'G') {
-	    $size = $size * 1024 * 1024 * 1024;
-	}
-    }
-    return int($size);
-};
-
-my $format_size = sub {
-    my ($size) = @_;
-
-    $size = int($size);
-
-    my $kb = int($size/1024);
-    return $size if $kb*1024 != $size;
-
-    my $mb = int($kb/1024);
-    return "${kb}K" if $mb*1024 != $kb;
-
-    my $gb = int($mb/1024);
-    return "${mb}M" if $gb*1024 != $mb;
-
-    return "${gb}G";
-};
-
 sub parse_ct_mountpoint {
     my ($data) = @_;
 
