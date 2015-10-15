@@ -39,7 +39,8 @@ my $rootfs_desc = {
 	optional => 1,
     },
     size => {
-	type => 'disk-size',
+	type => 'string',
+	format => 'disk-size',
 	format_description => 'DiskSize',
 	description => 'Volume size (read only value).',
 	optional => 1,
