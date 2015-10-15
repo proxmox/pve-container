@@ -839,21 +839,29 @@ sub vmstatus {
 }
 
 sub parse_ct_mountpoint {
-    my ($data) = @_;
+    my ($data, $noerr) = @_;
 
     $data //= '';
 
     my $res;
     eval { $res = PVE::JSONSchema::parse_property_string($mp_desc, $data) };
     if ($@) {
-	warn $@;
-	return undef;
+	return undef if $noerr;
+	die $@;
     }
 
-    return undef if !defined($res->{volume});
+    if (!defined($res->{volume})) {
+	return undef if $noerr;
+	die "no volume set on mountpoint\n";
+    }
 
-    if ($res->{size}) {
-	return undef if !defined($res->{size} = PVE::JSONSchema::parse_size($res->{size}));
+    if (my $size = $res->{size}) {
+	$size = PVE::JSONSchema::parse_size($size);
+	if (!defined($size)) {
+	    return undef if $noerr;
+	    die "invalid size: $size\n";
+	}
+	$res->{size} = $size;
     }
 
     return $res;
@@ -877,11 +885,7 @@ sub parse_lxc_network {
 
     return $res if !$data;
 
-    eval { $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data) };
-    if ($@) {
-	warn $@;
-	return undef;
-    }
+    $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data);
 
     $res->{type} = 'veth';
     $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{hwaddr};
@@ -1926,7 +1930,8 @@ sub foreach_mountpoint_full {
     foreach my $key (mountpoint_names($reverse)) {
 	my $value = $conf->{$key};
 	next if !defined($value);
-	my $mountpoint = parse_ct_mountpoint($value);
+	my $mountpoint = parse_ct_mountpoint($value, 1);
+	next if !defined($mountpoint);
 
 	# just to be sure: rootfs is /
 	my $path = $key eq 'rootfs' ? '/' : $mountpoint->{mp};
