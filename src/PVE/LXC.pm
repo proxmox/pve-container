@@ -887,7 +887,7 @@ sub parse_ct_mountpoint {
     return undef if !defined($res->{volume});
 
     if ($res->{size}) {
-	return undef if !defined($res->{size} = &$parse_size($res->{size}));
+	return undef if !defined($res->{size} = PVE::JSONSchema::parse_size($res->{size}));
     }
 
     return $res;
