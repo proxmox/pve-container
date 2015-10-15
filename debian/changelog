@@ -1,6 +1,8 @@
 pve-container (1.0-9) unstable; urgency=medium
 
-  *  use new PVE::JSONSchema::parse_size
+  * use new PVE::JSONSchema::parse_siz
+
+  * Add new pct fsck command to check the mountpoints of a container
 
  -- Proxmox Support Team <support@proxmox.com>  Thu, 15 Oct 2015 10:25:56 +0200
 
