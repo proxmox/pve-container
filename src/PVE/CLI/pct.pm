@@ -172,33 +172,28 @@ __PACKAGE__->register_method ({
 	    my $storage_id = PVE::Storage::parse_volume_id($volid, 1);
 
 	    if ($storage_id) {
-		# skip zfs datasets
 		my (undef, undef, undef, undef, undef, undef, $format) =
-		  PVE::Storage::parse_volname($storage_cfg, $volid);
-		my $storage_id_cfg = PVE::Storage::storage_config($storage_cfg, $storage_id);
+		    PVE::Storage::parse_volname($storage_cfg, $volid);
 
-		if (($storage_id_cfg->{'type'} eq 'zfspool') && ($format eq 'subvol')) {
-		    die "cannot run command, $device does not point to a block device or volume\n";
-		}
+		die "unable to run fsck for '$volid' (format == $format)\n"
+		    if $format ne 'raw';
 
 		$path = PVE::Storage::path($storage_cfg, $volid);
 
 	    } else {
-		# todo: move both checks to utility function
-		# skip bind mounts
-		if ($volid =~ m|^/.+| && $volid !~ m|^/dev/.+|) {
-		    die "cannot run command, $device does not point to a block device or volume\n";
-		} elsif ($volid =~ m|^/dev/.+|) {
+		if (($volid =~ m|^/.+|) && (-b $volid)) {
 		    # pass block devices directly
 		    $path = $volid;
 		} else {
-		    die "unknown storage configuration";
+		    die "path '$volid' does not point to a block device\n";
 		}
 	    }
 
 	    push(@$command, $path);
 
-	    PVE::LXC::check_running($vmid) && die "cannot run command on active container\n";
+	    PVE::LXC::check_running($vmid) &&
+		die "cannot run fsck on active container\n";
+
 	    PVE::Tools::run_command($command);
 	};
 
