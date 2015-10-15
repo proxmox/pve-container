@@ -124,11 +124,11 @@ __PACKAGE__->register_method ({
 	exec('lxc-attach', '-n', $param->{vmid}, '--', @{$param->{'extra-args'}});
     }});
 
-    __PACKAGE__->register_method ({
+__PACKAGE__->register_method ({
     name => 'fsck',
     path => 'fsck',
     method => 'PUT',
-    description => "Run a filesystem check on a container volume",
+    description => "Run a filesystem check (fsck) on a container volume.",
     parameters => {
 	additionalProperties => 0,
 	properties => {
