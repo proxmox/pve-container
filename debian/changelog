@@ -4,6 +4,8 @@ pve-container (1.0-9) unstable; urgency=medium
 
   * Add new pct fsck command to check the mountpoints of a container
 
+  * update inittab instead of replacing it
+
  -- Proxmox Support Team <support@proxmox.com>  Thu, 15 Oct 2015 10:25:56 +0200
 
 pve-container (1.0-8) unstable; urgency=medium
