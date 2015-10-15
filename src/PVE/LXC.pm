@@ -850,12 +850,7 @@ sub parse_ct_mountpoint {
 	die $@;
     }
 
-    if (!defined($res->{volume})) {
-	return undef if $noerr;
-	die "no volume set on mountpoint\n";
-    }
-
-    if (my $size = $res->{size}) {
+    if (defined(my $size = $res->{size})) {
 	$size = PVE::JSONSchema::parse_size($size);
 	if (!defined($size)) {
 	    return undef if $noerr;
