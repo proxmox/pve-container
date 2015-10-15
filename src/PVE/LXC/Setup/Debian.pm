@@ -54,14 +54,14 @@ sub setup_init {
     $inittab .= "p0::powerfail:/sbin/init 0\n";
 
     my $version = $self->{version};
-    my $levels = '2345';
-    for my $id (1..$ttycount) {
+    for (my $id = 1; $id <= $ttycount; $id++) {
+	next if $id == 7; # reserved for X11
+	my $levels = ($id == 1) ? '2345' : '23';
 	if ($version < 7) {
 	    $inittab .= "$id:$levels:respawn:/sbin/getty -L 38400 tty$id\n";
 	} else {
 	    $inittab .= "$id:$levels:respawn:/sbin/getty --noclear 38400 tty$id\n";
 	}
-	$levels = '23';
     }
 
     $self->ct_file_set_contents($filename, $inittab);
