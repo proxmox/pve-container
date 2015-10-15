@@ -33,70 +33,38 @@ sub new {
     return bless $self, $class;
 }
 
-my $default_inittab = <<__EOD__;
-
-# The default runlevel.
-id:2:initdefault:
-
-# Boot-time system configuration/initialization script.
-# This is run first except when booting in emergency (-b) mode.
-si::sysinit:/etc/init.d/rcS
-
-# /etc/init.d executes the S and K scripts upon change
-# of runlevel.
-#
-# Runlevel 0 is halt.
-# Runlevel 1 is single-user.
-# Runlevels 2-5 are multi-user.
-# Runlevel 6 is reboot.
-
-l0:0:wait:/etc/init.d/rc 0
-l1:1:wait:/etc/init.d/rc 1
-l2:2:wait:/etc/init.d/rc 2
-l3:3:wait:/etc/init.d/rc 3
-l4:4:wait:/etc/init.d/rc 4
-l5:5:wait:/etc/init.d/rc 5
-l6:6:wait:/etc/init.d/rc 6
-# Normally not reached, but fallthrough in case of emergency.
-z6:6:respawn:/sbin/sulogin
-
-# What to do when CTRL-ALT-DEL is pressed.
-ca:12345:ctrlaltdel:/sbin/shutdown -t1 -a -r now
-
-# What to do when the power fails/returns.
-p0::powerfail:/sbin/init 0
-
-# /sbin/getty invocations for the runlevels.
-#
-# The "id" field MUST be the same as the last
-# characters of the device (after "tty").
-#
-# Format:
-#  <id>:<runlevels>:<action>:<process>
-#
-__EOD__
-
 sub setup_init {
     my ($self, $conf) = @_;
 
     my $filename = "/etc/inittab";
+    return if !$self->ct_file_exists($filename);
 
-    if ($self->ct_file_exists($filename)) {
-	my $inittab = $default_inittab;
+    my $ttycount =  PVE::LXC::get_tty_count($conf);
+    my $inittab = $self->ct_file_get_contents($filename);
 
-	my $ttycount =  PVE::LXC::get_tty_count($conf);
-	for (my $i = 1; $i <= $ttycount; $i++) {
-	    next if $i == 7; # reserved for X11
-	    my $levels = ($i == 1) ? '2345' : '23';
-	    if ($self->{version} < 7) {
-		$inittab .= "$i:$levels:respawn:/sbin/getty -L 38400 tty$i\n";
-	    } else {
-		$inittab .= "$i:$levels:respawn:/sbin/getty --noclear 38400 tty$i\n";
-	    }
+    my @lines = grep {
+	    # remove getty lines
+	    !/^\s*\d+:\d+:[^:]*:.*getty/ &&
+	    # remove power lines
+	    !/^\s*p[fno0]:/
+	} split(/\n/, $inittab);
+
+    $inittab = join("\n", @lines) . "\n";
+
+    $inittab .= "p0::powerfail:/sbin/init 0\n";
+
+    my $version = $self->{version};
+    my $levels = '2345';
+    for my $id (1..$ttycount) {
+	if ($version < 7) {
+	    $inittab .= "$id:$levels:respawn:/sbin/getty -L 38400 tty$id\n";
+	} else {
+	    $inittab .= "$id:$levels:respawn:/sbin/getty --noclear 38400 tty$id\n";
 	}
-	
-	$self->ct_file_set_contents($filename, $inittab);
+	$levels = '23';
     }
+
+    $self->ct_file_set_contents($filename, $inittab);
 }
 
 sub setup_network {
