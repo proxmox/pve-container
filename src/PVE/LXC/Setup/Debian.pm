@@ -113,6 +113,7 @@ sub setup_network {
 
     my $section;
 
+    my $done_auto = {};
     my $done_v4_hash = {};
     my $done_v6_hash = {};
     
@@ -123,10 +124,13 @@ sub setup_network {
 
 	my $net = $networks->{$section->{ifname}};
 
+	if ($new && !$done_auto->{$section->{ifname}}) {
+	    $interfaces .= "auto $section->{ifname}\n";
+	    $done_auto->{$section->{ifname}} = 1;
+	}
+
 	if ($section->{type} eq 'ipv4') {
 	    $done_v4_hash->{$section->{ifname}} = 1;
-
-	    $interfaces .= "auto $section->{ifname}\n" if $new;
 
 	    if ($net->{address} =~ /^(dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet $1\n";
@@ -200,9 +204,17 @@ sub setup_network {
 		$section = { type => 'ipv6', ifname => $ifname, attr => []};
 		next;
 	    }
+	    # Handle 'auto'
+	    if ($line =~ m/^\s*auto\s*(.*)$/) {
+		foreach my $iface (split(/\s+/, $1)) {
+		    $done_auto->{$iface} = 1;
+		}
+		&$print_section();
+	        $interfaces .= "$line\n";
+	        next;
+	    }
 	    # Handle other section delimiters:
 	    if ($line =~ m/^\s*(?:mapping\s
-	                         |auto\s
 	                         |allow-
 	                         |source\s
 	                         |source-directory\s
