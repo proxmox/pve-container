@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use PVE::Tools;
+use PVE::Network;
 use PVE::LXC;
 
 use PVE::LXC::Setup::Base;
@@ -195,6 +196,8 @@ sub setup_network {
 	next if !$d->{name};
 
 	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
+	my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
+	my $routes = '';
 	my $had_v4 = 0;
 
 	if ($d->{ip} && $d->{ip} ne 'manual') {
@@ -212,6 +215,10 @@ sub setup_network {
 		}
 	    }
 	    $self->ct_file_set_contents($filename, $data);
+	    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
+		$routes .= "$d->{gw} dev $d->{name}\n";
+		$routes .= "default via $d->{gw}\n";
+	    }
 	    # If we also have an IPv6 configuration it'll end up in an alias
 	    # interface becuase otherwise RH doesn't support mixing dhcpv4 with
 	    # a static ipv6 address.
@@ -241,6 +248,29 @@ sub setup_network {
 		}
 	    }
 	    $self->ct_file_set_contents($filename, $data);
+	    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)) {
+		$routes .= "$d->{gw6} dev $d->{name}\n";
+		$routes .= "default via $d->{gw6}\n";
+	    }
+	}
+
+	# To keep user-defined routes in route-$iface we mark ours:
+	my $head = "# --- BEGIN PVE ROUTES ---\n";
+	my $tail = "# --- END PVE ROUTES ---\n";
+	$routes = $head . $routes . $tail if $routes;
+	if ($self->ct_file_exists($routefile)) {
+	    # if it exists we update by first removing our old rules
+	    my $old = $self->ct_file_get_contents($routefile);
+	    $old =~ s/(?:^|(?<=\n))\Q$head\E.*\Q$tail\E//gs;
+	    chomp $old;
+	    if ($old) {
+		$self->ct_file_set_contents($routefile, $routes . $old . "\n");
+	    } else {
+		# or delete if we aren't adding routes and the file's now empty
+		$self->ct_unlink($routefile);
+	    }
+	} elsif ($routes) {
+	    $self->ct_file_set_contents($routefile, $routes);
 	}
     }
 }
