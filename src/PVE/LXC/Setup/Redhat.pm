@@ -18,7 +18,7 @@ sub new {
 
     my $version;
 
-    if ($release =~ m/release\s+(\d\.\d)(\.\d+)?\s/) {
+    if ($release =~ m/release\s+(\d+\.\d+)(\.\d+)?/) {
 	if ($1 >= 6 && $1 < 8) {
 	    $version = $1;
 	}
