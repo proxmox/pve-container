@@ -5,6 +5,7 @@ use warnings;
 use Data::Dumper;
 use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
+use PVE::Network;
 use File::Path;
 
 use PVE::LXC::Setup::Base;
@@ -67,6 +68,49 @@ sub setup_init {
     $self->ct_file_set_contents($filename, $inittab);
 }
 
+sub remove_gateway_scripts {
+    my ($attr) = @_;
+    my $length = scalar(@$attr);
+    for (my $i = 0; $i < $length; ++$i) {
+	my $a = $attr->[$i];
+	if ($a =~ m@^\s*post-up\s+.*route.*add.*default.*(?:gw|via)\s+(\S+)@) {
+	    my $gw = $1;
+	    if ($i > 0 && $attr->[$i-1] =~ m@^\s*post-up\s+.*route.*add.*\Q$1\E@) {
+		--$i;
+		splice @$attr, $i, 2;
+		$length -= 2;
+	    } else {
+		splice @$attr, $i, 1;
+		$length -= 1;
+	    }
+	    --$i;
+	    next;
+	}
+	if ($a =~ m@^\s*pre-down\s+.*route.*del.*default.*(?:gw|via)\s+(\S+)@) {
+	    my $gw = $1;
+	    if ($attr->[$i+1] =~ m@^\s*pre-down\s+.*route.*del.*\Q$1\E@) {
+		splice @$attr, $i, 2;
+		$length -= 2;
+	    } else {
+		splice @$attr, $i, 1;
+		$length -= 1;
+	    }
+	    --$i;
+	    next;
+	}
+    }
+}
+
+sub make_gateway_scripts {
+    my ($ifname, $gw) = @_;
+    return <<"SCRIPTS";
+\tpost-up ip route add $gw dev $ifname
+\tpost-up ip route add default via $gw
+\tpre-down ip route del default via $gw
+\tpre-down ip route del $gw dev $ifname
+SCRIPTS
+}
+
 sub setup_network {
     my ($self, $conf) = @_;
 
@@ -77,6 +121,7 @@ sub setup_network {
 	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	if ($d->{name}) {
 	    my $net = {};
+	    my $cidr;
 	    if (defined($d->{ip})) {
 		if ($d->{ip} =~ /^(?:dhcp|manual)$/) {
 		    $net->{address} = $d->{ip};
@@ -84,11 +129,17 @@ sub setup_network {
 		    my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
 		    $net->{address} = $ipinfo->{address};
 		    $net->{netmask} = $ipinfo->{netmask};
+		    $cidr = $d->{ip};
 		}
 	    }
 	    if (defined($d->{'gw'})) {
 		$net->{gateway} = $d->{'gw'};
+		if (defined($cidr) && !PVE::Network::is_ip_in_cidr($d->{gw}, $cidr, 4)) {
+		    # gateway is not reachable, need an extra route
+		    $net->{needsroute} = 1;
+		}
 	    }
+	    $cidr = undef;
 	    if (defined($d->{ip6})) {
 		if ($d->{ip6} =~ /^(?:auto|dhcp|manual)$/) {
 		    $net->{address6} = $d->{ip6};
@@ -97,10 +148,15 @@ sub setup_network {
 		} else {
 		    $net->{address6} = $1;
 		    $net->{netmask6} = $2;
+		    $cidr = $d->{ip6};
 		}
 	    }
 	    if (defined($d->{'gw6'})) {
 		$net->{gateway6} = $d->{'gw6'};
+		if (defined($cidr) && !PVE::Network::is_ip_in_cidr($d->{gw6}, $cidr, 6)) {
+		    # gateway is not reachable, need an extra route
+		    $net->{needsroute6} = 1;
+		}
 	    }
 	    $networks->{$d->{name}} = $net if keys %$net;
 	}
@@ -137,7 +193,14 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
 		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
-		$interfaces .= "\tgateway $net->{gateway}\n" if defined($net->{gateway});
+		if (defined(my $gw = $net->{gateway})) {
+		    remove_gateway_scripts($section->{attr});
+		    if ($net->{needsroute}) {
+			$interfaces .= make_gateway_scripts($ifname, $gw);
+		    } else {
+			$interfaces .= "\tgateway $gw\n";
+		    }
+		}
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
@@ -154,7 +217,14 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
 		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
-		$interfaces .= "\tgateway $net->{gateway6}\n" if defined($net->{gateway6});
+		if (defined(my $gw = $net->{gateway6})) {
+		    remove_gateway_scripts($section->{attr});
+		    if ($net->{needsroute6}) {
+			$interfaces .= make_gateway_scripts($ifname, $gw);
+		    } else {
+			$interfaces .= "\tgateway $net->{gateway6}\n" if defined($net->{gateway6});
+		    }
+		}
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}

@@ -1,0 +1,21 @@
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+	address 10.0.0.100
+	netmask 255.255.255.255
+	post-up ip route add 11.0.0.1 dev eth0
+	post-up ip route add default via 11.0.0.1
+	pre-down ip route del default via 11.0.0.1
+	pre-down ip route del 11.0.0.1 dev eth0
+
+auto eth1
+iface eth1 inet6 static
+	address fc00::1
+	netmask 64
+	post-up ip route add fc00:1::ff dev eth1
+	post-up ip route add default via fc00:1::ff
+	pre-down ip route del default via fc00:1::ff
+	pre-down ip route del fc00:1::ff dev eth1
+
