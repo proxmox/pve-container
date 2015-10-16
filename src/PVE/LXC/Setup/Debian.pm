@@ -134,7 +134,7 @@ sub setup_network {
 
 	    if ($net->{address} =~ /^(dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet $1\n";
-	    } elsif ($net->{address}) {
+	    } else {
 		$interfaces .= "iface $section->{ifname} inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
 		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
@@ -151,7 +151,7 @@ sub setup_network {
 	    
 	    if ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet6 $1\n";
-	    } elsif ($net->{address6}) {
+	    } else {
 		$interfaces .= "iface $section->{ifname} inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
 		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
@@ -244,7 +244,7 @@ sub setup_network {
     foreach my $ifname (sort keys %$networks) {
 	my $net = $networks->{$ifname};
 	
-	if (!$done_v4_hash->{$ifname}) {
+	if (!$done_v4_hash->{$ifname} && defined($net->{address})) {
 	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
 	    $section = { type => 'ipv4', ifname => $ifname, attr => []};
 	    &$print_section(1);
