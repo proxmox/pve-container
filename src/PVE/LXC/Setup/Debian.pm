@@ -23,7 +23,7 @@ sub new {
 
     $version = $1;
 
-    die "unsupported debian version '$version'\n" 
+    die "unsupported debian version '$version'\n"
 	if !($version >= 4 && $version < 9);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
@@ -116,10 +116,10 @@ sub setup_network {
     my $done_auto = {};
     my $done_v4_hash = {};
     my $done_v6_hash = {};
-    
+
     my $print_section = sub {
 	my ($new) = @_;
-	
+
 	return if !$section;
 
 	my $net = $networks->{$section->{ifname}};
@@ -143,12 +143,12 @@ sub setup_network {
 		    $interfaces .= "\t$attr\n";
 		}
 	    }
-	    
+
 	    $interfaces .= "\n";
-	    
+
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$section->{ifname}} = 1;
-	    
+
 	    if ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
 		$interfaces .= "iface $section->{ifname} inet6 $1\n";
 	    } else {
@@ -160,15 +160,15 @@ sub setup_network {
 		    $interfaces .= "\t$attr\n";
 		}
 	    }
-	    
-	    $interfaces .= "\n";	
+
+	    $interfaces .= "\n";
 	} else {
 	    die "unknown section type '$section->{type}'";
 	}
 
 	$section = undef;
     };
-	
+
     if (my $fh = $self->ct_open_file($filename, "r")) {
 	while (defined (my $line = <$fh>)) {
 	    chomp $line;
@@ -229,33 +229,32 @@ sub setup_network {
 		    $aname eq 'gateway' || $aname eq 'broadcast') {
 		    # skip
 		} else {
-		    push @{$section->{attr}}, $adata; 
+		    push @{$section->{attr}}, $adata;
 		}
 		next;
 	    }
-	    
-	    $interfaces .= "$line\n";	    
+
+	    $interfaces .= "$line\n";
 	}
 	&$print_section();
-	
     }
 
     my $need_separator = length($interfaces) && ($interfaces !~ /\n\n$/);
     foreach my $ifname (sort keys %$networks) {
 	my $net = $networks->{$ifname};
-	
+
 	if (!$done_v4_hash->{$ifname} && defined($net->{address})) {
-	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
+	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };
 	    $section = { type => 'ipv4', ifname => $ifname, attr => []};
 	    &$print_section(1);
 	}
 	if (!$done_v6_hash->{$ifname} && defined($net->{address6})) {
-	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };	    
+	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };
 	    $section = { type => 'ipv6', ifname => $ifname, attr => []};
 	    &$print_section(1);
 	}
     }
-    
+
     $self->ct_file_set_contents($filename, $interfaces);
 }
 
