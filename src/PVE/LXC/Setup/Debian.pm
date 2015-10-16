@@ -240,7 +240,7 @@ sub setup_network {
 	
     }
 
-    my $need_separator = 1;
+    my $need_separator = length($interfaces) && ($interfaces !~ /\n\n$/);
     foreach my $ifname (sort keys %$networks) {
 	my $net = $networks->{$ifname};
 	
