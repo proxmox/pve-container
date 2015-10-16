@@ -1,3 +1,9 @@
+pve-container (1.0-10) unstable; urgency=medium
+
+  * improve regex to match redhat/centos OS version
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 16 Oct 2015 08:27:06 +0200
+
 pve-container (1.0-9) unstable; urgency=medium
 
   * use new PVE::JSONSchema::parse_siz
