@@ -118,14 +118,12 @@ sub setup_network {
     my $done_v6_hash = {};
 
     my $print_section = sub {
-	my ($new) = @_;
-
 	return if !$section;
 
 	my $ifname = $section->{ifname};
 	my $net = $networks->{$ifname};
 
-	if ($new && !$done_auto->{$ifname}) {
+	if (!$done_auto->{$ifname}) {
 	    $interfaces .= "auto $ifname\n";
 	    $done_auto->{$ifname} = 1;
 	}
@@ -247,12 +245,12 @@ sub setup_network {
 	if (!$done_v4_hash->{$ifname} && defined($net->{address})) {
 	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };
 	    $section = { type => 'ipv4', ifname => $ifname, attr => []};
-	    &$print_section(1);
+	    &$print_section();
 	}
 	if (!$done_v6_hash->{$ifname} && defined($net->{address6})) {
 	    if ($need_separator) { $interfaces .= "\n"; $need_separator = 0; };
 	    $section = { type => 'ipv6', ifname => $ifname, attr => []};
-	    &$print_section(1);
+	    &$print_section();
 	}
     }
 
