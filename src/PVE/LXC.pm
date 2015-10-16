@@ -1499,7 +1499,8 @@ sub update_ipconfig {
 	return if !$change_ip && !$change_gw;
 
 	# step 1: add new IP, if this fails we cancel
-	if ($change_ip && $newip && $newip !~ /^(?:auto|dhcp)$/) {
+	my $is_real_ip = ($newip && $newip !~ /^(?:auto|dhcp|manual)$/);
+	if ($change_ip && $is_real_ip) {
 	    eval { &$ipcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
 	    if (my $err = $@) {
 		warn $err;
@@ -1514,7 +1515,12 @@ sub update_ipconfig {
 	# Note: 'ip route replace' can add
 	if ($change_gw) {
 	    if ($newgw) {
-		eval { &$ipcmd($family_opt, 'route', 'replace', 'default', 'via', $newgw); };
+		eval {
+		    if ($is_real_ip && !PVE::Network::is_ip_in_cidr($newgw, $newip, $ipversion)) {
+			&$ipcmd($family_opt, 'route', 'add', $newgw, 'dev', $eth);
+		    }
+		    &$ipcmd($family_opt, 'route', 'replace', 'default', 'via', $newgw);
+		};
 		if (my $err = $@) {
 		    warn $err;
 		    # the route was not replaced, the old IP is still available
