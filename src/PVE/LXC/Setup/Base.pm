@@ -11,6 +11,7 @@ use File::Path;
 
 use PVE::INotify;
 use PVE::Tools;
+use PVE::Network;
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
@@ -266,6 +267,10 @@ Name = $d->{name}
 [Network]
 Description = Interface $d->{name} autoconfigured by PVE
 DATA
+
+	my $routes = '';
+	my ($has_ipv4, $has_ipv6);
+
 	# DHCP bitflags:
 	my @DHCPMODES = ('none', 'v4', 'v6', 'both');
 	my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
@@ -275,25 +280,34 @@ DATA
 	    if ($ip eq 'dhcp') {
 		$dhcp |= $DHCP4;
 	    } elsif ($ip ne 'manual') {
+		$has_ipv4 = 1;
 		$data .= "Address = $ip\n";
 	    }
 	}
 	if (defined(my $gw = $d->{gw})) {
 	    $data .= "Gateway = $gw\n";
+	    if ($has_ipv4 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip}, 4)) {
+		$routes .= "\n[Route]\nDestination = $gw/32\nScope = link\n";
+	    }
 	}
 
 	if (defined(my $ip = $d->{ip6})) {
 	    if ($ip eq 'dhcp') {
 		$dhcp |= $DHCP6;
 	    } elsif ($ip ne 'manual') {
+		$has_ipv6 = 1;
 		$data .= "Address = $ip\n";
 	    }
 	}
 	if (defined(my $gw = $d->{gw6})) {
 	    $data .= "Gateway = $gw\n";
+	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6)) {
+		$routes .= "\n[Route]\nDestination = $gw/128\nScope = link\n";
+	    }
 	}
 
 	$data .= "DHCP = $DHCPMODES[$dhcp]\n";
+	$data .= $routes if $routes;
 
 	PVE::Tools::file_set_contents($filename, $data);
     }
