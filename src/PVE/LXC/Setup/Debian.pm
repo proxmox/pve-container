@@ -122,20 +122,21 @@ sub setup_network {
 
 	return if !$section;
 
-	my $net = $networks->{$section->{ifname}};
+	my $ifname = $section->{ifname};
+	my $net = $networks->{$ifname};
 
-	if ($new && !$done_auto->{$section->{ifname}}) {
-	    $interfaces .= "auto $section->{ifname}\n";
-	    $done_auto->{$section->{ifname}} = 1;
+	if ($new && !$done_auto->{$ifname}) {
+	    $interfaces .= "auto $ifname\n";
+	    $done_auto->{$ifname} = 1;
 	}
 
 	if ($section->{type} eq 'ipv4') {
-	    $done_v4_hash->{$section->{ifname}} = 1;
+	    $done_v4_hash->{$ifname} = 1;
 
 	    if ($net->{address} =~ /^(dhcp|manual)$/) {
-		$interfaces .= "iface $section->{ifname} inet $1\n";
+		$interfaces .= "iface $ifname inet $1\n";
 	    } else {
-		$interfaces .= "iface $section->{ifname} inet static\n";
+		$interfaces .= "iface $ifname inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
 		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
 		$interfaces .= "\tgateway $net->{gateway}\n" if defined($net->{gateway});
@@ -147,12 +148,12 @@ sub setup_network {
 	    $interfaces .= "\n";
 
 	} elsif ($section->{type} eq 'ipv6') {
-	    $done_v6_hash->{$section->{ifname}} = 1;
+	    $done_v6_hash->{$ifname} = 1;
 
 	    if ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
-		$interfaces .= "iface $section->{ifname} inet6 $1\n";
+		$interfaces .= "iface $ifname inet6 $1\n";
 	    } else {
-		$interfaces .= "iface $section->{ifname} inet6 static\n";
+		$interfaces .= "iface $ifname inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
 		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
 		$interfaces .= "\tgateway $net->{gateway6}\n" if defined($net->{gateway6});
