@@ -1,3 +1,11 @@
+pve-container (1.0-12) unstable; urgency=medium
+
+  * allow /32 CIDRs and remove duplicated mask array
+
+  * network setup: deal with gateways outside the subnet
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 19 Oct 2015 08:52:02 +0200
+
 pve-container (1.0-11) unstable; urgency=medium
 
   * setup/debian: avoid writing multiple auto lines
