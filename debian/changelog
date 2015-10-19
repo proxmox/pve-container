@@ -4,6 +4,8 @@ pve-container (1.0-12) unstable; urgency=medium
 
   * network setup: deal with gateways outside the subnet
 
+  * redhat: use the fully qualified hostname
+
  -- Proxmox Support Team <support@proxmox.com>  Mon, 19 Oct 2015 08:52:02 +0200
 
 pve-container (1.0-11) unstable; urgency=medium

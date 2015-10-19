@@ -121,9 +121,8 @@ sub setup_init {
 sub set_hostname {
     my ($self, $conf) = @_;
 
+    # Redhat wants the fqdn in /etc/sysconfig/network's HOSTNAME
     my $hostname = $conf->{hostname} || 'localhost';
-
-    $hostname =~ s/\..*$//;
 
     my $hostname_fn = "/etc/hostname";
     my $sysconfig_network = "/etc/sysconfig/network";
