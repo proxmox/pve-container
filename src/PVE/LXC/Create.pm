@@ -158,6 +158,7 @@ sub restore_and_configure {
 		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots';
 		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	    }
+	    unlink($pct_cfg_fn);
 	    
 	} elsif (-f $ovz_cfg_fn) {
 	    print "###########################################################\n";
@@ -172,6 +173,7 @@ sub restore_and_configure {
 	    foreach my $key (keys %$oldconf) {
 		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	    }
+	    unlink($ovz_cfg_fn);
 
 	} else {
 	    print "###########################################################\n";
