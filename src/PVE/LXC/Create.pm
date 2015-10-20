@@ -36,6 +36,11 @@ sub restore_archive {
     my $cmd = [@$userns_cmd, 'tar', 'xpf', $archive, '--numeric-owner', '--totals',
 	    '--sparse', '-C', $rootdir];
 
+    # skip-old-files doesn't have anything to do with time (old/new), but is
+    # simply -k (annoyingly also called --keep-old-files) without the 'treat
+    # existing files as errors' part... iow. it's bsdtar's interpretation of -k
+    # *sigh*, gnu...
+    push @$cmd, '--skip-old-files';
     push @$cmd, '--anchored';
     push @$cmd, '--exclude' , './dev/*';
 
