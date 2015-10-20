@@ -197,15 +197,16 @@ sub setup_network {
 	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
 	my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
 	my $routes = '';
-	my $had_v4 = 0;
+
+	my $header = "DEVICE=$d->{name}\nONBOOT=yes\n";
+	my $data = '';
+	my $bootproto = '';
 
 	if ($d->{ip} && $d->{ip} ne 'manual') {
-	    my $data = "DEVICE=$d->{name}\n";
-	    $data .= "ONBOOT=yes\n";
 	    if ($d->{ip} eq 'dhcp') {
-		$data .= "BOOTPROTO=dhcp\n";
+		$bootproto = 'dhcp';
 	    } else {
-		$data .= "BOOTPROTO=none\n";
+		$bootproto = 'none';
 		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
 		$data .= "IPADDR=$ipinfo->{address}\n";
 		$data .= "NETMASK=$ipinfo->{netmask}\n";
@@ -213,25 +214,14 @@ sub setup_network {
 		    $data .= "GATEWAY=$d->{gw}\n";
 		}
 	    }
-	    $self->ct_file_set_contents($filename, $data);
 	    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
 		$routes .= "$d->{gw} dev $d->{name}\n";
 		$routes .= "default via $d->{gw}\n";
 	    }
-	    # If we also have an IPv6 configuration it'll end up in an alias
-	    # interface becuase otherwise RH doesn't support mixing dhcpv4 with
-	    # a static ipv6 address.
-	    $filename .= ':0';
-	    $had_v4 = 1;
 	}
 
 	if ($d->{ip6} && $d->{ip6} ne 'manual') {
-	    # If we're only on ipv6 delete the :0 alias
-	    $self->ct_unlink("$filename:0") if !$had_v4;
-
-	    my $data = "DEVICE=$d->{name}\n";
-	    $data .= "ONBOOT=yes\n";
-	    $data .= "BOOTPROTO=none\n";
+	    $bootproto = 'none' if !$bootproto;
 	    $data .= "IPV6INIT=yes\n";
 	    if ($d->{ip6} eq 'auto') {
 		$data .= "IPV6_AUTOCONF=yes\n";
@@ -246,12 +236,15 @@ sub setup_network {
 		    $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
 		}
 	    }
-	    $self->ct_file_set_contents($filename, $data);
 	    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)) {
 		$routes .= "$d->{gw6} dev $d->{name}\n";
 		$routes .= "default via $d->{gw6}\n";
 	    }
 	}
+
+	next unless $data;
+	$header .= "BOOTPROTO=$bootproto\n";
+	$self->ct_file_set_contents($filename, $header . $data);
 
 	# To keep user-defined routes in route-$iface we mark ours:
 	my $head = "# --- BEGIN PVE ROUTES ---\n";
