@@ -1,3 +1,13 @@
+pve-container (1.0-13) unstable; urgency=medium
+
+  * restore: make sure only the first pct.conf is extracted
+
+  * redhat: don't use aliases for dual stack networking
+
+  * redhat: use the fully qualified hostname
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 21 Oct 2015 08:31:24 +0200
+
 pve-container (1.0-12) unstable; urgency=medium
 
   * allow /32 CIDRs and remove duplicated mask array
