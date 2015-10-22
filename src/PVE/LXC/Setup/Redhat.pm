@@ -212,11 +212,11 @@ sub setup_network {
 		$data .= "NETMASK=$ipinfo->{netmask}\n";
 		if (defined($d->{gw})) {
 		    $data .= "GATEWAY=$d->{gw}\n";
+		    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
+			$routes .= "$d->{gw} dev $d->{name}\n";
+			$routes .= "default via $d->{gw}\n";
+		    }
 		}
-	    }
-	    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
-		$routes .= "$d->{gw} dev $d->{name}\n";
-		$routes .= "default via $d->{gw}\n";
 	    }
 	}
 
@@ -234,11 +234,11 @@ sub setup_network {
 		$data .= "IPV6ADDR=$d->{ip6}\n";
 		if (defined($d->{gw6})) {
 		    $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
+		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)) {
+			$routes .= "$d->{gw6} dev $d->{name}\n";
+			$routes .= "default via $d->{gw6}\n";
+		    }
 		}
-	    }
-	    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)) {
-		$routes .= "$d->{gw6} dev $d->{name}\n";
-		$routes .= "default via $d->{gw6}\n";
 	    }
 	}
 
