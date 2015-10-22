@@ -1,3 +1,9 @@
+pve-container (1.0-14) unstable; urgency=medium
+
+  * redhat: fix unused values
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 22 Oct 2015 12:10:56 +0200
+
 pve-container (1.0-13) unstable; urgency=medium
 
   * restore: make sure only the first pct.conf is extracted
