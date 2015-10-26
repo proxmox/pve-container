@@ -2060,6 +2060,8 @@ sub mountpoint_mount {
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
 
+	$format = 'iso' if $vtype eq 'iso'; # allow to handle iso files
+
 	if ($format eq 'subvol') {
 	    if ($mount_path) {
 		if ($snapname) {
@@ -2075,7 +2077,7 @@ sub mountpoint_mount {
 		}
 	    }
 	    return wantarray ? ($path, 0) : $path;
-	} elsif ($format eq 'raw') {
+	} elsif ($format eq 'raw' || $format eq 'iso') {
 	    my $use_loopdev = 0;
 	    my @extra_opts;
 	    if ($scfg->{path}) {
@@ -2087,7 +2089,9 @@ sub mountpoint_mount {
 		die "unsupported storage type '$scfg->{type}'\n";
 	    }
 	    if ($mount_path) {
-		if ($isBase || defined($snapname)) {
+		if ($format eq 'iso') {
+		    PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, $path, $mount_path]);
+		} elsif ($isBase || defined($snapname)) {
 		    PVE::Tools::run_command(['mount', '-o', 'ro,noload', @extra_opts, $path, $mount_path]);
 		} else {
 		    PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
