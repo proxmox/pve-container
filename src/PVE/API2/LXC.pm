@@ -1019,7 +1019,8 @@ __PACKAGE__->register_method({
 
 	    PVE::Cluster::log_msg('info', $authuser, "update CT $vmid: resize --disk $disk --size $sizestr");
 	    my $realcmd = sub {
-		# FIXME: volume_resize doesn't do anything if $running=1?
+		# Note: PVE::Storage::volume_resize doesn't do anything if $running=1, so
+		# we pass 0 here (parameter only makes sense for qemu)
 		PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
 
 		$mp->{size} = $newsize;
