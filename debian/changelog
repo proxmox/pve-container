@@ -1,3 +1,13 @@
+pve-container (1.0-15) unstable; urgency=medium
+
+  * Start a worker in lxc resize
+
+  * move resize to have it available in the pveshell and at the rest api
+
+  * allow to mount iso images
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 28 Oct 2015 11:27:46 +0100
+
 pve-container (1.0-14) unstable; urgency=medium
 
   * redhat: fix unused values
