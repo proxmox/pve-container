@@ -941,7 +941,10 @@ __PACKAGE__->register_method({
 		}
 	    }),
     },
-    returns => { type => 'null'},
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
     code => sub {
 	my ($param) = @_;
 
@@ -1015,42 +1018,43 @@ __PACKAGE__->register_method({
 	    return if $size == $newsize;
 
 	    PVE::Cluster::log_msg('info', $authuser, "update CT $vmid: resize --disk $disk --size $sizestr");
+	    my $realcmd = sub {
+		# FIXME: volume_resize doesn't do anything if $running=1?
+		PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
 
-	    # FIXME: volume_resize doesn't do anything if $running=1?
-	    PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
+		$mp->{size} = $newsize;
+		$conf->{$disk} = PVE::LXC::print_ct_mountpoint($mp, $disk eq 'rootfs');
 
-	    $mp->{size} = $newsize;
-	    $conf->{$disk} = PVE::LXC::print_ct_mountpoint($mp, $disk eq 'rootfs');
+		PVE::LXC::write_config($vmid, $conf);
 
-	    PVE::LXC::write_config($vmid, $conf);
+		if ($format eq 'raw') {
+		    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
+		    if ($running) {
+			$path = &$query_loopdev($path);
+			die "internal error: CT running but mountpoint not attached to a loop device"
+			    if !$path; # fixme: zvols and other storages?
+			PVE::Tools::run_command(['losetup', '--set-capacity', $path]);
 
-	    if ($format eq 'raw') {
-		my $path = PVE::Storage::path($storage_cfg, $volid, undef);
-		if ($running) {
-		    $path = &$query_loopdev($path);
-		    die "internal error: CT running but mountpoint not attached to a loop device"
-			if !$path; # fixme: zvols and other storages?
-		    PVE::Tools::run_command(['losetup', '--set-capacity', $path]);
+			# In order for resize2fs to know that we need online-resizing a mountpoint needs
+			# to be visible to it in its namespace.
+			# To not interfere with the rest of the system we unshare the current mount namespace,
+			# mount over /tmp and then run resize2fs.
 
-		    # In order for resize2fs to know that we need online-resizing a mountpoint needs
-		    # to be visible to it in its namespace.
-		    # To not interfere with the rest of the system we unshare the current mount namespace,
-		    # mount over /tmp and then run resize2fs.
-
-		    # interestingly we don't need to e2fsck on mounted systems...
-		    my $quoted = PVE::Tools::shellquote($path);
-		    my $cmd = "mount --make-rprivate / && mount $quoted /tmp && resize2fs $quoted";
-		    PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
-		} else {
-		    PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
-		    PVE::Tools::run_command(['resize2fs', $path]);
+			# interestingly we don't need to e2fsck on mounted systems...
+			my $quoted = PVE::Tools::shellquote($path);
+			my $cmd = "mount --make-rprivate / && mount $quoted /tmp && resize2fs $quoted";
+			PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
+		    } else {
+			PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
+			PVE::Tools::run_command(['resize2fs', $path]);
+		    }
 		}
-	    }
+	    };
+
+	    return $rpcenv->fork_worker('resize', $vmid, $authuser, $realcmd);
 	};
 
-	PVE::LXC::lock_container($vmid, undef, $code);
-
-	return undef;
+	return PVE::LXC::lock_container($vmid, undef, $code);;
     }});
 
 1;
