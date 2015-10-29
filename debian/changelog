@@ -1,3 +1,12 @@
+pve-container (1.0-16) unstable; urgency=medium
+
+  * LXC::Setup: chroot into the container (thanks to RACK911Labs.com for
+    the hint)
+
+  * LXC::get_primary_ips: ipv6 can be 'auto'
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 29 Oct 2015 11:43:30 +0100
+
 pve-container (1.0-15) unstable; urgency=medium
 
   * Start a worker in lxc resize
