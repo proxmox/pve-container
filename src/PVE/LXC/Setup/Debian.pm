@@ -238,7 +238,7 @@ sub setup_network {
 	$section = undef;
     };
 
-    if (my $fh = $self->ct_open_file($filename, "r")) {
+    if (my $fh = $self->ct_open_file_read($filename)) {
 	while (defined (my $line = <$fh>)) {
 	    chomp $line;
 	    if ($line =~ m/^#/) {

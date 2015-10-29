@@ -2,6 +2,7 @@ package PVE::LXC::Setup;
 
 use strict;
 use warnings;
+use POSIX;
 use PVE::Tools;
 
 use PVE::LXC::Setup::Debian;
@@ -51,65 +52,129 @@ sub new {
 	"no such OS type '$type'\n";
 
     $self->{plugin} = $plugin_class->new($conf, $rootdir);
+    $self->{in_chroot} = 0;
     
     return $self;
+}
+
+sub protected_call {
+    my ($self, $sub) = @_;
+
+    # avoid recursion:
+    return $sub->() if $self->{in_chroot};
+
+    my $rootdir = $self->{rootdir};
+    if (!-d "$rootdir/dev" && !mkdir("$rootdir/dev")) {
+	die "failed to create temporary /dev directory: $!\n";
+    }
+
+    my $child = fork();
+    die "fork failed: $!\n" if !defined($child);
+
+    if (!$child) {
+	# avoid recursive forks
+	$self->{in_chroot} = 1;
+	$self->{plugin}->{in_chroot} = 1;
+	eval {
+	    PVE::Tools::run_command(['mount', '--bind', '/dev', "$rootdir/dev"]);
+	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
+	    chdir('/') or die "failed to change to root directory\n";
+	    $sub->();
+	};
+	if (my $err = $@) {
+	    print STDERR "$err\n";
+	    POSIX::_exit(1);
+	}
+	POSIX::_exit(0);
+    }
+    while (waitpid($child, 0) != $child) {}
+    eval { PVE::Tools::run_command(['umount', "$rootdir/dev"]); };
+    warn $@ if $@;
+    return $? == 0;
 }
 
 sub template_fixup {
     my ($self) = @_;
 
-    $self->{plugin}->template_fixup($self->{conf});
+    my $code = sub {
+	$self->{plugin}->template_fixup($self->{conf});
+    };
+    $self->protected_call($code);
 }
  
 sub setup_network {
     my ($self) = @_;
 
-    $self->{plugin}->setup_network($self->{conf});
+    my $code = sub {
+	$self->{plugin}->setup_network($self->{conf});
+    };
+    $self->protected_call($code);
 }
 
 sub set_hostname {
     my ($self) = @_;
 
-    $self->{plugin}->set_hostname($self->{conf});
+    my $code = sub {
+	$self->{plugin}->set_hostname($self->{conf});
+    };
+    $self->protected_call($code);
 }
 
 sub set_dns {
     my ($self) = @_;
 
-    $self->{plugin}->set_dns($self->{conf});
+    my $code = sub {
+	$self->{plugin}->set_dns($self->{conf});
+    };
+    $self->protected_call($code);
 }
 
 sub setup_init {
     my ($self) = @_;
 
-    $self->{plugin}->setup_init($self->{conf});
+    my $code = sub {
+	$self->{plugin}->setup_init($self->{conf});
+    };
+    $self->protected_call($code);
 }
 
 sub set_user_password {
     my ($self, $user, $pw) = @_;
     
-    $self->{plugin}->set_user_password($self->{conf}, $user, $pw);
+    my $code = sub {
+	$self->{plugin}->set_user_password($self->{conf}, $user, $pw);
+    };
+    $self->protected_call($code);
 }
 
 sub rewrite_ssh_host_keys {
     my ($self) = @_;
 
-    $self->{plugin}->rewrite_ssh_host_keys($self->{conf});
+    my $code = sub {
+	$self->{plugin}->rewrite_ssh_host_keys($self->{conf});
+    };
+    $self->protected_call($code);
 }    
 
 sub pre_start_hook {
     my ($self) = @_;
 
-    # Create /fastboot to skip run fsck
-    $self->{plugin}->ct_file_set_contents('/fastboot', '');
+    my $code = sub {
+	# Create /fastboot to skip run fsck
+	$self->{plugin}->ct_file_set_contents('/fastboot', '');
 
-    $self->{plugin}->pre_start_hook($self->{conf});
+	$self->{plugin}->pre_start_hook($self->{conf});
+    };
+    $self->protected_call($code);
 }
 
 sub post_create_hook {
     my ($self, $root_password) = @_;
 
-    $self->{plugin}->post_create_hook($self->{conf}, $root_password);
+    my $code = sub {
+	$self->{plugin}->post_create_hook($self->{conf}, $root_password);
+    };
+    $self->protected_call($code);
 }
 
 1;

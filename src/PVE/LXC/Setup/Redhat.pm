@@ -85,7 +85,7 @@ sub template_fixup {
     if ($self->{version} < 7) {
 	# re-create emissing files for tty
 
-	$self->ct_mkpath('/etc/init');
+	$self->ct_make_path('/etc/init');
 
 	my $filename = "/etc/init/tty.conf";
 	$self->ct_file_set_contents($filename, $tty_conf)
@@ -187,7 +187,7 @@ sub setup_network {
 
     my ($gw, $gw6);
 
-    $self->ct_mkpath('/etc/sysconfig/network-scripts');
+    $self->ct_make_path('/etc/sysconfig/network-scripts');
 
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;

@@ -7,7 +7,9 @@ use File::stat;
 use Digest::SHA;
 use IO::File;
 use Encode;
+use Fcntl;
 use File::Path;
+use File::Spec;
 
 use PVE::INotify;
 use PVE::Tools;
@@ -137,10 +139,6 @@ sub set_dns {
 
     my ($searchdomains, $nameserver) = lookup_dns_conf($conf);
     
-    my $rootdir = $self->{rootdir};
-    
-    my $filename = "$rootdir/etc/resolv.conf";
-
     my $data = '';
 
     $data .= "search " . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
@@ -150,7 +148,7 @@ sub set_dns {
 	$data .= "nameserver $ns\n";
     }
 
-    PVE::Tools::file_set_contents($filename, $data);
+    $self->ct_file_set_contents("/etc/resolv.conf", $data);
 }
 
 sub set_hostname {
@@ -160,17 +158,15 @@ sub set_hostname {
 
     $hostname =~ s/\..*$//;
 
-    my $rootdir = $self->{rootdir};
-
-    my $hostname_fn = "$rootdir/etc/hostname";
+    my $hostname_fn = "/etc/hostname";
     
-    my $oldname = PVE::Tools::file_read_firstline($hostname_fn) || 'localhost';
+    my $oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
 
-    my $hosts_fn = "$rootdir/etc/hosts";
+    my $hosts_fn = "/etc/hosts";
     my $etc_hosts_data = '';
     
-    if (-f $hosts_fn) {
-	$etc_hosts_data =  PVE::Tools::file_get_contents($hosts_fn);
+    if ($self->ct_file_exists($hosts_fn)) {
+	$etc_hosts_data =  $self->ct_file_get_contents($hosts_fn);
     }
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
@@ -181,8 +177,8 @@ sub set_hostname {
     $etc_hosts_data = update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
 				       $hostname, $searchdomains);
     
-    PVE::Tools::file_set_contents($hostname_fn, "$hostname\n");
-    PVE::Tools::file_set_contents($hosts_fn, $etc_hosts_data);
+    $self->ct_file_set_contents($hostname_fn, "$hostname\n");
+    $self->ct_file_set_contents($hosts_fn, $etc_hosts_data);
 }
 
 sub setup_network {
@@ -200,49 +196,40 @@ sub setup_init {
 sub setup_systemd_console {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
-
-    my $systemd_dir_rel = -x "$rootdir/lib/systemd/systemd" ?
+    my $systemd_dir_rel = -x "/lib/systemd/systemd" ?
 	"/lib/systemd/system" : "/usr/lib/systemd/system";
-
-    my $systemd_dir = "$rootdir/$systemd_dir_rel";
-
-    my $etc_systemd_dir = "$rootdir/etc/systemd/system";
 
     my $systemd_getty_service_rel = "$systemd_dir_rel/getty\@.service";
 
-    my $systemd_getty_service = "$rootdir/$systemd_getty_service_rel";
+    return if !$self->ct_file_exists($systemd_getty_service_rel);
 
-    return if ! -f $systemd_getty_service;
-
-    my $raw = PVE::Tools::file_get_contents($systemd_getty_service);
+    my $raw = $self->ct_file_get_contents($systemd_getty_service_rel);
 
     my $systemd_container_getty_service_rel = "$systemd_dir_rel/container-getty\@.service";
-    my $systemd_container_getty_service =  "$rootdir/$systemd_container_getty_service_rel";
 
     # systemd on CenoOS 7.1 is too old (version 205), so there is no
     # container-getty service
-    if (! -f $systemd_container_getty_service) {
+    if (!$self->ct_file_exists($systemd_container_getty_service_rel)) {
 	if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
-	    PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+	    $self->ct_file_set_contents($systemd_getty_service_rel, $raw);
 	}
     } else {
 	# undo above change (in case someone updated systemd)
 	if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
-	    PVE::Tools::file_set_contents($systemd_getty_service, $raw);
+	    $self->ct_file_set_contents($systemd_getty_service_rel, $raw);
 	}
     }
 
     my $ttycount = PVE::LXC::get_tty_count($conf);
 
     for (my $i = 1; $i < 7; $i++) {
-	my $tty_service_lnk = "$etc_systemd_dir/getty.target.wants/getty\@tty$i.service";
+	my $tty_service_lnk = "/etc/systemd/system/getty.target.wants/getty\@tty$i.service";
 	if ($i > $ttycount) {
-	    unlink $tty_service_lnk;
+	    $self->ct_unlink($tty_service_lnk);
 	} else {
-	    if (! -l $tty_service_lnk) {
-		unlink $tty_service_lnk;
-		symlink($systemd_getty_service_rel, $tty_service_lnk);
+	    if (!$self->ct_is_symlink($tty_service_lnk)) {
+		$self->ct_unlink($tty_service_lnk);
+		$self->ct_symlink($systemd_getty_service_rel, $tty_service_lnk);
 	    }
 	}
     }
@@ -251,14 +238,12 @@ sub setup_systemd_console {
 sub setup_systemd_networkd {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
-
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	next if !$d->{name};
 
-	my $filename = "$rootdir/etc/systemd/network/$d->{name}.network";
+	my $filename = "/etc/systemd/network/$d->{name}.network";
 
 	my $data = <<"DATA";
 [Match]
@@ -309,38 +294,37 @@ DATA
 	$data .= "DHCP = $DHCPMODES[$dhcp]\n";
 	$data .= $routes if $routes;
 
-	PVE::Tools::file_set_contents($filename, $data);
+	$self->ct_file_set_contents($filename, $data);
     }
 }
 
 sub setup_securetty {
     my ($self, $conf, @add) = @_;
 
-    my $rootdir = $self->{rootdir};
-    my $filename = "$rootdir/etc/securetty";
-    my $data = PVE::Tools::file_get_contents($filename);
+    my $filename = "/etc/securetty";
+    my $data = $self->ct_file_get_contents($filename);
     chomp $data; $data .= "\n";
     foreach my $dev (@add) {
 	if ($data !~ m!^\Q$dev\E\s*$!m) {
 	    $data .= "$dev\n"; 
 	}
     }
-    PVE::Tools::file_set_contents($filename, $data);
+    $self->ct_file_set_contents($filename, $data);
 }
 
 my $replacepw  = sub {
-    my ($file, $user, $epw, $shadow) = @_;
+    my ($self, $file, $user, $epw, $shadow) = @_;
 
     my $tmpfile = "$file.$$";
 
     eval  {
-	my $src = IO::File->new("<$file") ||
+	my $src = $self->ct_open_file_read($file) ||
 	    die "unable to open file '$file' - $!";
 
-	my $st = File::stat::stat($src) ||
+	my $st = $self->ct_stat($src) ||
 	    die "unable to stat file - $!";
 
-	my $dst = IO::File->new(">$tmpfile") ||
+	my $dst = $self->ct_open_file_write($tmpfile) ||
 	    die "unable to open file '$tmpfile' - $!";
 
 	# copy owner and permissions
@@ -366,23 +350,21 @@ my $replacepw  = sub {
 	$dst->close() || die "close '$tmpfile' failed - $!\n";
     };
     if (my $err = $@) {
-	unlink $tmpfile;
+	$self->ct_unlink($tmpfile);
     } else {
-	rename $tmpfile, $file;
-	unlink $tmpfile; # in case rename fails
+	$self->ct_rename($tmpfile, $file);
+	$self->ct_unlink($tmpfile); # in case rename fails
     }	
 };
 
 sub set_user_password {
     my ($self, $conf, $user, $opt_password) = @_;
 
-    my $rootdir = $self->{rootdir};
+    my $pwfile = "/etc/passwd";
 
-    my $pwfile = "$rootdir/etc/passwd";
+    return if !$self->ct_file_exists($pwfile);
 
-    return if ! -f $pwfile;
-
-    my $shadow = "$rootdir/etc/shadow";
+    my $shadow = "/etc/shadow";
     
     if (defined($opt_password)) {
 	if ($opt_password !~ m/^\$/) {
@@ -393,32 +375,29 @@ sub set_user_password {
 	$opt_password = '*';
     }
     
-    if (-f $shadow) {
-	&$replacepw ($shadow, $user, $opt_password, 1);
-	&$replacepw ($pwfile, $user, 'x');
+    if ($self->ct_file_exists($shadow)) {
+	&$replacepw ($self, $shadow, $user, $opt_password, 1);
+	&$replacepw ($self, $pwfile, $user, 'x');
     } else {
-	&$replacepw ($pwfile, $user, $opt_password);
+	&$replacepw ($self, $pwfile, $user, $opt_password);
     }
 }
 
 my $randomize_crontab = sub {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
-
     my @files;
     # Note: dir_glob_foreach() untaints filenames!
-    my $cron_dir = "$rootdir/etc/cron.d";
-    PVE::Tools::dir_glob_foreach($cron_dir, qr/[A-Z\-\_a-z0-9]+/, sub {
+    PVE::Tools::dir_glob_foreach("/etc/cron.d", qr/[A-Z\-\_a-z0-9]+/, sub {
 	my ($name) = @_;
-	push @files, "$cron_dir/$name";
+	push @files, "/etc/cron.d/$name";
     });
 
-    my $crontab_fn = "$rootdir/etc/crontab";
-    unshift @files, $crontab_fn if -f $crontab_fn;
+    my $crontab_fn = "/etc/crontab";
+    unshift @files, $crontab_fn if $self->ct_file_exists($crontab_fn);
     
     foreach my $filename (@files) {
-	my $data = PVE::Tools::file_get_contents($filename);
+	my $data = $self->ct_file_get_contents($filename);
  	my $new = '';
 	foreach my $line (split(/\n/, $data)) {
 	    # we only randomize minutes for root crontab entries
@@ -430,18 +409,14 @@ my $randomize_crontab = sub {
 		$new .= "$line\n";
 	    }
 	}
-	PVE::Tools::file_set_contents($filename, $new);
+	$self->ct_file_set_contents($filename, $new);
    }
 };
 
 sub rewrite_ssh_host_keys {
     my ($self, $conf) = @_;
 
-    my $rootdir = $self->{rootdir};
-
-    my $etc_ssh_dir = "$rootdir/etc/ssh";
-
-    return if ! -d $etc_ssh_dir;
+    return if !$self->ct_is_directory('/etc/ssh');
     
     my $keynames = {
 	rsa1 => 'ssh_host_key',
@@ -454,12 +429,15 @@ sub rewrite_ssh_host_keys {
     my $hostname = $conf->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
 
+    # Since we don't want to replace host keys let's make sure in_chroot is set
+    die "internal error: not protected" if !$self->{in_chroot};
+
     foreach my $keytype (keys %$keynames) {
 	my $basename = $keynames->{$keytype};
-	unlink "${etc_ssh_dir}/$basename";
-	unlink "${etc_ssh_dir}/$basename.pub";
+	$self->ct_unlink("/etc/ssh/$basename");
+	$self->ct_unlink("/etc/ssh/$basename.pub");
 	print "Creating SSH host key '$basename' - this may take some time ...\n";
-	my $cmd = ['ssh-keygen', '-q', '-f', "${etc_ssh_dir}/$basename", '-t', $keytype,
+	my $cmd = ['ssh-keygen', '-q', '-f', "/etc/ssh/$basename", '-t', $keytype,
 		   '-N', '', '-C', "root\@$hostname"];
 	PVE::Tools::run_command($cmd);
     }
@@ -493,75 +471,83 @@ sub post_create_hook {
     # fixme: what else ?
 }
 
+# File access wrappers for container setup code.
+# For user-namespace support these might need to take uid and gid maps into account.
+
 sub ct_mkdir {
     my ($self, $file, $mask) = @_;
-    my $root = $self->{rootdir};
-    $file //= $_; # emulate mkdir parameters
-    return CORE::mkdir("$root/$file", $mask) if defined ($mask);
-    return CORE::mkdir("$root/$file");
+    # mkdir goes by parameter count - an `undef' mode acts like a mode of 0000
+    return CORE::mkdir($file, $mask) if defined ($mask);
+    return CORE::mkdir($file);
 }
 
 sub ct_unlink {
-    my $self = shift;
-    my $root = $self->{rootdir};
-    return CORE::unlink("$root/$_") if !@_; # emulate unlink parameters
-    return CORE::unlink(map { "$root/$_" } @_);
+    my ($self, @files) = @_;
+    foreach my $file (@files) {
+	CORE::unlink($file);
+    }
 }
 
-sub ct_open_file {
+sub ct_rename {
+    my ($self, $old, $new) = @_;
+    CORE::rename($old, $new);
+}
+
+sub ct_open_file_read {
     my $self = shift;
-    my $file = $self->{rootdir} . '/' . shift;
-    return IO::File->new($file, @_);
+    my $file = shift;
+    return IO::File->new($file, O_RDONLY, @_);
+}
+
+sub ct_open_file_write {
+    my $self = shift;
+    my $file = shift;
+    return IO::File->new($file, O_WRONLY | O_CREAT, @_);
 }
 
 sub ct_make_path {
     my $self = shift;
-    my $root = $self->{rootdir};
-    my $opt = pop;
-    $opt = "$root/$opt" if ref($opt) ne 'HASH';
-    return File::Path::make_path(map { "$root/$_" } @_, $opt);
-}
-
-sub ct_mkpath {
-    my $self = shift;
-    my $root = $self->{rootdir};
-
-    my $first = shift;
-    return File::Path::mkpath(map { "$root/$_" } @$first, @_) if ref($first) eq 'ARRAY';
-    unshift @_, $first;
-    my $last = pop;
-    return File::Path::mkpath(map { "$root/$_" } @_, $last) if ref($last) eq 'HASH';
-    return File::Path::mkpath(map { "$root/$_" } (@_, $last||()));
+    File::Path::make_path(@_);
 }
 
 sub ct_symlink {
     my ($self, $old, $new) = @_;
-    my $root = $self->{rootdir};
-    return CORE::symlink($old, "$root/$new");
+    return CORE::symlink($old, $new);
 }
 
 sub ct_file_exists {
     my ($self, $file) = @_;
-    my $root = $self->{rootdir};
-    return -f "$root/$file";
+    return -f $file;
+}
+
+sub ct_is_directory {
+    my ($self, $file) = @_;
+    return -d $file;
+}
+
+sub ct_is_symlink {
+    my ($self, $file) = @_;
+    return -l $file;
+}
+
+sub ct_stat {
+    my ($self, $file) = @_;
+    return File::stat::stat($file);
 }
 
 sub ct_file_read_firstline {
     my ($self, $file) = @_;
-    my $root = $self->{rootdir};
-    return PVE::Tools::file_read_firstline("$root/$file");
+    return PVE::Tools::file_read_firstline($file);
 }
 
 sub ct_file_get_contents {
     my ($self, $file) = @_;
-    my $root = $self->{rootdir};
-    return PVE::Tools::file_get_contents("$root/$file");
+    return PVE::Tools::file_get_contents($file);
 }
 
 sub ct_file_set_contents {
     my ($self, $file, $data) = @_;
-    my $root = $self->{rootdir};
-    return PVE::Tools::file_set_contents("$root/$file", $data);
+    return PVE::Tools::file_set_contents($file, $data);
 }
 
 1;
