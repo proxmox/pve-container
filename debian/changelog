@@ -1,3 +1,11 @@
+pve-container (1.0-17) unstable; urgency=medium
+
+  * fix bug #770: CPU usage stats for containers
+  
+  * added symlink testcase
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 29 Oct 2015 13:09:29 +0100
+
 pve-container (1.0-16) unstable; urgency=medium
 
   * fix bug #770: implement Network stats for containers

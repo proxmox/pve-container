@@ -18,10 +18,13 @@ use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach);
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
+use Time::HiRes qw (gettimeofday);
 
 use Data::Dumper;
 
 my $nodename = PVE::INotify::nodename();
+
+my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
 
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
@@ -761,12 +764,37 @@ sub get_container_disk_usage {
     return $res;
 }
 
+my $last_proc_vmid_stat;
+
+my $parse_cpuacct_stat = sub {
+    my ($vmid) = @_;
+
+    my $raw = read_cgroup_value('cpuacct', $vmid, 'cpuacct.stat', 1);
+
+    my $stat = {};
+
+    if ($raw =~ m/^user (\d+)\nsystem (\d+)\n/) {
+
+	$stat->{utime} = $1;
+	$stat->{stime} = $2;
+
+    }
+
+    return $stat;
+};
+
 sub vmstatus {
     my ($opt_vmid) = @_;
 
     my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc' }} : config_list();
 
     my $active_hash = list_active_containers();
+
+    my $cpucount = $cpuinfo->{cpus} || 1;
+
+    my $cdtime = gettimeofday;
+
+    my $uptime = (PVE::ProcFSTools::read_proc_uptime(1))[0];
 
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
@@ -833,6 +861,35 @@ sub vmstatus {
 		$d->{diskread} = $2 if $key eq 'Read';
 		$d->{diskwrite} = $2 if $key eq 'Write';
 	    }
+	}
+
+	my $pstat = &$parse_cpuacct_stat($vmid);
+
+	my $used = $pstat->{utime} + $pstat->{stime};
+
+	my $old = $last_proc_vmid_stat->{$vmid};
+	if (!$old) {
+	    $last_proc_vmid_stat->{$vmid} = {
+		time => $cdtime,
+		used => $used,
+		cpu => 0,
+	    };
+	    next;
+	}
+
+	my $dtime = ($cdtime -  $old->{time}) * $cpucount * $cpuinfo->{user_hz};
+
+	if ($dtime > 1000) {
+	    my $dutime = $used -  $old->{used};
+
+	    $d->{cpu} = (($dutime/$dtime)* $cpucount) / $d->{cpus};
+	    $last_proc_vmid_stat->{$vmid} = {
+		time => $cdtime,
+		used => $used,
+		cpu => $d->{cpu},
+	    };
+	} else {
+	    $d->{cpu} = $old->{cpu};
 	}
     }
 
