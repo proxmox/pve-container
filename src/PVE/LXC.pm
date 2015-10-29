@@ -836,6 +836,20 @@ sub vmstatus {
 	}
     }
 
+    my $netdev = PVE::ProcFSTools::read_proc_net_dev();
+
+    foreach my $dev (keys %$netdev) {
+	next if $dev !~ m/^veth([1-9]\d*)i/;
+	my $vmid = $1;
+	my $d = $list->{$vmid};
+
+	next if !$d;
+
+	$d->{netout} += $netdev->{$dev}->{receive};
+	$d->{netin} += $netdev->{$dev}->{transmit};
+
+    }
+
     return $list;
 }
 
