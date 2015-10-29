@@ -1318,7 +1318,7 @@ sub get_primary_ips {
     }
     my $ipv6 = $net->{ip6};
     if ($ipv6) {
-	if ($ipv6 =~ /^(dhcp|manual)$/) {
+	if ($ipv6 =~ /^(auto|dhcp|manual)$/) {
 	    $ipv6 = undef;
 	} else {
 	    $ipv6 =~ s!/\d+$!!;
