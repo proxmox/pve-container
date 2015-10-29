@@ -30,8 +30,6 @@ sub template_fixup {
     # 'systemctl enable systemd-networkd', since that's what we're configuring
     # in setup_network
 
-    my $rootdir = $self->{rootdir};
-
     # systemctl enable systemd-networkd
     $self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
     $self->ct_mkdir('/etc/systemd/system/socket.target.wants');
