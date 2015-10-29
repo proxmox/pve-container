@@ -32,7 +32,7 @@ sub lookup_dns_conf {
 	if ($conf->{'testmode'}) {
 	    
 	    $nameserver = "8.8.8.8 8.8.8.9";
-	    $searchdomains = "promxox.com";
+	    $searchdomains = "proxmox.com";
 	
 	} else {
 
