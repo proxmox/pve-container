@@ -40,7 +40,7 @@ sub new {
 
     die "no root directory\n" if !$rootdir || $rootdir eq '/';
 
-    my $self = bless { conf => $conf, $rootdir => $rootdir};
+    my $self = bless { conf => $conf, rootdir => $rootdir};
 
     if (!defined($type)) {
 	# try to autodetect type
