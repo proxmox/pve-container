@@ -809,7 +809,7 @@ sub vmstatus {
 	$d->{name} = $conf->{'hostname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
 
-	$d->{cpus} = $conf->{cpulimit} // 0;
+	$d->{cpus} = $conf->{cpulimit} || $cpucount;
 
 	if ($running) {
 	    my $res = get_container_disk_usage($vmid);
