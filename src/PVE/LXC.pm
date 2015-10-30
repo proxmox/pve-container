@@ -774,18 +774,13 @@ sub vmstatus {
 
     my $uptime = (PVE::ProcFSTools::read_proc_uptime(1))[0];
 
-    # Cache the pids
-    my $pids = { map {
-	my $vmid = $_;
-	$vmid => ($active_hash->{$vmid} ? find_lxc_pid($vmid) : undef)
-    } keys %$list };
-
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 
-	my $running = defined($active_hash->{$vmid});
+	eval { $d->{pid} = find_lxc_pid($vmid) if defined($active_hash->{$vmid}); };
+	warn $@ if $@; # ignore errors (consider them stopped)
 
-	$d->{status} = $running ? 'running' : 'stopped';
+	$d->{status} = $d->{pid} ? 'running' : 'stopped';
 
 	my $cfspath = cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
@@ -795,8 +790,8 @@ sub vmstatus {
 
 	$d->{cpus} = $conf->{cpulimit} || $cpucount;
 
-	if ($running) {
-	    my $res = get_container_disk_usage($vmid, $pids->{$vmid});
+	if ($d->{pid}) {
+	    my $res = get_container_disk_usage($vmid, $d->{pid});
 	    $d->{disk} = $res->{used};
 	    $d->{maxdisk} = $res->{total};
 	} else {
@@ -829,9 +824,10 @@ sub vmstatus {
 
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
-	next if $d->{status} ne 'running';
+	my $pid = $d->{pid};
 
-	my $pid = $pids->{$vmid};
+	next if !$pid; # skip stopped CTs
+
 	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
 	$d->{uptime} = time - $ctime; # the method lxcfs uses
 
