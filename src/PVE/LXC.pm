@@ -737,9 +737,9 @@ sub check_running {
 }
 
 sub get_container_disk_usage {
-    my ($vmid, $pid, $timeout) = @_;
+    my ($vmid, $pid) = @_;
 
-    return PVE::Tools::df("/proc/$pid/root/", $timeout // 3);
+    return PVE::Tools::df("/proc/$pid/root/", 1);
 }
 
 my $last_proc_vmid_stat;
