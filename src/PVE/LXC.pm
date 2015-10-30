@@ -737,31 +737,9 @@ sub check_running {
 }
 
 sub get_container_disk_usage {
-    my ($vmid) = @_;
+    my ($vmid, $pid, $timeout) = @_;
 
-    my $cmd = ['lxc-attach', '-n', $vmid, '--', 'df',  '-P', '-B', '1', '/'];
-
-    my $res = {
-	total => 0,
-	used => 0,
-	avail => 0,
-    };
-
-    my $parser = sub {
-	my $line = shift;
-	if (my ($fsid, $total, $used, $avail) = $line =~
-	    m/^(\S+.*)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+%\s.*$/) {
-	    $res = {
-		total => $total,
-		used => $used,
-		avail => $avail,
-	    };
-	}
-    };
-    eval { PVE::Tools::run_command($cmd, timeout => 1, outfunc => $parser); };
-    warn $@ if $@;
-
-    return $res;
+    return PVE::Tools::df("/proc/$pid/root/", $timeout // 3);
 }
 
 my $last_proc_vmid_stat;
@@ -796,6 +774,12 @@ sub vmstatus {
 
     my $uptime = (PVE::ProcFSTools::read_proc_uptime(1))[0];
 
+    # Cache the pids
+    my $pids = { map {
+	my $vmid = $_;
+	$vmid => ($active_hash->{$vmid} ? find_lxc_pid($vmid) : undef)
+    } keys %$list };
+
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 
@@ -812,7 +796,7 @@ sub vmstatus {
 	$d->{cpus} = $conf->{cpulimit} || $cpucount;
 
 	if ($running) {
-	    my $res = get_container_disk_usage($vmid);
+	    my $res = get_container_disk_usage($vmid, $pids->{$vmid});
 	    $d->{disk} = $res->{used};
 	    $d->{maxdisk} = $res->{total};
 	} else {
@@ -847,7 +831,7 @@ sub vmstatus {
 	my $d = $list->{$vmid};
 	next if $d->{status} ne 'running';
 
-	my $pid = find_lxc_pid($vmid);
+	my $pid = $pids->{$vmid};
 	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
 	$d->{uptime} = time - $ctime; # the method lxcfs uses
 
