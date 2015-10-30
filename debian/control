@@ -9,6 +9,6 @@ Package: pve-container
 Section: perl
 Priority: optional
 Architecture: all
-Depends: ${shlibs:Depends}, ${perl:Depends}, ${misc:Depends}, libpve-common-perl, libpve-storage-perl, pve-cluster (>= 4.0-8), pve-ha-manager, lxc-pve
+Depends: ${shlibs:Depends}, ${perl:Depends}, ${misc:Depends}, libpve-common-perl, libpve-storage-perl, pve-cluster (>= 4.0-8), pve-ha-manager, lxc-pve, xz-utils, gzip, tar
 Description: Proxmox VE Container management tool
  Tool to manage Linux Containers on Proxmox VE.
