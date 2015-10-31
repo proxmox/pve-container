@@ -1,6 +1,12 @@
+pve-container (1.0-19) unstable; urgency=medium
+
+  * support Ubuntu 15.10
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 31 Oct 2015 18:39:39 +0100
+
 pve-container (1.0-18) unstable; urgency=medium
 
-  * depend on xz-utils, gzip and tar
+  * depend on xz-utils
 
  -- Proxmox Support Team <support@proxmox.com>  Fri, 30 Oct 2015 06:48:20 +0100
 
