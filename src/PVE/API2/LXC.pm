@@ -180,15 +180,6 @@ __PACKAGE__->register_method({
 
 	my $password = extract_param($param, 'password');
 
-	my $storage = extract_param($param, 'storage') // 'local';
-	
-	my $storage_cfg = cfs_read_file("storage.cfg");
-
-	my $scfg = PVE::Storage::storage_check_node($storage_cfg, $storage, $node);
-
-	raise_param_exc({ storage => "storage '$storage' does not support container root directories"})
-	    if !$scfg->{content}->{rootdir};
-
 	my $pool = extract_param($param, 'pool');
 
 	if (defined($pool)) {
@@ -196,8 +187,6 @@ __PACKAGE__->register_method({
 	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
 	}
 
-	$rpcenv->check($authuser, "/storage/$storage", ['Datastore.AllocateSpace']);
-	
 	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
 	    # OK
 	} elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
@@ -211,7 +200,9 @@ __PACKAGE__->register_method({
 
 	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, [ keys %$param]);
 
-	PVE::Storage::activate_storage($storage_cfg, $storage);
+	my $storage = extract_param($param, 'storage') // 'local';
+
+	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $ostemplate = extract_param($param, 'ostemplate');
 
@@ -229,6 +220,19 @@ __PACKAGE__->register_method({
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
 	}
 
+	my $check_and_activate_storage = sub {
+	    my ($sid) = @_;
+
+	    my $scfg = PVE::Storage::storage_check_node($storage_cfg, $sid, $node);
+
+	    raise_param_exc({ storage => "storage '$sid' does not support container directories"})
+		if !$scfg->{content}->{rootdir};
+
+	    $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
+
+	    PVE::Storage::activate_storage($storage_cfg, $sid);
+	};
+
 	my $conf = {};
 
 	my $no_disk_param = {};
@@ -241,6 +245,22 @@ __PACKAGE__->register_method({
 		$no_disk_param->{$opt} = $value;
 	    }
 	}
+
+	# check storage access, activate storage
+	PVE::LXC::foreach_mountpoint($param, sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    my $volid = $mountpoint->{volume};
+	    my $mp = $mountpoint->{mp};
+
+	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+
+	    &$check_and_activate_storage($sid) if $sid;
+	});
+
+	# check/activate default storage
+	&$check_and_activate_storage($storage) if !defined($param->{rootfs});
+
 	PVE::LXC::update_pct_config($vmid, $conf, 0, $no_disk_param);
 
 	my $check_vmid_usage = sub {
