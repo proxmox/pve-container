@@ -1031,10 +1031,13 @@ __PACKAGE__->register_method({
 		if ($format eq 'raw') {
 		    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
 		    if ($running) {
-			$path = &$query_loopdev($path);
+
+			$mp->{mp} = '/';
+			my $use_loopdev = (PVE::LXC::mountpoint_mount_path($mp, $storage_cfg))[1];
+			$path = &$query_loopdev($path) if $use_loopdev;
 			die "internal error: CT running but mountpoint not attached to a loop device"
-			    if !$path; # fixme: zvols and other storages?
-			PVE::Tools::run_command(['losetup', '--set-capacity', $path]);
+			    if !$path;
+			PVE::Tools::run_command(['losetup', '--set-capacity', $path]) if $use_loopdev;
 
 			# In order for resize2fs to know that we need online-resizing a mountpoint needs
 			# to be visible to it in its namespace.
