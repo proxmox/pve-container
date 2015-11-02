@@ -71,12 +71,15 @@ sub protected_call {
     my $child = fork();
     die "fork failed: $!\n" if !defined($child);
 
+    # can't bind to /proc/$pid/root/dev, it'll bind to the host's /dev
+    my $mountdev = ($rootdir !~ m@^/proc@);
+
     if (!$child) {
 	# avoid recursive forks
 	$self->{in_chroot} = 1;
 	$self->{plugin}->{in_chroot} = 1;
 	eval {
-	    PVE::Tools::run_command(['mount', '--bind', '/dev', "$rootdir/dev"]);
+	    PVE::Tools::run_command(['mount', '--bind', '/dev', "$rootdir/dev"]) if $mountdev;
 	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
 	    chdir('/') or die "failed to change to root directory\n";
 	    $sub->();
@@ -88,9 +91,12 @@ sub protected_call {
 	POSIX::_exit(0);
     }
     while (waitpid($child, 0) != $child) {}
-    eval { PVE::Tools::run_command(['umount', "$rootdir/dev"]); };
-    warn $@ if $@;
-    return $? == 0;
+    my $status = $? == 0;
+    if ($mountdev) {
+	eval { PVE::Tools::run_command(['umount', "$rootdir/dev"]); };
+	warn $@ if $@;
+    }
+    return $status;
 }
 
 sub template_fixup {
