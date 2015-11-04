@@ -146,7 +146,7 @@ sub set_hostname {
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
-    my ($searchdomains) = PVE::LXC::Setup::Base::lookup_dns_conf($conf);
+    my ($searchdomains) = $self->lookup_dns_conf($conf);
 
     $etc_hosts_data = PVE::LXC::Setup::Base::update_etc_hosts($etc_hosts_data, $hostip, $oldname,
 							    $hostname, $searchdomains);

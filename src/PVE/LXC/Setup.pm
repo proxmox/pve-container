@@ -51,8 +51,12 @@ sub new {
     my $plugin_class = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 
-    $self->{plugin} = $plugin_class->new($conf, $rootdir);
+    my $plugin = $plugin_class->new($conf, $rootdir);
+    $self->{plugin} = $plugin;
     $self->{in_chroot} = 0;
+
+    # Cache some host files we need access to:
+    $plugin->{host_resolv_conf} = PVE::INotify::read_file('resolvconf');
     
     return $self;
 }

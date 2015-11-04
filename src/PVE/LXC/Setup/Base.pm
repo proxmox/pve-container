@@ -22,7 +22,7 @@ sub new {
 }
 
 sub lookup_dns_conf {
-    my ($conf) = @_;
+    my ($self, $conf) = @_;
 
     my $nameserver = $conf->{nameserver};
     my $searchdomains = $conf->{searchdomain};
@@ -36,7 +36,7 @@ sub lookup_dns_conf {
 	
 	} else {
 
-	    my $host_resolv_conf = PVE::INotify::read_file('resolvconf');
+	    my $host_resolv_conf = $self->{host_resolv_conf};
 
 	    $searchdomains = $host_resolv_conf->{search};
 
@@ -137,7 +137,7 @@ sub template_fixup {
 sub set_dns {
     my ($self, $conf) = @_;
 
-    my ($searchdomains, $nameserver) = lookup_dns_conf($conf);
+    my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
     
     my $data = '';
 
@@ -172,7 +172,7 @@ sub set_hostname {
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
-    my ($searchdomains) = lookup_dns_conf($conf);
+    my ($searchdomains) = $self->lookup_dns_conf($conf);
 
     $etc_hosts_data = update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
 				       $hostname, $searchdomains);
