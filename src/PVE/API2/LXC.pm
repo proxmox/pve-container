@@ -493,10 +493,16 @@ __PACKAGE__->register_method({
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
 
+	my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
+
+	die $running_error_msg if PVE::LXC::check_running($vmid); # check early
+
 	my $code = sub {
 	    # reload config after lock
 	    $conf = PVE::LXC::load_config($vmid);
 	    PVE::LXC::check_lock($conf);
+
+	    die $running_error_msg if PVE::LXC::check_running($vmid);
 
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_access($vmid);
