@@ -24,7 +24,7 @@ my $rsync_vm = sub {
 
     my $opts = $self->{vzdump}->{opts};
 
-    my $rsync = ['rsync', '--stats', '-X', '--numeric-ids',
+    my $rsync = ['rsync', '--stats', '-X', '-A', '--numeric-ids',
                  '-aH', '--delete', '--no-whole-file', '--inplace',
                  '--one-file-system', '--relative'];
     push @$rsync, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
@@ -278,8 +278,8 @@ sub archive {
     my $snapdir = $task->{snapdir};
     my $tmpdir = $task->{tmpdir};
 
-    my $tar = ['tar', 'cpf', '-',
-               '--totals', '--sparse', '--numeric-owner', '--xattrs',
+    my $tar = ['tar', 'cpf', '-', '--totals',
+               @$PVE::LXC::COMMON_TAR_FLAGS,
                '--one-file-system', '--warning=no-file-ignored'];
 
     # note: --remove-files does not work because we do not 
