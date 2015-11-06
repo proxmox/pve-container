@@ -1,3 +1,11 @@
+pve-container (1.0-23) unstable; urgency=medium
+
+  * improve setup error message
+
+  * create: safer rewrite_ssh_host_keys
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 06 Nov 2015 11:44:20 +0100
+
 pve-container (1.0-22) unstable; urgency=medium
 
   * preserve posix capabilities
