@@ -91,7 +91,10 @@ sub protected_call {
 	POSIX::_exit(0);
     }
     while (waitpid($child, 0) != $child) {}
-    die "setup error" if $? != 0;
+    if ($? != 0) {
+	my $method = (caller(1))[3];
+	die "error in setup task $method\n";
+    }
 }
 
 sub template_fixup {
