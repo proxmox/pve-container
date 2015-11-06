@@ -515,8 +515,8 @@ sub ct_file_get_contents {
 }
 
 sub ct_file_set_contents {
-    my ($self, $file, $data) = @_;
-    return PVE::Tools::file_set_contents($file, $data);
+    my ($self, $file, $data, $perms) = @_;
+    return PVE::Tools::file_set_contents($file, $data, $perms);
 }
 
 1;
