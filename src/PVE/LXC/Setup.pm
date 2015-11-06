@@ -155,9 +155,7 @@ sub rewrite_ssh_host_keys {
     my $plugin = $self->{plugin};
     my $rootdir = $self->{rootdir};
 
-    my $sshdir = "$rootdir/etc/ssh";
-
-    return if !-d $sshdir;
+    return if ! -d "$rootdir/etc/ssh";
 
     my $keynames = {
 	rsa1 => 'ssh_host_key',
