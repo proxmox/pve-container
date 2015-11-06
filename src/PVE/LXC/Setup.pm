@@ -75,32 +75,23 @@ sub protected_call {
     my $child = fork();
     die "fork failed: $!\n" if !defined($child);
 
-    # can't bind to /proc/$pid/root/dev, it'll bind to the host's /dev
-    my $mountdev = ($rootdir !~ m@^/proc@);
-
     if (!$child) {
 	# avoid recursive forks
 	$self->{in_chroot} = 1;
 	$self->{plugin}->{in_chroot} = 1;
 	eval {
-	    PVE::Tools::run_command(['mount', '--bind', '/dev', "$rootdir/dev"]) if $mountdev;
 	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
 	    chdir('/') or die "failed to change to root directory\n";
 	    $sub->();
 	};
 	if (my $err = $@) {
-	    print STDERR "$err\n";
+	    warn $err;
 	    POSIX::_exit(1);
 	}
 	POSIX::_exit(0);
     }
     while (waitpid($child, 0) != $child) {}
-    my $status = $? == 0;
-    if ($mountdev) {
-	eval { PVE::Tools::run_command(['umount', "$rootdir/dev"]); };
-	warn $@ if $@;
-    }
-    return $status;
+    die "setup error" if $? != 0;
 }
 
 sub template_fixup {
@@ -160,8 +151,47 @@ sub set_user_password {
 sub rewrite_ssh_host_keys {
     my ($self) = @_;
 
+    my $conf = $self->{conf};
+    my $plugin = $self->{plugin};
+    my $rootdir = $self->{rootdir};
+
+    my $sshdir = "$rootdir/etc/ssh";
+
+    return if !-d $sshdir;
+
+    my $keynames = {
+	rsa1 => 'ssh_host_key',
+	rsa => 'ssh_host_rsa_key',
+	dsa => 'ssh_host_dsa_key',
+	ecdsa => 'ssh_host_ecdsa_key', 
+	ed25519 => 'ssh_host_ed25519_key',
+    };
+
+    my $hostname = $conf->{hostname} || 'localhost';
+    $hostname =~ s/\..*$//;
+
+    # Create temporary keys in /tmp on the host
+
+    my $keyfiles = {};
+    foreach my $keytype (keys %$keynames) {
+	my $basename = $keynames->{$keytype};
+	my $file = "/tmp/$$.$basename";
+	print "Creating SSH host key '$basename' - this may take some time ...\n";
+	my $cmd = ['ssh-keygen', '-q', '-f', $file, '-t', $keytype,
+		   '-N', '', '-C', "root\@$hostname"];
+	PVE::Tools::run_command($cmd);
+	$keyfiles->{"/etc/ssh/$basename"} = PVE::Tools::file_get_contents($file);
+	$keyfiles->{"/etc/ssh/$basename.pub"} = PVE::Tools::file_get_contents("$file.pub");
+	unlink $file;
+	unlink "$file.pub";
+    }
+
+    # Write keys out in a protected call
+
     my $code = sub {
-	$self->{plugin}->rewrite_ssh_host_keys($self->{conf});
+	foreach my $file (keys %$keyfiles) {
+	    $plugin->ct_file_set_contents($file, $keyfiles->{$file});
+	}
     };
     $self->protected_call($code);
 }    
@@ -185,6 +215,7 @@ sub post_create_hook {
 	$self->{plugin}->post_create_hook($self->{conf}, $root_password);
     };
     $self->protected_call($code);
+    $self->rewrite_ssh_host_keys();
 }
 
 1;
