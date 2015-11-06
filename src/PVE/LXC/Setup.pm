@@ -181,8 +181,8 @@ sub rewrite_ssh_host_keys {
 	my $cmd = ['ssh-keygen', '-q', '-f', $file, '-t', $keytype,
 		   '-N', '', '-C', "root\@$hostname"];
 	PVE::Tools::run_command($cmd);
-	$keyfiles->{"/etc/ssh/$basename"} = PVE::Tools::file_get_contents($file);
-	$keyfiles->{"/etc/ssh/$basename.pub"} = PVE::Tools::file_get_contents("$file.pub");
+	$keyfiles->{"/etc/ssh/$basename"} = [PVE::Tools::file_get_contents($file), 0600];
+	$keyfiles->{"/etc/ssh/$basename.pub"} = [PVE::Tools::file_get_contents("$file.pub"), 0644];
 	unlink $file;
 	unlink "$file.pub";
     }
@@ -191,7 +191,7 @@ sub rewrite_ssh_host_keys {
 
     my $code = sub {
 	foreach my $file (keys %$keyfiles) {
-	    $plugin->ct_file_set_contents($file, $keyfiles->{$file});
+	    $plugin->ct_file_set_contents($file, @{$keyfiles->{$file}});
 	}
     };
     $self->protected_call($code);
