@@ -29,7 +29,8 @@ my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
 our $COMMON_TAR_FLAGS = [ '--totals', '--sparse', '--numeric-owner', '--acls',
                           '--xattrs',
                           '--xattrs-include=user.*',
-                          '--xattrs-include=security.capability' ];
+                          '--xattrs-include=security.capability',
+                          '--warning=no-xattr-write' ];
 
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
