@@ -162,6 +162,9 @@ __PACKAGE__->register_method({
 
 	my $same_container_exists = -f $basecfg_fn;
 
+	# 'unprivileged' is read-only, so we can't pass it to update_pct_config
+	my $unprivileged = extract_param($param, 'unprivileged');
+
 	my $restore = extract_param($param, 'restore');
 
 	if ($restore) {
@@ -262,6 +265,8 @@ __PACKAGE__->register_method({
 	&$check_and_activate_storage($storage) if !defined($param->{rootfs});
 
 	PVE::LXC::update_pct_config($vmid, $conf, 0, $no_disk_param);
+
+	$conf->{unprivileged} = 1 if $unprivileged;
 
 	my $check_vmid_usage = sub {
 	    if ($force) {

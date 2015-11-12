@@ -156,7 +156,7 @@ sub restore_and_configure {
 	    my $oldconf = PVE::LXC::parse_pct_config("/lxc/$vmid.conf", $raw);
 
 	    foreach my $key (keys %$oldconf) {
-		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots';
+		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged';
 		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	    }
 	    unlink($pct_cfg_fn);
@@ -197,7 +197,7 @@ sub create_rootfs {
 	PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
 
 	# do not copy all settings to restored container
-	foreach my $opt (qw(rootfs digest snapshots arch ostype)) {
+	foreach my $opt (qw(rootfs digest snapshots arch ostype unprivileged)) {
 	    delete $old_conf->{$opt};
 	}
 	foreach my $opt (keys %$old_conf) {

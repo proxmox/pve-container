@@ -192,6 +192,12 @@ my $confdesc = {
 	description => "Sets the protection flag of the container. This will prevent the remove operation. This will prevent the CT or CT's disk remove/update operation.",
 	default => 0,
     },
+    unprivileged => {
+	optional => 1,
+	type => 'boolean',
+	description => "Makes the container run as unprivileged user. (Should not be modified manually.)",
+	default => 0,
+    },
 };
 
 my $valid_lxc_conf_keys = {
@@ -1050,11 +1056,23 @@ sub update_lxc_config {
     die "missing 'arch' - internal error" if !$conf->{arch};
     $raw .= "lxc.arch = $conf->{arch}\n";
 
+    my $unprivileged = $conf->{unprivileged};
+    my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
+
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
     if ($ostype =~ /^(?:debian | ubuntu | centos | archlinux)$/x) {
 	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
+	if ($unprivileged || $custom_idmap) {
+	    $raw .= "lxc.include = /usr/share/lxc/config/$ostype.userns.conf\n"
+	}
     } else {
 	die "implement me";
+    }
+
+    # Should we read them from /etc/subuid?
+    if ($unprivileged && !$custom_idmap) {
+	$raw .= "lxc.id_map = u 0 100000 65536\n";
+	$raw .= "lxc.id_map = g 0 100000 65536\n";
     }
 
     if (!has_dev_console($conf)) {
@@ -1224,6 +1242,8 @@ sub update_pct_config {
 		my $mountpoint = parse_ct_mountpoint($conf->{$opt});
 		add_unused_volume($conf, $mountpoint->{volume});
 		delete $conf->{$opt};
+	    } elsif ($opt eq 'unprivileged') {
+		die "unable to delete read-only option: '$opt'\n";
 	    } else {
 		die "implement me"
 	    }
@@ -1296,6 +1316,8 @@ sub update_pct_config {
         } elsif ($opt eq 'rootfs') {
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    die "implement me: $opt";
+	} elsif ($opt eq 'unprivileged') {
+	    die "unable to modify read-only option: '$opt'\n";
 	} else {
 	    die "implement me: $opt";
 	}
