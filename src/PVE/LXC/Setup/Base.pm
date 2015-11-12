@@ -443,11 +443,23 @@ sub post_create_hook {
 # File access wrappers for container setup code.
 # For user-namespace support these might need to take uid and gid maps into account.
 
+sub ct_reset_ownership {
+    my ($self, @files) = @_;
+    my $conf = $self->{conf};
+    return if !$self->{id_map};
+    my $uid = $self->{rootuid};
+    my $gid = $self->{rootgid};
+    chown($uid, $gid, @files);
+}
+
 sub ct_mkdir {
     my ($self, $file, $mask) = @_;
     # mkdir goes by parameter count - an `undef' mode acts like a mode of 0000
-    return CORE::mkdir($file, $mask) if defined ($mask);
-    return CORE::mkdir($file);
+    if (defined($mask)) {
+	return CORE::mkdir($file, $mask) && $self->ct_reset_ownership($file);
+    } else {
+	return CORE::mkdir($file) && $self->ct_reset_ownership($file);
+    }
 }
 
 sub ct_unlink {
@@ -471,12 +483,23 @@ sub ct_open_file_read {
 sub ct_open_file_write {
     my $self = shift;
     my $file = shift;
-    return IO::File->new($file, O_WRONLY | O_CREAT, @_);
+    my $fh = IO::File->new($file, O_WRONLY | O_CREAT, @_);
+    $self->ct_reset_ownership($fh);
+    return $fh;
 }
 
 sub ct_make_path {
     my $self = shift;
-    File::Path::make_path(@_);
+    if ($self->{id_map}) {
+	my $opts = pop;
+	if (ref($opts) eq 'HASH') {
+	    $opts->{owner} = $self->{rootuid} if !defined($self->{owner});
+	    $opts->{group} = $self->{rootgid} if !defined($self->{group});
+	}
+	File::Path::make_path(@_, $opts);
+    } else {
+	File::Path::make_path(@_);
+    }
 }
 
 sub ct_symlink {
@@ -516,7 +539,8 @@ sub ct_file_get_contents {
 
 sub ct_file_set_contents {
     my ($self, $file, $data, $perms) = @_;
-    return PVE::Tools::file_set_contents($file, $data, $perms);
+    PVE::Tools::file_set_contents($file, $data, $perms);
+    $self->ct_reset_ownership($file);
 }
 
 1;

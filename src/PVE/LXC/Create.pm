@@ -27,11 +27,11 @@ sub restore_archive {
 
     my $userns_cmd = [];
 
-#    we always use the same mapping: 'b:0:100000:65536'
-#    if ($conf->{'lxc.id_map'}) {
-#	$userns_cmd = ['lxc-usernsexec', '-m', 'b:0:100000:65536', '--'];
-#	PVE::Tools::run_command(['chown', '-R', '100000:100000', $rootdir]);
-#    }
+    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    if (@$id_map) {
+	$userns_cmd = ['lxc-usernsexec', (map { ('-m', join(':', @$_)) } @$id_map), '--'];
+	PVE::Tools::run_command(['chown', '-R', "$rootuid:$rootgid", $rootdir]);
+    }
 
     my $cmd = [@$userns_cmd, 'tar', 'xpf', $archive, '--totals',
                @$PVE::LXC::COMMON_TAR_FLAGS,

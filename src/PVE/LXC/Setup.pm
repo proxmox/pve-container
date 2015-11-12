@@ -57,6 +57,14 @@ sub new {
 
     # Cache some host files we need access to:
     $plugin->{host_resolv_conf} = PVE::INotify::read_file('resolvconf');
+
+    # pass on user namespace information:
+    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    if (@$id_map) {
+	$plugin->{id_map} = $id_map;
+	$plugin->{rootuid} = $rootuid;
+	$plugin->{rootgid} = $rootgid;
+    }
     
     return $self;
 }

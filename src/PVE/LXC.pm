@@ -2356,4 +2356,37 @@ sub complete_ctid_running {
     return &$complete_ctid_full(1);
 }
 
+sub parse_id_maps {
+    my ($conf) = @_;
+
+    my $id_map = [];
+    my $rootuid = 0;
+    my $rootgid = 0;
+
+    my $lxc = $conf->{lxc};
+    foreach my $entry (@$lxc) {
+	my ($key, $value) = @$entry;
+	next if $key ne 'lxc.id_map';
+	if ($value =~ /^([ug])\s+(\d+)\s+(\d+)\s+(\d+)\s*$/) {
+	    my ($type, $ct, $host, $length) = ($1, $2, $3, $4);
+	    push @$id_map, [$type, $ct, $host, $length];
+	    if ($ct == 0) {
+		$rootuid = $host if $type eq 'u';
+		$rootgid = $host if $type eq 'g';
+	    }
+	} else {
+	    die "failed to parse id_map: $value\n";
+	}
+    }
+
+    if (!@$id_map && $conf->{unprivileged}) {
+	# Should we read them from /etc/subuid?
+	$id_map = [ ['u', '0', '100000', '65536'],
+	            ['g', '0', '100000', '65536'] ];
+	$rootuid = $rootgid = 100000;
+    }
+
+    return ($id_map, $rootuid, $rootgid);
+}
+
 1;
