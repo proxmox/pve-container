@@ -1091,11 +1091,8 @@ sub update_lxc_config {
 
     my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
     $mountpoint->{mp} = '/';
-    
-    my ($path, $use_loopdev) = mountpoint_mount_path($mountpoint, $storage_cfg);
-    $path = "loop:$path" if $use_loopdev;
 
-    $raw .= "lxc.rootfs = $path\n";
+    $raw .= "lxc.rootfs = $dir/rootfs\n";
 
     my $netcount = 0;
     foreach my $k (keys %$conf) {

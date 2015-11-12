@@ -9,6 +9,7 @@ exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use POSIX;
 use File::Path;
+use Fcntl ':mode';
 
 use PVE::SafeSyslog;
 use PVE::Tools;
@@ -19,6 +20,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::LXC;
+use PVE::LXC::Setup;
 use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
@@ -54,8 +56,6 @@ __PACKAGE__->register_method ({
 
 	return undef if $param->{name} !~ m/^\d+$/;
 
-        my $rootdir = $ENV{LXC_ROOTFS_MOUNT};
-
 	my $vmid = $param->{name};
 
 	PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
@@ -70,6 +70,41 @@ __PACKAGE__->register_method ({
 	my $loopdevlist = PVE::LXC::get_vm_volumes($conf, 'rootfs');
 
 	PVE::Storage::activate_volumes($storage_cfg, $vollist);
+
+	my $rootdir = $param->{rootfs};
+
+	my $setup_mountpoint = sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    #return if $ms eq 'rootfs';
+	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
+	};
+
+	my $setup_cgroup_device = sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    my $volid = $mountpoint->{volume};
+	    return if !$volid || $volid !~ m|^/dev/.+|;
+
+	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg);
+
+	    my (undef, undef, $mode, undef, undef, undef, $rdev) = stat($path);
+	    if ($mode && S_ISBLK($mode) && $rdev) {
+		my $major = int($rdev / 0x100);
+		my $minor = $rdev % 0x100;
+		if ($major != 7) { # must not be a loop device
+		    PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b', $major, $minor]);
+		    PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b ${major}:${minor} rwm");
+		}
+	    }
+	};
+
+	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
+
+	PVE::LXC::foreach_mountpoint($conf, $setup_cgroup_device);
+
+	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
+	$lxc_setup->pre_start_hook();
 	return undef;
     }});
 

@@ -40,7 +40,7 @@ pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
 	mv $@.tmp $@
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-poststop-hook lxcnetaddbr pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-poststop-hook lxcnetaddbr pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
 	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -49,7 +49,6 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-mount-hook lxc-pve-posts
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
 	install -d ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
-	install -m 0755 lxc-pve-mount-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-poststop-hook ${LXC_HOOK_DIR}
 	install -d ${LXC_COMMON_CONFIG_DIR}
 	install -m 0644 lxc-pve.conf ${LXC_COMMON_CONFIG_DIR}/01-pve.conf

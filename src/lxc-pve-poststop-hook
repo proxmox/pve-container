@@ -56,6 +56,10 @@ __PACKAGE__->register_method ({
 	my $storage_cfg = PVE::Storage::config();
 
         PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
+
+	my $rootfs = $ENV{LXC_ROOTFS_PATH};
+	die "Missing container root directory!\n" if !$rootfs;
+	PVE::Tools::run_command(['umount', '--recursive', $rootfs]);
 	
 	return undef;
     }});
