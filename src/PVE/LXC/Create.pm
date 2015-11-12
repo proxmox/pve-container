@@ -25,11 +25,9 @@ sub next_free_nbd_dev {
 sub restore_archive {
     my ($archive, $rootdir, $conf) = @_;
 
-    my $userns_cmd = [];
-
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my $userns_cmd = PVE::LXC::userns_command($id_map);
     if (@$id_map) {
-	$userns_cmd = ['lxc-usernsexec', (map { ('-m', join(':', @$_)) } @$id_map), '--'];
 	PVE::Tools::run_command(['chown', '-R', "$rootuid:$rootgid", $rootdir]);
     }
 

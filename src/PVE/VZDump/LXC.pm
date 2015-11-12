@@ -105,6 +105,9 @@ sub prepare {
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
+    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
+
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
@@ -278,7 +281,8 @@ sub archive {
     my $snapdir = $task->{snapdir};
     my $tmpdir = $task->{tmpdir};
 
-    my $tar = ['tar', 'cpf', '-', '--totals',
+    my $userns_cmd = $task->{userns_cmd};
+    my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
                @$PVE::LXC::COMMON_TAR_FLAGS,
                '--one-file-system', '--warning=no-file-ignored'];
 

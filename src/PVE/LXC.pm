@@ -2411,4 +2411,12 @@ sub parse_id_maps {
     return ($id_map, $rootuid, $rootgid);
 }
 
+sub userns_command {
+    my ($id_map) = @_;
+    if (@$id_map) {
+	return ['lxc-usernsexec', (map { ('-m', join(':', @$_)) } @$id_map), '--'];
+    }
+    return [];
+}
+
 1;
