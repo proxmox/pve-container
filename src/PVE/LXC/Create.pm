@@ -27,9 +27,6 @@ sub restore_archive {
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
-    if (@$id_map) {
-	PVE::Tools::run_command(['chown', '-R', "$rootuid:$rootgid", $rootdir]);
-    }
 
     my $cmd = [@$userns_cmd, 'tar', 'xpf', $archive, '--totals',
                @$PVE::LXC::COMMON_TAR_FLAGS,

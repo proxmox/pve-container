@@ -2213,13 +2213,15 @@ sub get_vm_volumes {
 }
 
 sub mkfs {
-    my ($dev) = @_;
+    my ($dev, $rootuid, $rootgid) = @_;
 
-    PVE::Tools::run_command(['mkfs.ext4', '-O', 'mmp', $dev]);
+    PVE::Tools::run_command(['mkfs.ext4', '-O', 'mmp',
+			     '-E', "root_owner=$rootuid:$rootgid",
+			     $dev]);
 }
 
 sub format_disk {
-    my ($storage_cfg, $volid) = @_;
+    my ($storage_cfg, $volid, $rootuid, $rootgid) = @_;
 
     if ($volid =~ m!^/dev/.+!) {
 	mkfs($volid);
@@ -2240,7 +2242,7 @@ sub format_disk {
     die "cannot format volume '$volid' (format == $format)\n"
 	if $format ne 'raw';
 
-    mkfs($path);
+    mkfs($path, $rootuid, $rootgid);
 }
 
 sub destroy_disks {
@@ -2258,6 +2260,9 @@ sub create_disks {
     my $vollist = [];
 
     eval {
+	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+	my $chown_vollist = [];
+
 	foreach_mountpoint($settings, sub {
 	    my ($ms, $mountpoint) = @_;
 
@@ -2280,25 +2285,27 @@ sub create_disks {
 		    if ($size_kb > 0) {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
 							   undef, $size_kb);
-			format_disk($storecfg, $volid);
+			format_disk($storecfg, $volid, $rootuid, $rootgid);
 		    } else {
 			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 							   undef, 0);
+			push @$chown_vollist, $volid;
 		    }
 		} elsif ($scfg->{type} eq 'zfspool') {
 
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 					               undef, $size_kb);
+		    push @$chown_vollist, $volid;
 		} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm') {
 
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
-		    format_disk($storecfg, $volid);
+		    format_disk($storecfg, $volid, $rootuid, $rootgid);
 
 		} elsif ($scfg->{type} eq 'rbd') {
 
 		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
-		    format_disk($storecfg, $volid);
+		    format_disk($storecfg, $volid, $rootuid, $rootgid);
 		} else {
 		    die "unable to create containers on storage type '$scfg->{type}'\n";
 		}
@@ -2309,6 +2316,13 @@ sub create_disks {
 		# use specified/existing volid
 	    }
 	});
+
+	PVE::Storage::activate_volumes($storecfg, $chown_vollist, undef);
+	foreach my $volid (@$chown_vollist) {
+	    my $path = PVE::Storage::path($storecfg, $volid, undef);
+	    chown($rootuid, $rootgid, $path);
+	}
+	PVE::Storage::deactivate_volumes($storecfg, $chown_vollist, undef);
     };
     # free allocated images on error
     if (my $err = $@) {
