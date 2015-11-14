@@ -1,3 +1,15 @@
+pve-container (1.0-25) unstable; urgency=medium
+
+  * support unpriviledged containers
+
+  * improve OS type detection
+
+  * remove --totals from COMMON_TAR_FLAGS
+
+  * vzdump: userns support
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 14 Nov 2015 10:29:14 +0100
+
 pve-container (1.0-24) unstable; urgency=medium
 
   * setup: fix ssh-key perms lost with the rewrite
