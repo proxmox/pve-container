@@ -26,13 +26,16 @@ my $autodetect_type = sub {
 	if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
 	    return 'ubuntu';
 	}
-    } elsif (-f "$rootdir/etc/debian_version") {
+    }
+
+    if (-f "$rootdir/etc/debian_version") {
 	return "debian";
     } elsif (-f  "$rootdir/etc/redhat-release") {
 	return "redhat";
     } elsif (-f  "$rootdir/etc/arch-release") {
 	return "archlinux";
     }
+
     die "unable to detect OS disribution\n";
 };
 
