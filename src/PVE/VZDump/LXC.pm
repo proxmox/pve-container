@@ -24,7 +24,9 @@ my $rsync_vm = sub {
 
     my $opts = $self->{vzdump}->{opts};
 
-    my $rsync = ['rsync', '--stats', '-X', '-A', '--numeric-ids',
+    my @xattr = $task->{no_xattrs} ? () : ('-X', '-A');
+
+    my $rsync = ['rsync', '--stats', @xattr, '--numeric-ids',
                  '-aH', '--delete', '--no-whole-file', '--inplace',
                  '--one-file-system', '--relative'];
     push @$rsync, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
@@ -206,6 +208,14 @@ sub snapshot {
 
 sub copy_data_phase1 {
     my ($self, $task) = @_;
+
+    if (my $mntinfo = PVE::VZDump::get_mount_info($task->{snapdir})) {
+	if ($mntinfo->{fstype} =~ /^nfs4?/) {
+	    warn "temporary directory is on NFS, disabling xattr and acl support"
+	    . ", consider configuring a local tmpdir via /etc/vzdump.conf\n";
+	    $task->{no_xattrs} = 1;
+	}
+    }
 
     $self->$rsync_vm($task, $task->{snapdir}, "first");
 }
