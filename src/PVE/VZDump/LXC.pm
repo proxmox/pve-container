@@ -133,7 +133,7 @@ sub prepare {
 
 	if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
 	    $self->loginfo("found old vzdump snapshot (force removal)");
-	    PVE::LXC::snapshot_delete($vmid, 'vzdump', 0);
+	    PVE::LXC::snapshot_delete($vmid, 'vzdump', 1);
 	}
 
 	my $rootdir = $default_mount_point;
