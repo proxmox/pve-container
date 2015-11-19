@@ -1069,6 +1069,8 @@ sub update_lxc_config {
 	die "implement me";
     }
 
+    $raw .= "lxc.start.unshare = 1\n";
+
     # Should we read them from /etc/subuid?
     if ($unprivileged && !$custom_idmap) {
 	$raw .= "lxc.id_map = u 0 100000 65536\n";

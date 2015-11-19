@@ -163,8 +163,7 @@ __PACKAGE__->register_method({
 
 		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 
-		my $cmd = ['unshare', '-m', '--',
-			   'sh', '-c', "mount --make-rslave / && exec lxc-start -n $vmid"];
+		my $cmd = ['lxc-start', '-n', $vmid];
 
 		run_command($cmd);
 
