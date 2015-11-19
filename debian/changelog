@@ -1,3 +1,9 @@
+pve-container (1.0-26) unstable; urgency=medium
+
+  * Mounting of zfspool snapshots are not necessary
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 19 Nov 2015 12:43:02 +0100
+
 pve-container (1.0-25) unstable; urgency=medium
 
   * support unpriviledged containers
