@@ -2109,6 +2109,20 @@ my $check_mount_path = sub {
     }
 };
 
+sub query_loopdev {
+    my ($path) = @_;
+    my $found;
+    my $parser = sub {
+	my $line = shift;
+	if ($line =~ m@^(/dev/loop\d+):@) {
+	    $found = $1;
+	}
+    };
+    my $cmd = ['losetup', '--associated', $path];
+    PVE::Tools::run_command($cmd, outfunc => $parser);
+    return $found;
+}
+
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;

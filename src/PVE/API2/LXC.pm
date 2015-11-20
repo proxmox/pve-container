@@ -1006,20 +1006,6 @@ __PACKAGE__->register_method({
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	my $query_loopdev = sub {
-	    my ($path) = @_;
-	    my $found;
-	    my $parser = sub {
-		my $line = shift;
-		if ($line =~ m@^(/dev/loop\d+):@) {
-		    $found = $1;
-		}
-	    };
-	    my $cmd = ['losetup', '--associated', $path];
-	    PVE::Tools::run_command($cmd, outfunc => $parser);
-	    return $found;
-	};
-
 	my $code = sub {
 
 	    my $conf = PVE::LXC::load_config($vmid);
@@ -1071,7 +1057,7 @@ __PACKAGE__->register_method({
 
 			$mp->{mp} = '/';
 			my $use_loopdev = (PVE::LXC::mountpoint_mount_path($mp, $storage_cfg))[1];
-			$path = &$query_loopdev($path) if $use_loopdev;
+			$path = PVE::LXC::query_loopdev($path) if $use_loopdev;
 			die "internal error: CT running but mountpoint not attached to a loop device"
 			    if !$path;
 			PVE::Tools::run_command(['losetup', '--set-capacity', $path]) if $use_loopdev;
