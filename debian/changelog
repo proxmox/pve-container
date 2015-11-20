@@ -2,6 +2,14 @@ pve-container (1.0-26) unstable; urgency=medium
 
   * Mounting of zfspool snapshots are not necessary
 
+  * use the unmount-namespace stop hook
+
+  * vzdump: warn about lack of xattr/acl support on nfs
+
+  * Use new lxc.start.unshare setting
+
+  * set memory.kmem.limit_in_bytes
+
  -- Proxmox Support Team <support@proxmox.com>  Thu, 19 Nov 2015 12:43:02 +0100
 
 pve-container (1.0-25) unstable; urgency=medium
