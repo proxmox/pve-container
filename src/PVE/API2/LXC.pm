@@ -142,6 +142,11 @@ __PACKAGE__->register_method({
 		type => 'string', format => 'pve-poolid',
 		description => "Add the VM to the specified pool.",
 	    },
+	    'ignore-unpack-errors' => {
+		optional => 1,
+		type => 'boolean',
+		description => "Ignore errors when extracting the template.",
+	    },
 	}),
     },
     returns => {
@@ -157,6 +162,8 @@ __PACKAGE__->register_method({
 	my $node = extract_param($param, 'node');
 
 	my $vmid = extract_param($param, 'vmid');
+
+	my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
 
 	my $basecfg_fn = PVE::LXC::config_file($vmid);
 
@@ -298,7 +305,7 @@ __PACKAGE__->register_method({
 
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $param, $conf);
 
-		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore);
+		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore, $ignore_unpack_errors);
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;

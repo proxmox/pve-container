@@ -132,9 +132,10 @@ sub recover_config {
 }
 
 sub restore_and_configure {
-    my ($vmid, $archive, $rootdir, $conf, $password, $restore) = @_;
+    my ($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error) = @_;
 
-    restore_archive($archive, $rootdir, $conf);
+    eval { restore_archive($archive, $rootdir, $conf) };
+    die $@ if $@ && !$no_unpack_error;
 
     if (!$restore) {
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
@@ -180,7 +181,7 @@ sub restore_and_configure {
 }
 
 sub create_rootfs {
-    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore) = @_;
+    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore, $no_unpack_error) = @_;
 
     my $config_fn = PVE::LXC::config_file($vmid);
     if (-f $config_fn) {
@@ -210,7 +211,7 @@ sub create_rootfs {
 
     eval {
 	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
-        restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore);
+        restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error);
     };
     my $err = $@;
     PVE::LXC::umount_all($vmid, $storage_cfg, $conf, $err ? 1 : 0);
