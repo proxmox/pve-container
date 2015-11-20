@@ -950,27 +950,26 @@ __PACKAGE__->register_method({
     },
     parameters => {
 	additionalProperties => 0,
-	properties => PVE::LXC::json_config_properties(
-	    {
-		node => get_standard_option('pve-node'),
-		vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-		disk => {
-		    type => 'string',
-		    description => "The disk you want to resize.",
-		    enum => [PVE::LXC::mountpoint_names()],
-		},
-		size => {
-		    type => 'string',
-		    pattern => '\+?\d+(\.\d+)?[KMGT]?',
-		    description => "The new size. With the '+' sign the value is added to the actual size of the volume and without it, the value is taken as an absolute one. Shrinking disk size is not supported.",
-		},
-		digest => {
-		    type => 'string',
-		    description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
-		    maxLength => 40,
-		    optional => 1,
-		}
-	    }),
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    disk => {
+		type => 'string',
+		description => "The disk you want to resize.",
+		enum => [PVE::LXC::mountpoint_names()],
+	    },
+	    size => {
+		type => 'string',
+		pattern => '\+?\d+(\.\d+)?[KMGT]?',
+		description => "The new size. With the '+' sign the value is added to the actual size of the volume and without it, the value is taken as an absolute one. Shrinking disk size is not supported.",
+	    },
+	    digest => {
+		type => 'string',
+		description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
+		maxLength => 40,
+		optional => 1,
+	    }
+	},
     },
     returns => {
 	type => 'string',
