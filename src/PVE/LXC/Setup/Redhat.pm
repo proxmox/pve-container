@@ -242,7 +242,7 @@ sub setup_network {
 	    }
 	}
 
-	next unless $data;
+	next unless $data || $bootproto;
 	$header .= "BOOTPROTO=$bootproto\n";
 	$self->ct_file_set_contents($filename, $header . $data);
 
