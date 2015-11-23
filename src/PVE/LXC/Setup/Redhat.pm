@@ -153,28 +153,12 @@ sub set_hostname {
 
     if ($self->ct_file_exists($hostname_fn)) {
 	$self->ct_file_set_contents($hostname_fn, "$hostname\n");
-    } else {
+    }
+
+    if ($self->ct_file_exists($sysconfig_network)) {
 	my $data = $self->ct_file_get_contents($sysconfig_network);
-	if ($data !~ s/^HOSTNAME=\s*(\S+)\s*$/HOSTNAME=$hostname/m) {
+	if ($data !~ s/^HOSTNAME=\h*(\S+)\h*$/HOSTNAME=$hostname/m) {
 	    $data .= "HOSTNAME=$hostname\n";
-	}
-	my ($has_ipv4, $has_ipv6);
-	foreach my $k (keys %$conf) {
-	    next if $k !~ m/^net(\d+)$/;
-	    my $d = PVE::LXC::parse_lxc_network($conf->{$k});
-	    next if !$d->{name};
-	    $has_ipv4 = 1 if defined($d->{ip});
-	    $has_ipv6 = 1 if defined($d->{ip6});
-	}
-	if ($has_ipv4) {
-	    if ($data !~ s/(NETWORKING)=\S+/$1=yes/) {
-		$data .= "NETWORKING=yes\n";
-	    }
-	}
-	if ($has_ipv6) {
-	    if ($data !~ s/(NETWORKING_IPV6)=\S+/$1=yes/) {
-		$data .= "NETWORKING_IPV6=yes\n";
-	    }
 	}
 	$self->ct_file_set_contents($sysconfig_network, $data);
     }
@@ -189,10 +173,14 @@ sub setup_network {
 
     $self->ct_make_path('/etc/sysconfig/network-scripts');
 
+    my ($has_ipv4, $has_ipv6);
+
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
 	next if !$d->{name};
+	$has_ipv4 = 1 if defined($d->{ip});
+	$has_ipv6 = 1 if defined($d->{ip6});
 
 	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
 	my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
@@ -264,6 +252,22 @@ sub setup_network {
 	} elsif ($routes) {
 	    $self->ct_file_set_contents($routefile, $routes);
 	}
+    }
+
+    my $sysconfig_network = "/etc/sysconfig/network";
+    if ($self->ct_file_exists($sysconfig_network)) {
+	my $data = $self->ct_file_get_contents($sysconfig_network);
+	if ($has_ipv4) {
+	    if ($data !~ s/(NETWORKING)=\S+/$1=yes/) {
+		$data .= "NETWORKING=yes\n";
+	    }
+	}
+	if ($has_ipv6) {
+	    if ($data !~ s/(NETWORKING_IPV6)=\S+/$1=yes/) {
+		$data .= "NETWORKING_IPV6=yes\n";
+	    }
+	}
+	$self->ct_file_set_contents($sysconfig_network, $data);
     }
 }
 
