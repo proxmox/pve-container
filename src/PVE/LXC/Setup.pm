@@ -8,12 +8,14 @@ use PVE::Tools;
 use PVE::LXC::Setup::Debian;
 use PVE::LXC::Setup::Ubuntu;
 use PVE::LXC::Setup::Redhat;
+use PVE::LXC::Setup::Fedora;
 use PVE::LXC::Setup::ArchLinux;
 
 my $plugins = {
     debian    => 'PVE::LXC::Setup::Debian',
     ubuntu    => 'PVE::LXC::Setup::Ubuntu',
     redhat    => 'PVE::LXC::Setup::Redhat',
+    fedora    => 'PVE::LXC::Setup::Fedora',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
 };
 
@@ -30,6 +32,8 @@ my $autodetect_type = sub {
 
     if (-f "$rootdir/etc/debian_version") {
 	return "debian";
+    } elsif (-f  "$rootdir/etc/fedora-release") {
+	return "fedora";
     } elsif (-f  "$rootdir/etc/redhat-release") {
 	return "redhat";
     } elsif (-f  "$rootdir/etc/arch-release") {

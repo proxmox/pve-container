@@ -1,5 +1,7 @@
 pve-container (1.0-27) unstable; urgency=medium
 
+  * add support for Fedora 22
+  
   * add/restore firewall config with vzdump
 
   * warn when trying to delete non-existent options

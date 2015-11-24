@@ -1072,7 +1072,7 @@ sub update_lxc_config {
     my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype =~ /^(?:debian | ubuntu | centos | archlinux)$/x) {
+    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | archlinux)$/x) {
 	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
 	if ($unprivileged || $custom_idmap) {
 	    $raw .= "lxc.include = /usr/share/lxc/config/$ostype.userns.conf\n"
