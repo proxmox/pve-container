@@ -262,6 +262,12 @@ sub assemble {
     delete $conf->{'pve.parent'};
 
     PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::write_pct_config("/lxc/$vmid.conf", $conf));
+
+    my $firewall ="/etc/pve/firewall/$vmid.fw";
+    if (-e  $firewall) {
+	PVE::Tools::file_copy($firewall, "$tmpdir/etc/vzdump/pct.fw");
+	$task->{fw} = 1;
+    }
 }
 
 sub archive {
@@ -307,6 +313,7 @@ sub archive {
     # The directory parameter can give a alternative directory as source.
     # the second parameter gives the structure in the tar.
     push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
+    push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
     push @$tar, "--directory=$snapdir";
     push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
 
