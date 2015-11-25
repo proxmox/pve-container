@@ -1226,6 +1226,11 @@ sub update_pct_config {
 
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
+	    if (!exists($conf->{$opt})) {
+		warn "no such option: $opt\n";
+		next;
+	    }
+
 	    if ($opt eq 'hostname' || $opt eq 'memory' || $opt eq 'rootfs') {
 		die "unable to delete required option '$opt'\n";
 	    } elsif ($opt eq 'swap') {
