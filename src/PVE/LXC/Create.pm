@@ -10,6 +10,7 @@ use PVE::Storage;
 use PVE::LXC;
 use PVE::LXC::Setup;
 use PVE::VZDump::ConvertOVZ;
+use PVE::Tools;
 
 sub next_free_nbd_dev {
     
@@ -146,6 +147,7 @@ sub restore_and_configure {
 	# restore: try to extract configuration from archive
 
 	my $pct_cfg_fn = "$rootdir/etc/vzdump/pct.conf";
+	my $pct_fwcfg_fn = "$rootdir/etc/vzdump/pct.fw";
 	my $ovz_cfg_fn = "$rootdir/etc/vzdump/vps.conf";
 	if (-f $pct_cfg_fn) {
 	    my $raw = PVE::Tools::file_get_contents($pct_cfg_fn);
@@ -156,7 +158,12 @@ sub restore_and_configure {
 		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	    }
 	    unlink($pct_cfg_fn);
-	    
+
+	    if (-f $pct_fwcfg_fn) {
+		PVE::Tools::file_copy($pct_fwcfg_fn, "/etc/pve/firewall/$vmid.fw");
+		unlink $pct_fwcfg_fn;
+	    }
+
 	} elsif (-f $ovz_cfg_fn) {
 	    print "###########################################################\n";
 	    print "Converting OpenVZ configuration to LXC.\n";
