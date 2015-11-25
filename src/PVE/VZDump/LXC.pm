@@ -316,6 +316,7 @@ sub archive {
     push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
     push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
     push @$tar, "--directory=$snapdir";
+    push @$tar, '--anchored';
     push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
 
     push @$tar, @sources;
