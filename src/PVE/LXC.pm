@@ -2332,8 +2332,9 @@ sub create_disks {
 		    die "unable to create containers on storage type '$scfg->{type}'\n";
 		}
 		push @$vollist, $volid;
-                my $new_mountpoint = { volume => $volid, size => $size_kb*1024, mp => $mp };
-		$conf->{$ms} = print_ct_mountpoint($new_mountpoint, $ms eq 'rootfs');
+		$mountpoint->{volume} = $volid;
+		$mountpoint->{size} = $size_kb * 1024;
+		$conf->{$ms} = print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 	    } else {
 		# use specified/existing volid
 	    }
