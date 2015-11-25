@@ -155,6 +155,7 @@ sub restore_and_configure {
 
 	    foreach my $key (keys %$oldconf) {
 		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged';
+		next if $key =~ /^mp\d+$/; # don't recover mountpoints
 		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	    }
 	    unlink($pct_cfg_fn);
