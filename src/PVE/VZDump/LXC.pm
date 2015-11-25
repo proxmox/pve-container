@@ -114,8 +114,9 @@ sub prepare {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
 	my $mount = $data->{mp};
+	my $type = $data->{type};
 
-	return if !$volid || !$mount || $volid =~ m|^/|;
+	return if !$volid || !$mount || $type ne 'volume';
 
 	if ($name ne 'rootfs' && !$data->{backup}) {
 	    push @$exclude_dirs, $mount;

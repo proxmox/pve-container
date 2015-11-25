@@ -902,6 +902,15 @@ sub vmstatus {
     return $list;
 }
 
+sub classify_mountpoint {
+    my ($vol) = @_;
+    if ($vol =~ m!^/!) {
+	return 'device' if $vol =~ m!^/dev/!;
+	return 'bind';
+    }
+    return 'volume';
+}
+
 sub parse_ct_mountpoint {
     my ($data, $noerr) = @_;
 
@@ -923,12 +932,15 @@ sub parse_ct_mountpoint {
 	$res->{size} = $size;
     }
 
+    $res->{type} = classify_mountpoint($res->{volume});
+
     return $res;
 }
 
 sub print_ct_mountpoint {
     my ($info, $nomp) = @_;
-    my $skip = $nomp ? ['mp'] : [];
+    my $skip = [ 'type' ];
+    push @$skip, 'mp' if $nomp;
     return PVE::JSONSchema::print_property_string($info, $mp_desc, $skip);
 }
 
@@ -1172,9 +1184,6 @@ sub verify_searchdomain_list {
 sub add_unused_volume {
     my ($config, $volid) = @_;
 
-    # skip bind mounts and block devices
-    return if $volid =~ m|^/|;
-
     my $key;
     for (my $ind = $MAX_UNUSED_DISKS - 1; $ind >= 0; $ind--) {
 	my $test = "unused$ind";
@@ -1244,7 +1253,9 @@ sub update_pct_config {
 		next if $hotplug_error->($opt);
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
 		my $mountpoint = parse_ct_mountpoint($conf->{$opt});
-		add_unused_volume($conf, $mountpoint->{volume});
+		if ($mountpoint->{type} eq 'volume') {
+		    add_unused_volume($conf, $mountpoint->{volume})
+		}
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
@@ -1411,10 +1422,7 @@ sub get_primary_ips {
 sub delete_mountpoint_volume {
     my ($storage_cfg, $vmid, $volume) = @_;
 
-    # skip bind mounts and block devices
-    if ($volume =~ m|^/|) {
-	    return;
-    }
+    return if classify_mountpoint($volume) ne 'volume';
 
     my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volume);
     PVE::Storage::vdisk_free($storage_cfg, $volume) if $vmid == $owner;
@@ -2129,6 +2137,7 @@ sub mountpoint_mount {
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
+    my $type = $mountpoint->{type};
     
     return if !$volid || !$mount;
 
@@ -2190,10 +2199,10 @@ sub mountpoint_mount {
 	} else {
 	    die "unsupported image format '$format'\n";
 	}
-    } elsif ($volid =~ m|^/dev/.+|) {
+    } elsif ($type eq 'device') {
 	PVE::Tools::run_command(['mount', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
-    } elsif ($volid !~ m|^/dev/.+| && $volid =~ m|^/.+| && -d $volid) {
+    } elsif ($type eq 'bind' && -d $volid) {
 	&$check_mount_path($volid);
 	PVE::Tools::run_command(['mount', '-o', 'bind', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
@@ -2214,7 +2223,7 @@ sub get_vm_volumes {
 
 	my $volid = $mountpoint->{volume};
 
-        return if !$volid || $volid =~ m|^/|;
+        return if !$volid || $mountpoint->{type} ne 'volume';
 
         my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
         return if !$sid;
