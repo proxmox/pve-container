@@ -2,6 +2,22 @@ pve-container (1.0-27) unstable; urgency=medium
 
   * add/restore firewall config with vzdump
 
+  * warn when trying to delete non-existent options
+
+  * create_disks: don't drop extra parameters
+
+  * vzdump: exclude lost+found with unprivilged containers
+
+  * don't restore mountpoint settings
+
+  * vzdump: use --anchored on tar
+
+  * honor backup=yes/no for bind and device mountpoints
+
+  * Redhat: handle /etc/sysconfig/network better
+
+  * Redhat: fix ipv4 dhcp only setup
+
  -- Proxmox Support Team <support@proxmox.com>  Thu, 26 Nov 2015 09:59:30 +0100
 
 pve-container (1.0-26) unstable; urgency=medium
