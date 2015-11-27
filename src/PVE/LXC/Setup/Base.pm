@@ -60,10 +60,16 @@ sub update_etc_hosts {
 
     my @lines;
 
+    my $namepart = ($newname =~ s/\..*$//r);
+
     my $extra_names = '';
-    foreach my $domain (PVE::Tools::split_list($searchdomains)) {
-	$extra_names .= ' ' if $extra_names;
-	$extra_names .= "$newname.$domain";
+    if ($newname =~ /\./) {
+	$extra_names .= $namepart;
+    } else {
+	foreach my $domain (PVE::Tools::split_list($searchdomains)) {
+	    $extra_names .= ' ' if $extra_names;
+	    $extra_names .= "$newname.$domain";
+	}
     }
     
     foreach my $line (split(/\n/, $etc_hosts_data)) {
@@ -93,7 +99,7 @@ sub update_etc_hosts {
 		if (defined($hostip)) {
 		    push @lines, "$hostip $extra_names $newname";
 		} else {
-		    push @lines, "127.0.1.1 $newname";
+		    push @lines, "127.0.1.1 $namepart";
 		}
 		$done = 1;
 	    }
@@ -107,7 +113,7 @@ sub update_etc_hosts {
 	if (defined($hostip)) {
 	    push @lines, "$hostip $extra_names $newname";
 	} else {
-	    push @lines, "127.0.1.1 $newname";
+	    push @lines, "127.0.1.1 $namepart";
 	}	
     }
 
@@ -156,7 +162,7 @@ sub set_hostname {
     
     my $hostname = $conf->{hostname} || 'localhost';
 
-    $hostname =~ s/\..*$//;
+    my $namepart = ($hostname =~ s/\..*$//r);
 
     my $hostname_fn = "/etc/hostname";
     
@@ -177,7 +183,7 @@ sub set_hostname {
     $etc_hosts_data = update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
 				       $hostname, $searchdomains);
     
-    $self->ct_file_set_contents($hostname_fn, "$hostname\n");
+    $self->ct_file_set_contents($hostname_fn, "$namepart\n");
     $self->ct_file_set_contents($hosts_fn, $etc_hosts_data);
 }
 

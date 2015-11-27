@@ -1,5 +1,7 @@
 pve-container (1.0-27) unstable; urgency=medium
 
+  * fix bug #827: Setup: don't replace fqdn with searchdomain in /etc/hosts
+
   * add support for Fedora 22
   
   * add/restore firewall config with vzdump

@@ -1,5 +1,5 @@
 arch: i386
 memory: 512
 ostype: debian
-hostname: test3
+hostname: test3.use-fqdn.com
 net0: bridge=vmbr0,name=eth0,hwaddr=26:2B:CC:E5:7F:F9,ip=1.2.3.2/24,gw=1.2.3.1
