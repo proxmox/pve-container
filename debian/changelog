@@ -1,3 +1,9 @@
+pve-container (1.0-29) unstable; urgency=medium
+
+  * add 'fedora' to ostype schema enum
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 01 Dec 2015 11:24:26 +0100
+
 pve-container (1.0-28) unstable; urgency=medium
 
   * renamed lxc.start.unshare to lxc.monitor.unshare
