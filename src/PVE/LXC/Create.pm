@@ -24,7 +24,7 @@ sub next_free_nbd_dev {
 }
 
 sub restore_archive {
-    my ($archive, $rootdir, $conf) = @_;
+    my ($archive, $rootdir, $conf, $no_unpack_error) = @_;
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
@@ -43,11 +43,12 @@ sub restore_archive {
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
-	PVE::Tools::run_command($cmd, input => "<&STDIN");
+	eval { PVE::Tools::run_command($cmd, input => "<&STDIN"); };
     } else {
 	print "extracting archive '$archive'\n";
-	PVE::Tools::run_command($cmd);
+	eval { PVE::Tools::run_command($cmd); };
     }
+    die $@ if $@ && !$no_unpack_error;
     
     # determine file type of /usr/bin/file itself to get guests' architecture
     $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/usr/bin/file"];
@@ -135,8 +136,7 @@ sub recover_config {
 sub restore_and_configure {
     my ($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error) = @_;
 
-    eval { restore_archive($archive, $rootdir, $conf) };
-    die $@ if $@ && !$no_unpack_error;
+    restore_archive($archive, $rootdir, $conf, $no_unpack_error);
 
     if (!$restore) {
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
