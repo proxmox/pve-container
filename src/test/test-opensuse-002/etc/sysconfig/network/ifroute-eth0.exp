@@ -1,0 +1,3 @@
+# --- BEGIN PVE ROUTES ---
+default 2001:1::ffff - eth0
+# --- END PVE ROUTES ---

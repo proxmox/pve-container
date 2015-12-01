@@ -549,4 +549,32 @@ sub ct_file_set_contents {
     $self->ct_reset_ownership($file);
 }
 
+# Modify a marked portion of a file and move it to the beginning of the file.
+# If the file becomes empty it will be deleted.
+sub ct_modify_file_head_portion {
+    my ($self, $file, $head, $tail, $data) = @_;
+    if ($self->ct_file_exists($file)) {
+	my $old = $self->ct_file_get_contents($file);
+	# remove the portion between $head and $tail (all instances via /g)
+	$old =~ s/(?:^|(?<=\n))\Q$head\E.*\Q$tail\E//gs;
+	chomp $old;
+	if ($old) {
+	    # old data existed, append and add the trailing newline
+	    if ($data) {
+		$self->ct_file_set_contents($file, $head.$data.$tail . $old."\n");
+	    } else {
+		$self->ct_file_set_contents($file, $old."\n");
+	    }
+	} elsif ($data) {
+	    # only our own data will be added
+	    $self->ct_file_set_contents($file, $head.$data.$tail);
+	} else {
+	    # empty => delete
+	    $self->ct_unlink($file);
+	}
+    } else {
+	$self->ct_file_set_contents($file, $head.$data.$tail);
+    }
+}
+
 1;

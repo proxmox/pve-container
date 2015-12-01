@@ -237,21 +237,7 @@ sub setup_network {
 	# To keep user-defined routes in route-$iface we mark ours:
 	my $head = "# --- BEGIN PVE ROUTES ---\n";
 	my $tail = "# --- END PVE ROUTES ---\n";
-	$routes = $head . $routes . $tail if $routes;
-	if ($self->ct_file_exists($routefile)) {
-	    # if it exists we update by first removing our old rules
-	    my $old = $self->ct_file_get_contents($routefile);
-	    $old =~ s/(?:^|(?<=\n))\Q$head\E.*\Q$tail\E//gs;
-	    chomp $old;
-	    if ($old) {
-		$self->ct_file_set_contents($routefile, $routes . $old . "\n");
-	    } else {
-		# or delete if we aren't adding routes and the file's now empty
-		$self->ct_unlink($routefile);
-	    }
-	} elsif ($routes) {
-	    $self->ct_file_set_contents($routefile, $routes);
-	}
+	$self->ct_modify_file_head_portion($routefile, $head, $tail, $routes);
     }
 
     my $sysconfig_network = "/etc/sysconfig/network";

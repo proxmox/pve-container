@@ -98,7 +98,7 @@ my $confdesc = {
     ostype => {
 	optional => 1,
 	type => 'string',
-	enum => ['debian', 'ubuntu', 'centos', 'fedora', 'archlinux'],
+	enum => ['debian', 'ubuntu', 'centos', 'fedora', 'opensuse', 'archlinux'],
 	description => "OS type. Corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf.",
     },
     console => {
@@ -1072,7 +1072,7 @@ sub update_lxc_config {
     my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | archlinux)$/x) {
+    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux)$/x) {
 	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
 	if ($unprivileged || $custom_idmap) {
 	    $raw .= "lxc.include = /usr/share/lxc/config/$ostype.userns.conf\n"

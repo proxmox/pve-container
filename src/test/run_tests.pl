@@ -14,7 +14,7 @@ sub test_file {
 
     return if system("diff -u '$exp_fn' '$real_fn'") == 0;
 
-    die "files does not match\n";
+    die "files do not match\n";
 }
 
 sub run_test {
@@ -43,7 +43,35 @@ sub run_test {
 	srand(0);
 	$lxc_setup->post_create_hook('$TEST$ABCDEF');
 
-	my @testfiles = qw(/etc/hostname /etc/hosts /etc/inittab /etc/network/interfaces /etc/resolv.conf /etc/passwd /etc/shadow /etc/sysconfig/network /etc/sysconfig/network-scripts/ifcfg-eth0 /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth2 /etc/sysconfig/network-scripts/ifcfg-eth3 /etc/init/start-ttys.conf /etc/init/tty.conf /etc/init/power-status-changed.conf /etc/securetty /etc/crontab);
+	my @testfiles = qw(/etc/hostname
+	                   /etc/hosts
+	                   /etc/inittab
+	                   /etc/network/interfaces
+	                   /etc/resolv.conf
+	                   /etc/passwd
+	                   /etc/shadow
+	                   /etc/sysconfig/network
+	                   /etc/sysconfig/network-scripts/ifcfg-eth0
+	                   /etc/sysconfig/network-scripts/route-eth0
+	                   /etc/sysconfig/network-scripts/ifcfg-eth1
+	                   /etc/sysconfig/network-scripts/route-eth1
+	                   /etc/sysconfig/network-scripts/ifcfg-eth2
+	                   /etc/sysconfig/network-scripts/route-eth2
+	                   /etc/sysconfig/network-scripts/ifcfg-eth3
+	                   /etc/sysconfig/network-scripts/route-eth3
+	                   /etc/sysconfig/network/ifcfg-eth0
+	                   /etc/sysconfig/network/ifroute-eth0
+	                   /etc/sysconfig/network/ifcfg-eth1
+	                   /etc/sysconfig/network/ifroute-eth1
+	                   /etc/sysconfig/network/ifcfg-eth2
+	                   /etc/sysconfig/network/ifroute-eth2
+	                   /etc/sysconfig/network/ifcfg-eth3
+	                   /etc/sysconfig/network/ifroute-eth3
+	                   /etc/init/start-ttys.conf
+	                   /etc/init/tty.conf
+	                   /etc/init/power-status-changed.conf
+	                   /etc/securetty
+	                   /etc/crontab);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
