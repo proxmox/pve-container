@@ -1,3 +1,9 @@
+pve-container (1.0-28) unstable; urgency=medium
+
+  * renamed lxc.start.unshare to lxc.monitor.unshare
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 01 Dec 2015 09:56:33 +0100
+
 pve-container (1.0-27) unstable; urgency=medium
 
   * fix bug #827: Setup: don't replace fqdn with searchdomain in /etc/hosts
