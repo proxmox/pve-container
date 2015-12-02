@@ -1,3 +1,11 @@
+pve-container (1.0-30) unstable; urgency=medium
+
+  * OpenSUSE 13.1 support added
+
+  * create: don't skip arch detection on unpack errors
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 02 Dec 2015 11:03:47 +0100
+
 pve-container (1.0-29) unstable; urgency=medium
 
   * add 'fedora' to ostype schema enum
