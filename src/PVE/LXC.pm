@@ -1126,7 +1126,6 @@ sub update_lxc_config {
     $mountpoint->{mp} = '/';
 
     $raw .= "lxc.rootfs = $dir/rootfs\n";
-    $raw .= "lxc.hook.stop = /usr/lib/x86_64-linux-gnu/lxc/hooks/unmount-namespace\n";
 
     my $netcount = 0;
     foreach my $k (keys %$conf) {
