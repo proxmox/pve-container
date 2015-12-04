@@ -1,3 +1,9 @@
+pve-container (1.0-31) unstable; urgency=medium
+
+  * Revert "use the unmount-namespace stop hook"
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 04 Dec 2015 16:33:09 +0100
+
 pve-container (1.0-30) unstable; urgency=medium
 
   * OpenSUSE 13.1 support added
