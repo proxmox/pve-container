@@ -1078,7 +1078,7 @@ sub update_lxc_config {
 	    $raw .= "lxc.include = /usr/share/lxc/config/$ostype.userns.conf\n"
 	}
     } else {
-	die "implement me";
+	die "implement me (ostype $ostype)";
     }
 
     $raw .= "lxc.monitor.unshare = 1\n";
@@ -1264,7 +1264,7 @@ sub update_pct_config {
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
 	    } else {
-		die "implement me"
+		die "implement me (delete: $opt)"
 	    }
 	    write_config($vmid, $conf) if $running;
 	}
