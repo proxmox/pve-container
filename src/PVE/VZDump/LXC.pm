@@ -326,7 +326,7 @@ sub archive {
 
     my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
     push @$cmd, [ 'cstream', '-t', $bwl ] if $opts->{bwlimit};
-    push @$cmd, [ $comp ] if $comp;
+    push @$cmd, [ split(/\s+/, $comp) ] if $comp;
 
     if ($opts->{stdout}) {
 	push @{$cmd->[-1]}, \(">&" . fileno($opts->{stdout}));
