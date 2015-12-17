@@ -1108,7 +1108,6 @@ sub update_lxc_config {
 
     my $lxcmem = int($memory*1024*1024);
     $raw .= "lxc.cgroup.memory.limit_in_bytes = $lxcmem\n";
-    $raw .= "lxc.cgroup.memory.kmem.limit_in_bytes = $lxcmem\n";
 
     my $lxcswap = int(($memory + $swap)*1024*1024);
     $raw .= "lxc.cgroup.memory.memsw.limit_in_bytes = $lxcswap\n";
