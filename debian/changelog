@@ -1,3 +1,9 @@
+pve-container (1.0-34) unstable; urgency=medium
+
+  * Revert "set memory.kmem.limit_in_bytes"
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 17 Dec 2015 12:28:11 +0100
+
 pve-container (1.0-33) unstable; urgency=medium
 
   * fix bug #840: vzdump - fix compression command pipe
