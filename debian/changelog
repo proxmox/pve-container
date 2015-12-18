@@ -1,3 +1,9 @@
+pve-container (1.0-35) unstable; urgency=medium
+
+  * Setup: order fqdn before hostname in /etc/hosts
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 18 Dec 2015 09:09:48 +0100
+
 pve-container (1.0-34) unstable; urgency=medium
 
   * Revert "set memory.kmem.limit_in_bytes"
