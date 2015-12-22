@@ -231,6 +231,9 @@ sub stop_vm {
     my ($self, $task, $vmid) = @_;
 
     $self->cmd("lxc-stop -n $vmid");
+
+    # make sure container is stopped
+    $self->cmd("lxc-wait -n $vmid -s STOPPED");
 }
 
 sub start_vm {
