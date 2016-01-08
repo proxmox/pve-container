@@ -129,6 +129,8 @@ __PACKAGE__->register_method({
 
 	die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
 
+	PVE::Cluster::check_cfs_quorum();
+
 	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
 
 	    my $hacmd = sub {
