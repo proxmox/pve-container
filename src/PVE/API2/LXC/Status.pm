@@ -316,6 +316,10 @@ __PACKAGE__->register_method({
 		run_command($cmd);
 	    }
 
+	    # make sure container is stopped
+	    $cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
+	    run_command($cmd);
+	    
 	    die $err if $err;
 
 	    return;
