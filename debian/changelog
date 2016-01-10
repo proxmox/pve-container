@@ -1,3 +1,11 @@
+pve-container (1.0-37) unstable; urgency=medium
+
+  * check for quorum when starting a container
+
+  * vm_stop: make sure the container is stopped using lxc-wait
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 10 Jan 2016 15:14:22 +0100
+
 pve-container (1.0-36) unstable; urgency=medium
 
   * vzdump stop mode: wait until container is stopped
