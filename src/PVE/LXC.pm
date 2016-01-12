@@ -2189,7 +2189,8 @@ sub mountpoint_mount {
 	    if ($scfg->{path}) {
 		push @extra_opts, '-o', 'loop';
 		$use_loopdev = 1;
-	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' || $scfg->{type} eq 'rbd') {
+	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' ||
+		     $scfg->{type} eq 'rbd' || $scfg->{type} eq 'lvmthin') {
 		# do nothing
 	    } else {
 		die "unsupported storage type '$scfg->{type}'\n";
@@ -2326,7 +2327,7 @@ sub create_disks {
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 					               undef, $size_kb);
 		    push @$chown_vollist, $volid;
-		} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm') {
+		} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' || $scfg->{type} eq 'lvmthin') {
 
 		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 		    format_disk($storecfg, $volid, $rootuid, $rootgid);
