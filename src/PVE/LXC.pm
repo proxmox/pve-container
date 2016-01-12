@@ -1785,9 +1785,13 @@ sub snapshot_create {
     my $conf = load_config($vmid);
 
     my $running = check_running($vmid);
+    
+    my $unfreeze = 0;
+    
     eval {
 	if ($running) {
 	    PVE::Tools::run_command(['/usr/bin/lxc-freeze', '-n', $vmid]);
+	    $unfreeze = 1;
 	    PVE::Tools::run_command(['/bin/sync']);
 	};
 
@@ -1795,14 +1799,17 @@ sub snapshot_create {
 	my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
 	my $volid = $rootinfo->{volume};
 
-	if ($running) {
-	    PVE::Tools::run_command(['/usr/bin/lxc-unfreeze', '-n', $vmid]);
-	};
-
 	PVE::Storage::volume_snapshot($storecfg, $volid, $snapname);
 	&$snapshot_commit($vmid, $snapname);
     };
-    if(my $err = $@) {
+    my $err = $@;
+    
+    if ($unfreeze) {
+	eval { PVE::Tools::run_command(['/usr/bin/lxc-unfreeze', '-n', $vmid]); };
+	warn $@ if $@;
+    }
+    
+    if ($err) {
 	snapshot_delete($vmid, $snapname, 1);
 	die "$err\n";
     }
