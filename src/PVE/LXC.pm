@@ -809,7 +809,7 @@ sub vmstatus {
 	    $d->{disk} = 0;
 	    # use 4GB by default ??
 	    if (my $rootfs = $conf->{rootfs}) {
-		my $rootinfo = parse_ct_mountpoint($rootfs);
+		my $rootinfo = parse_ct_rootfs($rootfs);
 		$d->{maxdisk} = int(($rootinfo->{size} || 4)*1024*1024)*1024;
 	    } else {
 		$d->{maxdisk} = 4*1024*1024*1024;
@@ -910,13 +910,13 @@ sub classify_mountpoint {
     return 'volume';
 }
 
-sub parse_ct_mountpoint {
-    my ($data, $noerr) = @_;
+my $parse_ct_mountpoint_full = sub {
+    my ($desc, $data, $noerr) = @_;
 
     $data //= '';
 
     my $res;
-    eval { $res = PVE::JSONSchema::parse_property_string($mp_desc, $data) };
+    eval { $res = PVE::JSONSchema::parse_property_string($desc, $data) };
     if ($@) {
 	return undef if $noerr;
 	die $@;
@@ -934,6 +934,22 @@ sub parse_ct_mountpoint {
     $res->{type} = classify_mountpoint($res->{volume});
 
     return $res;
+};
+
+sub parse_ct_rootfs {
+    my ($data, $noerr) = @_;
+
+    my $res =  &$parse_ct_mountpoint_full($rootfs_desc, $data, $noerr);
+
+    $res->{mp} = '/' if defined($res);
+
+    return $res;
+}
+
+sub parse_ct_mountpoint {
+    my ($data, $noerr) = @_;
+
+    return &$parse_ct_mountpoint_full($mp_desc, $data, $noerr);
 }
 
 sub print_ct_mountpoint {
@@ -1120,8 +1136,7 @@ sub update_lxc_config {
     my $shares = $conf->{cpuunits} || 1024;
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
-    my $mountpoint = parse_ct_mountpoint($conf->{rootfs});
-    $mountpoint->{mp} = '/';
+    my $mountpoint = parse_ct_rootfs($conf->{rootfs});
 
     $raw .= "lxc.rootfs = $dir/rootfs\n";
 
@@ -1795,7 +1810,7 @@ sub snapshot_create {
 	};
 
 	my $storecfg = PVE::Storage::config();
-	my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
+	my $rootinfo = parse_ct_rootfs($conf->{rootfs});
 	my $volid = $rootinfo->{volume};
 
 	PVE::Storage::volume_snapshot($storecfg, $volid, $snapname);
@@ -1861,7 +1876,7 @@ sub snapshot_delete {
     };
 
     my $rootfs = $conf->{snapshots}->{$snapname}->{rootfs};
-    my $rootinfo = parse_ct_mountpoint($rootfs);
+    my $rootinfo = parse_ct_rootfs($rootfs);
     my $volid = $rootinfo->{volume};
 
     eval {
@@ -1891,7 +1906,7 @@ sub snapshot_rollback {
     die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
     my $rootfs = $snap->{rootfs};
-    my $rootinfo = parse_ct_mountpoint($rootfs);
+    my $rootinfo = parse_ct_rootfs($rootfs);
     my $volid = $rootinfo->{volume};
 
     PVE::Storage::volume_rollback_is_possible($storecfg, $volid, $snapname);
@@ -1941,7 +1956,7 @@ sub template_create {
 
     my $storecfg = PVE::Storage::config();
 
-    my $rootinfo = parse_ct_mountpoint($conf->{rootfs});
+    my $rootinfo = parse_ct_rootfs($conf->{rootfs});
     my $volid = $rootinfo->{volume};
 
     die "Template feature is not available for '$volid'\n"
@@ -1993,14 +2008,12 @@ sub foreach_mountpoint_full {
     foreach my $key (mountpoint_names($reverse)) {
 	my $value = $conf->{$key};
 	next if !defined($value);
-	my $mountpoint = parse_ct_mountpoint($value, 1);
+	my $mountpoint = $key eq 'rootfs' ? parse_ct_rootfs($value, 1) : parse_ct_mountpoint($value, 1);
 	next if !defined($mountpoint);
 
-	# just to be sure: rootfs is /
-	my $path = $key eq 'rootfs' ? '/' : $mountpoint->{mp};
-	$mountpoint->{mp} = sanitize_mountpoint($path);
+	$mountpoint->{mp} = sanitize_mountpoint($mountpoint->{mp});
 
-	$path = $mountpoint->{volume};
+	my $path = $mountpoint->{volume};
 	$mountpoint->{volume} = sanitize_mountpoint($path) if $path =~ m|^/|;
 
 	&$func($key, $mountpoint);

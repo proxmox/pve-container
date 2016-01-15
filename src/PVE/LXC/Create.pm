@@ -117,7 +117,7 @@ sub recover_config {
 	delete $conf->{template}; # restored CT is never a template
 	
 	if (defined($conf->{rootfs})) {
-	    my $rootinfo = PVE::LXC::parse_ct_mountpoint($conf->{rootfs});
+	    my $rootinfo = PVE::LXC::parse_ct_rootfs($conf->{rootfs});
 	    $disksize = $rootinfo->{size} if defined($rootinfo->{size});
 	}
 	

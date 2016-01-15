@@ -1016,7 +1016,9 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $disk = $param->{disk};
-	    my $mp = PVE::LXC::parse_ct_mountpoint($conf->{$disk});
+	    my $mp = $disk eq 'rootfs' ? PVE::LXC::parse_ct_rootfs($conf->{$disk}) :
+		PVE::LXC::parse_ct_mountpoint($conf->{$disk});
+
 	    my $volid = $mp->{volume};
 
 	    my (undef, undef, $owner, undef, undef, undef, $format) =
