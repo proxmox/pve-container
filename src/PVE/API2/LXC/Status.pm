@@ -161,6 +161,8 @@ __PACKAGE__->register_method({
 		die "you can't start a CT if it's a template\n"
 		    if PVE::LXC::is_template($conf);
 
+		PVE::LXC::check_lock($conf);
+
 		my $storage_cfg = cfs_read_file("storage.cfg");
 
 		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
@@ -234,6 +236,10 @@ __PACKAGE__->register_method({
 
 		syslog('info', "stopping CT $vmid: $upid\n");
 
+		my $conf = PVE::LXC::load_config($vmid);
+
+		PVE::LXC::check_lock($conf);
+
 		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 
 		run_command($cmd);
@@ -304,6 +310,8 @@ __PACKAGE__->register_method({
 
 	    my $conf = PVE::LXC::load_config($vmid);
 
+	    PVE::LXC::check_lock($conf);
+
 	    my $storage_cfg = PVE::Storage::config();
 
 	    push @$cmd, '--timeout', $timeout;
@@ -369,6 +377,10 @@ __PACKAGE__->register_method({
             my $upid = shift;
 
             syslog('info', "suspend CT $vmid: $upid\n");
+
+	    my $conf = PVE::LXC::load_config($vmid);
+
+	    PVE::LXC::check_lock($conf);
 
 	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/liv/vz/dump'];
 
