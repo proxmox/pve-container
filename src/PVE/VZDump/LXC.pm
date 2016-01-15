@@ -94,6 +94,24 @@ my $check_mountpoint_empty = sub {
     });
 };
 
+my $lockconfig = sub {
+    my ($self, $vmid) = @_;
+    my $conf = PVE::LXC::load_config($vmid);
+    PVE::LXC::check_lock($conf);
+    $conf->{lock} = 'backup';
+    PVE::LXC::write_config($vmid, $conf);
+};
+
+my $unlockconfig = sub {
+    my ($self, $vmid) = @_;
+    my $conf = PVE::LXC::load_config($vmid);
+
+    if ($conf->{lock} && $conf->{lock} eq 'backup') {
+	delete $conf->{lock};
+	PVE::LXC::write_config($vmid, $conf);
+    }
+};
+
 sub prepare {
     my ($self, $task, $vmid, $mode) = @_;
 
@@ -144,11 +162,13 @@ sub prepare {
 	# set snapshot_count (freezes CT it snapshot_count > 1)
 	$task->{snapshot_count} = scalar(@$volid_list);
     } elsif ($mode eq 'stop') {
+	&$lockconfig($self, $vmid);
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
 	PVE::Storage::activate_volumes($storage_cfg, $volid_list);
     } elsif ($mode eq 'suspend') {
+	&$lockconfig($self, $vmid);
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "/proc/$pid/root$disk->{mp}";
@@ -174,6 +194,8 @@ sub lock_vm {
 
 sub unlock_vm {
     my ($self, $vmid) = @_;
+
+    &$unlockconfig($self, $vmid);
 
     PVE::LXC::lock_release($vmid);
 }
@@ -262,6 +284,7 @@ sub assemble {
     mkpath "$tmpdir/etc/vzdump/";
 
     my $conf = PVE::LXC::load_config($vmid);
+    delete $conf->{lock};
     delete $conf->{snapshots};
     delete $conf->{'pve.parent'};
 
