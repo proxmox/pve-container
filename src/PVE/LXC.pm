@@ -357,7 +357,6 @@ my $mp_desc = {
 	type => 'string',
 	format_description => 'Path',
 	description => 'Path to the mountpoint as seen from inside the container.',
-	optional => 1,
     },
 };
 PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
