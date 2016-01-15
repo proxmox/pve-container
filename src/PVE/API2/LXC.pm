@@ -263,9 +263,13 @@ __PACKAGE__->register_method({
 	    my $volid = $mountpoint->{volume};
 	    my $mp = $mountpoint->{mp};
 
-	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-
-	    &$check_and_activate_storage($sid) if $sid;
+	    if ($mountpoint->{type} ne 'volume') { # bind or device
+		die "Only root can pass arbitrary filesystem paths.\n"
+		    if $authuser ne 'root@pam';
+	    } else {
+		my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+		&$check_and_activate_storage($sid);
+	    }
 	});
 
 	# check/activate default storage

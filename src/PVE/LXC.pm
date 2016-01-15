@@ -2101,23 +2101,13 @@ sub mount_all {
 	foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 
-	    my $volid = $mountpoint->{volume};
-	    my $mount = $mountpoint->{mp};
-
-	    return if !$volid || !$mount;
-
-	    my $image_path = PVE::Storage::path($storage_cfg, $volid);
-	    my ($vtype, undef, undef, undef, undef, $isBase, $format) =
-		PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	    die "unable to mount base volume - internal error" if $isBase;
-
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
         });
     };
     if (my $err = $@) {
-	warn "mounting container failed - $err";
+	warn "mounting container failed\n";
 	umount_all($vmid, $storage_cfg, $conf, 1);
+	die $err;
     }
 
     return $rootdir;
@@ -2230,7 +2220,8 @@ sub mountpoint_mount {
     } elsif ($type eq 'device') {
 	PVE::Tools::run_command(['mount', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
-    } elsif ($type eq 'bind' && -d $volid) {
+    } elsif ($type eq 'bind') {
+	die "directory '$volid' does not exist\n" if ! -d $volid;
 	&$check_mount_path($volid);
 	PVE::Tools::run_command(['mount', '-o', 'bind', $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
@@ -2321,9 +2312,7 @@ sub create_disks {
 
 	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-	    return if !$storage;
-
-	    if ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/) {
+	    if ($storage && ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/)) {
 		my ($storeid, $size_gb) = ($1, $2);
 
 		my $size_kb = int(${size_gb}*1024) * 1024;
@@ -2364,7 +2353,8 @@ sub create_disks {
 		$mountpoint->{size} = $size_kb * 1024;
 		$conf->{$ms} = print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 	    } else {
-		# use specified/existing volid
+                # use specified/existing volid/dir/device
+                $conf->{$ms} = print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 	    }
 	});
 
