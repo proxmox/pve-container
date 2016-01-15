@@ -96,14 +96,18 @@ my $check_mountpoint_empty = sub {
 
 my $lockconfig = sub {
     my ($self, $vmid) = @_;
+
     my $conf = PVE::LXC::load_config($vmid);
+
     PVE::LXC::check_lock($conf);
     $conf->{lock} = 'backup';
+
     PVE::LXC::write_config($vmid, $conf);
 };
 
 my $unlockconfig = sub {
     my ($self, $vmid) = @_;
+
     my $conf = PVE::LXC::load_config($vmid);
 
     if ($conf->{lock} && $conf->{lock} eq 'backup') {
