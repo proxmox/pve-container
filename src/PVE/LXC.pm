@@ -336,7 +336,14 @@ my $netconf_desc = {
 	format_description => 'VlanNo',
 	minimum => '2',
 	maximum => '4094',
-	description => "VLAN tag foro this interface.",
+	description => "VLAN tag for this interface.",
+	optional => 1,
+    },
+    trunks => {
+	type => 'string',
+	pattern => qr/\d+(?:;\d+)*/,
+	format_description => 'vlanid[;vlanid...]',
+	description => "VLAN ids to pass through the interface",
 	optional => 1,
     },
 };
@@ -1531,7 +1538,7 @@ sub update_net {
 		    write_config($vmid, $conf);
 		}
 
-		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks});
 		foreach (qw(bridge tag firewall)) {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
@@ -1553,7 +1560,7 @@ sub hotplug_net {
     my $eth = $newnet->{name};
 
     PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall});
+    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks});
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
