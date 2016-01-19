@@ -381,8 +381,7 @@ __PACKAGE__->register_method({
 	    my $conf = PVE::LXC::load_config($vmid);
 
 	    PVE::LXC::check_lock($conf);
-
-	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/liv/vz/dump'];
+	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
 
 	    run_command($cmd);
 
@@ -433,7 +432,7 @@ __PACKAGE__->register_method({
             syslog('info', "resume CT $vmid: $upid\n");
 
 	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-r', '--foreground',
-		       '-D', '/var/liv/vz/dump'];
+		       '-D', '/var/lib/vz/dump'];
 
 	    run_command($cmd);
 
