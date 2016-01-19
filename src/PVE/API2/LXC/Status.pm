@@ -151,30 +151,34 @@ __PACKAGE__->register_method({
 
 	} else {
 
-	    my $realcmd = sub {
-		my $upid = shift;
+	    my $lockcmd = sub {
+		my $realcmd = sub {
+		    my $upid = shift;
 
-		syslog('info', "starting CT $vmid: $upid\n");
+		    syslog('info', "starting CT $vmid: $upid\n");
 
-		my $conf = PVE::LXC::load_config($vmid);
+		    my $conf = PVE::LXC::load_config($vmid);
 
-		die "you can't start a CT if it's a template\n"
-		    if PVE::LXC::is_template($conf);
+		    die "you can't start a CT if it's a template\n"
+			if PVE::LXC::is_template($conf);
 
-		PVE::LXC::check_lock($conf);
+		    PVE::LXC::check_lock($conf);
 
-		my $storage_cfg = cfs_read_file("storage.cfg");
+		    my $storage_cfg = cfs_read_file("storage.cfg");
 
-		PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
+		    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 
-		my $cmd = ['lxc-start', '-n', $vmid];
+		    my $cmd = ['lxc-start', '-n', $vmid];
 
-		run_command($cmd);
+		    run_command($cmd);
 
-		return;
+		    return;
+		};
+
+		return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
 	    };
 
-	    return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
+	    return PVE::LXC::lock_container($vmid, 10, $lockcmd);
 	}
     }});
 
@@ -231,23 +235,27 @@ __PACKAGE__->register_method({
 
 	} else {
 
-	    my $realcmd = sub {
-		my $upid = shift;
+	    my $lockcmd = sub {
+		my $realcmd = sub {
+		    my $upid = shift;
 
-		syslog('info', "stopping CT $vmid: $upid\n");
+		    syslog('info', "stopping CT $vmid: $upid\n");
 
-		my $conf = PVE::LXC::load_config($vmid);
+		    my $conf = PVE::LXC::load_config($vmid);
 
-		PVE::LXC::check_lock($conf);
+		    PVE::LXC::check_lock($conf);
 
-		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
+		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 
-		run_command($cmd);
+		    run_command($cmd);
 
-		return;
+		    return;
+		};
+
+		return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
 	    };
 
-	    return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
+	    return PVE::LXC::lock_container($vmid, 10, $lockcmd);
 	}
     }});
 
@@ -299,45 +307,48 @@ __PACKAGE__->register_method({
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
-	my $realcmd = sub {
-	    my $upid = shift;
+	my $lockcmd = sub {
+	    my $realcmd = sub {
+		my $upid = shift;
 
-	    syslog('info', "shutdown CT $vmid: $upid\n");
+		syslog('info', "shutdown CT $vmid: $upid\n");
 
-	    my $cmd = ['lxc-stop', '-n', $vmid];
+		my $cmd = ['lxc-stop', '-n', $vmid];
 
-	    $timeout = 60 if !defined($timeout);
+		$timeout = 60 if !defined($timeout);
 
-	    my $conf = PVE::LXC::load_config($vmid);
+		my $conf = PVE::LXC::load_config($vmid);
 
-	    PVE::LXC::check_lock($conf);
+		PVE::LXC::check_lock($conf);
 
-	    my $storage_cfg = PVE::Storage::config();
+		my $storage_cfg = PVE::Storage::config();
 
-	    push @$cmd, '--timeout', $timeout;
+		push @$cmd, '--timeout', $timeout;
 
-	    eval { run_command($cmd, timeout => $timeout+5); };
-	    my $err = $@;
-	    if ($err && $param->{forceStop}) {
-		$err = undef;
-		warn "shutdown failed - forcing stop now\n";
+		eval { run_command($cmd, timeout => $timeout+5); };
+		my $err = $@;
+		if ($err && $param->{forceStop}) {
+		    $err = undef;
+		    warn "shutdown failed - forcing stop now\n";
 
-		my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
+		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
+		    run_command($cmd);
+		}
+
+		# make sure container is stopped
+		$cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
 		run_command($cmd);
-	    }
+		$err = $@;
 
-	    # make sure container is stopped
-	    $cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
-	    run_command($cmd);
-	    
-	    die $err if $err;
+		die $err if $err;
 
-	    return;
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
 	};
 
-	my $upid = $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
-
-	return $upid;
+	return PVE::LXC::lock_container($vmid, 10, $lockcmd);
     }});
 
 __PACKAGE__->register_method({
@@ -373,24 +384,27 @@ __PACKAGE__->register_method({
 
         die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
-        my $realcmd = sub {
-            my $upid = shift;
+	my $lockcmd = sub {
+	    my $realcmd = sub {
+		my $upid = shift;
 
-            syslog('info', "suspend CT $vmid: $upid\n");
+		syslog('info', "suspend CT $vmid: $upid\n");
 
-	    my $conf = PVE::LXC::load_config($vmid);
+		my $conf = PVE::LXC::load_config($vmid);
 
-	    PVE::LXC::check_lock($conf);
-	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
+		PVE::LXC::check_lock($conf);
 
-	    run_command($cmd);
+		my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
 
-            return;
-        };
+		run_command($cmd);
 
-        my $upid = $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
+		return;
+	    };
 
-        return $upid;
+	    return $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
+	};
+
+	return PVE::LXC::lock_container($vmid, 10, $lockcmd);
     }});
 
 __PACKAGE__->register_method({
