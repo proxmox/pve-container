@@ -167,12 +167,14 @@ sub prepare {
 	$task->{snapshot_count} = scalar(@$volid_list);
     } elsif ($mode eq 'stop') {
 	&$lockconfig($self, $vmid);
+
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
 	PVE::Storage::activate_volumes($storage_cfg, $volid_list);
     } elsif ($mode eq 'suspend') {
 	&$lockconfig($self, $vmid);
+
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "/proc/$pid/root$disk->{mp}";
@@ -181,6 +183,8 @@ sub prepare {
     } else {
 	die "unknown mode '$mode'\n"; # should not happen
     }
+
+    PVE::LXC::lock_release($vmid);
 
     if ($mode ne 'suspend') {
 	# If we perform mount operations, let's unshare the mount namespace
@@ -192,16 +196,12 @@ sub prepare {
 
 sub lock_vm {
     my ($self, $vmid) = @_;
-
     PVE::LXC::lock_aquire($vmid);
 }
 
 sub unlock_vm {
     my ($self, $vmid) = @_;
-
-    &$unlockconfig($self, $vmid);
-
-    PVE::LXC::lock_release($vmid);
+    PVE::LXC::lock_container($vmid, 60, $unlockconfig, ($self, $vmid));
 }
 
 sub snapshot {
