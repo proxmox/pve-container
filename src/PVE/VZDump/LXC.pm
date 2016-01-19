@@ -151,7 +151,7 @@ sub prepare {
 
     if ($mode eq 'snapshot') {
 	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg)) {
-	    die "mode failure - some volumes does not support snapshots\n";
+	    die "mode failure - some volumes do not support snapshots\n";
 	}
 
 	if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
@@ -163,7 +163,7 @@ sub prepare {
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
 
-	# set snapshot_count (freezes CT it snapshot_count > 1)
+	# set snapshot_count (freezes CT if snapshot_count > 1)
 	$task->{snapshot_count} = scalar(@$volid_list);
     } elsif ($mode eq 'stop') {
 	&$lockconfig($self, $vmid);
@@ -183,7 +183,7 @@ sub prepare {
     }
 
     if ($mode ne 'suspend') {
-	# If we preform mount operations, let's unshare the mount namespace
+	# If we perform mount operations, let's unshare the mount namespace
 	# to not influence the running host.
 	PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
 	PVE::Tools::run_command(['mount', '--make-rprivate', '/']);
@@ -207,7 +207,7 @@ sub unlock_vm {
 sub snapshot {
     my ($self, $task, $vmid) = @_;
 
-    $self->loginfo("create storage snapshot snapshot");
+    $self->loginfo("create storage snapshot 'vzdump'");
 
     # todo: freeze/unfreeze if we have more than one volid
     PVE::LXC::snapshot_create($vmid, 'vzdump', "vzdump backup snapshot");
@@ -215,7 +215,7 @@ sub snapshot {
     
     # reload config
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
-    die "unable to read vzdump shanpshot config - internal error"
+    die "unable to read vzdump snapshot config - internal error"
 	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
     my $disks = $task->{disks};
@@ -336,12 +336,12 @@ sub archive {
     # note: --remove-files does not work because we do not 
     # backup all files (filters). tar complains:
     # Cannot rmdir: Directory not empty
-    # we we disable this optimization for now
+    # we disable this optimization for now
     #if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
     #       push @$tar, "--remove-files"; # try to save space
     #}
 
-    # The directory parameter can give a alternative directory as source.
+    # The directory parameter can give an alternative directory as source.
     # the second parameter gives the structure in the tar.
     push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
     push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};

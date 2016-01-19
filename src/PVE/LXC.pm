@@ -118,7 +118,7 @@ my $confdesc = {
     cpulimit => {
 	optional => 1,
 	type => 'number',
-	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has total of '2' CPU time. Value '0' indicates no CPU limit.",
+	description => "Limit of CPU usage. Note if the computer has 2 CPUs, it has a total of '2' CPU time. Value '0' indicates no CPU limit.",
 	minimum => 0,
 	maximum => 128,
 	default => 0,
@@ -126,7 +126,7 @@ my $confdesc = {
     cpuunits => {
 	optional => 1,
 	type => 'integer',
-	description => "CPU weight for a VM. Argument is used in the kernel fair scheduler. The larger the number is, the more CPU time this VM gets. Number is relative to weights of all the other running VMs.\n\nNOTE: You can disable fair-scheduler configuration by setting this to 0.",
+	description => "CPU weight for a VM. Argument is used in the kernel fair scheduler. The larger the number is, the more CPU time this VM gets. Number is relative to the weights of all the other running VMs.\n\nNOTE: You can disable fair-scheduler configuration by setting this to 0.",
 	minimum => 0,
 	maximum => 500000,
 	default => 1024,
@@ -159,12 +159,12 @@ my $confdesc = {
     searchdomain => {
 	optional => 1,
 	type => 'string', format => 'dns-name-list',
-	description => "Sets DNS search domains for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
+	description => "Sets DNS search domains for a container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
     },
     nameserver => {
 	optional => 1,
 	type => 'string', format => 'address-list',
-	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain or nameserver.",
+	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
     },
     rootfs => get_standard_option('pve-ct-rootfs'),
     parent => {
@@ -189,7 +189,7 @@ my $confdesc = {
     protection => {
 	optional => 1,
 	type => 'boolean',
-	description => "Sets the protection flag of the container. This will prevent the remove operation. This will prevent the CT or CT's disk remove/update operation.",
+	description => "Sets the protection flag of the container. This will prevent the CT or CT's disk remove/update operation.",
 	default => 0,
     },
     unprivileged => {
@@ -572,7 +572,7 @@ sub load_config {
     my $cfspath = cfs_config_path($vmid, $node);
 
     my $conf = PVE::Cluster::cfs_read_file($cfspath);
-    die "container $vmid does not exists\n" if !defined($conf);
+    die "container $vmid does not exist\n" if !defined($conf);
 
     return $conf;
 }
@@ -601,7 +601,7 @@ sub write_config {
 }
 
 # flock: we use one file handle per process, so lock file
-# can be called multiple times and succeeds for the same process.
+# can be called multiple times and will succeed for the same process.
 
 my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
@@ -1016,7 +1016,7 @@ sub find_lxc_console_pids {
 
 	my @args = split(/\0/, $cmdline);
 
-	# serach for lxc-console -n <vmid>
+	# search for lxc-console -n <vmid>
 	return if scalar(@args) != 3;
 	return if $args[1] ne '-n';
 	return if $args[2] !~ m/^\d+$/;
@@ -1119,7 +1119,7 @@ sub update_lxc_config {
     my $ttycount = get_tty_count($conf);
     $raw .= "lxc.tty = $ttycount\n";
 
-    # some init scripts expects a linux terminal (turnkey).
+    # some init scripts expect a linux terminal (turnkey).
     $raw .= "lxc.environment = TERM=linux\n";
     
     my $utsname = $conf->{hostname} || "CT$vmid";
@@ -1213,7 +1213,7 @@ sub add_unused_volume {
 	}
     }
 
-    die "To many unused volume - please delete them first.\n" if !$key;
+    die "Too many unused volumes - please delete them first.\n" if !$key;
 
     $config->{$key} = $volid;
 
@@ -1692,8 +1692,8 @@ sub update_ipconfig {
 # Internal snapshots
 
 # NOTE: Snapshot create/delete involves several non-atomic
-# action, and can take a long time.
-# So we try to avoid locking the file and use 'lock' variable
+# actions, and can take a long time.
+# So we try to avoid locking the file and use the 'lock' variable
 # inside the config file instead.
 
 my $snapshot_copy_config = sub {
