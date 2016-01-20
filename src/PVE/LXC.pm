@@ -1865,17 +1865,29 @@ sub snapshot_delete {
 
     my $storecfg = PVE::Storage::config();
 
+    my $unlink_parent = sub {
+
+	my ($confref, $new_parent) = @_;
+
+	if ($confref->{parent} && $confref->{parent} eq $snapname) {
+	    if ($new_parent) {
+		$confref->{parent} = $new_parent;
+	    } else {
+		delete $confref->{parent};
+	    }
+	}
+    };
+
     my $del_snap =  sub {
 
 	check_lock($conf);
 
-	if ($conf->{parent} eq $snapname) {
-	    if ($conf->{snapshots}->{$snapname}->{snapname}) {
-		$conf->{parent} = $conf->{snapshots}->{$snapname}->{parent};
-	    } else {
-		delete $conf->{parent};
-	    }
+	my $parent = $conf->{snapshots}->{$snapname}->{parent};
+	foreach my $snapkey (keys %{$conf->{snapshots}}) {
+	    &$unlink_parent($conf->{snapshots}->{$snapkey}, $parent);
 	}
+
+	&$unlink_parent($conf, $parent);
 
 	delete $conf->{snapshots}->{$snapname};
 
