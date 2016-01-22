@@ -51,7 +51,7 @@ sub restore_archive {
     die $@ if $@ && !$no_unpack_error;
     
     # determine file type of /usr/bin/file itself to get guests' architecture
-    $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/usr/bin/file"];
+    $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/bin/sh"];
     PVE::Tools::run_command($cmd, outfunc => sub {
 	shift =~ /^ELF (\d{2}-bit)/; # safely assumes x86 linux
 	my $arch_str = $1;
