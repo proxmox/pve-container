@@ -1,3 +1,15 @@
+pve-container (1.0-40) unstable; urgency=medium
+
+  * Add dependency to 'file' package
+
+  * Implement linked clones
+
+  * Rework snapshot config removal logic
+
+  * Don't hold flock for whole backup operation
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 23 Jan 2016 08:56:34 +0100
+
 pve-container (1.0-39) unstable; urgency=medium
 
   * add support for network trunks
