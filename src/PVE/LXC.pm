@@ -54,6 +54,18 @@ my $rootfs_desc = {
 	description => 'Volume size (read only value).',
 	optional => 1,
     },
+    acl => {
+	type => 'boolean',
+	format_description => 'acl',
+	description => 'Explicitly enable or disable ACL support.',
+	optional => 1,
+    },
+    ro => {
+	type => 'boolean',
+	format_description => 'ro',
+	description => 'Read-only mountpoint (not supported with bind mounts)',
+	optional => 1,
+    },
 };
 
 PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
@@ -2185,6 +2197,17 @@ sub mountpoint_mount {
 
     die "unknown snapshot path for '$volid'" if !$storage && defined($snapname);
 
+    my $optstring = '';
+    if (defined($mountpoint->{acl})) {
+	$optstring .= ($mountpoint->{acl} ? 'acl' : 'noacl');
+    }
+    if ($mountpoint->{ro}) {
+	$optstring .= ',' if $optstring;
+	$optstring .= 'ro';
+    }
+
+    my @extra_opts = ('-o', $optstring);
+
     if ($storage) {
 
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
@@ -2201,18 +2224,20 @@ sub mountpoint_mount {
 		    if ($scfg->{type} eq 'zfspool') {
 			my $path_arg = $path;
 			$path_arg =~ s!^/+!!;
-			PVE::Tools::run_command(['mount', '-o', 'ro', '-t', 'zfs', $path_arg, $mount_path]);
+			PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, '-t', 'zfs', $path_arg, $mount_path]);
 		    } else {
 			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
 		    }
 		} else {
-		    PVE::Tools::run_command(['mount', '-o', 'bind', $path, $mount_path]);
+		    if ($mountpoint->{ro}) {
+			die "read-only bind mounts not supported\n";
+		    }
+		    PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $path, $mount_path]);
 		}
 	    }
 	    return wantarray ? ($path, 0) : $path;
 	} elsif ($format eq 'raw' || $format eq 'iso') {
 	    my $use_loopdev = 0;
-	    my @extra_opts;
 	    if ($scfg->{path}) {
 		push @extra_opts, '-o', 'loop';
 		$use_loopdev = 1;
@@ -2236,12 +2261,18 @@ sub mountpoint_mount {
 	    die "unsupported image format '$format'\n";
 	}
     } elsif ($type eq 'device') {
-	PVE::Tools::run_command(['mount', $volid, $mount_path]) if $mount_path;
+	PVE::Tools::run_command(['mount', @extra_opts, $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
     } elsif ($type eq 'bind') {
+	if ($mountpoint->{ro}) {
+	    die "read-only bind mounts not supported\n";
+	    # Theoretically we'd have to execute both:
+	    # mount -o bind $a $b
+	    # mount -o bind,remount,ro $a $b
+	}
 	die "directory '$volid' does not exist\n" if ! -d $volid;
 	&$check_mount_path($volid);
-	PVE::Tools::run_command(['mount', '-o', 'bind', $volid, $mount_path]) if $mount_path;
+	PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0) : $volid;
     }
     
