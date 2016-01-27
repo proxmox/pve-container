@@ -19,6 +19,7 @@ use PVE::LXC::Migrate;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
+use PVE::HA::Env::PVE2;
 use PVE::HA::Config;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
