@@ -1,3 +1,9 @@
+pve-container (1.0-41) unstable; urgency=medium
+
+  * added 'acl' and 'ro' mountpoint options
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 27 Jan 2016 16:43:27 +0100
+
 pve-container (1.0-40) unstable; urgency=medium
 
   * Add dependency to 'file' package
