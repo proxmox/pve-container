@@ -231,9 +231,10 @@ my $valid_lxc_conf_keys = {
     'lxc.mount' => 1,
     'lxc.mount.entry' => 1,
     'lxc.mount.auto' => 1,
-    'lxc.rootfs' => 1,
+    'lxc.rootfs' => 'lxc.rootfs is auto generated from rootfs',
     'lxc.rootfs.mount' => 1,
-    'lxc.rootfs.options' => 1,
+    'lxc.rootfs.options' => 'lxc.rootfs.options is not supported' .
+                            ', please use mountpoint options in the "rootfs" key',
     # lxc.cgroup.*
     'lxc.cap.drop' => 1,
     'lxc.cap.keep' => 1,
@@ -504,8 +505,10 @@ sub parse_pct_config {
 	if ($line =~ m/^(lxc\.[a-z0-9_\-\.]+)(:|\s*=)\s*(.*?)\s*$/) {
 	    my $key = $1;
 	    my $value = $3;
-	    if ($valid_lxc_conf_keys->{$key} || $key =~ m/^lxc\.cgroup\./) {
+	    if ($valid_lxc_conf_keys->{$key} eq 1 || $key =~ m/^lxc\.cgroup\./) {
 		push @{$conf->{lxc}}, [$key, $value];
+	    } elsif (my $errmsg = $valid_lxc_conf_keys->{$key}) {
+		warn "vm $vmid - $key: $errmsg\n";
 	    } else {
 		warn "vm $vmid - unable to parse config: $line\n";
 	    }
