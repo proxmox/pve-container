@@ -257,10 +257,6 @@ my $valid_lxc_conf_keys = {
     'lxc.start.order' => 1,
     'lxc.group' => 1,
     'lxc.environment' => 1,
-    'lxc.' => 1,
-    'lxc.' => 1,
-    'lxc.' => 1,
-    'lxc.' => 1,
 };
 
 my $netconf_desc = {
