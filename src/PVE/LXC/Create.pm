@@ -161,7 +161,9 @@ sub restore_and_configure {
 	    unlink($pct_cfg_fn);
 
 	    if (-f $pct_fwcfg_fn) {
-		PVE::Tools::file_copy($pct_fwcfg_fn, "/etc/pve/firewall/$vmid.fw");
+		my $pve_firewall_dir = '/etc/pve/firewall';
+		mkdir $pve_firewall_dir; # make sure the directory exists
+		PVE::Tools::file_copy($pct_fwcfg_fn, "${pve_firewall_dir}/$vmid.fw");
 		unlink $pct_fwcfg_fn;
 	    }
 
