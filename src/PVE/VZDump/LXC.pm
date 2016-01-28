@@ -150,7 +150,7 @@ sub prepare {
     my $volid_list = [map { $_->{volume} } @$disks];
 
     if ($mode eq 'snapshot') {
-	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg)) {
+	if (!PVE::LXC::has_feature('vzdump', $conf, $storage_cfg)) {
 	    die "mode failure - some volumes do not support snapshots\n";
 	}
 

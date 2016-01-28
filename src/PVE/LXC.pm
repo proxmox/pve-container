@@ -1743,7 +1743,8 @@ my $snapshot_prepare = sub {
 	    if defined($conf->{snapshots}->{$snapname});
 
 	my $storecfg = PVE::Storage::config();
-	die "snapshot feature is not available\n" if !has_feature('snapshot', $conf, $storecfg);
+	my $feature = $snapname eq 'vzdump' ? 'vzdump' : 'snapshot';
+	die "snapshot feature is not available\n" if !has_feature($feature, $conf, $storecfg);
 
 	$snap = $conf->{snapshots}->{$snapname} = {};
 
@@ -1793,11 +1794,14 @@ sub has_feature {
     my ($feature, $conf, $storecfg, $snapname) = @_;
     
     my $err;
+    my $vzdump = $feature eq 'vzdump';
+    $feature = 'snapshot' if $vzdump;
 
     foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
+	return if $vzdump && $ms ne 'rootfs' && !$mountpoint->{backup};
 	
 	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname);
 
