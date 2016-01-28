@@ -6,6 +6,8 @@ pve-container (1.0-41) unstable; urgency=medium
 
   * create firewall dir on CT restore
 
+  * Closes #877: Skip mps with backup=0 for snapshot backups
+
  -- Proxmox Support Team <support@proxmox.com>  Wed, 27 Jan 2016 16:43:27 +0100
 
 pve-container (1.0-40) unstable; urgency=medium
