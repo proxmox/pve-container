@@ -517,9 +517,10 @@ sub parse_pct_config {
 	if ($line =~ m/^(lxc\.[a-z0-9_\-\.]+)(:|\s*=)\s*(.*?)\s*$/) {
 	    my $key = $1;
 	    my $value = $3;
-	    if ($valid_lxc_conf_keys->{$key} eq 1 || $key =~ m/^lxc\.cgroup\./) {
+	    my $validity = $valid_lxc_conf_keys->{$key} || 0;
+	    if ($validity eq 1 || $key =~ m/^lxc\.cgroup\./) {
 		push @{$conf->{lxc}}, [$key, $value];
-	    } elsif (my $errmsg = $valid_lxc_conf_keys->{$key}) {
+	    } elsif (my $errmsg = $validity) {
 		warn "vm $vmid - $key: $errmsg\n";
 	    } else {
 		warn "vm $vmid - unable to parse config: $line\n";
