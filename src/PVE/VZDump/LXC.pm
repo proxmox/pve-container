@@ -132,6 +132,7 @@ sub prepare {
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
 
+    my $volid_list = [];
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
@@ -146,8 +147,9 @@ sub prepare {
 	}
 
 	push @$disks, $data;
+	push @$volid_list, $volid
+	    if $type eq 'volume';
     });
-    my $volid_list = [map { $_->{volume} } @$disks];
 
     if ($mode eq 'snapshot') {
 	if (!PVE::LXC::has_feature('vzdump', $conf, $storage_cfg)) {
@@ -219,6 +221,7 @@ sub snapshot {
 	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
     my $disks = $task->{disks};
+    #todo: reevaluate bind/dev mount handling when implementing snapshots for mps
     my $volid_list = [map { $_->{volume} } @$disks];
 
     my $rootdir = $default_mount_point;
