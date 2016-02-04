@@ -38,6 +38,7 @@ my $rootfs_desc = {
     volume => {
 	type => 'string',
 	default_key => 1,
+	format => 'pve-lxc-mp-string',
 	format_description => 'volume',
 	description => 'Volume, device or directory to mount into the container.',
     },
@@ -367,10 +368,29 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     };
 }
 
+PVE::JSONSchema::register_format('pve-lxc-mp-string', \&verify_lxc_mp_string);
+sub verify_lxc_mp_string{
+    my ($mp, $noerr) = @_;
+
+    # do not allow:
+    # /./ or /../ 
+    # /. or /.. at the end
+    # ../ at the beginning
+    
+    if($mp =~ m@/\.\.?/@ ||
+       $mp =~ m@/\.\.?$@ ||
+       $mp =~ m@^\.\./@){
+	return undef if $noerr;
+	die "$mp contains illegal character sequences\n";
+    }
+    return $mp;
+}
+
 my $mp_desc = {
     %$rootfs_desc,
     mp => {
 	type => 'string',
+	format => 'pve-lxc-mp-string',
 	format_description => 'Path',
 	description => 'Path to the mountpoint as seen from inside the container.',
     },
@@ -2033,18 +2053,6 @@ sub mountpoint_names {
     return $reverse ? reverse @names : @names;
 }
 
-# The container might have *different* symlinks than the host. realpath/abs_path
-# use the actual filesystem to resolve links.
-sub sanitize_mountpoint {
-    my ($mp) = @_;
-    $mp = '/' . $mp; # we always start with a slash
-    $mp =~ s@/{2,}@/@g; # collapse sequences of slashes
-    $mp =~ s@/\./@@g; # collapse /./
-    $mp =~ s@/\.(/)?$@$1@; # collapse a trailing /. or /./
-    $mp =~ s@(.*)/[^/]+/\.\./@$1/@g; # collapse /../ without regard for symlinks
-    $mp =~ s@/\.\.(/)?$@$1@; # collapse trailing /.. or /../ disregarding symlinks
-    return $mp;
-}
 
 sub foreach_mountpoint_full {
     my ($conf, $reverse, $func) = @_;
@@ -2054,11 +2062,6 @@ sub foreach_mountpoint_full {
 	next if !defined($value);
 	my $mountpoint = $key eq 'rootfs' ? parse_ct_rootfs($value, 1) : parse_ct_mountpoint($value, 1);
 	next if !defined($mountpoint);
-
-	$mountpoint->{mp} = sanitize_mountpoint($mountpoint->{mp});
-
-	my $path = $mountpoint->{volume};
-	$mountpoint->{volume} = sanitize_mountpoint($path) if $path =~ m|^/|;
 
 	&$func($key, $mountpoint);
     }
