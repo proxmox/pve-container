@@ -81,28 +81,7 @@ __PACKAGE__->register_method ({
 	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
 	};
 
-	my $setup_cgroup_device = sub {
-	    my ($ms, $mountpoint) = @_;
-
-	    my $volid = $mountpoint->{volume};
-	    return if !$volid || $volid !~ m|^/dev/.+|;
-
-	    my $path = PVE::LXC::mountpoint_mount_path($mountpoint, $storage_cfg);
-
-	    my (undef, undef, $mode, undef, undef, undef, $rdev) = stat($path);
-	    if ($mode && S_ISBLK($mode) && $rdev) {
-		my $major = int($rdev / 0x100);
-		my $minor = $rdev % 0x100;
-		if ($major != 7) { # must not be a loop device
-		    PVE::Tools::run_command(['mknod', '-m', '666', "$rootdir$path", 'b', $major, $minor]);
-		    PVE::LXC::write_cgroup_value("devices", $vmid, "devices.allow", "b ${major}:${minor} rwm");
-		}
-	    }
-	};
-
 	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
-
-	PVE::LXC::foreach_mountpoint($conf, $setup_cgroup_device);
 
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();
