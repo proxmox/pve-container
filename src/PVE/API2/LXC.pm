@@ -1317,10 +1317,16 @@ __PACKAGE__->register_method({
 			# interestingly we don't need to e2fsck on mounted systems...
 			my $quoted = PVE::Tools::shellquote($path);
 			my $cmd = "mount --make-rprivate / && mount $quoted /tmp && resize2fs $quoted";
-			PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
+			eval {
+			    PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
+			};
+			warn "Failed to update the container's filesystem: $@\n" if $@;
 		    } else {
-			PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
-			PVE::Tools::run_command(['resize2fs', $path]);
+			eval {
+			    PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
+			    PVE::Tools::run_command(['resize2fs', $path]);
+			};
+			warn "Failed to update the container's filesystem: $@\n" if $@;
 		    }
 		}
 	    };
