@@ -20,9 +20,8 @@ sub new {
     # Fixme: not sure whether the minor part is optional.
     if ($release =~ m/^\s*VERSION\s*=\s*(\d+)(?:\.(\d+))?\s*$/m) {
 	$version = "$1.$2";
-	# 13.2 seems to get stuck in a mount loop with AppArmor,
-	# and otherwise fails to start up fully. Needs some more work.
-	if ($1 != 13 || ($2//0) > 1) {
+	# 13.2 needs an updated AppArmor profile (in lxc *after* 2.0.0.beta2)
+	if ($1 != 13 || ($2//0) > 2) {
 	    die "unsupported suse release '$version'\n";
 	}
     } else {
@@ -44,7 +43,19 @@ sub setup_init {
     my ($self, $conf) = @_;
 
     $self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
+    if ($self->{version} >= 13.2) {
+	$self->setup_container_getty_service();
+    }
     $self->setup_systemd_console($conf);
+}
+
+sub setup_container_getty_service {
+    my ($self) = @_;
+    my $servicefile = '/usr/lib/systemd/system/container-getty@.service';
+    my $raw = $self->ct_file_get_contents($servicefile);
+    if ($raw =~ s@pts/%I@lxc/tty%I@g) {
+	$self->ct_file_set_contents($servicefile, $raw);
+    }
 }
 
 sub setup_network {
