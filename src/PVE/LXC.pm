@@ -1308,13 +1308,22 @@ sub update_pct_config {
     my $wanted_swap =  PVE::Tools::extract_param($param, 'swap');
     if (defined($wanted_memory) || defined($wanted_swap)) {
 
-	$wanted_memory //= ($conf->{memory} || 512);
-	$wanted_swap //=  ($conf->{swap} || 0);
+	my $old_memory = ($conf->{memory} || 512);
+	my $old_swap = ($conf->{swap} || 0);
+
+	$wanted_memory //= $old_memory;
+	$wanted_swap //= $old_swap;
 
         my $total = $wanted_memory + $wanted_swap;
 	if ($running) {
-	    write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", int($wanted_memory*1024*1024));
-	    write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", int($total*1024*1024));
+	    my $old_total = $old_memory + $old_swap;
+	    if ($total > $old_total) {
+		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", int($total*1024*1024));
+		write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", int($wanted_memory*1024*1024));
+	    } else {
+		write_cgroup_value("memory", $vmid, "memory.limit_in_bytes", int($wanted_memory*1024*1024));
+		write_cgroup_value("memory", $vmid, "memory.memsw.limit_in_bytes", int($total*1024*1024));
+	    }
 	}
 	$conf->{memory} = $wanted_memory;
 	$conf->{swap} = $wanted_swap;
