@@ -112,6 +112,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
+	    skiplock => get_standard_option('skiplock'),
 	},
     },
     returns => {
@@ -127,6 +128,10 @@ __PACKAGE__->register_method({
 	my $node = extract_param($param, 'node');
 
 	my $vmid = extract_param($param, 'vmid');
+
+	my $skiplock = extract_param($param, 'skiplock');
+	raise_param_exc({ skiplock => "Only root may use this option." })
+	    if $skiplock && $authuser ne 'root@pam';
 
 	die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
 
@@ -163,11 +168,13 @@ __PACKAGE__->register_method({
 		    die "you can't start a CT if it's a template\n"
 			if PVE::LXC::is_template($conf);
 
-		    PVE::LXC::check_lock($conf);
+		    PVE::LXC::check_lock($conf) if !$skiplock;
 
 		    my $storage_cfg = cfs_read_file("storage.cfg");
 
 		    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
+
+		    local $ENV{PVE_SKIPLOCK}=1 if $skiplock;
 
 		    my $cmd = ['lxc-start', '-n', $vmid];
 
@@ -198,6 +205,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
+	    skiplock => get_standard_option('skiplock'),
 	},
     },
     returns => {
@@ -213,6 +221,10 @@ __PACKAGE__->register_method({
 	my $node = extract_param($param, 'node');
 
 	my $vmid = extract_param($param, 'vmid');
+
+	my $skiplock = extract_param($param, 'skiplock');
+	raise_param_exc({ skiplock => "Only root may use this option." })
+	    if $skiplock && $authuser ne 'root@pam';
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
@@ -244,7 +256,7 @@ __PACKAGE__->register_method({
 
 		    my $conf = PVE::LXC::load_config($vmid);
 
-		    PVE::LXC::check_lock($conf);
+		    PVE::LXC::check_lock($conf) if !$skiplock;
 
 		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 
