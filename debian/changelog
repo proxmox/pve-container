@@ -1,3 +1,21 @@
+pve-container (1.0-42) unstable; urgency=medium
+
+  * fix growing of a running container's memory limit
+
+  * opensuse 13.2 support
+
+  * added $skiplock parameter for pct start/stop
+
+  * Fix #791: warn when resize2fs fails
+
+  * Fix #881: uninitialized value on valid lxc.cgroup keys
+
+  * Remove mknod call from pre-start hook
+
+  * Only add actual volumes to volid_list
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 08 Feb 2016 12:17:27 +0100
+
 pve-container (1.0-41) unstable; urgency=medium
 
   * added 'acl' and 'ro' mountpoint options
