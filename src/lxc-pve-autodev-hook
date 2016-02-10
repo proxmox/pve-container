@@ -1,0 +1,52 @@
+#!/usr/bin/perl
+
+package lxc_pve_autodev_hook;
+
+use strict;
+use warnings;
+
+exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
+
+use PVE::Tools;
+
+my $vmid = $ENV{LXC_NAME};
+my $root = $ENV{LXC_ROOTFS_MOUNT};
+
+if (@ARGV != 3 || $ARGV[1] ne 'lxc' || $ARGV[2] ne 'autodev') {
+    die "invalid usage, this is an LXC autodev hook\n";
+}
+
+if ($vmid ne $ARGV[0]) {
+    die "got wrong name: $ARGV[0] while LXC_NAME=$vmid\n";
+}
+
+my $devlist_file = "/var/lib/lxc/$vmid/devices";
+
+open my $fd, '<', $devlist_file;
+if (!$fd) {
+    exit 0 if $!{ENOENT}; # If the list is empty the file might not exist.
+    die "failed to open device list: $!\n";
+}
+
+while (defined(my $line = <$fd>)) {
+    if ($line !~ m@^(b):(\d+):(\d+):/dev/(\S+)\s*$@) {
+	warn "invalid .pve-devices entry: $line\n";
+    }
+    my ($type, $major, $minor, $dev) = ($1, $2, $3, $4);
+
+    # Don't break out of $root/dev/
+    if ($dev =~ /\.\./) {
+	warn "skipping illegal device node entry: $dev\n";
+	next;
+    }
+
+    # Never expose /dev/loop-control
+    if ($major == 10 && $minor == 237) {
+	warn "skipping illegal device entry (loop-control) for: $dev\n";
+	next;
+    }
+
+    PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
+                             $type, $major, $minor]);
+}
+close $fd;

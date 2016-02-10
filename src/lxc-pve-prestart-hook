@@ -74,17 +74,35 @@ __PACKAGE__->register_method ({
 
 	my $rootdir = $param->{rootfs};
 
+	my $devlist_file = "/var/lib/lxc/$vmid/devices";
+	unlink $devlist_file;
+	my $devices = [];
+
 	my $setup_mountpoint = sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    #return if $ms eq 'rootfs';
-	    PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
+	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
+	    push @$devices, $dev if $dev && $mountpoint->{quota};
 	};
 
 	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
 
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();
+
+	if (@$devices) {
+	    open my $devlist, '>', $devlist_file
+		or die "failed to create device list\n";
+	    foreach my $dev (@$devices) {
+		my ($mode, $rdev) = (stat($dev))[2,6];
+		next if !$mode || !S_ISBLK($mode) || !$rdev;
+		my $major = int($rdev / 0x100);
+		my $minor = $rdev % 0x100;
+		print {$devlist} "b:$major:$minor:$dev\n";
+	    }
+	    close $devlist;
+	}
 	return undef;
     }});
 

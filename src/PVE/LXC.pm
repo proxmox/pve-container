@@ -67,6 +67,12 @@ my $rootfs_desc = {
 	description => 'Read-only mountpoint (not supported with bind mounts)',
 	optional => 1,
     },
+    quota => {
+	type => 'boolean',
+	format_description => '[0|1]',
+	description => 'Enable user quotas inside the container (not supported with zfs subvolumes)',
+	optional => 1,
+    },
 };
 
 PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
@@ -1077,6 +1083,11 @@ sub update_lxc_config {
 	die "implement me (ostype $ostype)";
     }
 
+    # WARNING: DO NOT REMOVE this without making sure that loop device nodes
+    # cannot be exposed to the container with r/w access (cgroup perms).
+    # When this is enabled mounts will still remain in the monitor's namespace
+    # after the container unmounted them and thus will not detach from their
+    # files while the container is running!
     $raw .= "lxc.monitor.unshare = 1\n";
 
     # Should we read them from /etc/subuid?
@@ -2146,6 +2157,27 @@ sub query_loopdev {
     return $found;
 }
 
+# Run a function with a file attached to a loop device.
+# The loop device is always detached afterwards (or set to autoclear).
+# Returns the loop device.
+sub run_with_loopdev {
+    my ($func, $file) = @_;
+    my $device;
+    my $parser = sub {
+	my $line = shift;
+	if ($line =~ m@^(/dev/loop\d+)$@) {
+	    $device = $1;
+	}
+    };
+    PVE::Tools::run_command(['losetup', '--show', '-f', $file], outfunc => $parser);
+    die "failed to setup loop device for $file\n" if !$device;
+    eval { &$func($device); };
+    my $err = $@;
+    PVE::Tools::run_command(['losetup', '-d', $device]);
+    die $err if $err;
+    return $device;
+}
+
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;
@@ -2153,6 +2185,8 @@ sub mountpoint_mount {
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
     my $type = $mountpoint->{type};
+    my $quota = !$snapname && !$mountpoint->{ro} && $mountpoint->{quota};
+    my $mounted_dev;
     
     return if !$volid || !$mount;
 
@@ -2206,36 +2240,44 @@ sub mountpoint_mount {
 			die "read-only bind mounts not supported\n";
 		    }
 		    PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $path, $mount_path]);
+		    warn "cannot enable quota control for bind mounted subvolumes\n" if $quota;
 		}
 	    }
-	    return wantarray ? ($path, 0) : $path;
+	    return wantarray ? ($path, 0, $mounted_dev) : $path;
 	} elsif ($format eq 'raw' || $format eq 'iso') {
+	    my $domount = sub {
+		my ($path) = @_;
+		if ($mount_path) {
+		    if ($format eq 'iso') {
+			PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, $path, $mount_path]);
+		    } elsif ($isBase || defined($snapname)) {
+			PVE::Tools::run_command(['mount', '-o', 'ro,noload', @extra_opts, $path, $mount_path]);
+		    } else {
+			if ($quota) {
+			    push @extra_opts, '-o', 'usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0';
+			}
+			PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
+		    }
+		}
+	    };
 	    my $use_loopdev = 0;
 	    if ($scfg->{path}) {
-		push @extra_opts, '-o', 'loop';
+		$mounted_dev = run_with_loopdev($domount, $path);
 		$use_loopdev = 1;
 	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' ||
 		     $scfg->{type} eq 'rbd' || $scfg->{type} eq 'lvmthin') {
-		# do nothing
+		$mounted_dev = $path;
+		&$domount($path);
 	    } else {
 		die "unsupported storage type '$scfg->{type}'\n";
 	    }
-	    if ($mount_path) {
-		if ($format eq 'iso') {
-		    PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, $path, $mount_path]);
-		} elsif ($isBase || defined($snapname)) {
-		    PVE::Tools::run_command(['mount', '-o', 'ro,noload', @extra_opts, $path, $mount_path]);
-		} else {
-		    PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
-		}
-	    }
-	    return wantarray ? ($path, $use_loopdev) : $path;
+	    return wantarray ? ($path, $use_loopdev, $mounted_dev) : $path;
 	} else {
 	    die "unsupported image format '$format'\n";
 	}
     } elsif ($type eq 'device') {
 	PVE::Tools::run_command(['mount', @extra_opts, $volid, $mount_path]) if $mount_path;
-	return wantarray ? ($volid, 0) : $volid;
+	return wantarray ? ($volid, 0, $volid) : $volid;
     } elsif ($type eq 'bind') {
 	if ($mountpoint->{ro}) {
 	    die "read-only bind mounts not supported\n";
@@ -2246,7 +2288,8 @@ sub mountpoint_mount {
 	die "directory '$volid' does not exist\n" if ! -d $volid;
 	&$check_mount_path($volid);
 	PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $volid, $mount_path]) if $mount_path;
-	return wantarray ? ($volid, 0) : $volid;
+	warn "cannot enable quota control for bind mounts\n" if $quota;
+	return wantarray ? ($volid, 0, undef) : $volid;
     }
     
     die "unsupported storage";
