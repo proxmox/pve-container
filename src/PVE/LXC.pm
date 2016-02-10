@@ -1795,11 +1795,13 @@ sub snapshot_create {
     my $running = check_running($vmid);
     
     my $unfreeze = 0;
-    
+
+    my $drivehash = {};
+
     eval {
 	if ($running) {
-	    PVE::Tools::run_command(['/usr/bin/lxc-freeze', '-n', $vmid]);
 	    $unfreeze = 1;
+	    PVE::Tools::run_command(['/usr/bin/lxc-freeze', '-n', $vmid]);
 	    PVE::Tools::run_command(['/bin/sync']);
 	};
 
@@ -1808,7 +1810,7 @@ sub snapshot_create {
 	my $volid = $rootinfo->{volume};
 
 	PVE::Storage::volume_snapshot($storecfg, $volid, $snapname);
-	&$snapshot_commit($vmid, $snapname);
+	$drivehash->{rootfs} = 1;
     };
     my $err = $@;
     
@@ -1818,13 +1820,17 @@ sub snapshot_create {
     }
     
     if ($err) {
-	snapshot_delete($vmid, $snapname, 1);
+	eval { snapshot_delete($vmid, $snapname, 1, $drivehash); };
+	warn "$@\n" if $@;
 	die "$err\n";
     }
+
+    &$snapshot_commit($vmid, $snapname);
 }
 
+# Note: $drivehash is only set when called from snapshot_create.
 sub snapshot_delete {
-    my ($vmid, $snapname, $force) = @_;
+    my ($vmid, $snapname, $force, $drivehash) = @_;
 
     my $snap;
 
@@ -1839,7 +1845,9 @@ sub snapshot_delete {
 
 	$snap = $conf->{snapshots}->{$snapname};
 
-	check_lock($conf);
+	if (!$drivehash) {
+	    check_lock($conf);
+	}
 
 	die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
@@ -1867,7 +1875,13 @@ sub snapshot_delete {
 
     my $del_snap =  sub {
 
-	check_lock($conf);
+	$conf = load_config($vmid);
+
+	if ($drivehash) {
+	    delete $conf->{lock};
+	} else {
+	    check_lock($conf);
+	}
 
 	my $parent = $conf->{snapshots}->{$snapname}->{parent};
 	foreach my $snapkey (keys %{$conf->{snapshots}}) {
