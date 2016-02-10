@@ -644,76 +644,18 @@ sub lock_filename {
     return "$lockdir/pve-config-${vmid}.lock";
 }
 
-sub lock_aquire {
-    my ($vmid, $timeout) = @_;
+sub lock_container {
+    my ($vmid, $timeout, $code, @param) = @_;
 
     $timeout = 10 if !$timeout;
-    my $mode = LOCK_EX;
 
     my $filename = lock_filename($vmid);
 
     mkdir $lockdir if !-d $lockdir;
 
-    my $lock_func = sub {
-	if (!$lock_handles->{$$}->{$filename}) {
-	    my $fh = new IO::File(">>$filename") ||
-		die "can't open file - $!\n";
-	    $lock_handles->{$$}->{$filename} = { fh => $fh, refcount => 0};
-	}
+    my $res = PVE::Tools::lock_file_full($filename, $timeout, 0, $code, @param);
 
-	if (!flock($lock_handles->{$$}->{$filename}->{fh}, $mode |LOCK_NB)) {
-	    print STDERR "trying to aquire lock...";
-	    my $success;
-	    while(1) {
-		$success = flock($lock_handles->{$$}->{$filename}->{fh}, $mode);
-		# try again on EINTR (see bug #273)
-		if ($success || ($! != EINTR)) {
-		    last;
-		}
-	    }
-	    if (!$success) {
-		print STDERR " failed\n";
-		die "can't aquire lock - $!\n";
-	    }
-
-	    print STDERR " OK\n";
-	}
-	
-	$lock_handles->{$$}->{$filename}->{refcount}++;
-    };
-
-    eval { PVE::Tools::run_with_timeout($timeout, $lock_func); };
-    my $err = $@;
-    if ($err) {
-	die "can't lock file '$filename' - $err";
-    }
-}
-
-sub lock_release {
-    my ($vmid) = @_;
-
-    my $filename = lock_filename($vmid);
-
-    if (my $fh = $lock_handles->{$$}->{$filename}->{fh}) {
-	my $refcount = --$lock_handles->{$$}->{$filename}->{refcount};
-	if ($refcount <= 0) {
-	    $lock_handles->{$$}->{$filename} = undef;
-	    close ($fh);
-	}
-    }
-}
-
-sub lock_container {
-    my ($vmid, $timeout, $code, @param) = @_;
-
-    my $res;
-
-    lock_aquire($vmid, $timeout);
-    eval { $res = &$code(@param) };
-    my $err = $@;
-    lock_release($vmid);
-
-    die $err if $err;
+    die $@ if $@;
 
     return $res;
 }
