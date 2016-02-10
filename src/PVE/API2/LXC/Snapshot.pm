@@ -123,6 +123,9 @@ __PACKAGE__->register_method({
 	die "unable to use snapshot name 'current' (reserved name)\n"
 	    if $snapname eq 'current';
 
+	die "unable to use snapshot name 'vzdump' (reserved name)\n"
+	    if $snapname eq 'vzdump';
+
 	my $realcmd = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
 	    PVE::LXC::snapshot_create($vmid, $snapname, $param->{description});
