@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 
-package lxc_pve_autodev_hook;
-
 use strict;
 use warnings;
 
@@ -50,3 +48,5 @@ while (defined(my $line = <$fd>)) {
                              $type, $major, $minor]);
 }
 close $fd;
+
+exit 0;
