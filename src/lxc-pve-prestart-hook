@@ -92,16 +92,15 @@ __PACKAGE__->register_method ({
 	$lxc_setup->pre_start_hook();
 
 	if (@$devices) {
-	    open my $devlist, '>', $devlist_file
-		or die "failed to create device list\n";
+	    my $devlist = '';
 	    foreach my $dev (@$devices) {
 		my ($mode, $rdev) = (stat($dev))[2,6];
 		next if !$mode || !S_ISBLK($mode) || !$rdev;
 		my $major = int($rdev / 0x100);
 		my $minor = $rdev % 0x100;
-		print {$devlist} "b:$major:$minor:$dev\n";
+		$devlist .= "b:$major:$minor:$dev\n";
 	    }
-	    close $devlist;
+	    PVE::Tools::file_set_contents($devlist_file, $devlist);
 	}
 	return undef;
     }});
