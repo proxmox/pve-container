@@ -1347,8 +1347,9 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	    $new_disks = 1;
         } elsif ($opt eq 'rootfs') {
+	    next if $hotplug_error->($opt);
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
-	    die "implement me: $opt";
+	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
 	} else {
