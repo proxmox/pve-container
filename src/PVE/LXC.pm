@@ -687,18 +687,6 @@ sub json_config_properties {
     return $prop;
 }
 
-sub json_config_properties_no_rootfs {
-    my $prop = shift;
-
-    foreach my $opt (keys %$confdesc) {
-	next if $prop->{$opt};
-	next if $opt eq 'parent' || $opt eq 'snaptime' || $opt eq 'rootfs';
-	$prop->{$opt} = $confdesc->{$opt};
-    }
-
-    return $prop;
-}
-
 # container status helpers
 
 sub list_active_containers {
