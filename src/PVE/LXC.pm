@@ -4,10 +4,12 @@ use strict;
 use warnings;
 use POSIX qw(EINTR);
 
+use Socket;
+
 use File::Path;
 use File::Spec;
 use Cwd qw();
-use Fcntl ':flock';
+use Fcntl qw(O_RDONLY :flock);
 
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
 use PVE::Storage;
@@ -1797,6 +1799,75 @@ sub has_feature {
     return $err ? 0 : 1;
 }
 
+my $enter_namespace = sub {
+    my ($vmid, $pid, $which, $type) = @_;
+    sysopen my $fd, "/proc/$pid/ns/$which", O_RDONLY
+	or die "failed to open $which namespace of container $vmid: $!\n";
+    PVE::Tools::setns(fileno($fd), $type)
+	or die "failed to enter $which namespace of container $vmid: $!\n";
+    close $fd;
+};
+
+my $do_syncfs = sub {
+    my ($vmid, $pid, $socket) = @_;
+
+    &$enter_namespace($vmid, $pid, 'mnt', PVE::Tools::CLONE_NEWNS);
+
+    # Tell the parent process to start reading our /proc/mounts
+    print {$socket} "go\n";
+    $socket->flush();
+
+    # Receive /proc/self/mounts
+    my $mountdata = do { local $/ = undef; <$socket> };
+    close $socket;
+
+    # Now sync all mountpoints...
+    my $mounts = PVE::ProcFSTools::parse_mounts($mountdata);
+    foreach my $mp (@$mounts) {
+	my ($what, $dir, $fs) = @$mp;
+	next if $fs eq 'fuse.lxcfs';
+	eval { PVE::Tools::sync_mountpoint($dir); };
+	warn $@ if $@;
+    }
+};
+
+sub sync_container_namespace {
+    my ($vmid) = @_;
+    my $pid = find_lxc_pid($vmid);
+
+    # SOCK_DGRAM is nicer for barriers but cannot be slurped
+    socketpair my $pfd, my $cfd, AF_UNIX, SOCK_STREAM, PF_UNSPEC
+	or die "failed to create socketpair: $!\n";
+
+    my $child = fork();
+    die "fork failed: $!\n" if !defined($child);
+
+    if (!$child) {
+	eval {
+	    close $pfd;
+	    &$do_syncfs($vmid, $pid, $cfd);
+	};
+	if (my $err = $@) {
+	    warn $err;
+	    POSIX::_exit(1);
+	}
+	POSIX::_exit(0);
+    }
+    close $cfd;
+    my $go = <$pfd>;
+    die "failed to enter container namespace\n" if $go ne "go\n";
+
+    open my $mounts, '<', "/proc/$child/mounts"
+	or die "failed to open container's /proc/mounts: $!\n";
+    my $mountdata = do { local $/ = undef; <$mounts> };
+    close $mounts;
+    print {$pfd} $mountdata;
+    close $pfd;
+
+    while (waitpid($child, 0) != $child) {}
+    die "failed to sync container namespace\n" if $? != 0;
+}
+
 sub snapshot_create {
     my ($vmid, $snapname, $comment) = @_;
 
@@ -1814,7 +1885,7 @@ sub snapshot_create {
 	if ($running) {
 	    $unfreeze = 1;
 	    PVE::Tools::run_command(['/usr/bin/lxc-freeze', '-n', $vmid]);
-	    PVE::Tools::run_command(['/bin/sync']);
+	    sync_container_namespace($vmid);
 	};
 
 	my $storecfg = PVE::Storage::config();
