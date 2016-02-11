@@ -16,7 +16,7 @@ use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
-use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach);
+use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full);
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
