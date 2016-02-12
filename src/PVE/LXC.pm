@@ -1083,9 +1083,13 @@ sub update_lxc_config {
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
     if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine)$/x) {
-	$raw .= "lxc.include = /usr/share/lxc/config/$ostype.common.conf\n";
+	my $inc ="/usr/share/lxc/config/$ostype.common.conf";
+	$inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
+	$raw .= "lxc.include = $inc\n";
 	if ($unprivileged || $custom_idmap) {
-	    $raw .= "lxc.include = /usr/share/lxc/config/$ostype.userns.conf\n"
+	    $inc = "/usr/share/lxc/config/$ostype.userns.conf";
+	    $inc = "/usr/share/lxc/config/userns.conf" if !-f $inc;
+	    $raw .= "lxc.include = $inc\n"
 	}
     } else {
 	die "implement me (ostype $ostype)";
