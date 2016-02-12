@@ -8,6 +8,7 @@ use PVE::Network;
 use File::Path;
 
 use PVE::LXC::Setup::Base;
+use PVE::LXC::Setup::Debian;
 
 use base qw(PVE::LXC::Setup::Base);
 
@@ -41,7 +42,28 @@ sub setup_init {
 }
 
 sub setup_network {
-    # Nothing to do
+    # Network is debian compatible, but busybox' udhcpc6 is unfinished
+    my ($self, $conf) = @_;
+
+    # XXX: udhcpc6 in busybox is broken; once a working alpine release comes
+    # we can remove this bit.
+    #
+    # Filter out ipv6 dhcp and turn it into 'manual' so they see what's up.
+    my $netconf = {};
+    my $networks = {};
+    foreach my $k (keys %$conf) {
+	next if $k !~ m/^net(\d+)$/;
+	my $netstring = $conf->{$k};
+	# check for dhcp6:
+	my $d = PVE::LXC::parse_lxc_network($netstring);
+	if (defined($d->{ip6}) && $d->{ip6} eq 'dhcp') {
+	    $d->{ip6} = 'manual';
+	    $netstring = PVE::LXC::print_lxc_network($d);
+	}
+	$netconf->{$k} = $netstring;
+    }
+
+    PVE::LXC::Setup::Debian::setup_network($self, $netconf);
 }
 
 1;
