@@ -3,7 +3,6 @@ package PVE::LXC::Setup::Alpine;
 use strict;
 use warnings;
 
-use Data::Dumper;
 use PVE::LXC;
 use PVE::Network;
 use File::Path;
@@ -29,12 +28,12 @@ sub template_fixup {
     $self->ct_symlink('/etc/init.d/bootmisc',
                       '/etc/runlevels/boot/bootmisc');
     $self->ct_symlink('/etc/init.d/hostname',
-                      '/etc/runlevels/boot/hostname');                                            
-    # fix stop system                  
+                      '/etc/runlevels/boot/hostname');
+    # fix stop system
     $self->ct_symlink('/etc/init.d/killprocs',
-                      '/etc/runlevels/shutdown/killprocs'); 
+                      '/etc/runlevels/shutdown/killprocs');
     $self->ct_symlink('/etc/init.d/savecache',
-                      '/etc/runlevels/shutdown/savecache');                            
+                      '/etc/runlevels/shutdown/savecache');
 }
 
 sub setup_init {
