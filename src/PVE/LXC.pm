@@ -2256,6 +2256,20 @@ sub run_with_loopdev {
     return $device;
 }
 
+sub bindmount {
+    my ($dir, $dest, $ro, @extra_opts) = @_;
+    PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $dir, $dest]);
+    if ($ro) {
+	eval { PVE::Tools::run_command(['mount', '-o', 'bind,remount,ro', $dest]); };
+	if (my $err = $@) {
+	    warn "bindmount error\n";
+	    # don't leave writable bind-mounts behind...
+	    PVE::Tools::run_command(['umount', $dest]);
+	    die $err;
+	}
+    }
+}
+
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;
@@ -2286,10 +2300,7 @@ sub mountpoint_mount {
     if (defined($mountpoint->{acl})) {
 	$optstring .= ($mountpoint->{acl} ? 'acl' : 'noacl');
     }
-    if ($mountpoint->{ro}) {
-	$optstring .= ',' if $optstring;
-	$optstring .= 'ro';
-    }
+    my $readonly = $mountpoint->{ro};
 
     my @extra_opts = ('-o', $optstring);
 
@@ -2314,10 +2325,7 @@ sub mountpoint_mount {
 			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
 		    }
 		} else {
-		    if ($mountpoint->{ro}) {
-			die "read-only bind mounts not supported\n";
-		    }
-		    PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $path, $mount_path]);
+		    bindmount($path, $mount_path, $readonly, @extra_opts);
 		    warn "cannot enable quota control for bind mounted subvolumes\n" if $quota;
 		}
 	    }
@@ -2334,6 +2342,7 @@ sub mountpoint_mount {
 			if ($quota) {
 			    push @extra_opts, '-o', 'usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0';
 			}
+			push @extra_opts, '-o', 'ro' if $readonly;
 			PVE::Tools::run_command(['mount', @extra_opts, $path, $mount_path]);
 		    }
 		}
@@ -2354,18 +2363,13 @@ sub mountpoint_mount {
 	    die "unsupported image format '$format'\n";
 	}
     } elsif ($type eq 'device') {
+			push @extra_opts, '-o', 'ro' if $readonly;
 	PVE::Tools::run_command(['mount', @extra_opts, $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0, $volid) : $volid;
     } elsif ($type eq 'bind') {
-	if ($mountpoint->{ro}) {
-	    die "read-only bind mounts not supported\n";
-	    # Theoretically we'd have to execute both:
-	    # mount -o bind $a $b
-	    # mount -o bind,remount,ro $a $b
-	}
 	die "directory '$volid' does not exist\n" if ! -d $volid;
 	&$check_mount_path($volid);
-	PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $volid, $mount_path]) if $mount_path;
+	bindmount($volid, $mount_path, $readonly, @extra_opts) if $mount_path;
 	warn "cannot enable quota control for bind mounts\n" if $quota;
 	return wantarray ? ($volid, 0, undef) : $volid;
     }
