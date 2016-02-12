@@ -9,7 +9,7 @@ use Socket;
 use File::Path;
 use File::Spec;
 use Cwd qw();
-use Fcntl qw(O_RDONLY :flock);
+use Fcntl qw(O_RDONLY);
 
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
 use PVE::Storage;
@@ -646,26 +646,44 @@ sub write_config {
 my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
 
-sub lock_filename {
+sub config_file_lock {
     my ($vmid) = @_;
 
     return "$lockdir/pve-config-${vmid}.lock";
 }
 
-sub lock_container {
+sub lock_config_full {
     my ($vmid, $timeout, $code, @param) = @_;
 
-    $timeout = 10 if !$timeout;
-
-    my $filename = lock_filename($vmid);
+    my $filename = config_file_lock($vmid);
 
     mkdir $lockdir if !-d $lockdir;
 
-    my $res = PVE::Tools::lock_file_full($filename, $timeout, 0, $code, @param);
+    my $res = lock_file($filename, $timeout, $code, @param);
 
     die $@ if $@;
 
     return $res;
+}
+
+sub lock_config_mode {
+    my ($vmid, $timeout, $shared, $code, @param) = @_;
+
+    my $filename = config_file_lock($vmid);
+
+    mkdir $lockdir if !-d $lockdir;
+
+    my $res = lock_file_full($filename, $timeout, $shared, $code, @param);
+
+    die $@ if $@;
+
+    return $res;
+}
+
+sub lock_config {
+    my ($vmid, $code, @param) = @_;
+
+    return lock_config_full($vmid, 10, $code, @param);
 }
 
 sub option_exists {
@@ -1732,7 +1750,7 @@ my $snapshot_prepare = sub {
 	write_config($vmid, $conf);
     };
 
-    lock_container($vmid, 10, $updatefn);
+    lock_config($vmid, $updatefn);
 
     return $snap;
 };
@@ -1761,7 +1779,7 @@ my $snapshot_commit = sub {
 	write_config($vmid, $conf);
     };
 
-    lock_container($vmid, 10 ,$updatefn);
+    lock_config($vmid ,$updatefn);
 };
 
 sub has_feature {
@@ -1927,7 +1945,7 @@ sub snapshot_delete {
 	write_config($vmid, $conf);
     };
 
-    lock_container($vmid, 10, $updatefn);
+    lock_config($vmid, $updatefn);
 
     my $storecfg = PVE::Storage::config();
 
@@ -1976,7 +1994,7 @@ sub snapshot_delete {
     my $err = $@;
 
     if(!$err || ($err && $force)) {
-	lock_container($vmid, 10, $del_snap);
+	lock_config($vmid, $del_snap);
 	if ($err) {
 	    die "Can't delete snapshot: $vmid $snapname $err\n";
 	}
@@ -2035,11 +2053,11 @@ sub snapshot_rollback {
 	write_config($vmid, $conf);
     };
 
-    lock_container($vmid, 10, $updatefn);
+    lock_config($vmid, $updatefn);
 
     PVE::Storage::volume_snapshot_rollback($storecfg, $volid, $snapname);
 
-    lock_container($vmid, 5, $unlockfn);
+    lock_config($vmid, $unlockfn);
 }
 
 sub template_create {

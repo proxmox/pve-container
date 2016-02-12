@@ -16,7 +16,7 @@ use base qw(PVE::AbstractMigrate);
 sub lock_vm {
     my ($self, $vmid, $code, @param) = @_;
 
-    return PVE::LXC::lock_container($vmid, undef, $code, @param);
+    return PVE::LXC::lock_config($vmid, $code, @param);
 }
 
 sub prepare {

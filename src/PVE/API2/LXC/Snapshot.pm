@@ -311,7 +311,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::write_config($vmid, $conf, 1);
 	};
 
-	PVE::LXC::lock_container($vmid, 10, $updatefn);
+	PVE::LXC::lock_config($vmid, $updatefn);
 
 	return undef;
     }});

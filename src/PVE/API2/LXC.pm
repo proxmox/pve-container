@@ -325,7 +325,7 @@ __PACKAGE__->register_method({
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
 	};
 
-	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
+	my $realcmd = sub { PVE::LXC::lock_config($vmid, $code); };
 
 	&$check_vmid_usage(); # first check before locking
 
@@ -528,7 +528,7 @@ __PACKAGE__->register_method({
 	    PVE::Firewall::remove_vmfw_conf($vmid);
 	};
 
-	my $realcmd = sub { PVE::LXC::lock_container($vmid, 1, $code); };
+	my $realcmd = sub { PVE::LXC::lock_config($vmid, $code); };
 	
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
     }});
@@ -947,7 +947,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('vztemplate', $vmid, $authuser, $realcmd);
 	};
 
-	PVE::LXC::lock_container($vmid, undef, $updatefn);
+	PVE::LXC::lock_config($vmid, $updatefn);
 
 	return undef;
     }});
@@ -1186,7 +1186,7 @@ __PACKAGE__->register_method({
 
 	};
 
-	return PVE::LXC::lock_container($vmid, undef, $clonefn);
+	return PVE::LXC::lock_config($vmid, $clonefn);
     }});
 
 
@@ -1334,7 +1334,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('resize', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_container($vmid, undef, $code);;
+	return PVE::LXC::lock_config($vmid, $code);;
     }});
 
 1;

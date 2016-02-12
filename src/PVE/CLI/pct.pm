@@ -44,7 +44,7 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{vmid};
 
-	PVE::LXC::lock_container($vmid, 5, sub {
+	PVE::LXC::lock_config($vmid, sub {
 	    my $conf = PVE::LXC::load_config($vmid);
 	    delete $conf->{lock};
 	    PVE::LXC::write_config($vmid, $conf);
@@ -199,7 +199,7 @@ __PACKAGE__->register_method ({
 	    PVE::Tools::run_command($command);
 	};
 
-	PVE::LXC::lock_container($vmid, undef, $do_fsck);
+	PVE::LXC::lock_config($vmid, $do_fsck);
 	return undef;
     }});
 

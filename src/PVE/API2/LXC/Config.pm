@@ -143,7 +143,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 	};
 
-	PVE::LXC::lock_container($vmid, undef, $code);
+	PVE::LXC::lock_config($vmid, $code);
 
 	return undef;
     }});

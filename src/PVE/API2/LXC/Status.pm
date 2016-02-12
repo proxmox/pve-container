@@ -186,7 +186,7 @@ __PACKAGE__->register_method({
 		return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
 	    };
 
-	    return PVE::LXC::lock_container($vmid, 10, $lockcmd);
+	    return PVE::LXC::lock_config($vmid, $lockcmd);
 	}
     }});
 
@@ -268,7 +268,7 @@ __PACKAGE__->register_method({
 		return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
 	    };
 
-	    return PVE::LXC::lock_container($vmid, 10, $lockcmd);
+	    return PVE::LXC::lock_config($vmid, $lockcmd);
 	}
     }});
 
@@ -361,7 +361,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_container($vmid, 10, $lockcmd);
+	return PVE::LXC::lock_config($vmid, $lockcmd);
     }});
 
 __PACKAGE__->register_method({
@@ -417,7 +417,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_container($vmid, 10, $lockcmd);
+	return PVE::LXC::lock_config($vmid, $lockcmd);
     }});
 
 __PACKAGE__->register_method({

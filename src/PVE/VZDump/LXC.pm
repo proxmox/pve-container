@@ -185,7 +185,7 @@ sub lock_vm {
 	PVE::LXC::write_config($vmid, $conf);
     };
 
-    PVE::LXC::lock_container($vmid, 10, $lockconfig, ($self, $vmid));
+    PVE::LXC::lock_config($vmid, $lockconfig, ($self, $vmid));
 }
 
 sub unlock_vm {
@@ -202,7 +202,7 @@ sub unlock_vm {
 	}
     };
 
-    PVE::LXC::lock_container($vmid, 60, $unlockconfig, ($self, $vmid));
+    PVE::LXC::lock_config($vmid, $unlockconfig, ($self, $vmid));
 }
 
 sub snapshot {
