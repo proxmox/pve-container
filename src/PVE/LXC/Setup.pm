@@ -11,6 +11,7 @@ use PVE::LXC::Setup::Redhat;
 use PVE::LXC::Setup::Fedora;
 use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::ArchLinux;
+use PVE::LXC::Setup::Alpine;
 
 my $plugins = {
     debian    => 'PVE::LXC::Setup::Debian',
@@ -19,6 +20,7 @@ my $plugins = {
     fedora    => 'PVE::LXC::Setup::Fedora',
     opensuse  => 'PVE::LXC::Setup::SUSE',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
+    alpine    => 'PVE::LXC::Setup::Alpine',
 };
 
 my $autodetect_type = sub {
@@ -42,8 +44,9 @@ my $autodetect_type = sub {
 	return "redhat";
     } elsif (-f  "$rootdir/etc/arch-release") {
 	return "archlinux";
+    } elsif (-f  "$rootdir/etc/alpine-release") {
+	return "alpine";
     }
-
     die "unable to detect OS disribution\n";
 };
 
