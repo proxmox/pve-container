@@ -14,7 +14,10 @@ use base qw(PVE::LXC::Setup::Base);
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
-    my $self = { conf => $conf, rootdir => $rootdir, version => 0 };
+
+    my $version = PVE::Tools::file_read_firstline("$rootdir/etc/alpine-release");
+
+    my $self = { conf => $conf, rootdir => $rootdir, version => $version };
     $conf->{ostype} = "alpine";
     return bless $self, $class;
 }
