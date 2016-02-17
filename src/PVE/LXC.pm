@@ -1197,6 +1197,21 @@ sub verify_searchdomain_list {
     return join(' ', @list);
 }
 
+sub is_volume_in_use {
+    my ($config, $volid) = @_;
+    my $used = 0;
+
+    foreach_mountpoint($config, sub {
+	my ($ms, $mountpoint) = @_;
+	return if $used;
+	if ($mountpoint->{type} eq 'volume' && $mountpoint->{volume} eq $volid) {
+	    $used = 1;
+	}
+    });
+
+    return $used;
+}
+
 sub add_unused_volume {
     my ($config, $volid) = @_;
 
@@ -1273,11 +1288,11 @@ sub update_pct_config {
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
 		next if $hotplug_error->($opt);
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
-		my $mountpoint = parse_ct_mountpoint($conf->{$opt});
-		if ($mountpoint->{type} eq 'volume') {
-		    add_unused_volume($conf, $mountpoint->{volume})
-		}
+		my $mp = parse_ct_mountpoint($conf->{$opt});
 		delete $conf->{$opt};
+		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		    add_unused_volume($conf, $mp->{volume});
+		}
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
 	    } else {
@@ -1356,12 +1371,26 @@ sub update_pct_config {
         } elsif ($opt =~ m/^mp(\d+)$/) {
 	    next if $hotplug_error->($opt);
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
+	    my $old = $conf->{$opt};
 	    $conf->{$opt} = $value;
+	    if (defined($old)) {
+		my $mp = parse_ct_mountpoint($old);
+		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		    add_unused_volume($conf, $mp->{volume});
+		}
+	    }
 	    $new_disks = 1;
         } elsif ($opt eq 'rootfs') {
 	    next if $hotplug_error->($opt);
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
+	    my $old = $conf->{$opt};
 	    $conf->{$opt} = $value;
+	    if (defined($old)) {
+		my $mp = parse_ct_rootfs($old);
+		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		    add_unused_volume($conf, $mp->{volume});
+		}
+	    }
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
 	} else {
