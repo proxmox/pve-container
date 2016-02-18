@@ -243,6 +243,15 @@ sub setup_systemd_console {
     }
 }
 
+sub setup_container_getty_service {
+    my ($self) = @_;
+    my $servicefile = '/usr/lib/systemd/system/container-getty@.service';
+    my $raw = $self->ct_file_get_contents($servicefile);
+    if ($raw =~ s@pts/%I@lxc/tty%I@g) {
+	$self->ct_file_set_contents($servicefile, $raw);
+    }
+}
+
 sub setup_systemd_networkd {
     my ($self, $conf) = @_;
 
