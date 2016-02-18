@@ -1,3 +1,13 @@
+pve-container (1.0-46) unstable; urgency=medium
+
+  * setup: move setup_container_getty_service to Base
+
+  * suse: move setup_securetty to template_fixup()
+
+  * Add to unused volumes only if really unused
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 18 Feb 2016 11:49:15 +0100
+
 pve-container (1.0-45) unstable; urgency=medium
 
   * add Alpine Linux distribution
