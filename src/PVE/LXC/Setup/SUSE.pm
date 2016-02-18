@@ -36,13 +36,14 @@ sub new {
 }
 
 sub template_fixup {
-    # Nothing to do
+    my ($self, $conf) = @_;
+
+    $self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
 }
 
 sub setup_init {
     my ($self, $conf) = @_;
 
-    $self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
     if ($self->{version} >= 13.2) {
 	$self->setup_container_getty_service();
     }
