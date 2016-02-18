@@ -6,6 +6,8 @@ pve-container (1.0-46) unstable; urgency=medium
 
   * Add to unused volumes only if really unused
 
+  * exclude 'parent' from config when restoring
+
  -- Proxmox Support Team <support@proxmox.com>  Thu, 18 Feb 2016 11:49:15 +0100
 
 pve-container (1.0-45) unstable; urgency=medium
