@@ -1985,36 +1985,11 @@ sub snapshot_create {
 sub snapshot_delete {
     my ($vmid, $snapname, $force, $drivehash) = @_;
 
+    my $prepare = 1;
+
     my $snap;
 
-    my $conf;
-
-    my $updatefn =  sub {
-
-	$conf = load_config($vmid);
-
-	die "you can't delete a snapshot if vm is a template\n"
-	    if is_template($conf);
-
-	$snap = $conf->{snapshots}->{$snapname};
-
-	if (!$drivehash) {
-	    check_lock($conf);
-	}
-
-	die "snapshot '$snapname' does not exist\n" if !defined($snap);
-
-	$snap->{snapstate} = 'delete';
-
-	write_config($vmid, $conf);
-    };
-
-    lock_config($vmid, $updatefn);
-
-    my $storecfg = PVE::Storage::config();
-
     my $unlink_parent = sub {
-
 	my ($confref, $new_parent) = @_;
 
 	if ($confref->{parent} && $confref->{parent} eq $snapname) {
@@ -2026,43 +2001,74 @@ sub snapshot_delete {
 	}
     };
 
-    my $del_snap =  sub {
+    my $updatefn =  sub {
+	my ($remove_drive) = @_;
 
-	$conf = load_config($vmid);
+	my $conf = load_config($vmid);
 
-	if ($drivehash) {
-	    delete $conf->{lock};
-	} else {
+	if (!$drivehash) {
 	    check_lock($conf);
+	    die "you can't delete a snapshot if vm is a template\n"
+		if is_template($conf);
 	}
 
-	my $parent = $conf->{snapshots}->{$snapname}->{parent};
-	foreach my $snapkey (keys %{$conf->{snapshots}}) {
-	    &$unlink_parent($conf->{snapshots}->{$snapkey}, $parent);
+	$snap = $conf->{snapshots}->{$snapname};
+
+	die "snapshot '$snapname' does not exist\n" if !defined($snap);
+
+	# remove parent refs
+	if (!$prepare) {
+	    &$unlink_parent($conf, $snap->{parent});
+	    foreach my $sn (keys %{$conf->{snapshots}}) {
+		next if $sn eq $snapname;
+		&$unlink_parent($conf->{snapshots}->{$sn}, $snap->{parent});
+	    }
 	}
 
-	&$unlink_parent($conf, $parent);
+	if ($remove_drive) {
+	    if ($remove_drive eq 'vmstate') {
+		die "implement me - saving vmstate\n";
+	    } else {
+		die "implement me - remove drive\n";
+	    }
+	}
 
-	delete $conf->{snapshots}->{$snapname};
+	if ($prepare) {
+	    $snap->{snapstate} = 'delete';
+	} else {
+	    delete $conf->{snapshots}->{$snapname};
+	    delete $conf->{lock} if $drivehash;
+	}
 
 	write_config($vmid, $conf);
     };
 
-    my $rootfs = $conf->{snapshots}->{$snapname}->{rootfs};
-    my $rootinfo = parse_ct_rootfs($rootfs);
-    my $volid = $rootinfo->{volume};
+    lock_config($vmid, $updatefn);
 
+    # now remove vmstate file
+    # never set for LXC!
+    my $storecfg = PVE::Storage::config();
+
+    if ($snap->{vmstate}) {
+	die "implement me - saving vmstate\n";
+    };
+
+    # now remove all volume snapshots
+    # only rootfs for now!
     eval {
+	my $rootfs = $snap->{rootfs};
+	my $rootinfo = parse_ct_rootfs($rootfs);
+	my $volid = $rootinfo->{volume};
 	PVE::Storage::volume_snapshot_delete($storecfg, $volid, $snapname);
     };
-    my $err = $@;
-
-    if(!$err || ($err && $force)) {
-	lock_config($vmid, $del_snap);
-	if ($err) {
-	    die "Can't delete snapshot: $vmid $snapname $err\n";
-	}
+    if (my $err = $@) {
+	die $err if !$force;
+	warn $err;
     }
+
+    # now cleanup config
+    $prepare = 0;
+    lock_config($vmid, $updatefn);
 }
 
 sub snapshot_rollback {
