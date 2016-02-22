@@ -3,6 +3,8 @@ package PVE::LXC;
 use strict;
 use warnings;
 
+use lib qw(..);
+
 use PVE::Storage;
 use PVE::Storage::Plugin;
 use PVE::LXC;
