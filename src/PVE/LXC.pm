@@ -1743,9 +1743,33 @@ my $snapshot_copy_config = sub {
 	next if $k eq 'lock';
 	next if $k eq 'digest';
 	next if $k eq 'description';
+	next if $k =~ m/^unused\d+$/;
 
 	$dest->{$k} = $source->{$k};
     }
+};
+
+my $snapshot_apply_config = sub {
+    my ($conf, $snap) = @_;
+
+    # copy snapshot list
+    my $newconf = {
+	snapshots => $conf->{snapshots},
+    };
+
+    # keep description and list of unused disks
+    foreach my $k (keys %$conf) {
+	next if !($k =~ m/^unused\d+$/ || $k eq 'description');
+	$newconf->{$k} = $conf->{$k};
+    }
+
+    &$snapshot_copy_config($snap, $newconf);
+
+    return $newconf;
+};
+
+my $snapshot_save_vmstate = sub {
+    die "implement me - snapshot_save_vmstate\n";
 };
 
 sub snapshot_prepare {
@@ -1768,17 +1792,22 @@ sub snapshot_prepare {
 	    if defined($conf->{snapshots}->{$snapname});
 
 	my $storecfg = PVE::Storage::config();
+
+	# workaround until mp snapshots are implemented
 	my $feature = $snapname eq 'vzdump' ? 'vzdump' : 'snapshot';
 	die "snapshot feature is not available\n" if !has_feature($feature, $conf, $storecfg);
 
 	$snap = $conf->{snapshots}->{$snapname} = {};
 
+	if ($save_vmstate && check_running($vmid)) {
+	    &$snapshot_save_vmstate($vmid, $conf, $snapname, $storecfg);
+	}
+
 	&$snapshot_copy_config($conf, $snap);
 
-	$snap->{'snapstate'} = "prepare";
-	$snap->{'snaptime'} = time();
-	$snap->{'description'} = $comment if $comment;
-	$conf->{snapshots}->{$snapname} = $snap;
+	$snap->{snapstate} = "prepare";
+	$snap->{snaptime} = time();
+	$snap->{description} = $comment if $comment;
 
 	write_config($vmid, $conf);
     };
@@ -1798,18 +1827,20 @@ sub snapshot_commit {
 	die "missing snapshot lock\n"
 	    if !($conf->{lock} && $conf->{lock} eq 'snapshot');
 
-	die "snapshot '$snapname' does not exist\n"
-	    if !defined($conf->{snapshots}->{$snapname});
+	my $snap = $conf->{snapshots}->{$snapname};
+	die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
 	die "wrong snapshot state\n"
-	    if !($conf->{snapshots}->{$snapname}->{'snapstate'} && 
-		 $conf->{snapshots}->{$snapname}->{'snapstate'} eq "prepare");
+	    if !($snap->{snapstate} && $snap->{snapstate} eq "prepare");
 
-	delete $conf->{snapshots}->{$snapname}->{'snapstate'};
+	delete $snap->{snapstate};
 	delete $conf->{lock};
-	$conf->{parent} = $snapname;
 
-	write_config($vmid, $conf);
+	my $newconf = &$snapshot_apply_config($conf, $snap);
+
+	$newconf->{parent} = $snapname;
+
+	write_config($vmid, $newconf);
     };
 
     lock_config($vmid, $updatefn);
