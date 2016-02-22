@@ -1331,6 +1331,8 @@ sub update_pct_config {
 	write_config($vmid, $conf) if $running;
     }
 
+    my $used_volids = {};
+
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	if ($opt eq 'hostname') {
@@ -1380,6 +1382,8 @@ sub update_pct_config {
 		}
 	    }
 	    $new_disks = 1;
+	    my $mp = parse_ct_mountpoint($value);
+	    $used_volids->{$mp->{volume}} = 1;
         } elsif ($opt eq 'rootfs') {
 	    next if $hotplug_error->($opt);
 	    check_protection($conf, "can't update CT $vmid drive '$opt'");
@@ -1391,6 +1395,8 @@ sub update_pct_config {
 		    add_unused_volume($conf, $mp->{volume});
 		}
 	    }
+	    my $mp = parse_ct_rootfs($value);
+	    $used_volids->{$mp->{volume}} = 1;
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
 	} else {
@@ -1399,9 +1405,22 @@ sub update_pct_config {
 	write_config($vmid, $conf) if $running;
     }
 
+    # Cleanup config:
+
+    # Remove unused disks after re-adding
+    foreach my $key (keys %$conf) {
+	next if $key !~ /^unused\d+/;
+	my $volid = $conf->{$key};
+	if ($used_volids->{$volid}) {
+	    delete $conf->{$key};
+	}
+    }
+
+    # Apply deletions and creations of new volumes
     if (@deleted_volumes) {
 	my $storage_cfg = PVE::Storage::config();
 	foreach my $volume (@deleted_volumes) {
+	    next if $used_volids->{$volume}; # could have been re-added, too
 	    delete_mountpoint_volume($storage_cfg, $vmid, $volume);
 	}
     }
