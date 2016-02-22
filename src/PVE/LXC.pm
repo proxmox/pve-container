@@ -1748,8 +1748,8 @@ my $snapshot_copy_config = sub {
     }
 };
 
-my $snapshot_prepare = sub {
-    my ($vmid, $snapname, $comment) = @_;
+sub snapshot_prepare {
+    my ($vmid, $snapname, $save_vmstate, $comment) = @_;
 
     my $snap;
 
@@ -1786,9 +1786,9 @@ my $snapshot_prepare = sub {
     lock_config($vmid, $updatefn);
 
     return $snap;
-};
+}
 
-my $snapshot_commit = sub {
+sub snapshot_commit {
     my ($vmid, $snapname) = @_;
 
     my $updatefn = sub {
@@ -1812,8 +1812,8 @@ my $snapshot_commit = sub {
 	write_config($vmid, $conf);
     };
 
-    lock_config($vmid ,$updatefn);
-};
+    lock_config($vmid, $updatefn);
+}
 
 sub has_feature {
     my ($feature, $conf, $storecfg, $snapname) = @_;
@@ -1908,9 +1908,9 @@ sub sync_container_namespace {
 }
 
 sub snapshot_create {
-    my ($vmid, $snapname, $comment) = @_;
+    my ($vmid, $snapname, $save_vmstate, $comment) = @_;
 
-    my $snap = &$snapshot_prepare($vmid, $snapname, $comment);
+    my $snap = snapshot_prepare($vmid, $snapname, $save_vmstate, $comment);
 
     my $conf = load_config($vmid);
 
@@ -1947,7 +1947,7 @@ sub snapshot_create {
 	die "$err\n";
     }
 
-    &$snapshot_commit($vmid, $snapname);
+    snapshot_commit($vmid, $snapname);
 }
 
 # Note: $drivehash is only set when called from snapshot_create.

@@ -211,7 +211,7 @@ sub snapshot {
     $self->loginfo("create storage snapshot 'vzdump'");
 
     # todo: freeze/unfreeze if we have more than one volid
-    PVE::LXC::snapshot_create($vmid, 'vzdump', "vzdump backup snapshot");
+    PVE::LXC::snapshot_create($vmid, 'vzdump', 0, "vzdump backup snapshot");
     $task->{cleanup}->{remove_snapshot} = 1;
     
     # reload config

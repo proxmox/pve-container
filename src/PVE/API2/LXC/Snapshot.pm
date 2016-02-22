@@ -128,7 +128,7 @@ __PACKAGE__->register_method({
 
 	my $realcmd = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
-	    PVE::LXC::snapshot_create($vmid, $snapname, $param->{description});
+	    PVE::LXC::snapshot_create($vmid, $snapname, 0, $param->{description});
 	};
 
 	return $rpcenv->fork_worker('pctsnapshot', $vmid, $authuser, $realcmd);
