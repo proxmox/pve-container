@@ -2,7 +2,7 @@ Source: pve-container
 Section: perl
 Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
-Build-Depends: debhelper (>= 7.0.50~), libpve-common-perl, libpve-storage-perl, pve-cluster (>= 4.0-8)
+Build-Depends: debhelper (>= 7.0.50~), libpve-common-perl, libpve-storage-perl, pve-cluster (>= 4.0-8), libtest-mockmodule-perl
 Standards-Version: 3.8.4
 
 Package: pve-container
