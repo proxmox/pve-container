@@ -2074,16 +2074,26 @@ sub snapshot_delete {
 sub snapshot_rollback {
     my ($vmid, $snapname) = @_;
 
+    my $prepare = 1;
+
     my $storecfg = PVE::Storage::config();
 
     my $conf = load_config($vmid);
 
-    die "you can't rollback if vm is a template\n" if is_template($conf);
+    my $get_snapshot_config = sub {
 
-    my $snap = $conf->{snapshots}->{$snapname};
+	die "you can't rollback if vm is a template\n" if is_template($conf);
 
-    die "snapshot '$snapname' does not exist\n" if !defined($snap);
+	my $res = $conf->{snapshots}->{$snapname};
 
+	die "snapshot '$snapname' does not exist\n" if !defined($res);
+
+	return $res;
+    };
+
+    my $snap = &$get_snapshot_config();
+
+    # only for rootfs for now!
     my $rootfs = $snap->{rootfs};
     my $rootinfo = parse_ct_rootfs($rootfs);
     my $volid = $rootinfo->{volume};
@@ -2092,42 +2102,50 @@ sub snapshot_rollback {
 
     my $updatefn = sub {
 
-	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n" 
+	$conf = load_config($vmid);
+
+	$snap = &$get_snapshot_config();
+
+	die "unable to rollback to incomplete snapshot (snapstate = $snap->{snapstate})\n"
 	    if $snap->{snapstate};
 
-	check_lock($conf);
-
-	system("lxc-stop -n $vmid --kill") if check_running($vmid);
+	if ($prepare) {
+	    check_lock($conf);
+	    system("lxc-stop -n $vmid --kill") if check_running($vmid);
+	}
 
 	die "unable to rollback vm $vmid: vm is running\n"
 	    if check_running($vmid);
 
-	$conf->{lock} = 'rollback';
+	if ($prepare) {
+	    $conf->{lock} = 'rollback';
+	} else {
+	    die "got wrong lock\n" if !($conf->{lock} && $conf->{lock} eq 'rollback');
+	    delete $conf->{lock};
+	}
 
 	my $forcemachine;
 
-	# copy snapshot config to current config
-
-	my $tmp_conf = $conf;
-	&$snapshot_copy_config($tmp_conf->{snapshots}->{$snapname}, $conf);
-	$conf->{snapshots} = $tmp_conf->{snapshots};
-	delete $conf->{snaptime};
-	delete $conf->{snapname};
-	$conf->{parent} = $snapname;
+	if (!$prepare) {
+	    # copy snapshot config to current config
+	    $conf = &$snapshot_apply_config($conf, $snap);
+	    $conf->{parent} = $snapname;
+	}
 
 	write_config($vmid, $conf);
-    };
 
-    my $unlockfn = sub {
-	delete $conf->{lock};
-	write_config($vmid, $conf);
+	if (!$prepare && $snap->{vmstate}) {
+	    die "implement me - save vmstate";
+	}
     };
 
     lock_config($vmid, $updatefn);
 
+    # only rootfs for now!
     PVE::Storage::volume_snapshot_rollback($storecfg, $volid, $snapname);
 
-    lock_config($vmid, $unlockfn);
+    $prepare = 0;
+    lock_config($vmid, $updatefn);
 }
 
 sub template_create {
