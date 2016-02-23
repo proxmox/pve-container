@@ -26,11 +26,11 @@ my $freeze_possible;
 
 sub mocked_volume_snapshot {
     my ($storecfg, $volid, $snapname) = @_;
-    die "Storage config not mocked! aborting"
+    die "Storage config not mocked! aborting\n"
 	if defined($storecfg);
-    die "volid undefined"
+    die "volid undefined\n"
 	if !defined($volid);
-    die "snapname undefined"
+    die "snapname undefined\n"
 	if !defined($snapname);
     if ($vol_snapshot_possible->{$volid}) {
 	if (defined($vol_snapshot->{$volid})) {
@@ -40,17 +40,17 @@ sub mocked_volume_snapshot {
 	}
 	return 1;
     } else {
-	die "volume snapshot disabled";
+	die "volume snapshot disabled\n";
     }
 }
 
 sub mocked_volume_snapshot_delete {
     my ($storecfg, $volid, $snapname) = @_;
-    die "Storage config not mocked! aborting"
+    die "Storage config not mocked! aborting\n"
 	if defined($storecfg);
-    die "volid undefined"
+    die "volid undefined\n"
 	if !defined($volid);
-    die "snapname undefined"
+    die "snapname undefined\n"
 	if !defined($snapname);
     if ($vol_snapshot_delete_possible->{$volid}) {
 	if (defined($vol_snapshot_delete->{$volid})) {
@@ -60,7 +60,7 @@ sub mocked_volume_snapshot_delete {
 	}
 	return 1;
     } else {
-	die "volume snapshot delete disabled";
+	die "volume snapshot delete disabled\n";
     }
 }
 
@@ -71,10 +71,10 @@ sub mocked_run_command {
 	$cmdstring = PVE::Tools::cmd2string($cmd);
 	if ($cmdstring =~ m/.*\/lxc-(un)?freeze.*/) {
 	    return 1 if $freeze_possible;
-	    die "lxc-[un]freeze disabled";
+	    die "lxc-[un]freeze disabled\n";
 	}
     }
-    die "unexpected run_command call, aborting";
+    die "unexpected run_command call, aborting\n";
 }
 
 # Testing methods
@@ -297,11 +297,11 @@ printf("Successful snapshot_create with one existing snapshots");
 testcase_create("102", "test2", 0, "test comment", "", { "local:snapshotable-disk-1" => "test2" });
 
 printf("Expected error for snapshot_create when volume snapshot is not possible");
-testcase_create("201", "test", 0, "test comment", "volume snapshot disabled at snapshot-test.pm line 41.\n\n");
+testcase_create("201", "test", 0, "test comment", "volume snapshot disabled\n\n");
 
 printf("Expected error for snapshot_create with broken lxc-freeze");
 $freeze_possible = 0;
-testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled at snapshot-test.pm line 72.\n\n", undef, { "local:snapshotable-disk-1" => "test" });
+testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled\n\n", undef, { "local:snapshotable-disk-1" => "test" });
 $freeze_possible = 1;
 
 $nodename = "delete";
@@ -325,7 +325,7 @@ printf("Successful snapshot_delete with broken volume_snapshot_delete and force=
 testcase_delete("105", "test", 1, "");
 
 printf("Expected error when snapshot_delete fails with broken volume_snapshot_delete and force=0");
-testcase_delete("201", "test", 0, "volume snapshot delete disabled at snapshot-test.pm line 61.\n");
+testcase_delete("201", "test", 0, "volume snapshot delete disabled\n");
 
 printf("Expected error for snapshot_delete with locked config");
 testcase_delete("202", "test", 0, "VM is locked (backup)\n");

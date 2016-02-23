@@ -2158,7 +2158,7 @@ sub snapshot_rollback {
 	write_config($vmid, $conf);
 
 	if (!$prepare && $snap->{vmstate}) {
-	    die "implement me - save vmstate";
+	    die "implement me - save vmstate\n";
 	}
     };
 
