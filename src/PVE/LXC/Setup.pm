@@ -57,11 +57,17 @@ sub new {
 
     my $self = bless { conf => $conf, rootdir => $rootdir};
 
-    if (!defined($type)) {
+    if ($conf->{ostype} && $conf->{ostype} eq 'unmanaged') {
+	return $self;
+    } elsif (!defined($type)) {
 	# try to autodetect type
 	$type = &$autodetect_type($rootdir);
+	my $expected_type = $conf->{ostype} || $type;
+
+	die "got unexpected ostype ($type != $expected_type)\n"
+	    if $type ne $expected_type;
     }
-    
+
     my $plugin_class = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 
@@ -85,6 +91,8 @@ sub new {
 
 sub protected_call {
     my ($self, $sub) = @_;
+
+    die "internal error" if !$self->{plugin};
 
     # avoid recursion:
     return $sub->() if $self->{in_chroot};
@@ -122,6 +130,8 @@ sub protected_call {
 sub template_fixup {
     my ($self) = @_;
 
+    return if !$self->{plugin}; # unmanaged
+
     my $code = sub {
 	$self->{plugin}->template_fixup($self->{conf});
     };
@@ -130,6 +140,8 @@ sub template_fixup {
  
 sub setup_network {
     my ($self) = @_;
+
+    return if !$self->{plugin}; # unmanaged
 
     my $code = sub {
 	$self->{plugin}->setup_network($self->{conf});
@@ -140,6 +152,8 @@ sub setup_network {
 sub set_hostname {
     my ($self) = @_;
 
+    return if !$self->{plugin}; # unmanaged
+
     my $code = sub {
 	$self->{plugin}->set_hostname($self->{conf});
     };
@@ -148,6 +162,8 @@ sub set_hostname {
 
 sub set_dns {
     my ($self) = @_;
+
+    return if !$self->{plugin}; # unmanaged
 
     my $code = sub {
 	$self->{plugin}->set_dns($self->{conf});
@@ -158,6 +174,8 @@ sub set_dns {
 sub setup_init {
     my ($self) = @_;
 
+    return if !$self->{plugin}; # unmanaged
+
     my $code = sub {
 	$self->{plugin}->setup_init($self->{conf});
     };
@@ -166,7 +184,9 @@ sub setup_init {
 
 sub set_user_password {
     my ($self, $user, $pw) = @_;
-    
+
+    return if !$self->{plugin}; # unmanaged
+
     my $code = sub {
 	$self->{plugin}->set_user_password($self->{conf}, $user, $pw);
     };
@@ -175,6 +195,8 @@ sub set_user_password {
 
 sub rewrite_ssh_host_keys {
     my ($self) = @_;
+
+    return if !$self->{plugin}; # unmanaged
 
     my $conf = $self->{conf};
     my $plugin = $self->{plugin};
@@ -222,6 +244,8 @@ sub rewrite_ssh_host_keys {
 sub pre_start_hook {
     my ($self) = @_;
 
+    return if !$self->{plugin}; # unmanaged
+
     my $code = sub {
 	# Create /fastboot to skip run fsck
 	$self->{plugin}->ct_file_set_contents('/fastboot', '');
@@ -233,6 +257,8 @@ sub pre_start_hook {
 
 sub post_create_hook {
     my ($self, $root_password) = @_;
+
+    return if !$self->{plugin}; # unmanaged
 
     my $code = sub {
 	$self->{plugin}->post_create_hook($self->{conf}, $root_password);

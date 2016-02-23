@@ -119,8 +119,8 @@ my $confdesc = {
     ostype => {
 	optional => 1,
 	type => 'string',
-	enum => ['debian', 'ubuntu', 'centos', 'fedora', 'opensuse', 'archlinux', 'alpine'],
-	description => "OS type. Corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf.",
+	enum => ['debian', 'ubuntu', 'centos', 'fedora', 'opensuse', 'archlinux', 'alpine', 'unmanaged'],
+	description => "OS type. This is used to setup configuration inside the container, and corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf. Value 'unmanaged' can be used to skip and OS specific setup.",
     },
     console => {
 	optional => 1,
@@ -1082,7 +1082,7 @@ sub update_lxc_config {
     my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine)$/x) {
+    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine | unmanaged)$/x) {
 	my $inc ="/usr/share/lxc/config/$ostype.common.conf";
 	$inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
 	$raw .= "lxc.include = $inc\n";
@@ -1399,6 +1399,9 @@ sub update_pct_config {
 	    $used_volids->{$mp->{volume}} = 1;
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
+	} elsif ($opt eq 'ostype') {
+	    next if $hotplug_error->($opt);
+	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";
 	}
