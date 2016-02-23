@@ -17,10 +17,14 @@ my $nodename;
 my $snapshot_possible;
 my $vol_snapshot_possible = {};
 my $vol_snapshot_delete_possible = {};
+my $vol_snapshot_rollback_possible = {};
+my $vol_snapshot_rollback_enabled = {};
 my $vol_snapshot = {};
 my $vol_snapshot_delete = {};
+my $vol_snapshot_rollback = {};
 my $running;
 my $freeze_possible;
+my $kill_possible;
 
 # Mocked methods
 
@@ -64,6 +68,39 @@ sub mocked_volume_snapshot_delete {
     }
 }
 
+sub mocked_volume_snapshot_rollback {
+    my ($storecfg, $volid, $snapname) = @_;
+    die "Storage config not mocked! aborting\n"
+	if defined($storecfg);
+    die "volid undefined\n"
+	if !defined($volid);
+    die "snapname undefined\n"
+	if !defined($snapname);
+    if ($vol_snapshot_rollback_enabled->{$volid}) {
+	if (defined($vol_snapshot_rollback->{$volid})) {
+	    $vol_snapshot_rollback->{$volid} .= ",$snapname";
+	} else {
+	    $vol_snapshot_rollback->{$volid} = $snapname;
+	}
+	return 1;
+    } else {
+	die "volume snapshot rollback disabled\n";
+    }
+}
+
+sub mocked_volume_rollback_is_possible {
+    my ($storecfg, $volid, $snapname) = @_;
+    die "Storage config not mocked! aborting\n"
+	if defined($storecfg);
+    die "volid undefined\n"
+	if !defined($volid);
+    die "snapname undefined\n"
+	if !defined($snapname);
+    return $vol_snapshot_rollback_possible->{$volid}
+	if ($vol_snapshot_rollback_possible->{$volid});
+    die "volume_rollback_is_possible failed\n";
+}
+
 sub mocked_run_command {
     my ($cmd, %param) = @_;
     my $cmdstring;
@@ -72,6 +109,14 @@ sub mocked_run_command {
 	if ($cmdstring =~ m/.*\/lxc-(un)?freeze.*/) {
 	    return 1 if $freeze_possible;
 	    die "lxc-[un]freeze disabled\n";
+	}
+	if ($cmdstring =~ m/.*\/lxc-stop.*--kill.*/) {
+	    if ($kill_possible) {
+		$running = 0;
+		return 1;
+	    } else {
+		return 0;
+	    }
 	}
     }
     die "unexpected run_command call: '$cmdstring', aborting\n";
@@ -147,6 +192,23 @@ sub testcase_delete {
 	is($@, $exp_err, "\$@ correct");
 	is_deeply($vol_snapshot_delete, $exp_vol_snap_delete, "deleted correct volume snapshots");
 	ok(test_file("snapshot-expected/delete/lxc/$vmid.conf", "snapshot-working/delete/lxc/$vmid.conf"), "config file correct");
+    };
+}
+
+sub testcase_rollback {
+    my ($vmid, $snapname, $exp_err, $exp_vol_snap_rollback) = @_;
+    subtest "Rolling back to snapshot '$snapname' of vm '$vmid'" => sub {
+	plan tests => 3;
+	$vol_snapshot_rollback = {};
+	$running = 1;
+	$exp_vol_snap_rollback = {} if !defined($exp_vol_snap_rollback);
+	$@ = undef;
+	eval {
+	    PVE::LXC::snapshot_rollback($vmid, $snapname);
+	};
+	is($@, $exp_err, "\$@ correct");
+	is_deeply($vol_snapshot_rollback, $exp_vol_snap_rollback, "rolled back to correct volume snapshots");
+	ok(test_file("snapshot-expected/rollback/lxc/$vmid.conf", "snapshot-working/rollback/lxc/$vmid.conf"), "config file correct");
     };
 }
 
@@ -271,13 +333,18 @@ testcase_commit("203", "test", "wrong snapshot state\n");
 
 $vol_snapshot_possible->{"local:snapshotable-disk-1"} = 1;
 $vol_snapshot_delete_possible->{"local:snapshotable-disk-1"} = 1;
+$vol_snapshot_rollback_enabled->{"local:snapshotable-disk-1"} = 1;
+$vol_snapshot_rollback_possible->{"local:snapshotable-disk-1"} = 1;
+
 printf("\n");
 printf("Setting up Mocking for PVE::Storage\n");
 my $storage_module = new Test::MockModule('PVE::Storage');
 $storage_module->mock('config', sub { return undef; });
 $storage_module->mock('volume_snapshot', \&mocked_volume_snapshot);
 $storage_module->mock('volume_snapshot_delete', \&mocked_volume_snapshot_delete);
-printf("\tconfig(), volume_snapshot() and volume_snapshot_delete() mocked");
+$storage_module->mock('volume_snapshot_rollback', \&mocked_volume_snapshot_rollback);
+$storage_module->mock('volume_rollback_is_possible', \&mocked_volume_rollback_is_possible);
+printf("\tconfig(), volume_snapshot(), volume_snapshot_delete(), volume_snapshot_rollback() and volume_rollback_is_possible() mocked\n");
 
 printf("\n");
 printf("Setting up Mocking for PVE::Tools\n");
@@ -330,5 +397,43 @@ testcase_delete("201", "test", 0, "volume snapshot delete disabled\n");
 printf("Expected error for snapshot_delete with locked config\n");
 testcase_delete("202", "test", 0, "VM is locked (backup)\n");
 
+$nodename = "rollback";
+printf("\n");
+printf("Running rollback tests\n");
+printf("\n");
+
+$kill_possible = 1;
+
+printf("Successful snapshot_rollback to only existing snapshot\n");
+testcase_rollback("101", "test", "", { "local:snapshotable-disk-1" => "test" });
+
+printf("Successful snapshot_rollback to leaf snapshot\n");
+testcase_rollback("102", "test2", "", { "local:snapshotable-disk-1" => "test2" });
+
+printf("Successful snapshot_rollback to root snapshot\n");
+testcase_rollback("103", "test", "", { "local:snapshotable-disk-1" => "test" });
+
+printf("Successful snapshot_rollback to intermediate snapshot\n");
+testcase_rollback("104", "test2", "", { "local:snapshotable-disk-1" => "test2" });
+
+printf("Expected error for snapshot_rollback with non-existing snapshot\n");
+testcase_rollback("201", "test2", "snapshot 'test2' does not exist\n");
+
+printf("Expected error for snapshot_rollback if volume rollback not possible\n");
+testcase_rollback("202", "test", "volume_rollback_is_possible failed\n");
+
+printf("Expected error for snapshot_rollback with incomplete snapshot\n");
+testcase_rollback("203", "test", "unable to rollback to incomplete snapshot (snapstate = delete)\n");
+
+printf("Expected error for snapshot_rollback with lock\n");
+testcase_rollback("204", "test", "VM is locked (backup)\n");
+
+printf("Expected error for snapshot_rollback with saved vmstate\n");
+testcase_rollback("205", "test", "implement me - save vmstate\n", { "local:snapshotable-disk-1" => "test" });
+
+$kill_possible = 0;
+
+printf("Expected error for snapshot_rollback with unkillable container\n");
+testcase_rollback("206", "test", "unable to rollback vm 206: vm is running\n");
 
 done_testing();
