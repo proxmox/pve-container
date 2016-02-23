@@ -2237,7 +2237,7 @@ sub foreach_mountpoint_reverse {
 sub check_ct_modify_config_perm {
     my ($rpcenv, $authuser, $vmid, $pool, $key_list) = @_;
 
-    return 1 if $authuser ne 'root@pam';
+    return 1 if $authuser eq 'root@pam';
 
     foreach my $opt (@$key_list) {
 
