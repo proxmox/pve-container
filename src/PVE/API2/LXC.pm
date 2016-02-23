@@ -209,7 +209,7 @@ __PACKAGE__->register_method({
 	    raise_perm_exc();
 	}
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, [ keys %$param]);
+	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, $param, []);
 
 	my $storage = extract_param($param, 'storage') // 'local';
 
@@ -1247,7 +1247,7 @@ __PACKAGE__->register_method({
 
 	die "no options specified\n" if !scalar(keys %$param);
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, [keys %$param]);
+	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $param, []);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 

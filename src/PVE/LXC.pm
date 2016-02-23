@@ -12,6 +12,7 @@ use Cwd qw();
 use Fcntl qw(O_RDONLY);
 
 use PVE::Cluster qw(cfs_register_file cfs_read_file);
+use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
@@ -2235,16 +2236,20 @@ sub foreach_mountpoint_reverse {
 }
 
 sub check_ct_modify_config_perm {
-    my ($rpcenv, $authuser, $vmid, $pool, $key_list) = @_;
+    my ($rpcenv, $authuser, $vmid, $pool, $newconf, $delete) = @_;
 
     return 1 if $authuser eq 'root@pam';
 
-    foreach my $opt (@$key_list) {
-
+    my $check = sub {
+	my ($opt, $delete) = @_;
 	if ($opt eq 'cpus' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.CPU']);
 	} elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
+	    return if $delete;
+	    my $data = $opt eq 'rootfs' ? parse_ct_rootfs($newconf->{$opt})
+					: parse_ct_mountpoint($newconf->{$opt});
+	    raise_perm_exc("mountpoint type $data->{type}") if $data->{type} ne 'volume';
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
 	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
@@ -2253,6 +2258,13 @@ sub check_ct_modify_config_perm {
 	} else {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
 	}
+    };
+
+    foreach my $opt (keys %$newconf) {
+	&$check($opt, 0);
+    }
+    foreach my $opt (@$delete) {
+	&$check($opt, 1);
     }
 
     return 1;
