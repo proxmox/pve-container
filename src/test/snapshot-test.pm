@@ -74,7 +74,7 @@ sub mocked_run_command {
 	    die "lxc-[un]freeze disabled\n";
 	}
     }
-    die "unexpected run_command call, aborting\n";
+    die "unexpected run_command call: '$cmdstring', aborting\n";
 }
 
 # Testing methods
@@ -211,123 +211,123 @@ PVE::Tools::run_command("cp -a snapshot-input snapshot-working");
 $running = 1;
 $freeze_possible = 1;
 
-printf("");
-printf("Running prepare tests");
-printf("");
+printf("\n");
+printf("Running prepare tests\n");
+printf("\n");
 $nodename = "prepare";
 
-printf("");
-printf("Setting has_feature to return true");
-printf("");
+printf("\n");
+printf("Setting has_feature to return true\n");
+printf("\n");
 $snapshot_possible = 1;
 
-printf("Successful snapshot_prepare with no existing snapshots");
+printf("Successful snapshot_prepare with no existing snapshots\n");
 testcase_prepare("101", "test", 0, "test comment", '');
 
-printf("Successful snapshot_prepare with one existing snapshot");
+printf("Successful snapshot_prepare with one existing snapshot\n");
 testcase_prepare("102", "test2", 0, "test comment", "");
 
-printf("Expected error for snapshot_prepare on locked container");
+printf("Expected error for snapshot_prepare on locked container\n");
 testcase_prepare("200", "test", 0, "test comment", "VM is locked (snapshot)\n");
 
-printf("Expected error for snapshot_prepare with duplicate snapshot name");
+printf("Expected error for snapshot_prepare with duplicate snapshot name\n");
 testcase_prepare("201", "test", 0, "test comment", "snapshot name 'test' already used\n");
 
-printf("Expected error for snapshot_prepare with save_vmstate");
+printf("Expected error for snapshot_prepare with save_vmstate\n");
 testcase_prepare("202", "test", 1, "test comment", "implement me - snapshot_save_vmstate\n");
 
-printf("");
-printf("Setting has_feature to return false");
-printf("");
+printf("\n");
+printf("Setting has_feature to return false\n");
+printf("\n");
 $snapshot_possible = 0;
 
-printf("Expected error for snapshot_prepare if snapshots not possible");
+printf("Expected error for snapshot_prepare if snapshots not possible\n");
 testcase_prepare("300", "test", 0, "test comment", "snapshot feature is not available\n");
 
-printf("");
-printf("Running commit tests");
-printf("");
+printf("\n");
+printf("Running commit tests\n");
+printf("\n");
 $nodename = "commit";
 
-printf("");
-printf("Setting has_feature to return true");
-printf("");
+printf("\n");
+printf("Setting has_feature to return true\n");
+printf("\n");
 $snapshot_possible = 1;
 
-printf("Successful snapshot_commit with one prepared snapshot");
+printf("Successful snapshot_commit with one prepared snapshot\n");
 testcase_commit("101", "test", "");
 
-printf("Successful snapshot_commit with one committed and one prepared snapshot");
+printf("Successful snapshot_commit with one committed and one prepared snapshot\n");
 testcase_commit("102", "test2", "");
 
-printf("Expected error for snapshot_commit with no snapshot lock");
+printf("Expected error for snapshot_commit with no snapshot lock\n");
 testcase_commit("201", "test", "missing snapshot lock\n");
 
-printf("Expected error for snapshot_commit with invalid snapshot name");
+printf("Expected error for snapshot_commit with invalid snapshot name\n");
 testcase_commit("202", "test", "snapshot 'test' does not exist\n");
 
-printf("Expected error for snapshot_commit with invalid snapshot state");
+printf("Expected error for snapshot_commit with invalid snapshot state\n");
 testcase_commit("203", "test", "wrong snapshot state\n");
 
 $vol_snapshot_possible->{"local:snapshotable-disk-1"} = 1;
 $vol_snapshot_delete_possible->{"local:snapshotable-disk-1"} = 1;
-printf("");
-printf("Setting up Mocking for PVE::Storage");
+printf("\n");
+printf("Setting up Mocking for PVE::Storage\n");
 my $storage_module = new Test::MockModule('PVE::Storage');
 $storage_module->mock('config', sub { return undef; });
 $storage_module->mock('volume_snapshot', \&mocked_volume_snapshot);
 $storage_module->mock('volume_snapshot_delete', \&mocked_volume_snapshot_delete);
 printf("\tconfig(), volume_snapshot() and volume_snapshot_delete() mocked");
 
-printf("");
-printf("Setting up Mocking for PVE::Tools");
+printf("\n");
+printf("Setting up Mocking for PVE::Tools\n");
 my $tools_module = new Test::MockModule('PVE::Tools');
 $tools_module->mock('run_command' => \&mocked_run_command);
-printf("\trun_command() mocked");
+printf("\trun_command() mocked\n");
 
 $nodename = "create";
-printf("");
-printf("Running create tests");
-printf("");
+printf("\n");
+printf("Running create tests\n");
+printf("\n");
 
-printf("Successful snapshot_create with no existing snapshots");
+printf("Successful snapshot_create with no existing snapshots\n");
 testcase_create("101", "test", 0, "test comment", "", { "local:snapshotable-disk-1" => "test" });
 
-printf("Successful snapshot_create with one existing snapshots");
+printf("Successful snapshot_create with one existing snapshots\n");
 testcase_create("102", "test2", 0, "test comment", "", { "local:snapshotable-disk-1" => "test2" });
 
-printf("Expected error for snapshot_create when volume snapshot is not possible");
+printf("Expected error for snapshot_create when volume snapshot is not possible\n");
 testcase_create("201", "test", 0, "test comment", "volume snapshot disabled\n\n");
 
-printf("Expected error for snapshot_create with broken lxc-freeze");
+printf("Expected error for snapshot_create with broken lxc-freeze\n");
 $freeze_possible = 0;
 testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled\n\n", undef, { "local:snapshotable-disk-1" => "test" });
 $freeze_possible = 1;
 
 $nodename = "delete";
-printf("");
-printf("Running delete tests");
-printf("");
+printf("\n");
+printf("Running delete tests\n");
+printf("\n");
 
-printf("Successful snapshot_delete of only existing snapshot");
+printf("Successful snapshot_delete of only existing snapshot\n");
 testcase_delete("101", "test", 0, "", { "local:snapshotable-disk-1" => "test" });
 
-printf("Successful snapshot_delete of leaf snapshot");
+printf("Successful snapshot_delete of leaf snapshot\n");
 testcase_delete("102", "test2", 0, "", { "local:snapshotable-disk-1" => "test2" });
 
-printf("Successful snapshot_delete of root snapshot");
+printf("Successful snapshot_delete of root snapshot\n");
 testcase_delete("103", "test", 0, "", { "local:snapshotable-disk-1" => "test" });
 
-printf("Successful snapshot_delete of intermediate snapshot");
+printf("Successful snapshot_delete of intermediate snapshot\n");
 testcase_delete("104", "test2", 0, "", { "local:snapshotable-disk-1" => "test2" });
 
-printf("Successful snapshot_delete with broken volume_snapshot_delete and force=1");
+printf("Successful snapshot_delete with broken volume_snapshot_delete and force=1\n");
 testcase_delete("105", "test", 1, "");
 
-printf("Expected error when snapshot_delete fails with broken volume_snapshot_delete and force=0");
+printf("Expected error when snapshot_delete fails with broken volume_snapshot_delete and force=0\n");
 testcase_delete("201", "test", 0, "volume snapshot delete disabled\n");
 
-printf("Expected error for snapshot_delete with locked config");
+printf("Expected error for snapshot_delete with locked config\n");
 testcase_delete("202", "test", 0, "VM is locked (backup)\n");
 
 
