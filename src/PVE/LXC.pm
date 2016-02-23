@@ -2134,7 +2134,8 @@ sub snapshot_rollback {
 
 	if ($prepare) {
 	    check_lock($conf);
-	    system("lxc-stop -n $vmid --kill") if check_running($vmid);
+	    PVE::Tools::run_command(['/usr/bin/lxc-stop', '-n', $vmid, '--kill'])
+		if check_running($vmid);
 	}
 
 	die "unable to rollback vm $vmid: vm is running\n"
