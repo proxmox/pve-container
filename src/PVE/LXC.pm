@@ -1892,10 +1892,6 @@ sub has_feature {
 	return if $vzdump && $ms ne 'rootfs' && !$mountpoint->{backup};
 	
 	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname);
-
-	# TODO: implement support for mountpoints
-	die "unable to handle mountpoint '$ms' - feature not implemented\n"
-	    if $ms ne 'rootfs';
     });
 
     return $err ? 0 : 1;
@@ -1970,43 +1966,54 @@ sub sync_container_namespace {
     die "failed to sync container namespace\n" if $? != 0;
 }
 
+sub check_freeze_needed {
+    my ($vmid, $config, $save_vmstate) = @_;
+
+    my $ret = check_running($vmid);
+    return ($ret, $ret);
+}
+
 sub snapshot_create {
     my ($vmid, $snapname, $save_vmstate, $comment) = @_;
 
     my $snap = snapshot_prepare($vmid, $snapname, $save_vmstate, $comment);
 
+    $save_vmstate = 0 if !$snap->{vmstate};
+
     my $conf = load_config($vmid);
 
-    my $running = check_running($vmid);
-    
-    my $unfreeze = 0;
+    my ($running, $freezefs) = check_freeze_needed($vmid, $conf, $snap->{vmstate});
 
     my $drivehash = {};
 
     eval {
-	if ($running) {
-	    $unfreeze = 1;
+	if ($freezefs) {
 	    PVE::Tools::run_command(['/usr/bin/lxc-freeze', '-n', $vmid]);
 	    sync_container_namespace($vmid);
-	};
+	}
 
 	my $storecfg = PVE::Storage::config();
-	my $rootinfo = parse_ct_rootfs($conf->{rootfs});
-	my $volid = $rootinfo->{volume};
+	foreach_mountpoint($conf, sub {
+	    my ($ms, $mountpoint) = @_;
 
-	PVE::Storage::volume_snapshot($storecfg, $volid, $snapname);
-	$drivehash->{rootfs} = 1;
+	    return if $snapname eq 'vzdump' && $ms ne 'rootfs' && !$mountpoint->{backup};
+	    PVE::Storage::volume_snapshot($storecfg, $mountpoint->{volume}, $snapname);
+	    $drivehash->{$ms} = 1;
+	});
     };
     my $err = $@;
     
-    if ($unfreeze) {
-	eval { PVE::Tools::run_command(['/usr/bin/lxc-unfreeze', '-n', $vmid]); };
-	warn $@ if $@;
+    if ($running) {
+	if ($freezefs) {
+	    eval { PVE::Tools::run_command(['/usr/bin/lxc-unfreeze', '-n', $vmid]); };
+	    warn $@ if $@;
+	}
     }
     
     if ($err) {
+	warn "snapshot create failed: starting cleanup\n";
 	eval { snapshot_delete($vmid, $snapname, 1, $drivehash); };
-	warn "$@\n" if $@;
+	warn "$@" if $@;
 	die "$err\n";
     }
 
@@ -2020,6 +2027,7 @@ sub snapshot_delete {
     my $prepare = 1;
 
     my $snap;
+    my $unused = [];
 
     my $unlink_parent = sub {
 	my ($confref, $new_parent) = @_;
@@ -2061,7 +2069,11 @@ sub snapshot_delete {
 	    if ($remove_drive eq 'vmstate') {
 		die "implement me - saving vmstate\n";
 	    } else {
-		die "implement me - remove drive\n";
+		my $value = $snap->{$remove_drive};
+		my $mountpoint = $remove_drive eq 'rootfs' ? parse_ct_rootfs($value, 1) : parse_ct_mountpoint($value, 1);
+		delete $snap->{$remove_drive};
+		add_unused_volume($snap, $mountpoint->{volume})
+		    if (!is_volume_in_use($snap, $mountpoint->{volume}));
 	    }
 	}
 
@@ -2070,6 +2082,10 @@ sub snapshot_delete {
 	} else {
 	    delete $conf->{snapshots}->{$snapname};
 	    delete $conf->{lock} if $drivehash;
+	    foreach my $volid (@$unused) {
+		add_unused_volume($conf, $volid)
+		    if (!is_volume_in_use($conf, $volid));
+	    }
 	}
 
 	write_config($vmid, $conf);
@@ -2086,17 +2102,22 @@ sub snapshot_delete {
     };
 
     # now remove all volume snapshots
-    # only rootfs for now!
-    eval {
-	my $rootfs = $snap->{rootfs};
-	my $rootinfo = parse_ct_rootfs($rootfs);
-	my $volid = $rootinfo->{volume};
-	PVE::Storage::volume_snapshot_delete($storecfg, $volid, $snapname);
-    };
-    if (my $err = $@) {
-	die $err if !$force;
-	warn $err;
-    }
+    foreach_mountpoint($snap, sub {
+	my ($ms, $mountpoint) = @_;
+
+	return if $snapname eq 'vzdump' && $ms ne 'rootfs' && !$mountpoint->{backup};
+	if (!$drivehash || $drivehash->{$ms}) {
+	    eval { PVE::Storage::volume_snapshot_delete($storecfg, $mountpoint->{volume}, $snapname); };
+	    if (my $err = $@) {
+		die $err if !$force;
+		warn $err;
+	    }
+	}
+
+	# save changes (remove mp from snapshot)
+	lock_config($vmid, $updatefn, $ms) if !$force;
+	push @$unused, $mountpoint->{volume};
+    });
 
     # now cleanup config
     $prepare = 0;
@@ -2125,12 +2146,11 @@ sub snapshot_rollback {
 
     my $snap = &$get_snapshot_config();
 
-    # only for rootfs for now!
-    my $rootfs = $snap->{rootfs};
-    my $rootinfo = parse_ct_rootfs($rootfs);
-    my $volid = $rootinfo->{volume};
+    foreach_mountpoint($snap, sub {
+	my ($ms, $mountpoint) = @_;
 
-    PVE::Storage::volume_rollback_is_possible($storecfg, $volid, $snapname);
+	PVE::Storage::volume_rollback_is_possible($storecfg, $mountpoint->{volume}, $snapname);
+    });
 
     my $updatefn = sub {
 
@@ -2174,8 +2194,11 @@ sub snapshot_rollback {
 
     lock_config($vmid, $updatefn);
 
-    # only rootfs for now!
-    PVE::Storage::volume_snapshot_rollback($storecfg, $volid, $snapname);
+    foreach_mountpoint($snap, sub {
+	my ($ms, $mountpoint) = @_;
+
+	PVE::Storage::volume_snapshot_rollback($storecfg, $mountpoint->{volume}, $snapname);
+    });
 
     $prepare = 0;
     lock_config($vmid, $updatefn);

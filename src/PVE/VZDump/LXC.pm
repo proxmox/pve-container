@@ -104,13 +104,14 @@ sub prepare {
 
     my $disks = $task->{disks} = [];
     my $exclude_dirs = $task->{exclude_dirs} = [];
+    my $volids = $task->{volids} = [];
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
 
-    my $volid_list = [];
+    my $volids = $task->{volids} = [];
     PVE::LXC::foreach_mountpoint($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
@@ -125,7 +126,7 @@ sub prepare {
 	}
 
 	push @$disks, $data;
-	push @$volid_list, $volid
+	push @$volids, $volid
 	    if $type eq 'volume';
     });
 
@@ -146,12 +147,12 @@ sub prepare {
 	&$check_mountpoint_empty($rootdir);
 
 	# set snapshot_count (freezes CT if snapshot_count > 1)
-	$task->{snapshot_count} = scalar(@$volid_list);
+	$task->{snapshot_count} = scalar(@$volids);
     } elsif ($mode eq 'stop') {
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
-	PVE::Storage::activate_volumes($storage_cfg, $volid_list);
+	PVE::Storage::activate_volumes($storage_cfg, $volids);
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	foreach my $disk (@$disks) {
@@ -220,13 +221,12 @@ sub snapshot {
 	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
     my $disks = $task->{disks};
-    #todo: reevaluate bind/dev mount handling when implementing snapshots for mps
-    my $volid_list = [map { $_->{volume} } @$disks];
+    my $volids = $task->{volids};
 
     my $rootdir = $default_mount_point;
     my $storage_cfg = $self->{storecfg};
 
-    PVE::Storage::activate_volumes($storage_cfg, $volid_list, 'vzdump');
+    PVE::Storage::activate_volumes($storage_cfg, $volids, 'vzdump');
     foreach my $disk (@$disks) {
 	$disk->{dir} = "${rootdir}$disk->{mp}";
 	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump');
@@ -320,6 +320,12 @@ sub archive {
 	    push @sources, ".$disk->{mp}";
 	}
 	$task->{snapdir} = $rootdir;
+    } elsif ($task->{mode} eq 'snapshot') {
+	# mounting the vzdump snapshots and setting $snapdir is already done,
+	# but we need to include all mountpoints here!
+	foreach my $disk (@$disks) {
+	    push @sources, ".$disk->{mp}";
+	}
     } else {
 	# the data was rsynced to a temporary location, only use '.' to avoid
 	# having mountpoints duplicated
