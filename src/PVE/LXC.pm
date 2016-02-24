@@ -1199,7 +1199,7 @@ sub verify_searchdomain_list {
 }
 
 sub is_volume_in_use {
-    my ($config, $volid) = @_;
+    my ($config, $volid, $include_snapshots) = @_;
     my $used = 0;
 
     foreach_mountpoint($config, sub {
@@ -1209,6 +1209,13 @@ sub is_volume_in_use {
 	    $used = 1;
 	}
     });
+
+    my $snapshots = $config->{snapshots};
+    if ($include_snapshots && $snapshots) {
+	foreach my $snap (keys %$snapshots) {
+	    $used ||= is_volume_in_use($snapshots->{$snap}, $volid);
+	}
+    }
 
     return $used;
 }
@@ -1425,6 +1432,8 @@ sub update_pct_config {
 	my $storage_cfg = PVE::Storage::config();
 	foreach my $volume (@deleted_volumes) {
 	    next if $used_volids->{$volume}; # could have been re-added, too
+	    # also check for references in snapshots
+	    next if is_volume_in_use($conf, $volume, 1);
 	    delete_mountpoint_volume($storage_cfg, $vmid, $volume);
 	}
     }
