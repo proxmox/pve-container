@@ -332,9 +332,18 @@ printf("Expected error for snapshot_commit with invalid snapshot state\n");
 testcase_commit("203", "test", "wrong snapshot state\n");
 
 $vol_snapshot_possible->{"local:snapshotable-disk-1"} = 1;
+$vol_snapshot_possible->{"local:snapshotable-disk-2"} = 1;
+$vol_snapshot_possible->{"local:snapshotable-disk-3"} = 1;
 $vol_snapshot_delete_possible->{"local:snapshotable-disk-1"} = 1;
 $vol_snapshot_rollback_enabled->{"local:snapshotable-disk-1"} = 1;
+$vol_snapshot_rollback_enabled->{"local:snapshotable-disk-2"} = 1;
+$vol_snapshot_rollback_enabled->{"local:snapshotable-disk-3"} = 1;
 $vol_snapshot_rollback_possible->{"local:snapshotable-disk-1"} = 1;
+$vol_snapshot_rollback_possible->{"local:snapshotable-disk-2"} = 1;
+$vol_snapshot_rollback_possible->{"local:snapshotable-disk-3"} = 1;
+
+# possible, but fails
+$vol_snapshot_rollback_possible->{"local:snapshotable-disk-4"} = 1;
 
 printf("\n");
 printf("Setting up Mocking for PVE::Storage\n");
@@ -363,13 +372,19 @@ testcase_create("101", "test", 0, "test comment", "", { "local:snapshotable-disk
 printf("Successful snapshot_create with one existing snapshots\n");
 testcase_create("102", "test2", 0, "test comment", "", { "local:snapshotable-disk-1" => "test2" });
 
+printf("Successful snapshot_create with multiple mps\n");
+testcase_create("103", "test", 0, "test comment", "", { "local:snapshotable-disk-1" => "test", "local:snapshotable-disk-2" => "test", "local:snapshotable-disk-3" => "test" });
+
 printf("Expected error for snapshot_create when volume snapshot is not possible\n");
 testcase_create("201", "test", 0, "test comment", "volume snapshot disabled\n\n");
 
 printf("Expected error for snapshot_create with broken lxc-freeze\n");
 $freeze_possible = 0;
-testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled\n\n", undef, { "local:snapshotable-disk-1" => "test" });
+testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled\n\n");
 $freeze_possible = 1;
+
+printf("Expected error for snapshot_create when mp volume snapshot is not possible\n");
+testcase_create("203", "test", 0, "test comment", "volume snapshot disabled\n\n", { "local:snapshotable-disk-1" => "test" }, { "local:snapshotable-disk-1" => "test" });
 
 $nodename = "delete";
 printf("\n");
@@ -391,8 +406,14 @@ testcase_delete("104", "test2", 0, "", { "local:snapshotable-disk-1" => "test2" 
 printf("Successful snapshot_delete with broken volume_snapshot_delete and force=1\n");
 testcase_delete("105", "test", 1, "");
 
+printf("Successful snapshot_delete with mp broken volume_snapshot_delete and force=1\n");
+testcase_delete("106", "test", 1, "", { "local:snapshotable-disk-1" => "test" });
+
 printf("Expected error when snapshot_delete fails with broken volume_snapshot_delete and force=0\n");
 testcase_delete("201", "test", 0, "volume snapshot delete disabled\n");
+
+printf("Expected error when snapshot_delete fails with broken mp volume_snapshot_delete and force=0\n");
+testcase_delete("203", "test", 0, "volume snapshot delete disabled\n", { "local:snapshotable-disk-1" => "test" });
 
 printf("Expected error for snapshot_delete with locked config\n");
 testcase_delete("202", "test", 0, "VM is locked (backup)\n");
@@ -416,6 +437,9 @@ testcase_rollback("103", "test", "", { "local:snapshotable-disk-1" => "test" });
 printf("Successful snapshot_rollback to intermediate snapshot\n");
 testcase_rollback("104", "test2", "", { "local:snapshotable-disk-1" => "test2" });
 
+printf("Successful snapshot_rollback with multiple mp\n");
+testcase_rollback("105", "test", "", { "local:snapshotable-disk-1" => "test", "local:snapshotable-disk-2" => "test", "local:snapshotable-disk-3" => "test" });
+
 printf("Expected error for snapshot_rollback with non-existing snapshot\n");
 testcase_rollback("201", "test2", "snapshot 'test2' does not exist\n");
 
@@ -435,5 +459,13 @@ $kill_possible = 0;
 
 printf("Expected error for snapshot_rollback with unkillable container\n");
 testcase_rollback("206", "test", "unable to rollback vm 206: vm is running\n");
+
+$kill_possible = 1;
+
+printf("Expected error for snapshot_rollback with mp rollback_is_possible failure\n");
+testcase_rollback("207", "test", "volume_rollback_is_possible failed\n");
+
+printf("Expected error for snapshot_rollback with mp rollback failure (results in inconsistent state)\n");
+testcase_rollback("208", "test", "volume snapshot rollback disabled\n", { "local:snapshotable-disk-1" => "test", "local:snapshotable-disk-2" => "test" });
 
 done_testing();
