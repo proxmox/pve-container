@@ -168,7 +168,9 @@ __PACKAGE__->register_method({
 		    die "you can't start a CT if it's a template\n"
 			if PVE::LXC::is_template($conf);
 
-		    PVE::LXC::check_lock($conf) if !$skiplock;
+		    if (!$skiplock && !PVE::LXC::has_lock($conf, 'mounted')) {
+			PVE::LXC::check_lock($conf);
+		    }
 
 		    my $storage_cfg = cfs_read_file("storage.cfg");
 
@@ -256,7 +258,9 @@ __PACKAGE__->register_method({
 
 		    my $conf = PVE::LXC::load_config($vmid);
 
-		    PVE::LXC::check_lock($conf) if !$skiplock;
+		    if (!$skiplock && !PVE::LXC::has_lock($conf, 'mounted')) {
+			PVE::LXC::check_lock($conf);
+		    }
 
 		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
 

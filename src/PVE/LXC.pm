@@ -1054,6 +1054,11 @@ sub check_lock {
     die "VM is locked ($conf->{'lock'})\n" if $conf->{'lock'};
 }
 
+sub has_lock {
+    my ($conf, $lock) = @_;
+    return $conf->{lock} && (!defined($lock) || $lock eq $conf->{lock});
+}
+
 sub check_protection {
     my ($vm_conf, $err_msg) = @_;
 
