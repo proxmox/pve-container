@@ -3,6 +3,10 @@ package PVE::CLI::pct;
 use strict;
 use warnings;
 
+use POSIX;
+use Fcntl;
+use File::Copy 'copy';
+
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
 use PVE::Cluster;
@@ -207,6 +211,246 @@ __PACKAGE__->register_method ({
 	return undef;
     }});
 
+# File creation with specified ownership and permissions.
+# User and group can be names or decimal numbers.
+# Permissions are explicit (not affected by umask) and can be numeric with the
+# usual 0/0x prefixes for octal/hex.
+sub create_file {
+    my ($path, $perms, $user, $group) = @_;
+    my ($uid, $gid);
+    if (defined($user)) {
+	if ($user =~ /^\d+$/) {
+	    $uid = int($user);
+	} else {
+	    $uid = getpwnam($user) or die "failed to get uid for: $user\n"
+	}
+    }
+    if (defined($group)) {
+	if ($group =~ /^\d+$/) {
+	    $gid = int($group);
+	} else {
+	    $gid = getgrnam($group) or die "failed to get gid for: $group\n"
+	}
+    }
+
+    if (defined($perms)) {
+	$! = 0;
+	my ($mode, $unparsed) = POSIX::strtoul($perms, 0);
+	die "invalid mode: '$perms'\n" if $perms eq '' || $unparsed > 0 || $!;
+	$perms = $mode;
+    }
+
+    my $fd;
+    if (sysopen($fd, $path, O_WRONLY | O_CREAT | O_EXCL, 0)) {
+	$perms = 0666 & ~umask if !defined($perms);
+    } else {
+	# If the path previously existed then we do not care about left-over
+	# file descriptors even if the permissions/ownership is changed.
+	sysopen($fd, $path, O_WRONLY | O_CREAT | O_TRUNC)
+	    or die "failed to create file: $path: $!\n";
+    }
+
+    my $trunc = 0;
+
+    if (defined($perms)) {
+	$trunc = 1;
+	chmod($perms, $fd);
+    }
+
+    if (defined($uid) || defined($gid)) {
+	$trunc = 1;
+	my ($fuid, $fgid) = (stat($fd))[4,5] if !defined($uid) || !defined($gid);
+	$uid = $fuid if !defined($uid);
+	$gid = $fgid if !defined($gid);
+	chown($uid, $gid, $fd)
+	    or die "failed to change file owner: $!\n";
+    }
+    return $fd;
+}
+
+__PACKAGE__->register_method({
+    name => 'pull',
+    path => 'pull',
+    method => 'PUT',
+    description => "Copy a file from the container to the local system.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    path => {
+		type => 'string',
+		description => "Path to a file inside the container to pull.",
+	    },
+	    destination => {
+		type => 'string',
+		description => "Destination",
+	    },
+	    user => {
+		type => 'string',
+		description => 'Owner user name or id.',
+		optional => 1,
+	    },
+	    group => {
+		type => 'string',
+		description => 'Owner group name or id.',
+		optional => 1,
+	    },
+	    perms => {
+		type => 'string',
+		description => 'File permissions to use.',
+		optional => 1,
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $vmid = extract_param($param, 'vmid');
+	my $path = extract_param($param, 'path');
+	my $dest = extract_param($param, 'destination');
+
+	my $perms = extract_param($param, 'perms');
+	my $user = extract_param($param, 'user');
+	my $group = extract_param($param, 'group');
+
+	my $code = sub {
+	    my $running = PVE::LXC::check_running($vmid);
+	    die "can only pull files from a running VM" if !$running;
+
+	    my $realcmd = sub {
+		my $pid = PVE::LXC::find_lxc_pid($vmid);
+		# Avoid symlink issues by opening the files from inside the
+		# corresponding namespaces.
+		my $destfd = create_file($dest, $perms, $user, $group);
+
+		sysopen my $mntnsfd, "/proc/$pid/ns/mnt", O_RDONLY
+		    or die "failed to open the container's mount namespace\n";
+		PVE::Tools::setns(fileno($mntnsfd), PVE::Tools::CLONE_NEWNS)
+		    or die "failed to enter the container's mount namespace\n";
+		close($mntnsfd);
+		chdir('/') or die "failed to change to container root directory\n";
+
+		open my $srcfd, '<', $path
+		    or die "failed to open $path: $!\n";
+
+		copy($srcfd, $destfd);
+	    };
+
+	    # This avoids having to setns() back to our namespace.
+	    return $rpcenv->fork_worker('pull_file', $vmid, undef, $realcmd);
+	};
+
+	return PVE::LXC::lock_config($vmid, $code);
+    }});
+
+__PACKAGE__->register_method({
+    name => 'push',
+    path => 'push',
+    method => 'PUT',
+    description => "Copy a local file to the container.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    file => {
+		type => 'string',
+		description => "Path to a local file.",
+	    },
+	    destination => {
+		type => 'string',
+		description => "Destination inside the container to write to.",
+	    },
+	    user => {
+		type => 'string',
+		description => 'Owner user name or id. When using a name it must exist inside the container.',
+		optional => 1,
+	    },
+	    group => {
+		type => 'string',
+		description => 'Owner group name or id. When using a name it must exist inside the container.',
+		optional => 1,
+	    },
+	    perms => {
+		type => 'string',
+		description => 'File permissions to use.',
+		optional => 1,
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $vmid = extract_param($param, 'vmid');
+	my $file = extract_param($param, 'file');
+	my $dest = extract_param($param, 'destination');
+
+	my $perms = extract_param($param, 'perms');
+	my $user = extract_param($param, 'user');
+	my $group = extract_param($param, 'group');
+
+	my $code = sub {
+	    my $running = PVE::LXC::check_running($vmid);
+	    die "can only push files to a running VM" if !$running;
+
+	    my $conf = PVE::LXC::load_config($vmid);
+	    my $unprivileged = $conf->{unprivileged};
+
+	    my $realcmd = sub {
+		my $pid = PVE::LXC::find_lxc_pid($vmid);
+		# We open the file then enter the container's mount - and for
+		# unprivileged containers - user namespace and then create the
+		# file. This avoids symlink attacks as a symlink cannot point
+		# outside the namespace and our own access is equivalent to the
+		# container-local's root user. Also the user-passed -user and
+		# -group parameters will use the container-local's user and
+		# group names.
+		sysopen my $srcfd, $file, O_RDONLY
+		    or die "failed to open $file for reading\n";
+
+		sysopen my $mntnsfd, "/proc/$pid/ns/mnt", O_RDONLY
+		    or die "failed to open the container's mount namespace\n";
+		my $usernsfd;
+		if ($unprivileged) {
+		    sysopen $usernsfd, "/proc/$pid/ns/user", O_RDONLY
+			or die "failed to open the container's user namespace\n";
+		}
+
+		PVE::Tools::setns(fileno($mntnsfd), PVE::Tools::CLONE_NEWNS)
+		    or die "failed to enter the container's mount namespace\n";
+		close($mntnsfd);
+		chdir('/') or die "failed to change to container root directory\n";
+
+		if ($unprivileged) {
+		    PVE::Tools::setns(fileno($usernsfd), PVE::Tools::CLONE_NEWUSER)
+			or die "failed to enter the container's user namespace\n";
+		    close($usernsfd);
+		    POSIX::setgid(0) or die "setgid failed: $!\n";
+		    POSIX::setuid(0) or die "setuid failed: $!\n";
+		}
+
+		my $destfd = create_file($dest, $perms, $user, $group);
+		copy($srcfd, $destfd);
+	    };
+
+	    # This avoids having to setns() back to our namespace.
+	    return $rpcenv->fork_worker('push_file', $vmid, undef, $realcmd);
+	};
+
+	return PVE::LXC::lock_config($vmid, $code);
+    }});
+
 our $cmddef = {
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
@@ -250,6 +494,9 @@ our $cmddef = {
     unlock => [ __PACKAGE__, 'unlock', ['vmid']],
     exec => [ __PACKAGE__, 'exec', ['vmid', 'extra-args']],
     fsck => [ __PACKAGE__, 'fsck', ['vmid']],
+
+    push => [ __PACKAGE__, 'push', ['vmid', 'file', 'destination']],
+    pull => [ __PACKAGE__, 'pull', ['vmid', 'path', 'destination']],
     
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
