@@ -1800,9 +1800,9 @@ my $snapshot_apply_config = sub {
     return $newconf;
 };
 
-my $snapshot_save_vmstate = sub {
+sub snapshot_save_vmstate {
     die "implement me - snapshot_save_vmstate\n";
-};
+}
 
 sub snapshot_prepare {
     my ($vmid, $snapname, $save_vmstate, $comment) = @_;
@@ -1832,7 +1832,7 @@ sub snapshot_prepare {
 	$snap = $conf->{snapshots}->{$snapname} = {};
 
 	if ($save_vmstate && check_running($vmid)) {
-	    &$snapshot_save_vmstate($vmid, $conf, $snapname, $storecfg);
+	    snapshot_save_vmstate($vmid, $conf, $snapname, $storecfg);
 	}
 
 	&$snapshot_copy_config($conf, $snap);
