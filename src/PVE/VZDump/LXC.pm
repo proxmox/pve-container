@@ -131,7 +131,7 @@ sub prepare {
     });
 
     if ($mode eq 'snapshot') {
-	if (!PVE::LXC::has_feature('vzdump', $conf, $storage_cfg)) {
+	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {
 	    die "mode failure - some volumes do not support snapshots\n";
 	}
 

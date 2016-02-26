@@ -1824,10 +1824,8 @@ sub snapshot_prepare {
 	    if defined($conf->{snapshots}->{$snapname});
 
 	my $storecfg = PVE::Storage::config();
-
-	# workaround until mp snapshots are implemented
-	my $feature = $snapname eq 'vzdump' ? 'vzdump' : 'snapshot';
-	die "snapshot feature is not available\n" if !has_feature($feature, $conf, $storecfg);
+	die "snapshot feature is not available\n"
+	    if !has_feature('snapshot', $conf, $storecfg, undef, undef, $snapname eq 'vzdump');
 
 	$snap = $conf->{snapshots}->{$snapname} = {};
 
@@ -1879,19 +1877,17 @@ sub snapshot_commit {
 }
 
 sub has_feature {
-    my ($feature, $conf, $storecfg, $snapname) = @_;
+    my ($feature, $conf, $storecfg, $snapname, $running, $backup_only) = @_;
     
     my $err;
-    my $vzdump = $feature eq 'vzdump';
-    $feature = 'snapshot' if $vzdump;
 
     foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
-	return if $vzdump && $ms ne 'rootfs' && !$mountpoint->{backup};
+	return if $backup_only && $ms ne 'rootfs' && !$mountpoint->{backup};
 	
-	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname);
+	$err = 1 if !PVE::Storage::volume_has_feature($storecfg, $feature, $mountpoint->{volume}, $snapname, $running);
     });
 
     return $err ? 0 : 1;
