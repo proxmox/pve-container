@@ -2772,4 +2772,30 @@ sub userns_command {
     return [];
 }
 
+sub set_lock {
+    my ($vmid, $lock) = @_;
+    my $conf;
+    lock_config($vmid, sub {
+	$conf = load_config($vmid);
+	check_lock($conf);
+	$conf->{lock} = $lock;
+	write_config($vmid, $conf);
+    });
+    return $conf;
+}
+
+sub remove_lock {
+    my ($vmid, $lock) = @_;
+    lock_config($vmid, sub {
+	my $conf = load_config($vmid);
+	if (!$conf->{lock}) {
+	    die "no lock found trying to remove lock '$lock'\n";
+	} elsif (defined($lock) && $conf->{lock} ne $lock) {
+	    die "found lock '$conf->{lock}' trying to remove lock '$lock'\n";
+	}
+	delete $conf->{lock};
+	write_config($vmid, $conf);
+    });
+}
+
 1;
