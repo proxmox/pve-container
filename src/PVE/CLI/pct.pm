@@ -211,6 +211,61 @@ __PACKAGE__->register_method ({
 	return undef;
     }});
 
+__PACKAGE__->register_method({
+    name => 'mount',
+    path => 'mount',
+    method => 'POST',
+    description => "Mount the container's filesystem on the host. " .
+		   "This will hold a lock on the container and is meant for emergency maintenance only " .
+		   "as it will prevent further operations on the container other than start and stop.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $vmid = extract_param($param, 'vmid');
+	my $storecfg = PVE::Storage::config();
+	PVE::LXC::lock_config($vmid, sub {
+	    my $conf = PVE::LXC::set_lock($vmid, 'mounted');
+	    PVE::LXC::mount_all($vmid, $storecfg, $conf);
+	});
+	return undef;
+    }});
+
+__PACKAGE__->register_method({
+    name => 'unmount',
+    path => 'unmount',
+    method => 'POST',
+    description => "Unmount the container's filesystem.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $vmid = extract_param($param, 'vmid');
+	my $storecfg = PVE::Storage::config();
+	PVE::LXC::lock_config($vmid, sub {
+	    my $conf = PVE::LXC::load_config($vmid);
+	    PVE::LXC::umount_all($vmid, $storecfg, $conf, 0);
+	    PVE::LXC::remove_lock($vmid, 'mounted');
+	});
+	return undef;
+    }});
+
 # File creation with specified ownership and permissions.
 # User and group can be names or decimal numbers.
 # Permissions are explicit (not affected by umask) and can be numeric with the
@@ -495,6 +550,8 @@ our $cmddef = {
     exec => [ __PACKAGE__, 'exec', ['vmid', 'extra-args']],
     fsck => [ __PACKAGE__, 'fsck', ['vmid']],
 
+    mount => [ __PACKAGE__, 'mount', ['vmid']],
+    unmount => [ __PACKAGE__, 'unmount', ['vmid']],
     push => [ __PACKAGE__, 'push', ['vmid', 'file', 'destination']],
     pull => [ __PACKAGE__, 'pull', ['vmid', 'path', 'destination']],
     
