@@ -47,7 +47,7 @@ my $autodetect_type = sub {
     } elsif (-f  "$rootdir/etc/alpine-release") {
 	return "alpine";
     }
-    die "unable to detect OS disribution\n";
+    die "unable to detect OS distribution\n";
 };
 
 sub new {
