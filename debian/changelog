@@ -1,3 +1,11 @@
+pve-container (1.0-47) unstable; urgency=medium
+
+  * Implement pct mount/unmount (for emergency maintenance)
+
+  * Implement pct push/pull
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 27 Feb 2016 14:38:14 +0100
+
 pve-container (1.0-46) unstable; urgency=medium
 
   * setup: move setup_container_getty_service to Base
