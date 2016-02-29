@@ -2396,7 +2396,15 @@ sub query_loopdev {
 # Returns the loop device.
 sub run_with_loopdev {
     my ($func, $file) = @_;
-    my $device;
+    my $device = query_loopdev($file);
+    # Try to reuse an existing device
+    if ($device) {
+	# We assume that whoever setup the loop device is responsible for
+	# detaching it.
+	&$func($device);
+	return $device;
+    }
+
     my $parser = sub {
 	my $line = shift;
 	if ($line =~ m@^(/dev/loop\d+)$@) {
