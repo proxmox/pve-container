@@ -233,11 +233,7 @@ sub setup_network {
 	next unless $data || $bootproto;
 	$header .= "BOOTPROTO=$bootproto\n";
 	$self->ct_file_set_contents($filename, $header . $data);
-
-	# To keep user-defined routes in route-$iface we mark ours:
-	my $head = "# --- BEGIN PVE ROUTES ---\n";
-	my $tail = "# --- END PVE ROUTES ---\n";
-	$self->ct_modify_file_head_portion($routefile, $head, $tail, $routes);
+	$self->ct_modify_file($routefile, $routes, delete => 1, prepend => 1);
     }
 
     my $sysconfig_network = "/etc/sysconfig/network";

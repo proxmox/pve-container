@@ -156,7 +156,7 @@ sub set_dns {
 	$data .= "nameserver $ns\n";
     }
 
-    $self->ct_file_set_contents("/etc/resolv.conf", $data);
+    $self->ct_modify_file("/etc/resolv.conf", $data, replace => 1);
 }
 
 sub set_hostname {
@@ -560,31 +560,62 @@ sub ct_file_set_contents {
     $self->ct_reset_ownership($file);
 }
 
-# Modify a marked portion of a file and move it to the beginning of the file.
-# If the file becomes empty it will be deleted.
-sub ct_modify_file_head_portion {
-    my ($self, $file, $head, $tail, $data) = @_;
-    if ($self->ct_file_exists($file)) {
-	my $old = $self->ct_file_get_contents($file);
-	# remove the portion between $head and $tail (all instances via /g)
-	$old =~ s/(?:^|(?<=\n))\Q$head\E.*\Q$tail\E//gs;
-	chomp $old;
-	if ($old) {
-	    # old data existed, append and add the trailing newline
-	    if ($data) {
-		$self->ct_file_set_contents($file, $head.$data.$tail . $old."\n");
-	    } else {
-		$self->ct_file_set_contents($file, $old."\n");
-	    }
-	} elsif ($data) {
-	    # only our own data will be added
-	    $self->ct_file_set_contents($file, $head.$data.$tail);
+# Modify a marked portion of a file.
+# Optionally if the file becomes empty it will be deleted.
+sub ct_modify_file {
+    my ($self, $file, $data, %options) = @_;
+
+    my $head = "# --- BEGIN PVE ---\n";
+    my $tail = "# --- END PVE ---\n";
+
+    if (!$self->ct_file_exists($file)) {
+	$self->ct_file_set_contents($file, $head.$data.$tail) if $data;
+	return;
+    }
+
+    my $old = $self->ct_file_get_contents($file);
+    my @lines = split(/\n/, $old);
+
+    my ($beg, $end);
+    foreach my $i (0..(@lines-1)) {
+	my $line = $lines[$i];
+	$beg = $i if !defined($beg) &&
+	    $line =~ /^#\s*---\s*BEGIN\s*PVE\s*/;
+	$end = $i if !defined($end) && defined($beg) &&
+	    $line =~ /^#\s*---\s*END\s*PVE\s*/i;
+	last if defined($beg) && defined($end);
+    }
+
+    if (defined($beg) && defined($end)) {
+	# Found a section
+	if ($data) {
+	    chomp $tail;
+	    splice @lines, $beg, $end-$beg+1, $head.$data.$tail;
 	} else {
-	    # empty => delete
-	    $self->ct_unlink($file);
+	    if ($beg == 0 && $end == (@lines-1)) {
+		$self->ct_unlink($file) if $options{delete};
+		return;
+	    }
+	    splice @lines, $beg, $end-$beg+1, $head.$data.$tail;
 	}
-    } else {
-	$self->ct_file_set_contents($file, $head.$data.$tail);
+	$self->ct_file_set_contents($file, join("\n", @lines) . "\n");
+    } elsif ($data) {
+	# No section found
+	my $content = join("\n", @lines);
+	chomp $content;
+	if (!$content && !$data && $options{delete}) {
+	    $self->ct_unlink($file);
+	    return;
+	}
+	$content .= "\n";
+	$data = $head.$data.$tail;
+	if ($options{replace}) {
+	    $self->ct_file_set_contents($file, $data);
+	} elsif ($options{prepend}) {
+	    $self->ct_file_set_contents($file, $data . $content);
+	} else { # append
+	    $self->ct_file_set_contents($file, $content . $data);
+	}
     }
 }
 

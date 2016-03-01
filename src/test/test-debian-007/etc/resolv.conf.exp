@@ -1,3 +1,5 @@
+# --- BEGIN PVE ---
 search proxmox.com
 nameserver 8.8.8.8
 nameserver 8.8.8.9
+# --- END PVE ---
