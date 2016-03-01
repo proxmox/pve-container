@@ -104,7 +104,6 @@ sub prepare {
 
     my $disks = $task->{disks} = [];
     my $exclude_dirs = $task->{exclude_dirs} = [];
-    my $volids = $task->{volids} = [];
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
