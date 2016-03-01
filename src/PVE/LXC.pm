@@ -431,6 +431,19 @@ sub write_pct_config {
     my ($filename, $conf) = @_;
 
     delete $conf->{snapstate}; # just to be sure
+    my $volidlist = get_vm_volumes($conf);
+    my $used_volids = {};
+    foreach my $vid (@$volidlist) {
+	$used_volids->{$vid} = 1;
+    }
+
+    # remove 'unusedX' settings if the volume is still used
+    foreach my $key (keys %$conf) {
+	my $value = $conf->{$key};
+	if ($key =~ m/^unused/ && $used_volids->{$value}) {
+	    delete $conf->{$key};
+	}
+    }
 
     my $generate_raw_config = sub {
 	my ($conf) = @_;
@@ -1303,7 +1316,7 @@ sub update_pct_config {
 		check_protection($conf, "can't remove CT $vmid drive '$opt'");
 		my $mp = parse_ct_mountpoint($conf->{$opt});
 		delete $conf->{$opt};
-		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		if ($mp->{type} eq 'volume') {
 		    add_unused_volume($conf, $mp->{volume});
 		}
 	    } elsif ($opt eq 'unprivileged') {
@@ -1390,7 +1403,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	    if (defined($old)) {
 		my $mp = parse_ct_mountpoint($old);
-		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		if ($mp->{type} eq 'volume') {
 		    add_unused_volume($conf, $mp->{volume});
 		}
 	    }
@@ -1404,7 +1417,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	    if (defined($old)) {
 		my $mp = parse_ct_rootfs($old);
-		if ($mp->{type} eq 'volume' && !is_volume_in_use($conf, $mp->{volume})) {
+		if ($mp->{type} eq 'volume') {
 		    add_unused_volume($conf, $mp->{volume});
 		}
 	    }
@@ -1419,17 +1432,6 @@ sub update_pct_config {
 	    die "implement me: $opt";
 	}
 	write_config($vmid, $conf) if $running;
-    }
-
-    # Cleanup config:
-
-    # Remove unused disks after re-adding
-    foreach my $key (keys %$conf) {
-	next if $key !~ /^unused\d+/;
-	my $volid = $conf->{$key};
-	if ($used_volids->{$volid}) {
-	    delete $conf->{$key};
-	}
     }
 
     # Apply deletions and creations of new volumes
@@ -2071,8 +2073,7 @@ sub snapshot_delete {
 		my $value = $snap->{$remove_drive};
 		my $mountpoint = $remove_drive eq 'rootfs' ? parse_ct_rootfs($value, 1) : parse_ct_mountpoint($value, 1);
 		delete $snap->{$remove_drive};
-		add_unused_volume($snap, $mountpoint->{volume})
-		    if (!is_volume_in_use($snap, $mountpoint->{volume}));
+		add_unused_volume($snap, $mountpoint->{volume});
 	    }
 	}
 
@@ -2082,8 +2083,7 @@ sub snapshot_delete {
 	    delete $conf->{snapshots}->{$snapname};
 	    delete $conf->{lock} if $drivehash;
 	    foreach my $volid (@$unused) {
-		add_unused_volume($conf, $volid)
-		    if (!is_volume_in_use($conf, $volid));
+		add_unused_volume($conf, $volid);
 	    }
 	}
 
