@@ -810,6 +810,8 @@ sub vmstatus {
 
 	$d->{cpus} = $conf->{cpulimit} || $cpucount;
 
+	$d->{lock} = $conf->{lock} || '';
+
 	if ($d->{pid}) {
 	    my $res = get_container_disk_usage($vmid, $d->{pid});
 	    $d->{disk} = $res->{used};
