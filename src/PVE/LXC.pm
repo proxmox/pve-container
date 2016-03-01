@@ -1871,11 +1871,9 @@ sub snapshot_commit {
 	delete $snap->{snapstate};
 	delete $conf->{lock};
 
-	my $newconf = &$snapshot_apply_config($conf, $snap);
+	$conf->{parent} = $snapname;
 
-	$newconf->{parent} = $snapname;
-
-	write_config($vmid, $newconf);
+	write_config($vmid, $conf);
     };
 
     lock_config($vmid, $updatefn);
