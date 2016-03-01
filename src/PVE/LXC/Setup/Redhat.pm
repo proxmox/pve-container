@@ -138,18 +138,13 @@ sub set_hostname {
     }
 
     my $hosts_fn = "/etc/hosts";
-    my $etc_hosts_data = '';
-    if ($self->ct_file_exists($hosts_fn)) {
-	$etc_hosts_data =  $self->ct_file_get_contents($hosts_fn);
-    }
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
     my ($searchdomains) = $self->lookup_dns_conf($conf);
 
-    $etc_hosts_data = PVE::LXC::Setup::Base::update_etc_hosts($etc_hosts_data, $hostip, $oldname,
-							    $hostname, $searchdomains);
+    $self->update_etc_hosts($hostip, $oldname, $hostname, $searchdomains);
 
     if ($self->ct_file_exists($hostname_fn)) {
 	$self->ct_file_set_contents($hostname_fn, "$hostname\n");
@@ -162,8 +157,6 @@ sub set_hostname {
 	}
 	$self->ct_file_set_contents($sysconfig_network, $data);
     }
-
-    $self->ct_file_set_contents($hosts_fn, $etc_hosts_data);
 }
 
 sub setup_network {

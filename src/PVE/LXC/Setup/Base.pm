@@ -54,11 +54,9 @@ sub lookup_dns_conf {
 }
 
 sub update_etc_hosts {
-    my ($etc_hosts_data, $hostip, $oldname, $newname, $searchdomains) = @_;
+    my ($self, $hostip, $oldname, $newname, $searchdomains) = @_;
 
     my $done = 0;
-
-    my @lines;
 
     my $namepart = ($newname =~ s/\..*$//r);
 
@@ -73,67 +71,32 @@ sub update_etc_hosts {
 	$all_names .= ' ' if $all_names;
 	$all_names .= $newname;
     }
-    
-    foreach my $line (split(/\n/, $etc_hosts_data)) {
-	if ($line =~ m/^#/ || $line =~ m/^\s*$/) {
-	    push @lines, $line;
-	    next;
-	}
 
-	my ($ip, @names) = split(/\s+/, $line);
-	if (($ip eq '127.0.0.1') || ($ip eq '::1')) {
-	    push @lines, $line;
-	    next;
-	}
+    # Prepare section:
+    my $section = '';
+    my $hosts_fn = '/etc/hosts';
 
-	my $found = 0;
-	foreach my $name (@names) {
-	    if ($name eq $oldname || $name eq $newname) {
-		$found = 1;
-	    } else {
-		# fixme: record extra names?
-	    }
-	}
-	$found = 1 if defined($hostip) && ($ip eq $hostip);
-	
-	if ($found) {
-	    if (!$done) {
-		if (defined($hostip)) {
-		    push @lines, "$hostip $all_names";
-		} else {
-		    push @lines, "127.0.1.1 $namepart";
-		}
-		$done = 1;
-	    }
-	    next;
-	} else {
-	    push @lines, $line;
-	}
+    my $lo4 = "127.0.0.1 localhost.localnet localhost\n";
+    my $lo6 = "::1 localhost.localnet localhost\n";
+    if ($self->ct_file_exists($hosts_fn)) {
+	my $data = $self->ct_file_get_contents($hosts_fn);
+	# don't take localhost entries within our hosts sections into account
+	$data = remove_pve_sections($data);
+
+	# check for existing localhost entries
+	$section .= $lo4 if $data !~ /^\h*127\.0\.0\.1\h+/m;
+	$section .= $lo6 if $data !~ /^\h*::1\h+/m;
+    } else {
+	$section .= $lo4 . $lo6;
     }
 
-    if (!$done) {
-	if (defined($hostip)) {
-	    push @lines, "$hostip $all_names";
-	} else {
-	    push @lines, "127.0.1.1 $namepart";
-	}	
+    if (defined($hostip)) {
+	$section .= "$hostip $all_names\n";
+    } else {
+	$section .= "127.0.1.1 $namepart\n";
     }
 
-    my $found_localhost = 0;
-    foreach my $line (@lines) {
-	if ($line =~ m/^127.0.0.1\s/) {
-	    $found_localhost = 1;
-	    last;
-	}
-    }
-
-    if (!$found_localhost) {
-	unshift @lines, "127.0.0.1 localhost.localnet localhost";
-    }
-    
-    $etc_hosts_data = join("\n", @lines) . "\n";
-    
-    return $etc_hosts_data;
+    $self->ct_modify_file($hosts_fn, $section);
 }
 
 sub template_fixup {
@@ -170,23 +133,14 @@ sub set_hostname {
     
     my $oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
 
-    my $hosts_fn = "/etc/hosts";
-    my $etc_hosts_data = '';
-    
-    if ($self->ct_file_exists($hosts_fn)) {
-	$etc_hosts_data =  $self->ct_file_get_contents($hosts_fn);
-    }
-
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
     my ($searchdomains) = $self->lookup_dns_conf($conf);
 
-    $etc_hosts_data = update_etc_hosts($etc_hosts_data, $hostip, $oldname, 
-				       $hostname, $searchdomains);
+    $self->update_etc_hosts($hostip, $oldname, $hostname, $searchdomains);
     
     $self->ct_file_set_contents($hostname_fn, "$namepart\n");
-    $self->ct_file_set_contents($hosts_fn, $etc_hosts_data);
 }
 
 sub setup_network {
@@ -617,6 +571,19 @@ sub ct_modify_file {
 	    $self->ct_file_set_contents($file, $content . $data);
 	}
     }
+}
+
+sub remove_pve_sections {
+    my ($data) = @_;
+
+    my $head = "# --- BEGIN PVE ---";
+    my $tail = "# --- END PVE ---";
+
+    # Remove the sections enclosed with the above headers and footers.
+    # from a line (^) starting with '\h*$head'
+    # to a line (the other ^) starting with '\h*$tail' up to including that
+    # line's end (.*?$).
+    return $data =~ s/^\h*\Q$head\E.*^\h*\Q$tail\E.*?$//rgms;
 }
 
 1;

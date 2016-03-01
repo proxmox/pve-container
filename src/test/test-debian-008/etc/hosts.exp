@@ -1,2 +1,6 @@
 127.0.0.1 localhost.localdomain localhost
+127.0.1.1 CT102
+# --- BEGIN PVE ---
+::1 localhost.localnet localhost
 192.168.3.102 CT102.proxmox.com CT102
+# --- END PVE ---
