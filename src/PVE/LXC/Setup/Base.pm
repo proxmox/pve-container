@@ -228,7 +228,7 @@ sub setup_systemd_console {
 	}
     }
 
-    my $ttycount = PVE::LXC::get_tty_count($conf);
+    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
 
     for (my $i = 1; $i < 7; $i++) {
 	my $tty_service_lnk = "/etc/systemd/system/getty.target.wants/getty\@tty$i.service";
@@ -257,7 +257,7 @@ sub setup_systemd_networkd {
 
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
-	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 	next if !$d->{name};
 
 	my $filename = "/etc/systemd/network/$d->{name}.network";

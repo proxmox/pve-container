@@ -35,7 +35,7 @@ if ($iface =~ m/^veth(\d+)i(\d+)$/) {
 die "unable to find network definition for interface '$iface'\n"
     if !defined($netconf);
 
-my $net = PVE::LXC::parse_lxc_network($netconf);
+my $net = PVE::LXC::Config->parse_lxc_network($netconf);
     
 my $tag = $net->{tag};
 my $firewall = $net->{firewall};

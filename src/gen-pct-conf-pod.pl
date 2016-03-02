@@ -6,10 +6,10 @@ use lib '.';
 use strict;
 use warnings;
 use PVE::Tools;
-use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::PodParser;
 
-my $properties = PVE::LXC::json_config_properties();
+my $properties = PVE::LXC::Config->json_config_properties();
 my $format = PVE::PodParser::dump_properties($properties);
 
 my $parser = PVE::PodParser->new();

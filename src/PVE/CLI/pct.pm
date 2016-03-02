@@ -173,8 +173,8 @@ __PACKAGE__->register_method ({
 
 	    defined($conf->{$device}) || die "cannot run command on unexisting mountpoint $device\n";
 
-	    my $mount_point = $device eq 'rootfs' ? PVE::LXC::parse_ct_rootfs($conf->{$device}) :
-		PVE::LXC::parse_ct_mountpoint($conf->{$device});
+	    my $mount_point = $device eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$device}) :
+		PVE::LXC::Config->parse_ct_mountpoint($conf->{$device});
 
 	    my $volid = $mount_point->{volume};
 

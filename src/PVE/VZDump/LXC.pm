@@ -293,7 +293,7 @@ sub assemble {
     delete $conf->{snapshots};
     delete $conf->{'pve.parent'};
 
-    PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::write_pct_config("/lxc/$vmid.conf", $conf));
+    PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf));
 
     my $firewall ="/etc/pve/firewall/$vmid.fw";
     if (-e  $firewall) {

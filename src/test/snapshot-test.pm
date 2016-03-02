@@ -241,7 +241,7 @@ sub mocked_load_config {
 
     my $raw = PVE::Tools::file_get_contents($filename);
 
-    my $conf = PVE::LXC::parse_pct_config($filename, $raw);
+    my $conf = PVE::LXC::Config::parse_pct_config($filename, $raw);
     return $conf;
 }
 
@@ -257,7 +257,7 @@ sub mocked_write_config {
 	}
     }
 
-    my $raw = PVE::LXC::write_pct_config($filename, $conf);
+    my $raw = PVE::LXC::Config::write_pct_config($filename, $conf);
 
     PVE::Tools::file_set_contents($filename, $raw);
 }

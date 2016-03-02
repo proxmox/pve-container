@@ -67,7 +67,7 @@ sub setup_init {
     my $version = $self->{version};
 
     if ($version eq '12.04' || $version eq '14.04') {
-	my $ttycount =  PVE::LXC::get_tty_count($conf);
+	my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
 	for (my $i = 1; $i < 7; $i++) {
 	    my $filename = "/etc/init/tty$i.conf";
 	    if ($i <= $ttycount) {

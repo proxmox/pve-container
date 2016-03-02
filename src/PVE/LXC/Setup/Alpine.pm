@@ -58,10 +58,10 @@ sub setup_network {
 	next if $k !~ m/^net(\d+)$/;
 	my $netstring = $conf->{$k};
 	# check for dhcp6:
-	my $d = PVE::LXC::parse_lxc_network($netstring);
+	my $d = PVE::LXC::Config->parse_lxc_network($netstring);
 	if (defined($d->{ip6}) && $d->{ip6} eq 'dhcp') {
 	    $d->{ip6} = 'manual';
-	    $netstring = PVE::LXC::print_lxc_network($d);
+	    $netstring = PVE::LXC::Config->print_lxc_network($d);
 	}
 	$netconf->{$k} = $netstring;
     }

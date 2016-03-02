@@ -111,13 +111,13 @@ sub recover_config {
 
     if ($conf_file =~ m/pct\.conf/) {
 
-	$conf = PVE::LXC::parse_pct_config("/lxc/0.conf" , $raw);
+	$conf = PVE::LXC::Config::parse_pct_config("/lxc/0.conf" , $raw);
 
 	delete $conf->{snapshots};
 	delete $conf->{template}; # restored CT is never a template
 	
 	if (defined($conf->{rootfs})) {
-	    my $rootinfo = PVE::LXC::parse_ct_rootfs($conf->{rootfs});
+	    my $rootinfo = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
 	    $disksize = $rootinfo->{size} if defined($rootinfo->{size});
 	}
 	
@@ -151,7 +151,7 @@ sub restore_and_configure {
 	my $ovz_cfg_fn = "$rootdir/etc/vzdump/vps.conf";
 	if (-f $pct_cfg_fn) {
 	    my $raw = PVE::Tools::file_get_contents($pct_cfg_fn);
-	    my $oldconf = PVE::LXC::parse_pct_config("/lxc/$vmid.conf", $raw);
+	    my $oldconf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $raw);
 
 	    foreach my $key (keys %$oldconf) {
 		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged';
@@ -210,7 +210,7 @@ sub create_rootfs {
 	    delete $old_conf->{$opt} if $opt =~ m/^mp\d+$/;
 	}
 
-	PVE::LXC::update_pct_config($vmid, $conf, 0, $old_conf);
+	PVE::LXC::Config->update_pct_config($vmid, $conf, 0, $old_conf);
 
 	PVE::LXC::Config->write_config($vmid, $conf);
 

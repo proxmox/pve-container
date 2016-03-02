@@ -59,7 +59,7 @@ sub setup_network {
 
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
-	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 	next if !$d->{name};
 
 	my $filename = "/etc/sysconfig/network/ifcfg-$d->{name}";

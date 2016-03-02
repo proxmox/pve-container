@@ -43,7 +43,7 @@ sub setup_init {
     my $filename = "/etc/inittab";
     return if !$self->ct_file_exists($filename);
 
-    my $ttycount =  PVE::LXC::get_tty_count($conf);
+    my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
     my $inittab = $self->ct_file_get_contents($filename);
 
     my @lines = grep {
@@ -121,7 +121,7 @@ sub setup_network {
     foreach my $k (keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $ind = $1;
-	my $d = PVE::LXC::parse_lxc_network($conf->{$k});
+	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 	if ($d->{name}) {
 	    my $net = {};
 	    my $cidr;

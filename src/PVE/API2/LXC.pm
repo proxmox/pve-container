@@ -107,7 +107,7 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     parameters => {
     	additionalProperties => 0,
-	properties => PVE::LXC::json_config_properties({
+	properties => PVE::LXC::Config->json_config_properties({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::Cluster::complete_next_vmid }),
 	    ostemplate => {
@@ -276,7 +276,7 @@ __PACKAGE__->register_method({
 	# check/activate default storage
 	&$check_and_activate_storage($storage) if !defined($param->{rootfs});
 
-	PVE::LXC::update_pct_config($vmid, $conf, 0, $no_disk_param);
+	PVE::LXC::Config->update_pct_config($vmid, $conf, 0, $no_disk_param);
 
 	$conf->{unprivileged} = 1 if $unprivileged;
 
@@ -1090,8 +1090,8 @@ __PACKAGE__->register_method({
 
 		if (($opt eq 'rootfs') || ($opt =~ m/^mp\d+$/)) {
 		    my $mp = $opt eq 'rootfs' ?
-			PVE::LXC::parse_ct_rootfs($value) :
-			PVE::LXC::parse_ct_mountpoint($value);
+			PVE::LXC::Config->parse_ct_rootfs($value) :
+			PVE::LXC::Config->parse_ct_mountpoint($value);
 
 		    if ($mp->{type} eq 'volume') {
 			my $volid = $mp->{volume};
@@ -1155,7 +1155,7 @@ __PACKAGE__->register_method({
 			    push @$newvollist, $newvolid;
 			    $mp->{volume} = $newvolid;
 
-			    $newconf->{$opt} = PVE::LXC::print_ct_mountpoint($mp, $opt eq 'rootfs');
+			    $newconf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp, $opt eq 'rootfs');
 			    PVE::LXC::Config->write_config($newid, $newconf);
 			}
 		    }
@@ -1261,8 +1261,8 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $disk = $param->{disk};
-	    my $mp = $disk eq 'rootfs' ? PVE::LXC::parse_ct_rootfs($conf->{$disk}) :
-		PVE::LXC::parse_ct_mountpoint($conf->{$disk});
+	    my $mp = $disk eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$disk}) :
+		PVE::LXC::Config->parse_ct_mountpoint($conf->{$disk});
 
 	    my $volid = $mp->{volume};
 
@@ -1294,7 +1294,7 @@ __PACKAGE__->register_method({
 		PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
 
 		$mp->{size} = $newsize;
-		$conf->{$disk} = PVE::LXC::print_ct_mountpoint($mp, $disk eq 'rootfs');
+		$conf->{$disk} = PVE::LXC::Config->print_ct_mountpoint($mp, $disk eq 'rootfs');
 
 		PVE::LXC::Config->write_config($vmid, $conf);
 

@@ -76,7 +76,7 @@ __PACKAGE__->register_method({
     },
     parameters => {
     	additionalProperties => 0,
-	properties => PVE::LXC::json_config_properties(
+	properties => PVE::LXC::Config->json_config_properties(
 	    {
 		node => get_standard_option('pve-node'),
 		vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
@@ -119,7 +119,7 @@ __PACKAGE__->register_method({
 				  "-delete $opt' at the same time" })
 		if defined($param->{$opt});
 
-	    if (!PVE::LXC::option_exists($opt)) {
+	    if (!PVE::LXC::Config->option_exists($opt)) {
 		raise_param_exc({ delete => "unknown option '$opt'" });
 	    }
 	}
@@ -137,7 +137,7 @@ __PACKAGE__->register_method({
 
 	    my $running = PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::update_pct_config($vmid, $conf, $running, $param, \@delete);
+	    PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete);
 
 	    PVE::LXC::Config->write_config($vmid, $conf);
 	    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
