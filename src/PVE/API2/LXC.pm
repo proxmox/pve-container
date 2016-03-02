@@ -882,7 +882,7 @@ __PACKAGE__->register_method({
 	my $storage_cfg = PVE::Storage::config();
 	#Maybe include later
 	#my $nodelist = PVE::LXC::shared_nodes($conf, $storage_cfg);
-	my $hasFeature = PVE::LXC::has_feature($feature, $conf, $storage_cfg, $snapname);
+	my $hasFeature = PVE::LXC::Config->has_feature($feature, $conf, $storage_cfg, $snapname);
 
 	return {
 	    hasFeature => $hasFeature,

@@ -128,7 +128,7 @@ __PACKAGE__->register_method({
 
 	my $realcmd = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
-	    PVE::LXC::snapshot_create($vmid, $snapname, 0, $param->{description});
+	    PVE::LXC::Config->snapshot_create($vmid, $snapname, 0, $param->{description});
 	};
 
 	return $rpcenv->fork_worker('pctsnapshot', $vmid, $authuser, $realcmd);
@@ -176,7 +176,7 @@ __PACKAGE__->register_method({
 
 	my $realcmd = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "delete snapshot VM $vmid: $snapname");
-	    PVE::LXC::snapshot_delete($vmid, $snapname, $param->{force});
+	    PVE::LXC::Config->snapshot_delete($vmid, $snapname, $param->{force});
 	};
 
 	return $rpcenv->fork_worker('lxcdelsnapshot', $vmid, $authuser, $realcmd);
@@ -254,7 +254,7 @@ __PACKAGE__->register_method({
 
 	my $realcmd = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "rollback snapshot LXC $vmid: $snapname");
-	    PVE::LXC::snapshot_rollback($vmid, $snapname);
+	    PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 	};
 
 	return $rpcenv->fork_worker('lxcrollback', $vmid, $authuser, $realcmd);

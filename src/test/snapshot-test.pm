@@ -1,4 +1,4 @@
-package PVE::LXC;
+package PVE::LXC::Test;
 
 use strict;
 use warnings;
@@ -28,6 +28,15 @@ my $freeze_possible;
 my $kill_possible;
 
 # Mocked methods
+
+sub mocked_has_feature {
+    my ($feature, $conf, $storecfg, $snapname) = @_;
+    return $snapshot_possible;
+}
+
+sub mocked_check_running {
+    return $running;
+}
 
 sub mocked_volume_snapshot {
     my ($storecfg, $volid, $snapname) = @_;
@@ -141,7 +150,7 @@ sub testcase_prepare {
 	plan tests => 2;
 	$@ = undef;
 	eval {
-	    PVE::LXC::snapshot_prepare($vmid, $snapname, $save_vmstate, $comment);
+	    PVE::LXC::Config->__snapshot_prepare($vmid, $snapname, $save_vmstate, $comment);
 	};
 	is($@, $exp_err, "\$@ correct");
 	ok(test_file("snapshot-expected/prepare/lxc/$vmid.conf", "snapshot-working/prepare/lxc/$vmid.conf"), "config file correct");
@@ -154,7 +163,7 @@ sub testcase_commit {
 	plan tests => 2;
 	$@ = undef;
 	eval {
-	    PVE::LXC::snapshot_commit($vmid, $snapname);
+	    PVE::LXC::Config->__snapshot_commit($vmid, $snapname);
 	};
 	is($@, $exp_err, "\$@ correct");
 	ok(test_file("snapshot-expected/commit/lxc/$vmid.conf", "snapshot-working/commit/lxc/$vmid.conf"), "config file correct");
@@ -171,7 +180,7 @@ sub testcase_create {
 	$exp_vol_snap_delete = {} if !defined($exp_vol_snap_delete);
 	$@ = undef;
 	eval {
-	    PVE::LXC::snapshot_create($vmid, $snapname, $save_vmstate, $comment);
+	    PVE::LXC::Config->snapshot_create($vmid, $snapname, $save_vmstate, $comment);
 	};
 	is($@, $exp_err, "\$@ correct");
 	is_deeply($vol_snapshot, $exp_vol_snap, "created correct volume snapshots");
@@ -188,7 +197,7 @@ sub testcase_delete {
 	$exp_vol_snap_delete = {} if !defined($exp_vol_snap_delete);
 	$@ = undef;
 	eval {
-	    PVE::LXC::snapshot_delete($vmid, $snapname, $force);
+	    PVE::LXC::Config->snapshot_delete($vmid, $snapname, $force);
 	};
 	is($@, $exp_err, "\$@ correct");
 	is_deeply($vol_snapshot_delete, $exp_vol_snap_delete, "deleted correct volume snapshots");
@@ -205,7 +214,7 @@ sub testcase_rollback {
 	$exp_vol_snap_rollback = {} if !defined($exp_vol_snap_rollback);
 	$@ = undef;
 	eval {
-	    PVE::LXC::snapshot_rollback($vmid, $snapname);
+	    PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 	};
 	is($@, $exp_err, "\$@ correct");
 	is_deeply($vol_snapshot_rollback, $exp_vol_snap_rollback, "rolled back to correct volume snapshots");
@@ -253,30 +262,24 @@ sub mocked_write_config {
     PVE::Tools::file_set_contents($filename, $raw);
 }
 
-sub has_feature {
-    my ($feature, $conf, $storecfg, $snapname) = @_;
-    return $snapshot_possible;
-}
-
-sub check_running {
-    return $running;
-}
 # END mocked PVE::LXC methods
 
-sub sync_container_namespace {
-    return;
-}
-
-# END redefine PVE::LXC methods
 
 PVE::Tools::run_command("rm -rf snapshot-working");
 PVE::Tools::run_command("cp -a snapshot-input snapshot-working");
+
+printf("\n");
+printf("Setting up Mocking for PVE::LXC and PVE::LXC::Config\n");
+my $lxc_module = new Test::MockModule('PVE::LXC');
+$lxc_module->mock('sync_container_namespace', sub { return; });
+$lxc_module->mock('check_running', \&mocked_check_running);
 
 my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
 $lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });
 $lxc_config_module->mock('cfs_config_path', \&mocked_cfs_config_path);
 $lxc_config_module->mock('load_config', \&mocked_load_config);
 $lxc_config_module->mock('write_config', \&mocked_write_config);
+$lxc_config_module->mock('has_feature', \&mocked_has_feature);
 
 $running = 1;
 $freeze_possible = 1;

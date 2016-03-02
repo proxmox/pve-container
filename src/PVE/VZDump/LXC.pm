@@ -130,7 +130,7 @@ sub prepare {
     });
 
     if ($mode eq 'snapshot') {
-	if (!PVE::LXC::has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {
+	if (!PVE::LXC::Config->has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {
 	    die "mode failure - some volumes do not support snapshots\n";
 	}
 
@@ -138,7 +138,7 @@ sub prepare {
 
 	if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
 	    $self->loginfo("found old vzdump snapshot (force removal)");
-	    PVE::LXC::snapshot_delete($vmid, 'vzdump', 1);
+	    PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 1);
 	}
 
 	my $rootdir = $default_mount_point;
@@ -211,7 +211,7 @@ sub snapshot {
     $self->loginfo("create storage snapshot 'vzdump'");
 
     # todo: freeze/unfreeze if we have more than one volid
-    PVE::LXC::snapshot_create($vmid, 'vzdump', 0, "vzdump backup snapshot");
+    PVE::LXC::Config->snapshot_create($vmid, 'vzdump', 0, "vzdump backup snapshot");
     $task->{cleanup}->{remove_snapshot} = 1;
     
     # reload config
@@ -388,7 +388,7 @@ sub cleanup {
 
     if ($task->{cleanup}->{remove_snapshot}) {
 	$self->loginfo("remove vzdump snapshot");
-	PVE::LXC::snapshot_delete($vmid, 'vzdump', 0);
+	PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
     }
 }
 
