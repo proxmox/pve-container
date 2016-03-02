@@ -8,6 +8,7 @@ use lib qw(..);
 use PVE::Storage;
 use PVE::Storage::Plugin;
 use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::Tools;
 
 use Test::MockModule;
@@ -212,22 +213,22 @@ sub testcase_rollback {
     };
 }
 
-# BEGIN redefine PVE::LXC methods 
-sub config_file_lock {
+# BEGIN mocked PVE::LXC::Config methods
+sub mocked_config_file_lock {
     return "snapshot-working/pve-test.lock";
 }
 
-sub cfs_config_path {
-    my ($vmid, $node) = @_;
+sub mocked_cfs_config_path {
+    my ($class, $vmid, $node) = @_;
 
     $node = $nodename if !$node;
     return "snapshot-working/$node/lxc/$vmid.conf";
 }
 
-sub load_config {
-    my ($vmid, $node) = @_;
+sub mocked_load_config {
+    my ($class, $vmid, $node) = @_;
 
-    my $filename = cfs_config_path($vmid, $node);
+    my $filename = PVE::LXC::Config->cfs_config_path($vmid, $node);
 
     my $raw = PVE::Tools::file_get_contents($filename);
 
@@ -235,10 +236,10 @@ sub load_config {
     return $conf;
 }
 
-sub write_config {
-    my ($vmid, $conf) = @_;
+sub mocked_write_config {
+    my ($class, $vmid, $conf) = @_;
 
-    my $filename = cfs_config_path($vmid);
+    my $filename = PVE::LXC::Config->cfs_config_path($vmid);
 
     if ($conf->{snapshots}) {
 	foreach my $snapname (keys %{$conf->{snapshots}}) {
@@ -260,6 +261,7 @@ sub has_feature {
 sub check_running {
     return $running;
 }
+# END mocked PVE::LXC methods
 
 sub sync_container_namespace {
     return;
@@ -269,6 +271,12 @@ sub sync_container_namespace {
 
 PVE::Tools::run_command("rm -rf snapshot-working");
 PVE::Tools::run_command("cp -a snapshot-input snapshot-working");
+
+my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
+$lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });
+$lxc_config_module->mock('cfs_config_path', \&mocked_cfs_config_path);
+$lxc_config_module->mock('load_config', \&mocked_load_config);
+$lxc_config_module->mock('write_config', \&mocked_write_config);
 
 $running = 1;
 $freeze_possible = 1;
@@ -290,7 +298,7 @@ printf("Successful snapshot_prepare with one existing snapshot\n");
 testcase_prepare("102", "test2", 0, "test comment", "");
 
 printf("Expected error for snapshot_prepare on locked container\n");
-testcase_prepare("200", "test", 0, "test comment", "VM is locked (snapshot)\n");
+testcase_prepare("200", "test", 0, "test comment", "CT is locked (snapshot)\n");
 
 printf("Expected error for snapshot_prepare with duplicate snapshot name\n");
 testcase_prepare("201", "test", 0, "test comment", "snapshot name 'test' already used\n");
@@ -416,7 +424,7 @@ printf("Expected error when snapshot_delete fails with broken mp volume_snapshot
 testcase_delete("203", "test", 0, "volume snapshot delete disabled\n", { "local:snapshotable-disk-1" => "test" });
 
 printf("Expected error for snapshot_delete with locked config\n");
-testcase_delete("202", "test", 0, "VM is locked (backup)\n");
+testcase_delete("202", "test", 0, "CT is locked (backup)\n");
 
 $nodename = "rollback";
 printf("\n");
@@ -450,7 +458,7 @@ printf("Expected error for snapshot_rollback with incomplete snapshot\n");
 testcase_rollback("203", "test", "unable to rollback to incomplete snapshot (snapstate = delete)\n");
 
 printf("Expected error for snapshot_rollback with lock\n");
-testcase_rollback("204", "test", "VM is locked (backup)\n");
+testcase_rollback("204", "test", "CT is locked (backup)\n");
 
 printf("Expected error for snapshot_rollback with saved vmstate\n");
 testcase_rollback("205", "test", "implement me - save vmstate\n", { "local:snapshotable-disk-1" => "test" });

@@ -16,7 +16,7 @@ use base qw(PVE::AbstractMigrate);
 sub lock_vm {
     my ($self, $vmid, $code, @param) = @_;
 
-    return PVE::LXC::lock_config($vmid, $code, @param);
+    return PVE::LXC::Config->lock_config($vmid, $code, @param);
 }
 
 sub prepare {
@@ -27,9 +27,9 @@ sub prepare {
     $self->{storecfg} = PVE::Storage::config();
 
     # test is VM exist
-    my $conf = $self->{vmconf} = PVE::LXC::load_config($vmid);
+    my $conf = $self->{vmconf} = PVE::LXC::Config->load_config($vmid);
 
-    PVE::LXC::check_lock($conf);
+    PVE::LXC::Config->check_lock($conf);
 
     my $running = 0;
     if (PVE::LXC::check_running($vmid)) {
@@ -75,7 +75,7 @@ sub phase1 {
 
     my $conf = $self->{vmconf};
     $conf->{lock} = 'migrate';
-    PVE::LXC::write_config($vmid, $conf);
+    PVE::LXC::Config->write_config($vmid, $conf);
 
     if ($self->{running}) {
 	$self->log('info', "container is running - using online migration");
@@ -100,8 +100,8 @@ sub phase1 {
 	}
     });
 
-    my $conffile = PVE::LXC::config_file($vmid);
-    my $newconffile = PVE::LXC::config_file($vmid, $self->{node});
+    my $conffile = PVE::LXC::Config->config_file($vmid);
+    my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
 
     if ($self->{running}) {
 	die "implement me";
@@ -162,7 +162,7 @@ sub final_cleanup {
 	my $conf = $self->{vmconf};
 	delete $conf->{lock};
 
-	eval { PVE::LXC::write_config($vmid, $conf); };
+	eval { PVE::LXC::Config->write_config($vmid, $conf); };
 	if (my $err = $@) {
 	    $self->log('err', $err);
 	}

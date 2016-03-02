@@ -52,7 +52,7 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	# test if VM exists
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	my $res = [
 	    { subdir => 'current' },
@@ -87,7 +87,7 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	# test if VM exists
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	my $vmstatus =  PVE::LXC::vmstatus($param->{vmid});
 	my $status = $vmstatus->{$param->{vmid}};
@@ -163,13 +163,13 @@ __PACKAGE__->register_method({
 
 		    syslog('info', "starting CT $vmid: $upid\n");
 
-		    my $conf = PVE::LXC::load_config($vmid);
+		    my $conf = PVE::LXC::Config->load_config($vmid);
 
 		    die "you can't start a CT if it's a template\n"
-			if PVE::LXC::is_template($conf);
+			if PVE::LXC::Config->is_template($conf);
 
-		    if (!$skiplock && !PVE::LXC::has_lock($conf, 'mounted')) {
-			PVE::LXC::check_lock($conf);
+		    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+			PVE::LXC::Config->check_lock($conf);
 		    }
 
 		    my $storage_cfg = cfs_read_file("storage.cfg");
@@ -188,7 +188,7 @@ __PACKAGE__->register_method({
 		return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
 	    };
 
-	    return PVE::LXC::lock_config($vmid, $lockcmd);
+	    return PVE::LXC::Config->lock_config($vmid, $lockcmd);
 	}
     }});
 
@@ -256,10 +256,10 @@ __PACKAGE__->register_method({
 
 		    syslog('info', "stopping CT $vmid: $upid\n");
 
-		    my $conf = PVE::LXC::load_config($vmid);
+		    my $conf = PVE::LXC::Config->load_config($vmid);
 
-		    if (!$skiplock && !PVE::LXC::has_lock($conf, 'mounted')) {
-			PVE::LXC::check_lock($conf);
+		    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+			PVE::LXC::Config->check_lock($conf);
 		    }
 
 		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
@@ -272,7 +272,7 @@ __PACKAGE__->register_method({
 		return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
 	    };
 
-	    return PVE::LXC::lock_config($vmid, $lockcmd);
+	    return PVE::LXC::Config->lock_config($vmid, $lockcmd);
 	}
     }});
 
@@ -334,9 +334,9 @@ __PACKAGE__->register_method({
 
 		$timeout = 60 if !defined($timeout);
 
-		my $conf = PVE::LXC::load_config($vmid);
+		my $conf = PVE::LXC::Config->load_config($vmid);
 
-		PVE::LXC::check_lock($conf);
+		PVE::LXC::Config->check_lock($conf);
 
 		my $storage_cfg = PVE::Storage::config();
 
@@ -365,7 +365,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_config($vmid, $lockcmd);
+	return PVE::LXC::Config->lock_config($vmid, $lockcmd);
     }});
 
 __PACKAGE__->register_method({
@@ -407,9 +407,9 @@ __PACKAGE__->register_method({
 
 		syslog('info', "suspend CT $vmid: $upid\n");
 
-		my $conf = PVE::LXC::load_config($vmid);
+		my $conf = PVE::LXC::Config->load_config($vmid);
 
-		PVE::LXC::check_lock($conf);
+		PVE::LXC::Config->check_lock($conf);
 
 		my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
 
@@ -421,7 +421,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_config($vmid, $lockcmd);
+	return PVE::LXC::Config->lock_config($vmid, $lockcmd);
     }});
 
 __PACKAGE__->register_method({

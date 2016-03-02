@@ -48,7 +48,7 @@ __PACKAGE__->register_method({
     code => sub {
 	my ($param) = @_;
 
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	delete $conf->{snapshots};
 	delete $conf->{lxc};
@@ -130,8 +130,8 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 
-	    my $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_lock($conf);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
@@ -139,11 +139,11 @@ __PACKAGE__->register_method({
 
 	    PVE::LXC::update_pct_config($vmid, $conf, $running, $param, \@delete);
 
-	    PVE::LXC::write_config($vmid, $conf);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
 	};
 
-	PVE::LXC::lock_config($vmid, $code);
+	PVE::LXC::Config->lock_config($vmid, $code);
 
 	return undef;
     }});

@@ -48,10 +48,10 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{vmid};
 
-	PVE::LXC::lock_config($vmid, sub {
-	    my $conf = PVE::LXC::load_config($vmid);
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    delete $conf->{lock};
-	    PVE::LXC::write_config($vmid, $conf);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	});
 
 	return undef;
@@ -74,7 +74,7 @@ __PACKAGE__->register_method ({
 	my ($param) = @_;
 
 	# test if container exists on this node
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	my $cmd = PVE::LXC::get_console_command($param->{vmid}, $conf);
 	exec(@$cmd);
@@ -99,7 +99,7 @@ __PACKAGE__->register_method ({
 	my $vmid = $param->{vmid};
 
 	# test if container exists on this node
-	PVE::LXC::load_config($vmid);
+	PVE::LXC::Config->load_config($vmid);
 
 	die "Error: container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
 
@@ -124,7 +124,7 @@ __PACKAGE__->register_method ({
 	my ($param) = @_;
 
 	# test if container exists on this node
-	PVE::LXC::load_config($param->{vmid});
+	PVE::LXC::Config->load_config($param->{vmid});
 
 	if (!@{$param->{'extra-args'}}) {
 	    die "missing command";
@@ -168,7 +168,7 @@ __PACKAGE__->register_method ({
 	# critical path: all of this will be done while the container is locked
 	my $do_fsck = sub {
 
-	    my $conf = PVE::LXC::load_config($vmid);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    my $storage_cfg = PVE::Storage::config();
 
 	    defined($conf->{$device}) || die "cannot run command on unexisting mountpoint $device\n";
@@ -207,7 +207,7 @@ __PACKAGE__->register_method ({
 	    PVE::Tools::run_command($command);
 	};
 
-	PVE::LXC::lock_config($vmid, $do_fsck);
+	PVE::LXC::Config->lock_config($vmid, $do_fsck);
 	return undef;
     }});
 
@@ -232,8 +232,8 @@ __PACKAGE__->register_method({
 
 	my $vmid = extract_param($param, 'vmid');
 	my $storecfg = PVE::Storage::config();
-	PVE::LXC::lock_config($vmid, sub {
-	    my $conf = PVE::LXC::set_lock($vmid, 'mounted');
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $conf = PVE::LXC::Config->set_lock($vmid, 'mounted');
 	    PVE::LXC::mount_all($vmid, $storecfg, $conf);
 	});
 	return undef;
@@ -258,10 +258,10 @@ __PACKAGE__->register_method({
 
 	my $vmid = extract_param($param, 'vmid');
 	my $storecfg = PVE::Storage::config();
-	PVE::LXC::lock_config($vmid, sub {
-	    my $conf = PVE::LXC::load_config($vmid);
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::umount_all($vmid, $storecfg, $conf, 0);
-	    PVE::LXC::remove_lock($vmid, 'mounted');
+	    PVE::LXC::Config->remove_lock($vmid, 'mounted');
 	});
 	return undef;
     }});
@@ -401,7 +401,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('pull_file', $vmid, undef, $realcmd);
 	};
 
-	return PVE::LXC::lock_config($vmid, $code);
+	return PVE::LXC::Config->lock_config($vmid, $code);
     }});
 
 __PACKAGE__->register_method({
@@ -459,7 +459,7 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 	    die "can only push files to a running VM" if !$running;
 
-	    my $conf = PVE::LXC::load_config($vmid);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    my $unprivileged = $conf->{unprivileged};
 
 	    my $realcmd = sub {
@@ -503,7 +503,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('push_file', $vmid, undef, $realcmd);
 	};
 
-	return PVE::LXC::lock_config($vmid, $code);
+	return PVE::LXC::Config->lock_config($vmid, $code);
     }});
 
 our $cmddef = {

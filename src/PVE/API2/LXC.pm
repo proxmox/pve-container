@@ -166,7 +166,7 @@ __PACKAGE__->register_method({
 
 	my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
 
-	my $basecfg_fn = PVE::LXC::config_file($vmid);
+	my $basecfg_fn = PVE::LXC::Config->config_file($vmid);
 
 	my $same_container_exists = -f $basecfg_fn;
 
@@ -185,8 +185,8 @@ __PACKAGE__->register_method({
 	if (!($same_container_exists && $restore && $force)) {
 	    PVE::Cluster::check_vmid_unused($vmid);
 	} else {
-	    my $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_protection($conf, "unable to restore CT $vmid");
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_protection($conf, "unable to restore CT $vmid");
 	}
 
 	my $password = extract_param($param, 'password');
@@ -315,7 +315,7 @@ __PACKAGE__->register_method({
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;
 		$conf->{swap} //= 512;
-		PVE::LXC::create_config($vmid, $conf);
+		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
@@ -325,7 +325,7 @@ __PACKAGE__->register_method({
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
 	};
 
-	my $realcmd = sub { PVE::LXC::lock_config($vmid, $code); };
+	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
 
 	&$check_vmid_usage(); # first check before locking
 
@@ -364,7 +364,7 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	# test if VM exists
-	my $conf = PVE::LXC::load_config($param->{vmid});
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	my $res = [
 	    { subdir => 'config' },
@@ -503,11 +503,11 @@ __PACKAGE__->register_method({
 	my $vmid = $param->{vmid};
 
 	# test if container exists
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	PVE::LXC::check_protection($conf, "can't remove CT $vmid");
+	PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid");
 
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
@@ -518,8 +518,8 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 	    # reload config after lock
-	    $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_lock($conf);
+	    $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    die $running_error_msg if PVE::LXC::check_running($vmid);
 
@@ -528,7 +528,7 @@ __PACKAGE__->register_method({
 	    PVE::Firewall::remove_vmfw_conf($vmid);
 	};
 
-	my $realcmd = sub { PVE::LXC::lock_config($vmid, $code); };
+	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
 	
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
     }});
@@ -598,7 +598,7 @@ __PACKAGE__->register_method ({
 	my $remcmd = $remip ?
 	    ['/usr/bin/ssh', '-t', $remip] : [];
 
-	my $conf = PVE::LXC::load_config($vmid, $node);
+	my $conf = PVE::LXC::Config->load_config($vmid, $node);
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
 
 	my $shcmd = [ '/usr/bin/dtach', '-A',
@@ -719,7 +719,7 @@ __PACKAGE__->register_method ({
 	my $authpath = "/vms/$vmid";
 	my $permissions = 'VM.Console';
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
@@ -786,7 +786,7 @@ __PACKAGE__->register_method({
 	my $vmid = extract_param($param, 'vmid');
 
 	# test if VM exists
-	PVE::LXC::load_config($vmid);
+	PVE::LXC::Config->load_config($vmid);
 
 	# try to detect errors early
 	if (PVE::LXC::check_running($vmid)) {
@@ -872,7 +872,7 @@ __PACKAGE__->register_method({
 
 	my $feature = extract_param($param, 'feature');
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	if($snapname){
 	    my $snap = $conf->{snapshots}->{$snapname};
@@ -922,14 +922,14 @@ __PACKAGE__->register_method({
 
 	my $updatefn =  sub {
 
-	    my $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_lock($conf);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    die "unable to create template, because CT contains snapshots\n"
 		if $conf->{snapshots} && scalar(keys %{$conf->{snapshots}});
 
 	    die "you can't convert a template to a template\n"
-		if PVE::LXC::is_template($conf);
+		if PVE::LXC::Config->is_template($conf);
 
 	    die "you can't convert a CT to template if the CT is running\n"
 		if PVE::LXC::check_running($vmid);
@@ -940,14 +940,14 @@ __PACKAGE__->register_method({
 
 	    $conf->{template} = 1;
 
-	    PVE::LXC::write_config($vmid, $conf);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	    # and remove lxc config
 	    PVE::LXC::update_lxc_config(undef, $vmid, $conf);
 
 	    return $rpcenv->fork_worker('vztemplate', $vmid, $authuser, $realcmd);
 	};
 
-	PVE::LXC::lock_config($vmid, $updatefn);
+	PVE::LXC::Config->lock_config($vmid, $updatefn);
 
 	return undef;
     }});
@@ -1060,9 +1060,9 @@ __PACKAGE__->register_method({
 
 	    # do all tests after lock
 	    # we also try to do all tests before we fork the worker
-	    my $conf = PVE::LXC::load_config($vmid);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
 
-	    PVE::LXC::check_lock($conf);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    my $verify_running = PVE::LXC::check_running($vmid) || 0;
 
@@ -1073,7 +1073,7 @@ __PACKAGE__->register_method({
 
 	    my $oldconf = $snapname ? $conf->{snapshots}->{$snapname} : $conf;
 
-	    my $conffile = PVE::LXC::config_file($newid);
+	    my $conffile = PVE::LXC::Config->config_file($newid);
 	    die "unable to create CT $newid: config file already exists\n"
 		if -f $conffile;
 
@@ -1156,12 +1156,12 @@ __PACKAGE__->register_method({
 			    $mp->{volume} = $newvolid;
 
 			    $newconf->{$opt} = PVE::LXC::print_ct_mountpoint($mp, $opt eq 'rootfs');
-			    PVE::LXC::write_config($newid, $newconf);
+			    PVE::LXC::Config->write_config($newid, $newconf);
 			}
 		    }
 
 		    delete $newconf->{lock};
-		    PVE::LXC::write_config($newid, $newconf);
+		    PVE::LXC::Config->write_config($newid, $newconf);
 
 		    PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
 		};
@@ -1186,7 +1186,7 @@ __PACKAGE__->register_method({
 
 	};
 
-	return PVE::LXC::lock_config($vmid, $clonefn);
+	return PVE::LXC::Config->lock_config($vmid, $clonefn);
     }});
 
 
@@ -1253,8 +1253,8 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 
-	    my $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_lock($conf);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
@@ -1296,7 +1296,7 @@ __PACKAGE__->register_method({
 		$mp->{size} = $newsize;
 		$conf->{$disk} = PVE::LXC::print_ct_mountpoint($mp, $disk eq 'rootfs');
 
-		PVE::LXC::write_config($vmid, $conf);
+		PVE::LXC::Config->write_config($vmid, $conf);
 
 		if ($format eq 'raw') {
 		    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
@@ -1334,7 +1334,7 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('resize', $vmid, $authuser, $realcmd);
 	};
 
-	return PVE::LXC::lock_config($vmid, $code);;
+	return PVE::LXC::Config->lock_config($vmid, $code);;
     }});
 
 1;

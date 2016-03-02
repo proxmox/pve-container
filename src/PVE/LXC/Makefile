@@ -1,4 +1,4 @@
-SOURCES=Setup.pm Create.pm Migrate.pm
+SOURCES=Setup.pm Create.pm Migrate.pm Config.pm
 
 .PHONY: install
 install: ${SOURCES} 

@@ -48,7 +48,7 @@ __PACKAGE__->register_method({
 
 	my $vmid = $param->{vmid};
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 	my $snaphash = $conf->{snapshots} || {};
 
 	my $res = [];
@@ -299,8 +299,8 @@ __PACKAGE__->register_method({
 
 	my $updatefn =  sub {
 
-	    my $conf = PVE::LXC::load_config($vmid);
-	    PVE::LXC::check_lock($conf);
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
 
 	    my $snap = $conf->{snapshots}->{$snapname};
 
@@ -308,10 +308,10 @@ __PACKAGE__->register_method({
 
 	    $snap->{description} = $param->{description} if defined($param->{description});
 
-	    PVE::LXC::write_config($vmid, $conf, 1);
+	    PVE::LXC::Config->write_config($vmid, $conf, 1);
 	};
 
-	PVE::LXC::lock_config($vmid, $updatefn);
+	PVE::LXC::Config->lock_config($vmid, $updatefn);
 
 	return undef;
     }});
@@ -345,7 +345,7 @@ __PACKAGE__->register_method({
 
 	my $snapname = extract_param($param, 'snapname');
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	my $snap = $conf->{snapshots}->{$snapname};
 

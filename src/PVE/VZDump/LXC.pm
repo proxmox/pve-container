@@ -97,7 +97,7 @@ my $check_mountpoint_empty = sub {
 sub prepare {
     my ($self, $task, $vmid, $mode) = @_;
 
-    my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
+    my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::Config->load_config($vmid);
     my $storage_cfg = $self->{storecfg};
 
     my $running = PVE::LXC::check_running($vmid);
@@ -177,15 +177,15 @@ sub lock_vm {
     my $lockconfig = sub {
 	my ($self, $vmid) = @_;
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
-	PVE::LXC::check_lock($conf);
+	PVE::LXC::Config->check_lock($conf);
 	$conf->{lock} = 'backup';
 
-	PVE::LXC::write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
     };
 
-    PVE::LXC::lock_config($vmid, $lockconfig, ($self, $vmid));
+    PVE::LXC::Config->lock_config($vmid, $lockconfig, ($self, $vmid));
 }
 
 sub unlock_vm {
@@ -194,15 +194,15 @@ sub unlock_vm {
     my $unlockconfig = sub {
 	my ($self, $vmid) = @_;
 
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	if ($conf->{lock} && $conf->{lock} eq 'backup') {
 	    delete $conf->{lock};
-	    PVE::LXC::write_config($vmid, $conf);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	}
     };
 
-    PVE::LXC::lock_config($vmid, $unlockconfig, ($self, $vmid));
+    PVE::LXC::Config->lock_config($vmid, $unlockconfig, ($self, $vmid));
 }
 
 sub snapshot {
@@ -215,7 +215,7 @@ sub snapshot {
     $task->{cleanup}->{remove_snapshot} = 1;
     
     # reload config
-    my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::load_config($vmid);
+    my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::Config->load_config($vmid);
     die "unable to read vzdump snapshot config - internal error"
 	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
@@ -288,7 +288,7 @@ sub assemble {
 
     mkpath "$tmpdir/etc/vzdump/";
 
-    my $conf = PVE::LXC::load_config($vmid);
+    my $conf = PVE::LXC::Config->load_config($vmid);
     delete $conf->{lock};
     delete $conf->{snapshots};
     delete $conf->{'pve.parent'};
@@ -376,7 +376,7 @@ sub archive {
 sub cleanup {
     my ($self, $task, $vmid) = @_;
 
-    my $conf = PVE::LXC::load_config($vmid);
+    my $conf = PVE::LXC::Config->load_config($vmid);
 
     if ($task->{mode} ne 'suspend') {
 	my $rootdir = $default_mount_point;

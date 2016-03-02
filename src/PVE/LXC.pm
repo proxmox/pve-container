@@ -2,6 +2,7 @@ package PVE::LXC;
 
 use strict;
 use warnings;
+
 use POSIX qw(EINTR);
 
 use Socket;
@@ -21,6 +22,7 @@ use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full);
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
+use PVE::LXC::Config;
 use Time::HiRes qw (gettimeofday);
 
 use Data::Dumper;
@@ -605,99 +607,10 @@ sub config_list {
     return $res;
 }
 
-sub cfs_config_path {
-    my ($vmid, $node) = @_;
-
-    $node = $nodename if !$node;
-    return "nodes/$node/lxc/$vmid.conf";
-}
-
-sub config_file {
-    my ($vmid, $node) = @_;
-
-    my $cfspath = cfs_config_path($vmid, $node);
-    return "/etc/pve/$cfspath";
-}
-
-sub load_config {
-    my ($vmid, $node) = @_;
-
-    $node = $nodename if !$node;
-    my $cfspath = cfs_config_path($vmid, $node);
-
-    my $conf = PVE::Cluster::cfs_read_file($cfspath);
-    die "container $vmid does not exist\n" if !defined($conf);
-
-    return $conf;
-}
-
-sub create_config {
-    my ($vmid, $conf) = @_;
-
-    my $dir = "/etc/pve/nodes/$nodename/lxc";
-    mkdir $dir;
-
-    write_config($vmid, $conf);
-}
-
 sub destroy_config {
     my ($vmid) = @_;
 
-    unlink config_file($vmid, $nodename);
-}
-
-sub write_config {
-    my ($vmid, $conf) = @_;
-
-    my $cfspath = cfs_config_path($vmid);
-
-    PVE::Cluster::cfs_write_file($cfspath, $conf);
-}
-
-# flock: we use one file handle per process, so lock file
-# can be called multiple times and will succeed for the same process.
-
-my $lock_handles =  {};
-my $lockdir = "/run/lock/lxc";
-
-sub config_file_lock {
-    my ($vmid) = @_;
-
-    return "$lockdir/pve-config-${vmid}.lock";
-}
-
-sub lock_config_full {
-    my ($vmid, $timeout, $code, @param) = @_;
-
-    my $filename = config_file_lock($vmid);
-
-    mkdir $lockdir if !-d $lockdir;
-
-    my $res = lock_file($filename, $timeout, $code, @param);
-
-    die $@ if $@;
-
-    return $res;
-}
-
-sub lock_config_mode {
-    my ($vmid, $timeout, $shared, $code, @param) = @_;
-
-    my $filename = config_file_lock($vmid);
-
-    mkdir $lockdir if !-d $lockdir;
-
-    my $res = lock_file_full($filename, $timeout, $shared, $code, @param);
-
-    die $@ if $@;
-
-    return $res;
-}
-
-sub lock_config {
-    my ($vmid, $code, @param) = @_;
-
-    return lock_config_full($vmid, 10, $code, @param);
+    unlink PVE::LXC::Config->config_file($vmid, $nodename);
 }
 
 sub option_exists {
@@ -802,7 +715,7 @@ sub vmstatus {
 
 	$d->{status} = $d->{pid} ? 'running' : 'stopped';
 
-	my $cfspath = cfs_config_path($vmid);
+	my $cfspath = PVE::LXC::Config->cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
 
 	$d->{name} = $conf->{'hostname'} || "CT$vmid";
@@ -841,7 +754,7 @@ sub vmstatus {
 	$d->{diskread} = 0;
 	$d->{diskwrite} = 0;
 
-	$d->{template} = is_template($conf);
+	$d->{template} = PVE::LXC::Config->is_template($conf);
     }
 
     foreach my $vmid (keys %$list) {
@@ -1063,24 +976,6 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
-sub check_lock {
-    my ($conf) = @_;
-
-    die "VM is locked ($conf->{'lock'})\n" if $conf->{'lock'};
-}
-
-sub has_lock {
-    my ($conf, $lock) = @_;
-    return $conf->{lock} && (!defined($lock) || $lock eq $conf->{lock});
-}
-
-sub check_protection {
-    my ($vm_conf, $err_msg) = @_;
-
-    if ($vm_conf->{protection}) {
-	die "$err_msg - protection mode enabled\n";
-    }
-}
 
 sub update_lxc_config {
     my ($storage_cfg, $vmid, $conf) = @_;
@@ -1326,7 +1221,7 @@ sub update_pct_config {
 	    } else {
 		die "implement me (delete: $opt)"
 	    }
-	    write_config($vmid, $conf) if $running;
+	    PVE::LXC::Config->write_config($vmid, $conf) if $running;
 	}
     }
 
@@ -1356,7 +1251,7 @@ sub update_pct_config {
 	$conf->{memory} = $wanted_memory;
 	$conf->{swap} = $wanted_swap;
 
-	write_config($vmid, $conf) if $running;
+	PVE::LXC::Config->write_config($vmid, $conf) if $running;
     }
 
     my $used_volids = {};
@@ -1433,7 +1328,7 @@ sub update_pct_config {
 	} else {
 	    die "implement me: $opt";
 	}
-	write_config($vmid, $conf) if $running;
+	PVE::LXC::Config->write_config($vmid, $conf) if $running;
     }
 
     # Apply deletions and creations of new volumes
@@ -1598,7 +1493,7 @@ sub update_net {
 
 	    PVE::Network::veth_delete($veth);
 	    delete $conf->{$opt};
-	    write_config($vmid, $conf);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 
 	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
@@ -1612,7 +1507,7 @@ sub update_net {
 			delete $oldnet->{$_};
 		    }
 		    $conf->{$opt} = print_lxc_network($oldnet);
-		    write_config($vmid, $conf);
+		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
 		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks});
@@ -1620,7 +1515,7 @@ sub update_net {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
 		$conf->{$opt} = print_lxc_network($oldnet);
-		write_config($vmid, $conf);
+		PVE::LXC::Config->write_config($vmid, $conf);
 	}
     } else {
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
@@ -1653,7 +1548,7 @@ sub hotplug_net {
     }
     $conf->{$opt} = print_lxc_network($done);
 
-    write_config($vmid, $conf);
+    PVE::LXC::Config->write_config($vmid, $conf);
 }
 
 sub update_ipconfig {
@@ -1757,7 +1652,7 @@ sub update_ipconfig {
 	    }
 	}
 	$conf->{$opt} = print_lxc_network($optdata);
-	write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
 	$lxc_setup->setup_network($conf);
     };
 
@@ -1820,12 +1715,12 @@ sub snapshot_prepare {
 
     my $updatefn =  sub {
 
-	my $conf = load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	die "you can't take a snapshot if it's a template\n"
-	    if is_template($conf);
+	    if PVE::LXC::Config->is_template($conf);
 
-	check_lock($conf);
+	PVE::LXC::Config->check_lock($conf);
 
 	$conf->{lock} = 'snapshot';
 
@@ -1848,10 +1743,10 @@ sub snapshot_prepare {
 	$snap->{snaptime} = time();
 	$snap->{description} = $comment if $comment;
 
-	write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
     };
 
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 
     return $snap;
 }
@@ -1861,7 +1756,7 @@ sub snapshot_commit {
 
     my $updatefn = sub {
 
-	my $conf = load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	die "missing snapshot lock\n"
 	    if !($conf->{lock} && $conf->{lock} eq 'snapshot');
@@ -1877,10 +1772,10 @@ sub snapshot_commit {
 
 	$conf->{parent} = $snapname;
 
-	write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
     };
 
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 }
 
 sub has_feature {
@@ -1983,7 +1878,7 @@ sub snapshot_create {
 
     $save_vmstate = 0 if !$snap->{vmstate};
 
-    my $conf = load_config($vmid);
+    my $conf = PVE::LXC::Config->load_config($vmid);
 
     my ($running, $freezefs) = check_freeze_needed($vmid, $conf, $snap->{vmstate});
 
@@ -2047,12 +1942,12 @@ sub snapshot_delete {
     my $updatefn =  sub {
 	my ($remove_drive) = @_;
 
-	my $conf = load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	if (!$drivehash) {
-	    check_lock($conf);
+	    PVE::LXC::Config->check_lock($conf);
 	    die "you can't delete a snapshot if vm is a template\n"
-		if is_template($conf);
+		if PVE::LXC::Config->is_template($conf);
 	}
 
 	$snap = $conf->{snapshots}->{$snapname};
@@ -2089,10 +1984,10 @@ sub snapshot_delete {
 	    }
 	}
 
-	write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
     };
 
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 
     # now remove vmstate file
     # never set for LXC!
@@ -2116,13 +2011,13 @@ sub snapshot_delete {
 	}
 
 	# save changes (remove mp from snapshot)
-	lock_config($vmid, $updatefn, $ms) if !$force;
+	PVE::LXC::Config->lock_config($vmid, $updatefn, $ms) if !$force;
 	push @$unused, $mountpoint->{volume};
     });
 
     # now cleanup config
     $prepare = 0;
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 }
 
 sub snapshot_rollback {
@@ -2132,11 +2027,11 @@ sub snapshot_rollback {
 
     my $storecfg = PVE::Storage::config();
 
-    my $conf = load_config($vmid);
+    my $conf = PVE::LXC::Config->load_config($vmid);
 
     my $get_snapshot_config = sub {
 
-	die "you can't rollback if vm is a template\n" if is_template($conf);
+	die "you can't rollback if vm is a template\n" if PVE::LXC::Config->is_template($conf);
 
 	my $res = $conf->{snapshots}->{$snapname};
 
@@ -2155,7 +2050,7 @@ sub snapshot_rollback {
 
     my $updatefn = sub {
 
-	$conf = load_config($vmid);
+	$conf = PVE::LXC::Config->load_config($vmid);
 
 	$snap = &$get_snapshot_config();
 
@@ -2163,7 +2058,7 @@ sub snapshot_rollback {
 	    if $snap->{snapstate};
 
 	if ($prepare) {
-	    check_lock($conf);
+	    PVE::LXC::Config->check_lock($conf);
 	    PVE::Tools::run_command(['/usr/bin/lxc-stop', '-n', $vmid, '--kill'])
 		if check_running($vmid);
 	}
@@ -2186,14 +2081,14 @@ sub snapshot_rollback {
 	    $conf->{parent} = $snapname;
 	}
 
-	write_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
 
 	if (!$prepare && $snap->{vmstate}) {
 	    die "implement me - save vmstate\n";
 	}
     };
 
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 
     foreach_mountpoint($snap, sub {
 	my ($ms, $mountpoint) = @_;
@@ -2202,7 +2097,7 @@ sub snapshot_rollback {
     });
 
     $prepare = 0;
-    lock_config($vmid, $updatefn);
+    PVE::LXC::Config->lock_config($vmid, $updatefn);
 }
 
 sub template_create {
@@ -2222,13 +2117,7 @@ sub template_create {
     $rootinfo->{volume} = $template_volid;
     $conf->{rootfs} = print_ct_mountpoint($rootinfo, 1);
 
-    write_config($vmid, $conf);
-}
-
-sub is_template {
-    my ($conf) = @_;
-
-    return 1 if defined $conf->{template} && $conf->{template} == 1;
+    PVE::LXC::Config->write_config($vmid, $conf);
 }
 
 sub mountpoint_names {
@@ -2785,30 +2674,5 @@ sub userns_command {
     return [];
 }
 
-sub set_lock {
-    my ($vmid, $lock) = @_;
-    my $conf;
-    lock_config($vmid, sub {
-	$conf = load_config($vmid);
-	check_lock($conf);
-	$conf->{lock} = $lock;
-	write_config($vmid, $conf);
-    });
-    return $conf;
-}
-
-sub remove_lock {
-    my ($vmid, $lock) = @_;
-    lock_config($vmid, sub {
-	my $conf = load_config($vmid);
-	if (!$conf->{lock}) {
-	    die "no lock found trying to remove lock '$lock'\n";
-	} elsif (defined($lock) && $conf->{lock} ne $lock) {
-	    die "found lock '$conf->{lock}' trying to remove lock '$lock'\n";
-	}
-	delete $conf->{lock};
-	write_config($vmid, $conf);
-    });
-}
 
 1;

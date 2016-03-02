@@ -24,7 +24,7 @@ die "got unexpected environment" if $vmid ne $ENV{LXC_NAME};
 die "missing vmid parameter\n" if !$vmid;
 die "missing iface parameter\n" if !$iface;
 
-my $conf = PVE::LXC::load_config($vmid);
+my $conf = PVE::LXC::Config->load_config($vmid);
 
 my $netconf;
 if ($iface =~ m/^veth(\d+)i(\d+)$/) {

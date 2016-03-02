@@ -141,7 +141,7 @@ sub restore_and_configure {
     if (!$restore) {
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 
-	PVE::LXC::write_config($vmid, $conf); # safe config (after OS detection)
+	PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
 	$lxc_setup->post_create_hook($password);
     } else {
 	# restore: try to extract configuration from archive
@@ -193,11 +193,11 @@ sub restore_and_configure {
 sub create_rootfs {
     my ($storage_cfg, $vmid, $conf, $archive, $password, $restore, $no_unpack_error) = @_;
 
-    my $config_fn = PVE::LXC::config_file($vmid);
+    my $config_fn = PVE::LXC::Config->config_file($vmid);
     if (-f $config_fn) {
 	die "container exists" if !$restore; # just to be sure
 
-	my $old_conf = PVE::LXC::load_config($vmid);
+	my $old_conf = PVE::LXC::Config->load_config($vmid);
 	
 	# destroy old container volume
 	PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
@@ -212,11 +212,11 @@ sub create_rootfs {
 
 	PVE::LXC::update_pct_config($vmid, $conf, 0, $old_conf);
 
-	PVE::LXC::create_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
 
     } else {
 	
-	PVE::LXC::create_config($vmid, $conf);
+	PVE::LXC::Config->write_config($vmid, $conf);
     }
 
     eval {

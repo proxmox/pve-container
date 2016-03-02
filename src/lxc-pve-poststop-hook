@@ -49,9 +49,9 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{name};
 
-	return undef if ! -f PVE::LXC::config_file($vmid);
+	return undef if ! -f PVE::LXC::Config->config_file($vmid);
 	
-	my $conf = PVE::LXC::load_config($vmid);
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
 	my $storage_cfg = PVE::Storage::config();
 
