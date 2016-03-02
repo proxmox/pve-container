@@ -433,7 +433,7 @@ sub write_pct_config {
     my ($filename, $conf) = @_;
 
     delete $conf->{snapstate}; # just to be sure
-    my $volidlist = get_vm_volumes($conf);
+    my $volidlist = PVE::LXC::Config->get_vm_volumes($conf);
     my $used_volids = {};
     foreach my $vid (@$volidlist) {
 	$used_volids->{$vid} = 1;
@@ -825,15 +825,6 @@ sub vmstatus {
     return $list;
 }
 
-sub classify_mountpoint {
-    my ($vol) = @_;
-    if ($vol =~ m!^/!) {
-	return 'device' if $vol =~ m!^/dev/!;
-	return 'bind';
-    }
-    return 'volume';
-}
-
 my $parse_ct_mountpoint_full = sub {
     my ($desc, $data, $noerr) = @_;
 
@@ -855,7 +846,7 @@ my $parse_ct_mountpoint_full = sub {
 	$res->{size} = $size;
     }
 
-    $res->{type} = classify_mountpoint($res->{volume});
+    $res->{type} = PVE::LXC::Config->classify_mountpoint($res->{volume});
 
     return $res;
 };
@@ -1024,7 +1015,7 @@ sub update_lxc_config {
 	$raw .= "lxc.id_map = g 0 100000 65536\n";
     }
 
-    if (!has_dev_console($conf)) {
+    if (!PVE::LXC::Config->has_dev_console($conf)) {
 	$raw .= "lxc.console = none\n";
 	$raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
     }
@@ -1113,48 +1104,6 @@ sub verify_searchdomain_list {
     return join(' ', @list);
 }
 
-sub is_volume_in_use {
-    my ($config, $volid, $include_snapshots) = @_;
-    my $used = 0;
-
-    foreach_mountpoint($config, sub {
-	my ($ms, $mountpoint) = @_;
-	return if $used;
-	if ($mountpoint->{type} eq 'volume' && $mountpoint->{volume} eq $volid) {
-	    $used = 1;
-	}
-    });
-
-    my $snapshots = $config->{snapshots};
-    if ($include_snapshots && $snapshots) {
-	foreach my $snap (keys %$snapshots) {
-	    $used ||= is_volume_in_use($snapshots->{$snap}, $volid);
-	}
-    }
-
-    return $used;
-}
-
-sub add_unused_volume {
-    my ($config, $volid) = @_;
-
-    my $key;
-    for (my $ind = $MAX_UNUSED_DISKS - 1; $ind >= 0; $ind--) {
-	my $test = "unused$ind";
-	if (my $vid = $config->{$test}) {
-	    return if $vid eq $volid; # do not add duplicates
-	} else {
-	    $key = $test;
-	}
-    }
-
-    die "Too many unused volumes - please delete them first.\n" if !$key;
-
-    $config->{$key} = $volid;
-
-    return $key;
-}
-
 sub update_pct_config {
     my ($vmid, $conf, $running, $param, $delete) = @_;
 
@@ -1214,7 +1163,7 @@ sub update_pct_config {
 		my $mp = parse_ct_mountpoint($conf->{$opt});
 		delete $conf->{$opt};
 		if ($mp->{type} eq 'volume') {
-		    add_unused_volume($conf, $mp->{volume});
+		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
 		}
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
@@ -1301,7 +1250,7 @@ sub update_pct_config {
 	    if (defined($old)) {
 		my $mp = parse_ct_mountpoint($old);
 		if ($mp->{type} eq 'volume') {
-		    add_unused_volume($conf, $mp->{volume});
+		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
 		}
 	    }
 	    $new_disks = 1;
@@ -1315,7 +1264,7 @@ sub update_pct_config {
 	    if (defined($old)) {
 		my $mp = parse_ct_rootfs($old);
 		if ($mp->{type} eq 'volume') {
-		    add_unused_volume($conf, $mp->{volume});
+		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
 		}
 	    }
 	    my $mp = parse_ct_rootfs($value);
@@ -1337,7 +1286,7 @@ sub update_pct_config {
 	foreach my $volume (@deleted_volumes) {
 	    next if $used_volids->{$volume}; # could have been re-added, too
 	    # also check for references in snapshots
-	    next if is_volume_in_use($conf, $volume, 1);
+	    next if PVE::LXC::Config->is_volume_in_use($conf, $volume, 1);
 	    delete_mountpoint_volume($storage_cfg, $vmid, $volume);
 	}
     }
@@ -1353,12 +1302,6 @@ sub update_pct_config {
     }
 }
 
-sub has_dev_console {
-    my ($conf) = @_;
-
-    return !(defined($conf->{console}) && !$conf->{console});
-}
-	
 sub get_tty_count {
     my ($conf) = @_;
 
@@ -1418,7 +1361,7 @@ sub get_primary_ips {
 sub delete_mountpoint_volume {
     my ($storage_cfg, $vmid, $volume) = @_;
 
-    return if classify_mountpoint($volume) ne 'volume';
+    return if PVE::LXC::Config->classify_mountpoint($volume) ne 'volume';
 
     my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volume);
     PVE::Storage::vdisk_free($storage_cfg, $volume) if $vmid == $owner;
@@ -1427,7 +1370,7 @@ sub delete_mountpoint_volume {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf) = @_;
 
-    foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
     });
@@ -1447,7 +1390,7 @@ sub vm_stop_cleanup {
     eval {
 	if (!$keepActive) {
 
-            my $vollist = get_vm_volumes($conf);
+            my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
 	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
 	}
     };
@@ -1750,44 +1693,6 @@ sub template_create {
     PVE::LXC::Config->write_config($vmid, $conf);
 }
 
-sub mountpoint_names {
-    my ($reverse) = @_;
-
-    my @names = ('rootfs');
-
-    for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
-	push @names, "mp$i";
-    }
-
-    return $reverse ? reverse @names : @names;
-}
-
-
-sub foreach_mountpoint_full {
-    my ($conf, $reverse, $func) = @_;
-
-    foreach my $key (mountpoint_names($reverse)) {
-	my $value = $conf->{$key};
-	next if !defined($value);
-	my $mountpoint = $key eq 'rootfs' ? parse_ct_rootfs($value, 1) : parse_ct_mountpoint($value, 1);
-	next if !defined($mountpoint);
-
-	&$func($key, $mountpoint);
-    }
-}
-
-sub foreach_mountpoint {
-    my ($conf, $func) = @_;
-
-    foreach_mountpoint_full($conf, 0, $func);
-}
-
-sub foreach_mountpoint_reverse {
-    my ($conf, $func) = @_;
-
-    foreach_mountpoint_full($conf, 1, $func);
-}
-
 sub check_ct_modify_config_perm {
     my ($rpcenv, $authuser, $vmid, $pool, $newconf, $delete) = @_;
 
@@ -1827,9 +1732,9 @@ sub umount_all {
     my ($vmid, $storage_cfg, $conf, $noerr) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
-    my $volid_list = get_vm_volumes($conf);
+    my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
 
-    foreach_mountpoint_reverse($conf, sub {
+    PVE::LXC::Config->foreach_mountpoint_reverse($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -1861,11 +1766,11 @@ sub mount_all {
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     File::Path::make_path($rootdir);
 
-    my $volid_list = get_vm_volumes($conf);
+    my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
     eval {
-	foreach_mountpoint($conf, sub {
+	PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
@@ -2060,29 +1965,6 @@ sub mountpoint_mount {
     die "unsupported storage";
 }
 
-sub get_vm_volumes {
-    my ($conf, $excludes) = @_;
-
-    my $vollist = [];
-
-    foreach_mountpoint($conf, sub {
-	my ($ms, $mountpoint) = @_;
-
-	return if $excludes && $ms eq $excludes;
-
-	my $volid = $mountpoint->{volume};
-
-        return if !$volid || $mountpoint->{type} ne 'volume';
-
-        my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-        return if !$sid;
-
-        push @$vollist, $volid;
-    });
-
-    return $vollist;
-}
-
 sub mkfs {
     my ($dev, $rootuid, $rootgid) = @_;
 
@@ -2134,7 +2016,7 @@ sub create_disks {
 	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
 	my $chown_vollist = [];
 
-	foreach_mountpoint($settings, sub {
+	PVE::LXC::Config->foreach_mountpoint($settings, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};

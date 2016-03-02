@@ -258,7 +258,7 @@ __PACKAGE__->register_method({
 	}
 
 	# check storage access, activate storage
-	PVE::LXC::foreach_mountpoint($param, sub {
+	PVE::LXC::Config->foreach_mountpoint($param, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
@@ -1208,7 +1208,7 @@ __PACKAGE__->register_method({
 	    disk => {
 		type => 'string',
 		description => "The disk you want to resize.",
-		enum => [PVE::LXC::mountpoint_names()],
+		enum => [PVE::LXC::Config->mountpoint_names()],
 	    },
 	    size => {
 		type => 'string',

@@ -69,8 +69,8 @@ __PACKAGE__->register_method ({
 
 	my $storage_cfg = PVE::Storage::config();
 
-	my $vollist = PVE::LXC::get_vm_volumes($conf);
-	my $loopdevlist = PVE::LXC::get_vm_volumes($conf, 'rootfs');
+	my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+	my $loopdevlist = PVE::LXC::Config->get_vm_volumes($conf, 'rootfs');
 
 	PVE::Storage::activate_volumes($storage_cfg, $vollist);
 
@@ -88,7 +88,7 @@ __PACKAGE__->register_method ({
 	    push @$devices, $dev if $dev && $mountpoint->{quota};
 	};
 
-	PVE::LXC::foreach_mountpoint($conf, $setup_mountpoint);
+	PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
 
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 	$lxc_setup->pre_start_hook();

@@ -48,7 +48,7 @@ sub has_feature {
     my ($class, $feature, $conf, $storecfg, $snapname, $running, $backup_only) = @_;
     my $err;
 
-    PVE::LXC::foreach_mountpoint($conf, sub {
+    $class->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
@@ -157,9 +157,103 @@ sub __snapshot_rollback_vm_start {
 sub __snapshot_foreach_volume {
     my ($class, $conf, $func) = @_;
 
-    PVE::LXC::foreach_mountpoint($conf, $func);
+    $class->foreach_mountpoint($conf, $func);
 }
 
 # END implemented abstract methods from PVE::AbstractConfig
+
+sub classify_mountpoint {
+    my ($class, $vol) = @_;
+    if ($vol =~ m!^/!) {
+	return 'device' if $vol =~ m!^/dev/!;
+	return 'bind';
+    }
+    return 'volume';
+}
+
+sub is_volume_in_use {
+    my ($class, $config, $volid, $include_snapshots) = @_;
+    my $used = 0;
+
+    $class->foreach_mountpoint($config, sub {
+	my ($ms, $mountpoint) = @_;
+	return if $used;
+	$used = $mountpoint->{type} eq 'volume' && $mountpoint->{volume} eq $volid;
+    });
+
+    my $snapshots = $config->{snapshots};
+    if ($include_snapshots && $snapshots) {
+	foreach my $snap (keys %$snapshots) {
+	    $used ||= $class->is_volume_in_use($snapshots->{$snap}, $volid);
+	}
+    }
+
+    return $used;
+}
+
+sub has_dev_console {
+    my ($class, $conf) = @_;
+
+    return !(defined($conf->{console}) && !$conf->{console});
+}
+
+sub mountpoint_names {
+    my ($class, $reverse) = @_;
+
+    my @names = ('rootfs');
+
+    for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
+	push @names, "mp$i";
+    }
+
+    return $reverse ? reverse @names : @names;
+}
+
+sub foreach_mountpoint_full {
+    my ($class, $conf, $reverse, $func) = @_;
+
+    foreach my $key ($class->mountpoint_names($reverse)) {
+	my $value = $conf->{$key};
+	next if !defined($value);
+	my $mountpoint = $key eq 'rootfs' ? PVE::LXC::parse_ct_rootfs($value, 1) : PVE::LXC::parse_ct_mountpoint($value, 1);
+	next if !defined($mountpoint);
+
+	&$func($key, $mountpoint);
+    }
+}
+
+sub foreach_mountpoint {
+    my ($class, $conf, $func) = @_;
+
+    $class->foreach_mountpoint_full($conf, 0, $func);
+}
+
+sub foreach_mountpoint_reverse {
+    my ($class, $conf, $func) = @_;
+
+    $class->foreach_mountpoint_full($conf, 1, $func);
+}
+
+sub get_vm_volumes {
+    my ($class, $conf, $excludes) = @_;
+
+    my $vollist = [];
+
+    $class->foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	return if $excludes && $ms eq $excludes;
+
+	my $volid = $mountpoint->{volume};
+	return if !$volid || $mountpoint->{type} ne 'volume';
+
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+	return if !$sid;
+
+	push @$vollist, $volid;
+    });
+
+    return $vollist;
+}
 
 return 1;

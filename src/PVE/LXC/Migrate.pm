@@ -39,7 +39,7 @@ sub prepare {
 	$running = 1;
     }
 
-    PVE::LXC::foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -55,7 +55,7 @@ sub prepare {
 
     });
 
-    my $volid_list = PVE::LXC::get_vm_volumes($conf);
+    my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::activate_volumes($self->{storecfg}, $volid_list);
 
     # todo: test if VM uses local resources
@@ -83,7 +83,7 @@ sub phase1 {
 
     $self->{volumes} = [];
 
-    PVE::LXC::foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -114,7 +114,7 @@ sub phase1 {
     PVE::LXC::umount_all($vmid, $self->{storecfg}, $conf);
 
     #to be sure there are no active volumes
-    my $vollist = PVE::LXC::get_vm_volumes($conf);
+    my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
     # move config

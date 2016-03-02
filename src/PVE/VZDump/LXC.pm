@@ -111,7 +111,7 @@ sub prepare {
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
 
     my $volids = $task->{volids} = [];
-    PVE::LXC::foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
 	my $mount = $data->{mp};

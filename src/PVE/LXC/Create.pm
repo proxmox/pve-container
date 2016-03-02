@@ -225,7 +225,7 @@ sub create_rootfs {
     };
     my $err = $@;
     PVE::LXC::umount_all($vmid, $storage_cfg, $conf, $err ? 1 : 0);
-    PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::get_vm_volumes($conf));
+    PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::Config->get_vm_volumes($conf));
     die $err if $err;
 }
 
