@@ -198,7 +198,7 @@ __PACKAGE__->register_method({
     method => 'POST',
     protected => 1,
     proxyto => 'node',
-    description => "Stop the container.",
+    description => "Stop the container. This will abruptly stop all processes running in the container.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
@@ -282,7 +282,8 @@ __PACKAGE__->register_method({
     method => 'POST',
     protected => 1,
     proxyto => 'node',
-    description => "Shutdown the container.",
+    description => "Shutdown the container. This will trigger a clean shutdown " .
+	"of the container, see lxc-stop(1) for details.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
