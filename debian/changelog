@@ -1,3 +1,9 @@
+pve-container (1.0-49) unstable; urgency=medium
+
+  * change update_etc_hosts to use ct_modify_file
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 07 Mar 2016 09:49:39 +0100
+
 pve-container (1.0-48) unstable; urgency=medium
 
   * Refactor config-related methods into AbstractConfig
