@@ -121,10 +121,11 @@ sub __snapshot_delete_vmstate_file {
 }
 
 sub __snapshot_delete_vol_snapshot {
-    my ($class, $vmid, $ms, $mountpoint, $snapname) = @_;
+    my ($class, $vmid, $ms, $mountpoint, $snapname, $unused) = @_;
 
     my $storecfg = PVE::Storage::config();
     PVE::Storage::volume_snapshot_delete($storecfg, $mountpoint->{volume}, $snapname);
+    push @$unused, $mountpoint->{volume};
 }
 
 sub __snapshot_rollback_vol_possible {
