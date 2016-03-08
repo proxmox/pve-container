@@ -70,7 +70,7 @@ sub list_active_containers {
     return $res if !$fh;
 
     while (defined(my $line = <$fh>)) {
- 	if ($line =~ m/^[a-f0-9]+:\s\S+\s\S+\s\S+\s\S+\s\S+\s\d+\s(\S+)$/) {
+	if ($line =~ m/^[a-f0-9]+:\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\d+\s+(\S+)$/) {
 	    my $path = $1;
 	    if ($path =~ m!^@/var/lib/lxc/(\d+)/command$!) {
 		$res->{$1} = 1;
