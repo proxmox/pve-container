@@ -495,6 +495,12 @@ my $netconf_desc = {
 	description => "VLAN ids to pass through the interface",
 	optional => 1,
     },
+    rate => {
+	type => 'number',
+	format_description => 'mbps',
+	description => "Apply rate limiting to the interface",
+	optional => 1,
+    },
 };
 PVE::JSONSchema::register_format('pve-lxc-network', $netconf_desc);
 

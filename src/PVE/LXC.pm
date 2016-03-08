@@ -586,9 +586,10 @@ sub update_net {
 
 	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
-	} elsif (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
-		 &$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
-		 &$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
+	} else {
+	    if (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
+		&$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
+		&$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
 
 		if ($oldnet->{bridge}) {
 		    PVE::Network::tap_unplug($veth);
@@ -599,12 +600,19 @@ sub update_net {
 		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
-		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks});
-		foreach (qw(bridge tag firewall)) {
+		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		# This includes the rate:
+		foreach (qw(bridge tag firewall rate)) {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
-		$conf->{$opt} = PVE::LXC::Config->print_lxc_network($oldnet);
-		PVE::LXC::Config->write_config($vmid, $conf);
+	    } elsif (&$safe_string_ne($oldnet->{rate}, $newnet->{rate})) {
+		# Rate can be applied on its own but any change above needs to
+		# include the rate in tap_plug since OVS resets everything.
+		PVE::Network::tap_rate_limit($veth, $newnet->{rate});
+		$oldnet->{rate} = $newnet->{rate}
+	    }
+	    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($oldnet);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	}
     } else {
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
@@ -621,7 +629,7 @@ sub hotplug_net {
     my $eth = $newnet->{name};
 
     PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks});
+    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
