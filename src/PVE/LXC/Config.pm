@@ -732,6 +732,12 @@ sub update_pct_config {
 		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
 		next if $hotplug_error->($opt);
 		delete $conf->{$opt};
+	    } elsif ($opt eq 'cpulimit') {
+		next if $hotplug_error->($opt); # FIXME: hotplug
+		delete $conf->{$opt};
+	    } elsif ($opt eq 'cpuunits') {
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $confdesc->{cpuunits}->{default});
+		delete $conf->{$opt};
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		delete $conf->{$opt};
 		next if !$running;
