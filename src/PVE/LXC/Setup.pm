@@ -7,7 +7,7 @@ use PVE::Tools;
 
 use PVE::LXC::Setup::Debian;
 use PVE::LXC::Setup::Ubuntu;
-use PVE::LXC::Setup::Redhat;
+use PVE::LXC::Setup::CentOS;
 use PVE::LXC::Setup::Fedora;
 use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::ArchLinux;
@@ -16,7 +16,7 @@ use PVE::LXC::Setup::Alpine;
 my $plugins = {
     debian    => 'PVE::LXC::Setup::Debian',
     ubuntu    => 'PVE::LXC::Setup::Ubuntu',
-    redhat    => 'PVE::LXC::Setup::Redhat',
+    centos    => 'PVE::LXC::Setup::CentOS',
     fedora    => 'PVE::LXC::Setup::Fedora',
     opensuse  => 'PVE::LXC::Setup::SUSE',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
@@ -40,8 +40,8 @@ my $autodetect_type = sub {
 	return "opensuse";
     } elsif (-f  "$rootdir/etc/fedora-release") {
 	return "fedora";
-    } elsif (-f  "$rootdir/etc/redhat-release") {
-	return "redhat";
+    } elsif (-f  "$rootdir/etc/centos-release" || -f "$rootdir/etc/redhat-release") {
+	return "centos";
     } elsif (-f  "$rootdir/etc/arch-release") {
 	return "archlinux";
     } elsif (-f  "$rootdir/etc/alpine-release") {

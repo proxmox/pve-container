@@ -1,4 +1,4 @@
-package PVE::LXC::Setup::Redhat;
+package PVE::LXC::Setup::CentOS;
 
 use strict;
 use warnings;
@@ -25,7 +25,7 @@ sub new {
 	}
     }
 
-    die "unsupported redhat release '$release'\n" if !$version;
+    die "unsupported centos release '$release'\n" if !$version;
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 

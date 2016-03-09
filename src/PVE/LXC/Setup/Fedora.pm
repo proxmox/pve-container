@@ -3,9 +3,9 @@ package PVE::LXC::Setup::Fedora;
 use strict;
 use warnings;
 
-use PVE::LXC::Setup::Redhat;
+use PVE::LXC::Setup::CentOS;
 
-use base qw(PVE::LXC::Setup::Redhat);
+use base qw(PVE::LXC::Setup::CentOS);
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
