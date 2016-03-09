@@ -733,7 +733,7 @@ sub update_pct_config {
 		next if $hotplug_error->($opt);
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'cpulimit') {
-		next if $hotplug_error->($opt); # FIXME: hotplug
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'cpuunits') {
 		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $confdesc->{cpuunits}->{default});
@@ -827,7 +827,7 @@ sub update_pct_config {
 	    my $list = PVE::LXC::verify_searchdomain_list($value);
 	    $conf->{$opt} = $list;
 	} elsif ($opt eq 'cpulimit') {
-	    next if $hotplug_error->($opt); # FIXME: hotplug
+	    PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", int(100000*$value));
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'cpuunits') {
 	    $conf->{$opt} = $value;
