@@ -1,5 +1,7 @@
 pve-container (1.0-51) unstable; urgency=medium
 
+  * fix #912: centos/redhat confusion
+
   * implement cpulimit hotplugging
 
  -- Proxmox Support Team <support@proxmox.com>  Wed, 09 Mar 2016 17:52:33 +0100
