@@ -174,35 +174,13 @@ sub prepare {
 sub lock_vm {
     my ($self, $vmid) = @_;
 
-    my $lockconfig = sub {
-	my ($self, $vmid) = @_;
-
-	my $conf = PVE::LXC::Config->load_config($vmid);
-
-	PVE::LXC::Config->check_lock($conf);
-	$conf->{lock} = 'backup';
-
-	PVE::LXC::Config->write_config($vmid, $conf);
-    };
-
-    PVE::LXC::Config->lock_config($vmid, $lockconfig, ($self, $vmid));
+    PVE::LXC::Config->set_lock($vmid, 'backup');
 }
 
 sub unlock_vm {
     my ($self, $vmid) = @_;
 
-    my $unlockconfig = sub {
-	my ($self, $vmid) = @_;
-
-	my $conf = PVE::LXC::Config->load_config($vmid);
-
-	if ($conf->{lock} && $conf->{lock} eq 'backup') {
-	    delete $conf->{lock};
-	    PVE::LXC::Config->write_config($vmid, $conf);
-	}
-    };
-
-    PVE::LXC::Config->lock_config($vmid, $unlockconfig, ($self, $vmid));
+    PVE::LXC::Config->remove_lock($vmid, 'backup')
 }
 
 sub snapshot {

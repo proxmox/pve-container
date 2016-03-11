@@ -48,11 +48,7 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{vmid};
 
-	PVE::LXC::Config->lock_config($vmid, sub {
-	    my $conf = PVE::LXC::Config->load_config($vmid);
-	    delete $conf->{lock};
-	    PVE::LXC::Config->write_config($vmid, $conf);
-	});
+	PVE::LXC::Config->remove_lock($vmid);
 
 	return undef;
     }});
