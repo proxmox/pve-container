@@ -805,6 +805,14 @@ sub update_pct_config {
     }
 
     my $used_volids = {};
+    my $check_content_type = sub {
+	my ($mp) = @_;
+	my $sid = PVE::Storage::parse_volume_id($mp->{volume});
+	my $scfg = PVE::Storage::config();
+	my $storage_config = PVE::Storage::storage_config($scfg, $sid);
+	die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
+	    if !$storage_config->{content}->{rootdir};
+    };
 
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
@@ -850,11 +858,7 @@ sub update_pct_config {
 	    my $old = $conf->{$opt};
 	    my $mp = PVE::LXC::Config->parse_ct_mountpoint($value);
 	    if ($mp->{type} eq 'volume') {
-		my $sid = PVE::Storage::parse_volume_id($mp->{volume});
-		my $scfg = PVE::Storage::config();
-		my $storage_config = PVE::Storage::storage_config($scfg, $sid);
-		die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
-		    if !$storage_config->{content}->{rootdir};
+		&$check_content_type($mp);
 		$used_volids->{$mp->{volume}} = 1;
 	    }
 	    $conf->{$opt} = $value;
@@ -872,11 +876,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	    my $mp = PVE::LXC::Config->parse_ct_rootfs($value);
 	    if ($mp->{type} eq 'volume') {
-		my $sid = PVE::Storage::parse_volume_id($mp->{volume});
-		my $scfg = PVE::Storage::config();
-		my $storage_config = PVE::Storage::storage_config($scfg, $sid);
-		die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
-		    if !$storage_config->{content}->{rootdir};
+		&$check_content_type($mp);
 		$used_volids->{$mp->{volume}} = 1;
 	    }
 	    if (defined($old)) {
