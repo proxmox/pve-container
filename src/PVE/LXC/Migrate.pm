@@ -35,7 +35,7 @@ sub prepare {
     if (PVE::LXC::check_running($vmid)) {
 	die "lxc live migration is currently not implemented\n";
 
-	die "cant migrate running container without --online\n" if !$online;
+	die "can't migrate running container without --online\n" if !$online;
 	$running = 1;
     }
 
@@ -107,11 +107,11 @@ sub phase1 {
 
 	if (!$scfg->{shared}) {
 
-	    $self->log('info', "copy mointpoint '$ms' ($volid) to node ' $self->{node}'");
+	    $self->log('info', "copy mountpoint '$ms' ($volid) to node ' $self->{node}'");
 	    PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{nodeip}, $storage);
 	    push @{$self->{volumes}}, $volid;
 	} else {
-	    $self->log('info', "mointpoint '$ms' is on shared storage '$storage'");
+	    $self->log('info', "mountpoint '$ms' is on shared storage '$storage'");
 	}
     });
 
