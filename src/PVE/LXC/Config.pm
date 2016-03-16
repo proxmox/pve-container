@@ -885,6 +885,7 @@ sub update_pct_config {
 		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
 		}
 	    }
+	    $new_disks = 1;
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
 	} elsif ($opt eq 'ostype') {
