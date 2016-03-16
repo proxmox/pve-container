@@ -1,3 +1,9 @@
+pve-container (1.0-53) unstable; urgency=medium
+
+  * Add force parameter for migration with bind/dev mp
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 16 Mar 2016 16:51:40 +0100
+
 pve-container (1.0-52) unstable; urgency=medium
 
   * Prevent race conditions in snapshot mode backup
