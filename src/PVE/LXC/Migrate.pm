@@ -39,10 +39,17 @@ sub prepare {
 	$running = 1;
     }
 
+    my $force = $self->{opts}->{force} // 0;
+
     PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
+
+	# skip dev/bind mps when forced
+	if ($mountpoint->{type} ne 'volume' && $force) {
+	    return;
+	}
 	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
 	die "can't determine assigned storage for mountpoint '$ms'\n" if !$storage;
 
@@ -87,6 +94,14 @@ sub phase1 {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
+
+	# already checked in prepare
+	if ($mountpoint->{type} ne 'volume') {
+	    $self->log('info', "ignoring mountpoint '$ms' ('$volid') of type " .
+		"'$mountpoint->{type}', migration is forced.");
+	    return;
+	}
+
 	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
 	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
 

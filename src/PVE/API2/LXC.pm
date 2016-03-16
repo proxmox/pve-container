@@ -759,6 +759,13 @@ __PACKAGE__->register_method({
 		description => "Use online/live migration.",
 		optional => 1,
 	    },
+	    force => {
+		type => 'boolean',
+		description => "Force migration despite local bind / device" .
+		    " mounts. WARNING: identical bind / device mounts need to ".
+		    " be available on the target node.",
+		optional => 1,
+	    },
 	},
     },
     returns => {
