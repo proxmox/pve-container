@@ -848,6 +848,15 @@ sub update_pct_config {
 	    next if $hotplug_error->($opt);
 	    PVE::LXC::Config->check_protection($conf, $check_protection_msg);
 	    my $old = $conf->{$opt};
+	    my $mp = PVE::LXC::Config->parse_ct_mountpoint($value);
+	    if ($mp->{type} eq 'volume') {
+		my $sid = PVE::Storage::parse_volume_id($mp->{volume});
+		my $scfg = PVE::Storage::config();
+		my $storage_config = PVE::Storage::storage_config($scfg, $sid);
+		die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
+		    if !$storage_config->{content}->{rootdir};
+		$used_volids->{$mp->{volume}} = 1;
+	    }
 	    $conf->{$opt} = $value;
 	    if (defined($old)) {
 		my $mp = PVE::LXC::Config->parse_ct_mountpoint($old);
@@ -856,21 +865,26 @@ sub update_pct_config {
 		}
 	    }
 	    $new_disks = 1;
-	    my $mp = PVE::LXC::Config->parse_ct_mountpoint($value);
-	    $used_volids->{$mp->{volume}} = 1;
 	} elsif ($opt eq 'rootfs') {
 	    next if $hotplug_error->($opt);
 	    PVE::LXC::Config->check_protection($conf, $check_protection_msg);
 	    my $old = $conf->{$opt};
 	    $conf->{$opt} = $value;
+	    my $mp = PVE::LXC::Config->parse_ct_rootfs($value);
+	    if ($mp->{type} eq 'volume') {
+		my $sid = PVE::Storage::parse_volume_id($mp->{volume});
+		my $scfg = PVE::Storage::config();
+		my $storage_config = PVE::Storage::storage_config($scfg, $sid);
+		die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
+		    if !$storage_config->{content}->{rootdir};
+		$used_volids->{$mp->{volume}} = 1;
+	    }
 	    if (defined($old)) {
 		my $mp = PVE::LXC::Config->parse_ct_rootfs($old);
 		if ($mp->{type} eq 'volume') {
 		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
 		}
 	    }
-	    my $mp = PVE::LXC::Config->parse_ct_rootfs($value);
-	    $used_volids->{$mp->{volume}} = 1;
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
 	} elsif ($opt eq 'ostype') {
