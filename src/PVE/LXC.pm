@@ -1071,7 +1071,7 @@ sub mountpoint_mount {
 		    warn "cannot enable quota control for bind mounted subvolumes\n" if $quota;
 		}
 	    }
-	    return wantarray ? ($path, 0, $mounted_dev) : $path;
+	    return wantarray ? ($path, 0, undef) : $path;
 	} elsif ($format eq 'raw' || $format eq 'iso') {
 	    my $domount = sub {
 		my ($path) = @_;
