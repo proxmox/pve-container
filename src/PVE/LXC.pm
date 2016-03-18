@@ -1073,6 +1073,11 @@ sub mountpoint_mount {
 	    }
 	    return wantarray ? ($path, 0, undef) : $path;
 	} elsif ($format eq 'raw' || $format eq 'iso') {
+	    # NOTE: 'mount' performs canonicalization without the '-c' switch, which for
+	    # device-mapper devices is special-cased to use the /dev/mapper symlinks.
+	    # Our autodev hook expects the /dev/dm-* device currently
+	    # and will create the /dev/mapper symlink accordingly
+	    ($path) = (Cwd::realpath($path) =~ /^(.*)$/s); # realpath() taints
 	    my $domount = sub {
 		my ($path) = @_;
 		if ($mount_path) {

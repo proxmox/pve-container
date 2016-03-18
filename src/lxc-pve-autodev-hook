@@ -53,6 +53,13 @@ while (defined(my $line = <$fd>)) {
 
     PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
                              $type, $major, $minor]);
+
+    if ($dev =~ /^dm-\d+$/) {
+	File::Path::mkpath("$root/dev/mapper");
+	my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
+	chomp $mapped_name;
+	symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
+    }
 }
 close $fd;
 
