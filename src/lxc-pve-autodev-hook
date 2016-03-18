@@ -5,6 +5,9 @@ use warnings;
 
 exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
+use File::Path;
+use File::Basename;
+
 use PVE::Tools;
 
 my $vmid = $ENV{LXC_NAME};
@@ -43,6 +46,10 @@ while (defined(my $line = <$fd>)) {
 	warn "skipping illegal device entry (loop-control) for: $dev\n";
 	next;
     }
+
+    my $rel_devpath = "/dev/$dev";
+    my $rel_dir = dirname($rel_devpath);
+    File::Path::mkpath("$root/$rel_dir");
 
     PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
                              $type, $major, $minor]);
