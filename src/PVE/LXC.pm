@@ -1044,7 +1044,7 @@ sub mountpoint_mount {
     }
     my $readonly = $mountpoint->{ro};
 
-    my @extra_opts = ('-o', $optstring);
+    my @extra_opts = ('-o', $optstring) if $optstring;
 
     if ($storage) {
 
