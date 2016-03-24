@@ -1111,8 +1111,11 @@ sub mountpoint_mount {
 	}
     } elsif ($type eq 'device') {
 	push @extra_opts, '-o', 'ro' if $readonly;
+	push @extra_opts, '-o', 'usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0' if $quota;
+	# See the NOTE above about devicemapper canonicalization
+	my ($devpath) = (Cwd::realpath($volid) =~ /^(.*)$/s); # realpath() taints
 	PVE::Tools::run_command(['mount', @extra_opts, $volid, $mount_path]) if $mount_path;
-	return wantarray ? ($volid, 0, $volid) : $volid;
+	return wantarray ? ($volid, 0, $devpath) : $volid;
     } elsif ($type eq 'bind') {
 	die "directory '$volid' does not exist\n" if ! -d $volid;
 	&$check_mount_path($volid);
