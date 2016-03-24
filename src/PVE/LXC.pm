@@ -1110,7 +1110,7 @@ sub mountpoint_mount {
 	    die "unsupported image format '$format'\n";
 	}
     } elsif ($type eq 'device') {
-			push @extra_opts, '-o', 'ro' if $readonly;
+	push @extra_opts, '-o', 'ro' if $readonly;
 	PVE::Tools::run_command(['mount', @extra_opts, $volid, $mount_path]) if $mount_path;
 	return wantarray ? ($volid, 0, $volid) : $volid;
     } elsif ($type eq 'bind') {
