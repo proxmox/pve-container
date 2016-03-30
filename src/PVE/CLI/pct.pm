@@ -6,6 +6,7 @@ use warnings;
 use POSIX;
 use Fcntl;
 use File::Copy 'copy';
+use Term::ReadLine;
 
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
@@ -30,6 +31,16 @@ my $upid_exit = sub {
     my $status = PVE::Tools::upid_read_status($upid);
     exit($status eq 'OK' ? 0 : -1);
 };
+
+sub read_password {
+    my $term = new Term::ReadLine ('pct');
+    my $attribs = $term->Attribs;
+    $attribs->{redisplay_function} = $attribs->{shadow_redisplay};
+    my $input = $term->readline('Enter password: ');
+    my $conf = $term->readline('Retype password: ');
+    die "Passwords do not match.\n" if ($input ne $conf);
+    return $input;
+}
 
 __PACKAGE__->register_method ({
     name => 'unlock',
