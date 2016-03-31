@@ -1298,6 +1298,8 @@ __PACKAGE__->register_method({
 
 	    $rpcenv->check($authuser, "/storage/$storeid", ['Datastore.AllocateSpace']);
 
+	    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
+
 	    my $size = PVE::Storage::volume_size_info($storage_cfg, $volid, 5);
 	    $newsize += $size if $ext;
 	    $newsize = int($newsize);
