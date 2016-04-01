@@ -4,6 +4,8 @@ pve-container (1.0-55) unstable; urgency=medium
 
   * use asciicode compatible markup
 
+  * enable quotas for passed through /dev devices
+
  -- Proxmox Support Team <support@proxmox.com>  Fri, 01 Apr 2016 07:20:36 +0200
 
 pve-container (1.0-54) unstable; urgency=medium
