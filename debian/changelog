@@ -1,3 +1,9 @@
+pve-container (1.0-56) unstable; urgency=medium
+
+  * use consistent prefix for worker names
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 04 Apr 2016 16:39:28 +0200
+
 pve-container (1.0-55) unstable; urgency=medium
 
   * add read_password sub for 'pct create'
