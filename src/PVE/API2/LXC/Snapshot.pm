@@ -131,7 +131,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->snapshot_create($vmid, $snapname, 0, $param->{description});
 	};
 
-	return $rpcenv->fork_worker('pctsnapshot', $vmid, $authuser, $realcmd);
+	return $rpcenv->fork_worker('vzsnapshot', $vmid, $authuser, $realcmd);
     }});
 
 __PACKAGE__->register_method({
@@ -179,7 +179,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->snapshot_delete($vmid, $snapname, $param->{force});
 	};
 
-	return $rpcenv->fork_worker('lxcdelsnapshot', $vmid, $authuser, $realcmd);
+	return $rpcenv->fork_worker('vzdelsnapshot', $vmid, $authuser, $realcmd);
     }});
 
 __PACKAGE__->register_method({
@@ -257,7 +257,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 	};
 
-	return $rpcenv->fork_worker('lxcrollback', $vmid, $authuser, $realcmd);
+	return $rpcenv->fork_worker('vzrollback', $vmid, $authuser, $realcmd);
     }});
 
 __PACKAGE__->register_method({
