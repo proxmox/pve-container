@@ -521,9 +521,10 @@ sub ct_modify_file {
 
     my $head = "# --- BEGIN PVE ---\n";
     my $tail = "# --- END PVE ---\n";
+    my $perms = $options{perms};
 
     if (!$self->ct_file_exists($file)) {
-	$self->ct_file_set_contents($file, $head.$data.$tail) if $data;
+	$self->ct_file_set_contents($file, $head.$data.$tail, $perms) if $data;
 	return;
     }
 
@@ -564,11 +565,11 @@ sub ct_modify_file {
 	$content .= "\n";
 	$data = $head.$data.$tail;
 	if ($options{replace}) {
-	    $self->ct_file_set_contents($file, $data);
+	    $self->ct_file_set_contents($file, $data, $perms);
 	} elsif ($options{prepend}) {
-	    $self->ct_file_set_contents($file, $data . $content);
+	    $self->ct_file_set_contents($file, $data . $content, $perms);
 	} else { # append
-	    $self->ct_file_set_contents($file, $content . $data);
+	    $self->ct_file_set_contents($file, $content . $data, $perms);
 	}
     }
 }
