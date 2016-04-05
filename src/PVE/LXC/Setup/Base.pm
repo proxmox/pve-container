@@ -354,6 +354,34 @@ sub set_user_password {
     }
 }
 
+my $parse_home_dir = sub {
+    my ($self, $passwdfile, $user) = @_;
+
+    my $fh = $self->ct_open_file_read($passwdfile);
+    while (defined (my $line = <$fh>)) {
+	return $2
+	    if $line =~ m/^${user}:([^:]*:){4}([^:]*):/;
+    }
+};
+
+sub set_user_authorized_ssh_keys {
+    my ($self, $conf, $user, $ssh_keys) = @_;
+
+    my $passwd = "/etc/passwd";
+    my $home = $user eq "root" ? "/root/" : "/home/$user/";
+
+    $home = &$parse_home_dir($self, $passwd, $user)
+	if $self->ct_file_exists($passwd);
+
+    die "home directory '$home' of $user does not exist!"
+	if ! ($self->ct_is_directory($home) || $self->ct_is_symlink($home));
+
+    $self->ct_mkdir("$home/.ssh", 0700)
+	if ! $self->ct_is_directory("$home/.ssh");
+
+    $self->ct_modify_file("$home/.ssh/authorized_keys", $ssh_keys, perms => 0700);
+}
+
 my $randomize_crontab = sub {
     my ($self, $conf) = @_;
 
@@ -396,13 +424,14 @@ sub pre_start_hook {
 }
 
 sub post_create_hook {
-    my ($self, $conf, $root_password) = @_;
+    my ($self, $conf, $root_password, $ssh_keys) = @_;
 
     $self->template_fixup($conf);
     
     &$randomize_crontab($self, $conf);
     
     $self->set_user_password($conf, 'root', $root_password);
+    $self->set_user_authorized_ssh_keys($conf, 'root', $ssh_keys) if $ssh_keys;
     $self->setup_init($conf);
     $self->setup_network($conf);
     $self->set_hostname($conf);

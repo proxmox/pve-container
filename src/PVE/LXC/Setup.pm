@@ -256,12 +256,12 @@ sub pre_start_hook {
 }
 
 sub post_create_hook {
-    my ($self, $root_password) = @_;
+    my ($self, $root_password, $ssh_keys) = @_;
 
     return if !$self->{plugin}; # unmanaged
 
     my $code = sub {
-	$self->{plugin}->post_create_hook($self->{conf}, $root_password);
+	$self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
     };
     $self->protected_call($code);
     $self->rewrite_ssh_host_keys();
