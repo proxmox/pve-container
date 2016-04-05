@@ -41,7 +41,7 @@ sub run_test {
 	# run tests twice, to make sure scripts are idempotent
 	
 	srand(0);
-	$lxc_setup->post_create_hook('$TEST$ABCDEF');
+	$lxc_setup->post_create_hook('$TEST$ABCDEF','ssh-rsa ABCDEFG ABC@DEF');
 
 	my @testfiles = qw(/etc/hostname
 	                   /etc/hosts
@@ -71,7 +71,13 @@ sub run_test {
 	                   /etc/init/tty.conf
 	                   /etc/init/power-status-changed.conf
 	                   /etc/securetty
-	                   /etc/crontab);
+	                   /etc/crontab
+	                   /root
+	                   /root/.ssh
+	                   /root/.ssh/authorized_keys
+	                   /roothome
+	                   /roothome/.ssh
+	                   /roothome/.ssh/authorized_keys);
 	foreach my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
