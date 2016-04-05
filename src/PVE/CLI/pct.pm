@@ -42,6 +42,16 @@ sub read_password {
     return $input;
 }
 
+sub string_param_file_mapping {
+    my ($name) = @_;
+
+    my $mapping = {
+	'create_vm' => ['ssh-public-keys'],
+    };
+
+    return defined($mapping->{$name}) ? $mapping->{$name} : [];
+}
+
 __PACKAGE__->register_method ({
     name => 'unlock',
     path => 'unlock',

@@ -148,6 +148,12 @@ __PACKAGE__->register_method({
 		type => 'boolean',
 		description => "Ignore errors when extracting the template.",
 	    },
+	    'ssh-public-keys' => {
+		optional => 1,
+		type => 'string',
+		description => "Setup public SSH keys (one key per line, " .
+				"OpenSSH format).",
+	    },
 	}),
     },
     returns => {
@@ -190,6 +196,9 @@ __PACKAGE__->register_method({
 	}
 
 	my $password = extract_param($param, 'password');
+
+	my $ssh_keys = extract_param($param, 'ssh-public-keys');
+	PVE::Tools::validate_ssh_public_keys($ssh_keys);
 
 	my $pool = extract_param($param, 'pool');
 
@@ -310,7 +319,9 @@ __PACKAGE__->register_method({
 
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $param, $conf);
 
-		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf, $archive, $password, $restore, $ignore_unpack_errors);
+		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf,
+						$archive, $password, $restore,
+						$ignore_unpack_errors, $ssh_keys);
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;
