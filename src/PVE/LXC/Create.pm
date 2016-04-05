@@ -134,7 +134,7 @@ sub recover_config {
 }
 
 sub restore_and_configure {
-    my ($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error) = @_;
+    my ($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error, $ssh_keys) = @_;
 
     restore_archive($archive, $rootdir, $conf, $no_unpack_error);
 
@@ -142,7 +142,7 @@ sub restore_and_configure {
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 
 	PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
-	$lxc_setup->post_create_hook($password);
+	$lxc_setup->post_create_hook($password, $ssh_keys);
     } else {
 	# restore: try to extract configuration from archive
 
@@ -191,7 +191,7 @@ sub restore_and_configure {
 }
 
 sub create_rootfs {
-    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore, $no_unpack_error) = @_;
+    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore, $no_unpack_error, $ssh_keys) = @_;
 
     my $config_fn = PVE::LXC::Config->config_file($vmid);
     if (-f $config_fn) {
@@ -221,7 +221,8 @@ sub create_rootfs {
 
     eval {
 	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
-        restore_and_configure($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error);
+        restore_and_configure($vmid, $archive, $rootdir, $conf, $password,
+			      $restore, $no_unpack_error, $ssh_keys);
     };
     my $err = $@;
     PVE::LXC::umount_all($vmid, $storage_cfg, $conf, $err ? 1 : 0);
