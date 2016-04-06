@@ -198,7 +198,7 @@ __PACKAGE__->register_method({
 	my $password = extract_param($param, 'password');
 
 	my $ssh_keys = extract_param($param, 'ssh-public-keys');
-	PVE::Tools::validate_ssh_public_keys($ssh_keys);
+	PVE::Tools::validate_ssh_public_keys($ssh_keys) if defined($ssh_keys);
 
 	my $pool = extract_param($param, 'pool');
 
