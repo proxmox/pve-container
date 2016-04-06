@@ -15,32 +15,18 @@ MAN5DIR=${MANDIR}/man5/
 BASHCOMPLDIR=${PREFIX}/share/bash-completion/completions/
 export PERLDIR=${PREFIX}/share/perl5
 
+# this require package pve-doc-generator
+export NOVIEW=1
+include /usr/share/pve-doc-generator/pve-doc-generator.mk
+
 all:
-
-%.1.gz: %.1.pod
-	rm -f $@
-	cat $<|pod2man -n $* -s 1 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@.tmp
-	mv $@.tmp $@
-
-%.5.gz: %.5.pod
-	rm -f $@
-	cat $<|pod2man -n $* -s 5 -r ${VERSION} -c "Proxmox Documentation"|gzip -c9 >$@.tmp
-	mv $@.tmp $@
-
-pct.1.pod: pct
-	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_pod_manpage();" >$@.tmp
-	mv $@.tmp $@
 
 pct.bash-completion:
 	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@.tmp
 	mv $@.tmp $@
 
-pct.conf.5.pod: gen-pct-conf-pod.pl PVE/LXC.pm
-	perl -I. ./gen-pct-conf-pod.pl >$@.tmp
-	mv $@.tmp $@
-
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1.pod pct.1.gz pct.conf.5.pod pct.conf.5.gz pve-update-lxc-config pct.bash-completion
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pve-update-lxc-config pct.bash-completion
 	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -57,11 +43,10 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	make -C PVE install
 	install -d ${MAN1DIR}
 	install -d ${MAN5DIR}
-	install -d ${PODDIR}
-	install -m 0644 pct.1.gz ${MAN1DIR}
-	install -m 0644 pct.1.pod ${PODDIR}
-	install -m 0644 pct.conf.5.pod ${PODDIR}
-	install -m 0644 pct.conf.5.gz ${MAN5DIR}
+	install -m 0644 pct.1 ${MAN1DIR}
+	gzip -9 ${MAN1DIR}/pct.1
+	install -m 0644 pct.conf.5 ${MAN5DIR}
+	gzip -9 ${MAN5DIR}/pct.conf.5
 
 .PHONY: test
 test:
@@ -70,7 +55,8 @@ test:
 .PHONY: clean
 clean: 	
 	make -C test clean
-	rm -rf *.1.pod *.1.gz *.tmp *.bash-completion
+	make cleanup-docgen
+	rm -rf *.1 *.5 *.tmp *.bash-completion
 	find . -name '*~' -exec rm {} ';'
 
 .PHONY: distclean

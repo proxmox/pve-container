@@ -1,3 +1,11 @@
+pve-container (1.0-58) unstable; urgency=medium
+
+  * Build-Depend on pve-doc-generator
+
+  * generate manpages with pve-doc-generator
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 06 Apr 2016 12:36:29 +0200
+
 pve-container (1.0-57) unstable; urgency=medium
 
   * Add authorized ssh key setup to post_create_hook
