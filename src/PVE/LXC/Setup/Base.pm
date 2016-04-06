@@ -551,7 +551,7 @@ sub ct_modify_file {
     my $head = "# --- BEGIN PVE ---\n";
     my $tail = "# --- END PVE ---\n";
     my $perms = $options{perms};
-    $data .= "\n" if $data && $data !~ m/.*?\n$/;
+    $data .= "\n" if $data && $data !~ /\n$/;
 
     if (!$self->ct_file_exists($file)) {
 	$self->ct_file_set_contents($file, $head.$data.$tail, $perms) if $data;
