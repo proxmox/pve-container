@@ -69,6 +69,11 @@ sub setup_init {
     }
 
     $self->ct_file_set_contents($filename, $inittab);
+
+    my $systemd = $self->ct_readlink('/sbin/init');
+    if (defined($systemd) && $systemd =~ m@/systemd$@) {
+	$self->setup_container_getty_service(1);
+    }
 }
 
 sub remove_gateway_scripts {

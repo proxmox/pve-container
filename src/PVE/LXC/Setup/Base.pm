@@ -198,10 +198,13 @@ sub setup_systemd_console {
 }
 
 sub setup_container_getty_service {
-    my ($self) = @_;
-    my $servicefile = '/usr/lib/systemd/system/container-getty@.service';
+    my ($self, $nosubdir) = @_;
+    my $systemd_dir_rel = -x "/lib/systemd/systemd" ?
+	"/lib/systemd/system" : "/usr/lib/systemd/system";
+    my $servicefile = "$systemd_dir_rel/container-getty\@.service";
     my $raw = $self->ct_file_get_contents($servicefile);
-    if ($raw =~ s@pts/%I@lxc/tty%I@g) {
+    my $ttyname = ($nosubdir ? '' : 'lxc/') . 'tty%I';
+    if ($raw =~ s@pts/%I@$ttyname@g) {
 	$self->ct_file_set_contents($servicefile, $raw);
     }
 }
@@ -505,6 +508,11 @@ sub ct_make_path {
 sub ct_symlink {
     my ($self, $old, $new) = @_;
     return CORE::symlink($old, $new);
+}
+
+sub ct_readlink {
+    my ($self, $name) = @_;
+    return CORE::readlink($name);
 }
 
 sub ct_file_exists {
