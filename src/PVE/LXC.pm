@@ -159,7 +159,7 @@ sub vmstatus {
 	    # use 4GB by default ??
 	    if (my $rootfs = $conf->{rootfs}) {
 		my $rootinfo = PVE::LXC::Config->parse_ct_rootfs($rootfs);
-		$d->{maxdisk} = int(($rootinfo->{size} || 4)*1024*1024)*1024;
+		$d->{maxdisk} = $rootinfo->{size} || (4*1024*1024*1024);
 	    } else {
 		$d->{maxdisk} = 4*1024*1024*1024;
 	    }
