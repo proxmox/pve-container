@@ -47,6 +47,7 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	gzip -9 ${MAN1DIR}/pct.1
 	install -m 0644 pct.conf.5 ${MAN5DIR}
 	gzip -9 ${MAN5DIR}/pct.conf.5
+	cd ${MAN5DIR}; ln -s pct.conf.5.gz ct.conf.5.gz
 
 .PHONY: test
 test:
