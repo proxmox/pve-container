@@ -4,6 +4,8 @@ pve-container (1.0-58) unstable; urgency=medium
 
   * generate manpages with pve-doc-generator
 
+  * debian: support containers upgraded to use systemd
+
  -- Proxmox Support Team <support@proxmox.com>  Wed, 06 Apr 2016 12:36:29 +0200
 
 pve-container (1.0-57) unstable; urgency=medium
