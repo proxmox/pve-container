@@ -351,11 +351,11 @@ sub archive {
     push @$cmd, [ split(/\s+/, $comp) ] if $comp;
 
     if ($opts->{stdout}) {
-	push @{$cmd->[-1]}, \(">&" . fileno($opts->{stdout}));
+	$self->cmd($cmd, output => ">&" . fileno($opts->{stdout}));
     } else {
 	push @{$cmd->[-1]}, \(">" . PVE::Tools::shellquote($filename));
+       $self->cmd($cmd);
     }
-    $self->cmd($cmd);
 }
 
 sub cleanup {
