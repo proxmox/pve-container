@@ -10,6 +10,7 @@ use Encode;
 use Fcntl;
 use File::Path;
 use File::Spec;
+use File::Basename;
 
 use PVE::INotify;
 use PVE::Tools;
@@ -446,10 +447,20 @@ sub post_create_hook {
 # File access wrappers for container setup code.
 # For user-namespace support these might need to take uid and gid maps into account.
 
+sub ct_is_file_ignored {
+    my ($self, $file) = @_;
+    my ($name, $path) = fileparse($file);
+    return -f "$path/.pve-ignore.$name";
+}
+
 sub ct_reset_ownership {
     my ($self, @files) = @_;
     my $conf = $self->{conf};
     return if !$self->{id_map};
+
+    @files = grep { !$self->ct_is_file_ignored($_) } @files;
+    return if !@files;
+
     my $uid = $self->{rootuid};
     my $gid = $self->{rootgid};
     chown($uid, $gid, @files);
@@ -468,12 +479,14 @@ sub ct_mkdir {
 sub ct_unlink {
     my ($self, @files) = @_;
     foreach my $file (@files) {
+	next if $self->ct_is_file_ignored($file);
 	CORE::unlink($file);
     }
 }
 
 sub ct_rename {
     my ($self, $old, $new) = @_;
+    return if $self->ct_is_file_ignored($new);
     CORE::rename($old, $new);
 }
 
@@ -486,6 +499,7 @@ sub ct_open_file_read {
 sub ct_open_file_write {
     my $self = shift;
     my $file = shift;
+    $file = '/dev/null' if $self->ct_is_file_ignored($file);
     my $fh = IO::File->new($file, O_WRONLY | O_CREAT, @_);
     $self->ct_reset_ownership($fh);
     return $fh;
@@ -507,6 +521,7 @@ sub ct_make_path {
 
 sub ct_symlink {
     my ($self, $old, $new) = @_;
+    return if $self->ct_is_file_ignored($new);
     return CORE::symlink($old, $new);
 }
 
@@ -547,6 +562,7 @@ sub ct_file_get_contents {
 
 sub ct_file_set_contents {
     my ($self, $file, $data, $perms) = @_;
+    return if $self->ct_is_file_ignored($file);
     PVE::Tools::file_set_contents($file, $data, $perms);
     $self->ct_reset_ownership($file);
 }
@@ -555,6 +571,7 @@ sub ct_file_set_contents {
 # Optionally if the file becomes empty it will be deleted.
 sub ct_modify_file {
     my ($self, $file, $data, %options) = @_;
+    return if $self->ct_is_file_ignored($file);
 
     my $head = "# --- BEGIN PVE ---\n";
     my $tail = "# --- END PVE ---\n";
