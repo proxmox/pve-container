@@ -68,7 +68,6 @@ __PACKAGE__->register_method ({
 	    my $ind = $1;
 	    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 	    next if $net->{type} ne 'veth';
-	    my $name = "veth${vmid}i${ind}";
 	    # veth_delete tests with '-d /sys/class/net/$name' before running the command
 	    PVE::Network::veth_delete("veth${vmid}i$ind");
 	}
