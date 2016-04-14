@@ -1039,8 +1039,9 @@ sub mountpoint_mount {
     die "unknown snapshot path for '$volid'" if !$storage && defined($snapname);
 
     my $optstring = '';
-    if (defined($mountpoint->{acl})) {
-	$optstring .= ($mountpoint->{acl} ? 'acl' : 'noacl');
+    my $acl = $mountpoint->{acl};
+    if (defined($acl)) {
+	$optstring .= ($acl ? 'acl' : 'noacl');
     }
     my $readonly = $mountpoint->{ro};
 
@@ -1067,6 +1068,12 @@ sub mountpoint_mount {
 			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
 		    }
 		} else {
+		    if (defined($acl) && $scfg->{type} eq 'zfspool') {
+			my $acltype = ($acl ? 'acltype=posixacl' : 'acltype=noacl');
+			my (undef, $name) = PVE::Storage::parse_volname($storage_cfg, $volid);
+			$name .= "\@$snapname" if defined($snapname);
+			PVE::Tools::run_command(['zfs', 'set', $acltype, "$scfg->{pool}/$name"]);
+		    }
 		    bindmount($path, $mount_path, $readonly, @extra_opts);
 		    warn "cannot enable quota control for bind mounted subvolumes\n" if $quota;
 		}

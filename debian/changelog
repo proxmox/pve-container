@@ -8,6 +8,8 @@ pve-container (1.0-61) unstable; urgency=medium
 
   * Debian: correctly setup getty service on systemd based containers
 
+  * honor acl setting with zfs
+
  -- Proxmox Support Team <support@proxmox.com>  Wed, 20 Apr 2016 11:25:34 +0200
 
 pve-container (1.0-60) unstable; urgency=medium
