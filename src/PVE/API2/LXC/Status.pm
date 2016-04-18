@@ -92,7 +92,7 @@ __PACKAGE__->register_method({
 	my $vmstatus =  PVE::LXC::vmstatus($param->{vmid});
 	my $status = $vmstatus->{$param->{vmid}};
 
-	$status->{ha} = PVE::HA::Config::vm_is_ha_managed($param->{vmid}) ? 1 : 0;
+	$status->{ha} = PVE::HA::Config::get_service_status("ct:$param->{vmid}");
 
 	return $status;
     }});
