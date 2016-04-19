@@ -1,3 +1,9 @@
+pve-container (1.0-60) unstable; urgency=medium
+
+  * vm_status: return more verbose HA state
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 19 Apr 2016 09:04:43 +0200
+
 pve-container (1.0-59) unstable; urgency=medium
 
   * setup: ability to ignore files
