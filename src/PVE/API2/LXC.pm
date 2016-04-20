@@ -261,6 +261,9 @@ __PACKAGE__->register_method({
 	    if ($opt eq 'rootfs' || $opt =~ m/^mp\d+$/) {
 		# allow to use simple numbers (add default storage in that case)
 		$param->{$opt} = "$storage:$value" if $value =~ m/^\d+(\.\d+)?$/;
+	    } elsif ($opt =~ m/^unused\d+$/) {
+		warn "ignoring '$opt', cannot create/restore with unused volume\n";
+		delete $param->{$opt};
 	    } else {
 		$no_disk_param->{$opt} = $value;
 	    }
