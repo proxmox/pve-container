@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '16.04' => 1, # xenial
     '15.10' => 1, # wily
     '15.04' => 1, # vivid
     '14.04' => 1, # trusty LTS
@@ -47,7 +48,7 @@ sub template_fixup {
 
     my $version = $self->{version};
     
-    if ($version eq '15.04' || $version eq '15.10') {
+    if ($version eq '15.04' || $version eq '15.10' || $version eq '16.04') {
 	# edit /etc/securetty (enable login on console)
 	$self->setup_securetty($conf, qw(pts/0));
     }
