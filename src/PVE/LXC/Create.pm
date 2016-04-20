@@ -201,23 +201,9 @@ sub create_rootfs {
 	
 	# destroy old container volume
 	PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
-
-	# do not copy all settings to restored container
-	foreach my $opt (qw(rootfs digest snapshots arch ostype unprivileged parent)) {
-	    delete $old_conf->{$opt};
-	}
-	foreach my $opt (keys %$old_conf) {
-	    delete $old_conf->{$opt} if $opt =~ m/^mp\d+$/;
-	}
-
-	PVE::LXC::Config->update_pct_config($vmid, $conf, 0, $old_conf);
-
-	PVE::LXC::Config->write_config($vmid, $conf);
-
-    } else {
-	
-	PVE::LXC::Config->write_config($vmid, $conf);
     }
+
+    PVE::LXC::Config->write_config($vmid, $conf);
 
     eval {
 	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
