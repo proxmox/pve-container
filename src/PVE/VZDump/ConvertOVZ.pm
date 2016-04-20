@@ -314,5 +314,7 @@ sub convert_ovz {
 
    $conf->{hostname} = $ovz_conf->{hostname}->{value};
 
-   return wantarray ? ($conf, $disksize) : $conf;
+   $conf->{rootfs} = { size => $disksize, mp => '/' };
+
+   return wantarray ? ($conf, $conf->{rootfs}) : $conf;
 }
