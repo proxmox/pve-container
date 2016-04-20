@@ -1,3 +1,9 @@
+pve-container (1.0-61) unstable; urgency=medium
+
+  * add support for ubuntu xenial
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 20 Apr 2016 11:25:34 +0200
+
 pve-container (1.0-60) unstable; urgency=medium
 
   * vm_status: return more verbose HA state
