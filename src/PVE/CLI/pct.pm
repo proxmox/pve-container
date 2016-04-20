@@ -388,7 +388,8 @@ __PACKAGE__->register_method({
 	my $dest = extract_param($param, 'destination');
 
 	my $perms = extract_param($param, 'perms');
-	$perms = '0'.$perms if defined($perms) && $perms !~m/^0/;
+	# assume octal as default
+	$perms = "0$perms" if defined($perms) && $perms !~m/^0/;
 	my $user = extract_param($param, 'user');
 	my $group = extract_param($param, 'group');
 
@@ -470,7 +471,8 @@ __PACKAGE__->register_method({
 	my $dest = extract_param($param, 'destination');
 
 	my $perms = extract_param($param, 'perms');
-	$perms = '0'.$perms if defined($perms) && $perms !~m/^0/;
+	# assume octal as default
+	$perms = "0$perms" if defined($perms) && $perms !~m/^0/;
 	my $user = extract_param($param, 'user');
 	my $group = extract_param($param, 'group');
 
