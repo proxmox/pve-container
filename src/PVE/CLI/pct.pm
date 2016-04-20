@@ -369,7 +369,7 @@ __PACKAGE__->register_method({
 	    },
 	    perms => {
 		type => 'string',
-		description => 'File permissions to use.',
+		description => "File permissions to use (octal by default, prefix with '0x' for hexadecimal).",
 		optional => 1,
 	    },
 	},
@@ -388,6 +388,7 @@ __PACKAGE__->register_method({
 	my $dest = extract_param($param, 'destination');
 
 	my $perms = extract_param($param, 'perms');
+	$perms = '0'.$perms if defined($perms) && $perms !~m/^0/;
 	my $user = extract_param($param, 'user');
 	my $group = extract_param($param, 'group');
 
@@ -450,7 +451,7 @@ __PACKAGE__->register_method({
 	    },
 	    perms => {
 		type => 'string',
-		description => 'File permissions to use.',
+		description => "File permissions to use (octal by default, prefix with '0x' for hexadecimal).",
 		optional => 1,
 	    },
 	},
@@ -469,6 +470,7 @@ __PACKAGE__->register_method({
 	my $dest = extract_param($param, 'destination');
 
 	my $perms = extract_param($param, 'perms');
+	$perms = '0'.$perms if defined($perms) && $perms !~m/^0/;
 	my $user = extract_param($param, 'user');
 	my $group = extract_param($param, 'group');
 
