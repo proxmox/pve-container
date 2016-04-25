@@ -113,8 +113,8 @@ sub make_gateway_scripts {
     my ($ifname, $gw) = @_;
     return <<"SCRIPTS";
 \tpost-up ip route add $gw dev $ifname
-\tpost-up ip route add default via $gw
-\tpre-down ip route del default via $gw
+\tpost-up ip route add default via $gw dev $ifname
+\tpre-down ip route del default via $gw dev $ifname
 \tpre-down ip route del $gw dev $ifname
 SCRIPTS
 }
