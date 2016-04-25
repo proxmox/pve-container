@@ -1,0 +1,4 @@
+# --- BEGIN PVE ---
+20ff::1 dev eth0
+default via 20ff::1 dev eth0
+# --- END PVE ---

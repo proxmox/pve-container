@@ -1,6 +1,4 @@
 # --- BEGIN PVE ---
 4.3.2.1 dev eth0
-default via 4.3.2.1
-20ff::1 dev eth0
-default via 20ff::1
+default via 4.3.2.1 dev eth0
 # --- END PVE ---

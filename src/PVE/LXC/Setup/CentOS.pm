@@ -177,7 +177,9 @@ sub setup_network {
 
 	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
 	my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
+	my $route6file = "/etc/sysconfig/network-scripts/route6-$d->{name}";
 	my $routes = '';
+	my $routes6 = '';
 
 	my $header = "DEVICE=$d->{name}\nONBOOT=yes\n";
 	my $data = '';
@@ -195,7 +197,7 @@ sub setup_network {
 		    $data .= "GATEWAY=$d->{gw}\n";
 		    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
 			$routes .= "$d->{gw} dev $d->{name}\n";
-			$routes .= "default via $d->{gw}\n";
+			$routes .= "default via $d->{gw} dev $d->{name}\n";
 		    }
 		}
 	    }
@@ -214,11 +216,12 @@ sub setup_network {
 	    } else {
 		$data .= "IPV6ADDR=$d->{ip6}\n";
 		if (defined($d->{gw6})) {
-		    $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
 		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6) &&
 			!PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)) {
-			$routes .= "$d->{gw6} dev $d->{name}\n";
-			$routes .= "default via $d->{gw6}\n";
+			$routes6 .= "$d->{gw6} dev $d->{name}\n";
+			$routes6 .= "default via $d->{gw6} dev $d->{name}\n";
+		    } else {
+			$data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
 		    }
 		}
 	    }
@@ -228,6 +231,7 @@ sub setup_network {
 	$header .= "BOOTPROTO=$bootproto\n";
 	$self->ct_file_set_contents($filename, $header . $data);
 	$self->ct_modify_file($routefile, $routes, delete => 1, prepend => 1);
+	$self->ct_modify_file($route6file, $routes6, delete => 1, prepend => 1);
     }
 
     my $sysconfig_network = "/etc/sysconfig/network";

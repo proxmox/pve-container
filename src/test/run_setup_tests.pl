@@ -53,12 +53,16 @@ sub run_test {
 	                   /etc/sysconfig/network
 	                   /etc/sysconfig/network-scripts/ifcfg-eth0
 	                   /etc/sysconfig/network-scripts/route-eth0
+	                   /etc/sysconfig/network-scripts/route6-eth0
 	                   /etc/sysconfig/network-scripts/ifcfg-eth1
 	                   /etc/sysconfig/network-scripts/route-eth1
+	                   /etc/sysconfig/network-scripts/route6-eth1
 	                   /etc/sysconfig/network-scripts/ifcfg-eth2
 	                   /etc/sysconfig/network-scripts/route-eth2
+	                   /etc/sysconfig/network-scripts/route6-eth2
 	                   /etc/sysconfig/network-scripts/ifcfg-eth3
 	                   /etc/sysconfig/network-scripts/route-eth3
+	                   /etc/sysconfig/network-scripts/route6-eth3
 	                   /etc/sysconfig/network/ifcfg-eth0
 	                   /etc/sysconfig/network/ifroute-eth0
 	                   /etc/sysconfig/network/ifcfg-eth1
