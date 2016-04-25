@@ -98,7 +98,8 @@ sub setup_network {
 	    } else {
 		push @addrs, $d->{ip6};
 		if (defined($d->{gw6})) {
-		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)) {
+		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6) &&
+		        !PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)) {
 			$routes .= "$d->{gw6}/128 - - $d->{name}\n";
 		    }
 		    $routes .= "default $d->{gw6} - $d->{name}\n";

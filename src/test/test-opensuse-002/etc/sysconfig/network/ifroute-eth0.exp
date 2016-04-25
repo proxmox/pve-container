@@ -1,3 +1,4 @@
 # --- BEGIN PVE ---
-default 2001:1::ffff - eth0
+20ff::1/128 - - eth0
+default 20ff::1 - eth0
 # --- END PVE ---

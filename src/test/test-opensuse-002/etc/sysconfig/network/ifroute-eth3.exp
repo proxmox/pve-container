@@ -1,0 +1,3 @@
+# --- BEGIN PVE ---
+default fe80::1 - eth3
+# --- END PVE ---

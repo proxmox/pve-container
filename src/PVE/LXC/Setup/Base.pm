@@ -261,7 +261,8 @@ DATA
 	}
 	if (defined(my $gw = $d->{gw6})) {
 	    $data .= "Gateway = $gw\n";
-	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6)) {
+	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6) &&
+		!PVE::Network::is_ip_in_cidr($gw, 'fe80::/10', 6)) {
 		$routes .= "\n[Route]\nDestination = $gw/128\nScope = link\n";
 	    }
 	}

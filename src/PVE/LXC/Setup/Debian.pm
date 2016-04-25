@@ -161,7 +161,8 @@ sub setup_network {
 	    }
 	    if (defined($d->{'gw6'})) {
 		$net->{gateway6} = $d->{'gw6'};
-		if (defined($cidr) && !PVE::Network::is_ip_in_cidr($d->{gw6}, $cidr, 6)) {
+		if (defined($cidr) && !PVE::Network::is_ip_in_cidr($d->{gw6}, $cidr, 6) &&
+		    !PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)) {
 		    # gateway is not reachable, need an extra route
 		    $net->{needsroute6} = 1;
 		}

@@ -1,4 +1,5 @@
 hostname: pvesuse1
-net0: bridge=vmbr0,name=eth0,ip6=2001:1::/64,gw6=2001:1::ffff
+net0: bridge=vmbr0,name=eth0,ip6=2001:1::/64,gw6=20ff::1
 net1: bridge=vmbr0,name=eth1,ip6=2001:2::/64
 net2: bridge=vmbr0,name=eth2,ip6=manual
+net3: bridge=vmbr0,name=eth3,ip6=2000::1/64,gw6=fe80::1
