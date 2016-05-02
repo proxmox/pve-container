@@ -43,7 +43,27 @@ sub template_fixup {
 }
 
 sub setup_init {
-    # Nothing to do
+    my ($self, $conf) = @_;
+
+    my $filename = "/etc/inittab";
+    return if !$self->ct_file_exists($filename);
+
+    my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
+    my $inittab = $self->ct_file_get_contents($filename);
+
+    my @lines = grep {
+	    # remove getty lines
+	    !/^\s*tty\d+::[^:]*:.*getty/
+    } split(/\n/, $inittab);
+
+    $inittab = join("\n", @lines) . "\n";
+
+    for (my $id = 1; $id <= $ttycount; $id++) {
+	next if $id == 7; # reserved for X11
+	$inittab .= "tty$id\::respawn:/sbin/getty 38400 tty$id\n";
+    }
+
+    $self->ct_file_set_contents($filename, $inittab);
 }
 
 sub setup_network {
