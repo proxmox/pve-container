@@ -202,8 +202,9 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
 		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
+
+		remove_gateway_scripts($section->{attr});
 		if (defined(my $gw = $net->{gateway})) {
-		    remove_gateway_scripts($section->{attr});
 		    if ($net->{needsroute}) {
 			$interfaces .= make_gateway_scripts($ifname, $gw);
 		    } else {
@@ -226,8 +227,8 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
 		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
+		remove_gateway_scripts($section->{attr});
 		if (defined(my $gw = $net->{gateway6})) {
-		    remove_gateway_scripts($section->{attr});
 		    if ($net->{needsroute6}) {
 			$interfaces .= make_gateway_scripts($ifname, $gw);
 		    } else {
