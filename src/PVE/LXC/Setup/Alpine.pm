@@ -38,6 +38,8 @@ sub template_fixup {
                       '/etc/runlevels/shutdown/killprocs');
     $self->ct_symlink('/etc/init.d/savecache',
                       '/etc/runlevels/shutdown/savecache');
+
+    $self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
 }
 
 sub setup_init {
