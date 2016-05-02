@@ -196,7 +196,7 @@ sub setup_network {
 	if ($section->{type} eq 'ipv4') {
 	    $done_v4_hash->{$ifname} = 1;
 
-	    if ($net->{address} =~ /^(dhcp|manual)$/) {
+	    if (defined($net->{address}) && $net->{address} =~ /^(dhcp|manual)$/) {
 		$interfaces .= "iface $ifname inet $1\n";
 	    } else {
 		$interfaces .= "iface $ifname inet static\n";
@@ -220,7 +220,7 @@ sub setup_network {
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$ifname} = 1;
 
-	    if ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
+	    if (defined($net->{address6}) && $net->{address6} =~ /^(auto|dhcp|manual)$/) {
 		$interfaces .= "iface $ifname inet6 $1\n";
 	    } else {
 		$interfaces .= "iface $ifname inet6 static\n";
