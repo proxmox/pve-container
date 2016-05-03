@@ -1,3 +1,11 @@
+pve-container (1.0-63) unstable; urgency=medium
+
+  * cleanup gateway hooks in debian network setup
+
+  * fix uninitialized value warning
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 03 May 2016 07:19:19 +0200
+
 pve-container (1.0-62) unstable; urgency=medium
 
   * centos: fixup ipv6 out-of-subnet route
