@@ -40,6 +40,7 @@ sub prepare {
     }
 
     my $force = $self->{opts}->{force} // 0;
+    my $need_activate = [];
 
     PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
@@ -57,13 +58,23 @@ sub prepare {
 	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
 	PVE::Storage::storage_check_node($self->{storecfg}, $storage, $self->{node});
 
-	die "unable to migrate local mountpoint '$volid' while CT is running"
-	    if !$scfg->{shared} && $running;
+
+	if ($scfg->{shared}) {
+	    # PVE::Storage::activate_storage checks this for non-shared storages
+	    my $plugin = PVE::Storage::Plugin->lookup($scfg->{type});
+	    warn "Used shared storage '$storage' is not online on source node!\n"
+		if !$plugin->check_connection($storage, $scfg);
+	} else {
+	    # only activate if not shared
+	    push @$need_activate, $volid;
+
+	    die "unable to migrate local mountpoint '$volid' while CT is running"
+		if $running;
+	}
 
     });
 
-    my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
-    PVE::Storage::activate_volumes($self->{storecfg}, $volid_list);
+    PVE::Storage::activate_volumes($self->{storecfg}, $need_activate);
 
     # todo: test if VM uses local resources
 
