@@ -26,7 +26,7 @@ sub prepare {
 
     $self->{storecfg} = PVE::Storage::config();
 
-    # test is VM exist
+    # test if CT exists
     my $conf = $self->{vmconf} = PVE::LXC::Config->load_config($vmid);
 
     PVE::LXC::Config->check_lock($conf);
