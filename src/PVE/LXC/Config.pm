@@ -412,7 +412,7 @@ my $valid_lxc_conf_keys = {
     'lxc.environment' => 1,
 };
 
-my $netconf_desc = {
+our $netconf_desc = {
     type => {
 	type => 'string',
 	optional => 1,
