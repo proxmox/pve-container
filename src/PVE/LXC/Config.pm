@@ -177,7 +177,6 @@ my $rootfs_desc = {
     },
     backup => {
 	type => 'boolean',
-	format_description => '[1|0]',
 	description => 'Whether to include the mountpoint in backups.',
 	optional => 1,
     },
@@ -190,19 +189,16 @@ my $rootfs_desc = {
     },
     acl => {
 	type => 'boolean',
-	format_description => 'acl',
 	description => 'Explicitly enable or disable ACL support.',
 	optional => 1,
     },
     ro => {
 	type => 'boolean',
-	format_description => 'ro',
 	description => 'Read-only mountpoint (not supported with bind mounts)',
 	optional => 1,
     },
     quota => {
 	type => 'boolean',
-	format_description => '[0|1]',
 	description => 'Enable user quotas inside the container (not supported with zfs subvolumes)',
 	optional => 1,
     },
@@ -306,7 +302,7 @@ my $confdesc = {
     description => {
 	optional => 1,
 	type => 'string',
-	description => "Container description. Only used on the configuration web interface.",
+        description => "Container description. Only used on the configuration web interface.",
     },
     searchdomain => {
 	optional => 1,
@@ -421,27 +417,26 @@ our $netconf_desc = {
     },
     name => {
 	type => 'string',
-	format_description => 'String',
-	description => 'Name of the network device as seen from inside the container. (lxc.network.name)',
+        format_description => 'string',
+ 	description => 'Name of the network device as seen from inside the container. (lxc.network.name)',
 	pattern => '[-_.\w\d]+',
     },
     bridge => {
 	type => 'string',
-	format_description => 'vmbr<Number>',
+	format_description => 'bridge',
 	description => 'Bridge to attach the network device to.',
 	pattern => '[-_.\w\d]+',
 	optional => 1,
     },
     hwaddr => {
 	type => 'string',
-	format_description => 'MAC',
+	format_description => "XX:XX:XX:XX:XX:XX",
         description => 'The interface MAC address. This is dynamically allocated by default, but you can set that statically if needed, for example to always have the same link-local IPv6 address. (lxc.network.hwaddr)',
 	pattern => qr/(?:[a-f0-9]{2}:){5}[a-f0-9]{2}/i,
 	optional => 1,
     },
     mtu => {
 	type => 'integer',
-	format_description => 'Number',
 	description => 'Maximum transfer unit of the interface. (lxc.network.mtu)',
 	minimum => 64, # minimum ethernet frame is 64 bytes
 	optional => 1,
@@ -476,13 +471,11 @@ our $netconf_desc = {
     },
     firewall => {
 	type => 'boolean',
-	format_description => '[1|0]',
 	description => "Controls whether this interface's firewall rules should be used.",
 	optional => 1,
     },
     tag => {
 	type => 'integer',
-	format_description => 'VlanNo',
 	minimum => '2',
 	maximum => '4094',
 	description => "VLAN tag for this interface.",
