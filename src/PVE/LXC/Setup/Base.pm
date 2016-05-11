@@ -278,6 +278,9 @@ sub setup_securetty {
     my ($self, $conf, @add) = @_;
 
     my $filename = "/etc/securetty";
+    # root login is already allowed on every device if no securetty present
+    return if !$self->ct_file_exists($filename);
+
     my $data = $self->ct_file_get_contents($filename);
     chomp $data; $data .= "\n";
     foreach my $dev (@add) {
