@@ -24,7 +24,7 @@ sub new {
 
 sub template_fixup {
     my ($self, $conf) = @_;
-    my $rootdir = $self->{rootdir};
+
     # enable networking service
     $self->ct_symlink('/etc/init.d/networking',
                       '/etc/runlevels/boot/networking');
