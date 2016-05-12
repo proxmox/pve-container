@@ -159,7 +159,7 @@ sub setup_init {
 sub setup_systemd_console {
     my ($self, $conf) = @_;
 
-    my $systemd_dir_rel = -x "/lib/systemd/systemd" ?
+    my $systemd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
 	"/lib/systemd/system" : "/usr/lib/systemd/system";
 
     my $systemd_getty_service_rel = "$systemd_dir_rel/getty\@.service";
@@ -200,7 +200,7 @@ sub setup_systemd_console {
 
 sub setup_container_getty_service {
     my ($self, $nosubdir) = @_;
-    my $systemd_dir_rel = -x "/lib/systemd/systemd" ?
+    my $systemd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
 	"/lib/systemd/system" : "/usr/lib/systemd/system";
     my $servicefile = "$systemd_dir_rel/container-getty\@.service";
     my $raw = $self->ct_file_get_contents($servicefile);
@@ -547,6 +547,11 @@ sub ct_is_directory {
 sub ct_is_symlink {
     my ($self, $file) = @_;
     return -l $file;
+}
+
+sub ct_is_executable {
+    my ($self, $file) = @_;
+    return -x $file
 }
 
 sub ct_stat {
