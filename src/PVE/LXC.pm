@@ -403,6 +403,9 @@ sub update_lxc_config {
     my $shares = $conf->{cpuunits} || 1024;
     $raw .= "lxc.cgroup.cpu.shares = $shares\n";
 
+    die "missing 'rootfs' configuration\n"
+	if !defined($conf->{rootfs});
+
     my $mountpoint = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
 
     $raw .= "lxc.rootfs = $dir/rootfs\n";
