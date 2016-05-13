@@ -5,27 +5,25 @@ auto eth0
 iface eth0 inet static
 	address 10.0.0.100
 	netmask 255.255.255.255
-# --- BEGIN PVE ---
 	post-up ip route add 11.0.0.1 dev eth0
 	post-up ip route add default via 11.0.0.1 dev eth0
 	pre-down ip route del default via 11.0.0.1 dev eth0
 	pre-down ip route del 11.0.0.1 dev eth0
-# --- END PVE ---
 
 auto eth1
 iface eth1 inet6 static
 	address fc00::1
 	netmask 64
-# --- BEGIN PVE ---
-	post-up ip route add fc00:1::ff dev eth1
+	post-up ip route add fc00:1::ff/64 dev eth1
 	post-up ip route add default via fc00:1::ff dev eth1
-	pre-down ip route del default via fc00:1::ff dev eth1
+	pre-down ip route del default via fc00:1::ff/64 dev eth1
 	pre-down ip route del fc00:1::ff dev eth1
-# --- END PVE ---
 
 auto eth2
-iface eth2 inet6 static
-	address fc02::1
-	netmask 64
-	gateway fe80::1
-
+iface eth2 inet static
+	address 192.168.0.1
+	netmask 255.255.255.0
+	post-up ip route add 192.168.1.1 dev eth2 table internal
+	post-up ip route add default via 192.168.1.1 dev eth2 table internal
+	pre-down ip rule add from 192.168.0.128/25 table internal
+	pre-down ip rule add to 192.168.0.128/25 table internal

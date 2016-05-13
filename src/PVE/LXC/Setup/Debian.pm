@@ -79,32 +79,43 @@ sub setup_init {
 sub remove_gateway_scripts {
     my ($attr) = @_;
     my $length = scalar(@$attr);
-    for (my $i = 0; $i < $length; ++$i) {
-	my $a = $attr->[$i];
-	if ($a =~ m@^\s*post-up\s+.*route.*add.*default.*(?:gw|via)\s+(\S+)@) {
-	    my $gw = $1;
-	    if ($i > 0 && $attr->[$i-1] =~ m@^\s*post-up\s+.*route.*add.*\Q$1\E@) {
-		--$i;
-		splice @$attr, $i, 2;
-		$length -= 2;
-	    } else {
-		splice @$attr, $i, 1;
-		$length -= 1;
-	    }
-	    --$i;
-	    next;
+
+    my $found_section = 0;
+    my $keep = 1;
+    @$attr = grep {
+	if ($_ eq '# --- BEGIN PVE ---') {
+	    $found_section = 1;
+	    $keep = 0;
+	    0; # remove this line
+	} elsif ($_ eq '# --- END PVE ---') {
+	    $found_section = 1;
+	    $keep = 1;
+	    0; # remove this line
+	} else {
+	    $keep;
 	}
-	if ($a =~ m@^\s*pre-down\s+.*route.*del.*default.*(?:gw|via)\s+(\S+)@) {
-	    my $gw = $1;
-	    if ($attr->[$i+1] =~ m@^\s*pre-down\s+.*route.*del.*\Q$1\E@) {
-		splice @$attr, $i, 2;
-		$length -= 2;
-	    } else {
-		splice @$attr, $i, 1;
-		$length -= 1;
-	    }
+    } @$attr;
+
+    return if $found_section;
+    # XXX: To deal with existing setups we perform two types of removal for
+    # now. Newly started containers have their routing sections marked with
+    # begin/end comments. For older containers we perform a strict matching on
+    # the routing rules we added. We can probably remove this part at some point
+    # when it is unlikely that old debian setups are still around.
+
+    for (my $i = 0; $i < $length-3; ++$i) {
+	next if $attr->[$i+0] !~ m@^\s*post-up\s+ip\s+route\s+add\s+(\S+)\s+dev\s+(\S+)$@;
+	my ($ip, $dev) = ($1, $2);
+	if ($attr->[$i+1] =~ m@^\s*post-up\s+ip\s+route\s+add\s+default\s+via\s+(\S+)\s+dev\s+(\S+)$@ &&
+	    ($ip eq $1 && $dev eq $2) &&
+	    $attr->[$i+2] =~ m@^\s*pre-down\s+ip\s+route\s+del\s+default\s+via\s+(\S+)\s+dev\s+(\S+)$@ &&
+	    ($ip eq $1 && $dev eq $2) &&
+	    $attr->[$i+3] =~ m@^\s*pre-down\s+ip\s+route\s+del\s+(\S+)\s+dev\s+(\S+)$@ &&
+	    ($ip eq $1 && $dev eq $2))
+	{
+	    splice @$attr, $i, 4;
+	    $length -= 4;
 	    --$i;
-	    next;
 	}
     }
 }
@@ -112,10 +123,12 @@ sub remove_gateway_scripts {
 sub make_gateway_scripts {
     my ($ifname, $gw) = @_;
     return <<"SCRIPTS";
+# --- BEGIN PVE ---
 \tpost-up ip route add $gw dev $ifname
 \tpost-up ip route add default via $gw dev $ifname
 \tpre-down ip route del default via $gw dev $ifname
 \tpre-down ip route del $gw dev $ifname
+# --- END PVE ---
 SCRIPTS
 }
 
@@ -251,6 +264,12 @@ sub setup_network {
     if (my $fh = $self->ct_open_file_read($filename)) {
 	while (defined (my $line = <$fh>)) {
 	    chomp $line;
+	    if ($line =~ m/^# --- (?:BEGIN|END) PVE ---/) {
+		# Include markers in the attribute section so
+		# remove_gateway_scripts() can find them.
+		push @{$section->{attr}}, $line if $section;
+		next;
+	    }
 	    if ($line =~ m/^#/) {
 		$interfaces .= "$line\n";
 		next;
