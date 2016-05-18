@@ -483,7 +483,7 @@ our $netconf_desc = {
     },
     tag => {
 	type => 'integer',
-	minimum => '2',
+	minimum => '1',
 	maximum => '4094',
 	description => "VLAN tag for this interface.",
 	optional => 1,
