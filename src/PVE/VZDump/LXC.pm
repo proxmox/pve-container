@@ -9,6 +9,7 @@ use PVE::Cluster qw(cfs_read_file);
 use PVE::Storage;
 use PVE::VZDump;
 use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::Tools;
 
 use base qw (PVE::VZDump::Plugin);
