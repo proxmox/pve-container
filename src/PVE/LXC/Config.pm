@@ -187,11 +187,6 @@ my $rootfs_desc = {
 	format_description => 'volume',
 	description => 'Volume, device or directory to mount into the container.',
     },
-    backup => {
-	type => 'boolean',
-	description => 'Whether to include the mountpoint in backups.',
-	optional => 1,
-    },
     size => {
 	type => 'string',
 	format => 'disk-size',
@@ -538,6 +533,11 @@ sub verify_lxc_mp_string {
 
 my $mp_desc = {
     %$rootfs_desc,
+    backup => {
+	type => 'boolean',
+	description => 'Whether to include the mountpoint in backups.',
+	optional => 1,
+    },
     mp => {
 	type => 'string',
 	format => 'pve-lxc-mp-string',
