@@ -44,6 +44,16 @@ sub cfs_config_path {
     return "nodes/$node/lxc/$vmid.conf";
 }
 
+sub mountpoint_backup_enabled {
+    my ($mp_key, $mountpoint) = @_;
+
+    return 1 if $mp_key eq 'rootfs';
+
+    return 1 if $mountpoint->{backup};
+
+    return 0;
+}
+
 sub has_feature {
     my ($class, $feature, $conf, $storecfg, $snapname, $running, $backup_only) = @_;
     my $err;
@@ -52,7 +62,7 @@ sub has_feature {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
-	return if $backup_only && $ms ne 'rootfs' && !$mountpoint->{backup};
+	return if $backup_only && !mountpoint_backup_enabled($ms, $mountpoint);
 
 	$err = 1
 	    if !PVE::Storage::volume_has_feature($storecfg, $feature,
@@ -97,7 +107,9 @@ sub __snapshot_create_vol_snapshot {
 
     my $storecfg = PVE::Storage::config();
 
-    return if $snapname eq 'vzdump' && $ms ne 'rootfs' && !$mountpoint->{backup};
+    return if $snapname eq 'vzdump' &&
+	!mountpoint_backup_enabled($ms, $mountpoint);
+
     PVE::Storage::volume_snapshot($storecfg, $mountpoint->{volume}, $snapname);
 }
 

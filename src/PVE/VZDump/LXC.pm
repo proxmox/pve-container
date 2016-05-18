@@ -120,7 +120,7 @@ sub prepare {
 
 	return if !$volid || !$mount;
 
-	if ($name ne 'rootfs' && !$data->{backup}) {
+	if (!PVE::LXC::Config->mountpoint_backup_enabled($name, $data)) {
 	    push @$exclude_dirs, $mount;
 	    return;
 	}
