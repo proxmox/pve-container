@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Fedora;
 use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::ArchLinux;
 use PVE::LXC::Setup::Alpine;
+use PVE::LXC::Setup::Gentoo;
 
 my $plugins = {
     debian    => 'PVE::LXC::Setup::Debian',
@@ -21,6 +22,7 @@ my $plugins = {
     opensuse  => 'PVE::LXC::Setup::SUSE',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
     alpine    => 'PVE::LXC::Setup::Alpine',
+    gentoo    => 'PVE::LXC::Setup::Gentoo',
 };
 
 my $autodetect_type = sub {
@@ -46,6 +48,8 @@ my $autodetect_type = sub {
 	return "archlinux";
     } elsif (-f  "$rootdir/etc/alpine-release") {
 	return "alpine";
+    } elsif (-f  "$rootdir/etc/gentoo-release") {
+	return "gentoo";
     }
     die "unable to detect OS distribution\n";
 };

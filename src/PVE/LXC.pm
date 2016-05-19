@@ -345,7 +345,7 @@ sub update_lxc_config {
     my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine | unmanaged)$/x) {
+    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine | gentoo | unmanaged)$/x) {
 	my $inc ="/usr/share/lxc/config/$ostype.common.conf";
 	$inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
 	$raw .= "lxc.include = $inc\n";
