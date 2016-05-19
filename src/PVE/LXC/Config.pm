@@ -550,14 +550,14 @@ PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
 my $unuseddesc = {
     optional => 1,
     type => 'string', format => 'pve-volume-id',
-    description => "Reference to unused volumes.",
+    description => "Reference to unused volumes. This is used internally, and should not be modified manually.",
 };
 
 for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
     $confdesc->{"mp$i"} = {
 	optional => 1,
 	type => 'string', format => $mp_desc,
-	description => "Use volume as container mount point (experimental feature).",
+	description => "Use volume as container mount point.",
 	optional => 1,
     };
 }
