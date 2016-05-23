@@ -1,3 +1,9 @@
+pve-container (1.0-66) unstable; urgency=medium
+
+  * Setup: add gentoo support
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 23 May 2016 07:04:53 +0200
+
 pve-container (1.0-65) unstable; urgency=medium
 
   * allow VLAN 1 tag in containers
