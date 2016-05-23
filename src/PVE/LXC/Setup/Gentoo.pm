@@ -149,4 +149,37 @@ sub setup_network {
     }
 }
 
+sub set_hostname {
+    my ($self, $conf) = @_;
+
+    my $hostname = $conf->{hostname} || 'localhost';
+
+    my $namepart = ($hostname =~ s/\..*$//r);
+
+    my $hostname_fn = "/etc/conf.d/hostname";
+
+    my $oldname = 'localhost';
+    my $fh = $self->ct_open_file_read($hostname_fn);
+    while (defined(my $line = <$fh>)) {
+	chomp $line;
+	next if $line =~ /^\s*(#.*)?$/;
+	if ($line =~ /^\s*hostname=("[^"]*"|'[^']*'|\S*)\s*$/) {
+	    $oldname = $1;
+	    last;
+	}
+    }
+    $fh->close();
+
+    my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
+    my $hostip = $ipv4 || $ipv6;
+
+    my ($searchdomains) = $self->lookup_dns_conf($conf);
+
+    $self->update_etc_hosts($hostip, $oldname, $hostname, $searchdomains);
+
+    # This is supposed to contain only the hostname, so we just replace the
+    # file.
+    $self->ct_file_set_contents($hostname_fn, "hostname=\"$namepart\"\n");
+}
+
 1;
