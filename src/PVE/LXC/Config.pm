@@ -45,7 +45,7 @@ sub cfs_config_path {
 }
 
 sub mountpoint_backup_enabled {
-    my ($mp_key, $mountpoint) = @_;
+    my ($class, $mp_key, $mountpoint) = @_;
 
     return 1 if $mp_key eq 'rootfs';
 
@@ -62,7 +62,7 @@ sub has_feature {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
-	return if $backup_only && !mountpoint_backup_enabled($ms, $mountpoint);
+	return if $backup_only && !$class->mountpoint_backup_enabled($ms, $mountpoint);
 
 	$err = 1
 	    if !PVE::Storage::volume_has_feature($storecfg, $feature,
@@ -108,7 +108,7 @@ sub __snapshot_create_vol_snapshot {
     my $storecfg = PVE::Storage::config();
 
     return if $snapname eq 'vzdump' &&
-	!mountpoint_backup_enabled($ms, $mountpoint);
+	!$class->mountpoint_backup_enabled($ms, $mountpoint);
 
     PVE::Storage::volume_snapshot($storecfg, $mountpoint->{volume}, $snapname);
 }
