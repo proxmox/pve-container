@@ -124,7 +124,9 @@ sub __snapshot_delete_remove_drive {
 	my $value = $snap->{$remove_drive};
 	my $mountpoint = $remove_drive eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);
 	delete $snap->{$remove_drive};
-	$class->add_unused_volume($snap, $mountpoint->{volume});
+
+	$class->add_unused_volume($snap, $mountpoint->{volume})
+	    if ($mountpoint->{type} eq 'volume');
     }
 }
 
@@ -136,6 +138,9 @@ sub __snapshot_delete_vmstate_file {
 
 sub __snapshot_delete_vol_snapshot {
     my ($class, $vmid, $ms, $mountpoint, $snapname, $unused) = @_;
+
+    return if $snapname eq 'vzdump' &&
+	!$class->mountpoint_backup_enabled($ms, $mountpoint);
 
     my $storecfg = PVE::Storage::config();
     PVE::Storage::volume_snapshot_delete($storecfg, $mountpoint->{volume}, $snapname);
