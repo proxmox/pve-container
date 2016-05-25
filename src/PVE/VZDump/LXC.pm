@@ -122,6 +122,7 @@ sub prepare {
 
 	if (!PVE::LXC::Config->mountpoint_backup_enabled($name, $data)) {
 	    push @$exclude_dirs, $mount;
+	    $self->loginfo("excluding $type mountpoint $name ('$mount') from backup");
 	    return;
 	}
 

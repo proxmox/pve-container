@@ -49,6 +49,8 @@ sub mountpoint_backup_enabled {
 
     return 1 if $mp_key eq 'rootfs';
 
+    return 0 if $mountpoint->{type} ne 'volume';
+
     return 1 if $mountpoint->{backup};
 
     return 0;
