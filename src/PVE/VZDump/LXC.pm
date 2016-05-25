@@ -278,7 +278,7 @@ sub assemble {
     my $conf = PVE::LXC::Config->load_config($vmid);
     delete $conf->{lock};
     delete $conf->{snapshots};
-    delete $conf->{'pve.parent'};
+    delete $conf->{parent};
 
     PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf));
 
