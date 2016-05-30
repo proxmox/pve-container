@@ -256,11 +256,18 @@ __PACKAGE__->register_method({
 	my $conf = {};
 
 	my $no_disk_param = {};
+	my $mp_param = {};
+	my $storage_only_mode = 1;
 	foreach my $opt (keys %$param) {
 	    my $value = $param->{$opt};
 	    if ($opt eq 'rootfs' || $opt =~ m/^mp\d+$/) {
 		# allow to use simple numbers (add default storage in that case)
-		$param->{$opt} = "$storage:$value" if $value =~ m/^\d+(\.\d+)?$/;
+		if ($value =~ m/^\d+(\.\d+)?$/) {
+		    $mp_param->{$opt} = "$storage:$value";
+		} else {
+		    $mp_param->{$opt} = $value;
+		}
+		$storage_only_mode = 0;
 	    } elsif ($opt =~ m/^unused\d+$/) {
 		warn "ignoring '$opt', cannot create/restore with unused volume\n";
 		delete $param->{$opt};
@@ -269,8 +276,12 @@ __PACKAGE__->register_method({
 	    }
 	}
 
+	die "mountpoints configured, but 'rootfs' not set - aborting\n"
+	    if !$storage_only_mode && !defined($mp_param->{rootfs});
+
 	# check storage access, activate storage
-	PVE::LXC::Config->foreach_mountpoint($param, sub {
+	my $delayed_mp_param = {};
+	PVE::LXC::Config->foreach_mountpoint($mp_param, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
@@ -286,7 +297,7 @@ __PACKAGE__->register_method({
 	});
 
 	# check/activate default storage
-	&$check_and_activate_storage($storage) if !defined($param->{rootfs});
+	&$check_and_activate_storage($storage) if !defined($mp_param->{rootfs});
 
 	PVE::LXC::Config->update_pct_config($vmid, $conf, 0, $no_disk_param);
 
@@ -308,22 +319,32 @@ __PACKAGE__->register_method({
 	    my $vollist = [];
 
 	    eval {
-		if (!defined($param->{rootfs})) {
+		if ($storage_only_mode) {
 		    if ($restore) {
-			my (undef, $rootfsinfo) = PVE::LXC::Create::recover_config($archive);
-			die "unable to detect disk size - please specify rootfs (size)\n"
-			    if !defined($rootfsinfo->{size});
-			my $disksize = $rootfsinfo->{size} / (1024 * 1024 * 1024); # create_disks expects GB as unit size
-			delete $rootfsinfo->{size};
-			delete $rootfsinfo->{ro} if defined($rootfsinfo->{ro});
-			$rootfsinfo->{volume} = "$storage:$disksize";
-			$param->{rootfs} = PVE::LXC::Config->print_ct_mountpoint($rootfsinfo, 1);
+			(undef, $mp_param) = PVE::LXC::Create::recover_config($archive);
+			die "rootfs configuration could not be recovered, please check and specify manually!\n"
+			    if !defined($mp_param->{rootfs});
+			PVE::LXC::Config->foreach_mountpoint($mp_param, sub {
+			    my ($ms, $mountpoint) = @_;
+			    my $type = $mountpoint->{type};
+			    if ($type eq 'volume') {
+				die "unable to detect disk size - please specify $ms (size)\n"
+				    if !defined($mountpoint->{size});
+				my $disksize = $mountpoint->{size} / (1024 * 1024 * 1024); # create_disks expects GB as unit size
+				delete $mountpoint->{size};
+				$mountpoint->{volume} = "$storage:$disksize";
+				$mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+			    } else {
+				$delayed_mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+			    }
+			});
 		    } else {
-			$param->{rootfs} = "$storage:4"; # defaults to 4GB
+			$mp_param->{rootfs} = "$storage:4"; # defaults to 4GB
 		    }
 		}
 
-		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $param, $conf);
+		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
+
 
 		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf,
 						$archive, $password, $restore,
@@ -332,6 +353,9 @@ __PACKAGE__->register_method({
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;
 		$conf->{swap} //= 512;
+		foreach my $mp (keys %$delayed_mp_param) {
+		    $conf->{$mp} = $delayed_mp_param->{$mp};
+		}
 		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {

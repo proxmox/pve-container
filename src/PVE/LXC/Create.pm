@@ -107,7 +107,7 @@ sub recover_config {
     PVE::Tools::run_command(['tar', '-xpOf', $archive, $conf_file, '--occurrence'], outfunc => $out);
 
     my $conf;
-    my $rootfsinfo;
+    my $mp_param = {};
 
     if ($conf_file =~ m/pct\.conf/) {
 
@@ -115,21 +115,22 @@ sub recover_config {
 
 	delete $conf->{snapshots};
 	delete $conf->{template}; # restored CT is never a template
-	
-	if (defined($conf->{rootfs})) {
-	    $rootfsinfo = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
-	}
-	
+
+	PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	    my ($ms, $mountpoint) = @_;
+	    $mp_param->{$ms} = $conf->{$ms};
+	});
+
     } elsif ($conf_file =~ m/vps\.conf/) {
-	
-	($conf, $rootfsinfo) = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
-	
+
+	($conf, $mp_param) = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
+
     } else {
 
        die "internal error";
     }
 
-    return wantarray ? ($conf, $rootfsinfo) : $conf;
+    return wantarray ? ($conf, $mp_param) : $conf;
 }
 
 sub restore_and_configure {
