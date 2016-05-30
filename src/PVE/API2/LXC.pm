@@ -335,6 +335,13 @@ __PACKAGE__->register_method({
 				$mountpoint->{volume} = "$storage:$disksize";
 				$mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 			    } else {
+				my $type = $mountpoint->{type};
+				if ($mountpoint->{backup}) {
+				    warn "WARNING - unsupported configuration!\n";
+				    warn "backup was enabled for $type mountpoint $ms ('$mountpoint->{mp}')\n";
+				    warn "mountpoint configuration will be restored after archive extraction!\n";
+				    warn "contained files will be restored to wrong directory!\n";
+				}
 				$delayed_mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 			    }
 			});
