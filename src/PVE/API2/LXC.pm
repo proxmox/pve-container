@@ -336,6 +336,9 @@ __PACKAGE__->register_method({
 				$mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 			    } else {
 				my $type = $mountpoint->{type};
+				die "restoring rootfs to $type mount is only possible by specifying -rootfs manually!\n"
+				    if ($ms eq 'rootfs');
+
 				if ($mountpoint->{backup}) {
 				    warn "WARNING - unsupported configuration!\n";
 				    warn "backup was enabled for $type mountpoint $ms ('$mountpoint->{mp}')\n";
