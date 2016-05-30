@@ -918,7 +918,7 @@ sub umount_all {
 }
 
 sub mount_all {
-    my ($vmid, $storage_cfg, $conf) = @_;
+    my ($vmid, $storage_cfg, $conf, $ignore_ro) = @_;
 
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     File::Path::make_path($rootdir);
@@ -929,6 +929,8 @@ sub mount_all {
     eval {
 	PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
+
+	    $mountpoint->{ro} = 0 if $ignore_ro;
 
 	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
         });
