@@ -10,13 +10,14 @@ use Socket;
 use File::Path;
 use File::Spec;
 use Cwd qw();
-use Fcntl qw(O_RDONLY);
+use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
+use Errno qw(ELOOP);
 
 use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
-use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full);
+use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH);
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
@@ -951,15 +952,6 @@ sub mountpoint_mount_path {
     return mountpoint_mount($mountpoint, undef, $storage_cfg, $snapname);
 }
 
-my $check_mount_path = sub {
-    my ($path) = @_;
-    $path = File::Spec->canonpath($path);
-    my $real = Cwd::realpath($path);
-    if ($real ne $path) {
-	die "mount path modified by symlink: $path != $real";
-    }
-};
-
 sub query_loopdev {
     my ($path) = @_;
     my $found;
@@ -1003,8 +995,60 @@ sub run_with_loopdev {
     return $device;
 }
 
+# In scalar mode: returns a file handle to the deepest directory node.
+# In list context: returns a list of:
+#   * the deepest directory node
+#   * the 2nd deepest directory (parent of the above)
+#   * directory name of the last directory
+# So that the path $2/$3 should lead to $1 afterwards.
+sub walk_tree_nofollow($$$) {
+    my ($start, $subdir, $mkdir) = @_;
+
+    # splitdir() returns '' for empty components including the leading /
+    my @comps = grep { length($_)>0 } File::Spec->splitdir($subdir);
+
+    sysopen(my $fd, $start, O_PATH | O_DIRECTORY)
+	or die "failed to open start directory $start: $!\n";
+
+    my $dir = $start;
+    my $last_component = undef;
+    my $second = $fd;
+    foreach my $component (@comps) {
+	$dir .= "/$component";
+	my $next = PVE::Tools::openat(fileno($fd), $component, O_NOFOLLOW | O_DIRECTORY);
+
+	if (!$next) {
+	    # failed, check for symlinks and try to create the path
+	    die "symlink encountered at: $dir\n" if $! == ELOOP;
+	    die "cannot open directory $dir: $!\n" if !$mkdir;
+
+	    # We don't check for errors on mkdirat() here and just try to
+	    # openat() again, since at least one error (EEXIST) is an
+	    # expected possibility if multiple containers start
+	    # simultaneously. If someone else injects a symlink now then
+	    # the subsequent openat() will fail due to O_NOFOLLOW anyway.
+	    PVE::Tools::mkdirat(fileno($fd), $component, 0755);
+
+	    $next = PVE::Tools::openat(fileno($fd), $component, O_NOFOLLOW | O_DIRECTORY);
+	    die "failed to create path: $dir: $!\n" if !$next;
+	}
+
+	close $second if defined($last_component);
+	$last_component = $component;
+	$second = $fd;
+	$fd = $next;
+    }
+
+    return ($fd, defined($last_component) && $second, $last_component) if wantarray;
+    close $second if defined($last_component);
+    return $fd;
+}
+
 sub bindmount {
-    my ($dir, $dest, $ro, @extra_opts) = @_;
+    my ($dir, $parentfd, $last_dir, $dest, $ro, @extra_opts) = @_;
+
+    my $srcdh = walk_tree_nofollow('/', $dir, 0);
+
     PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $dir, $dest]);
     if ($ro) {
 	eval { PVE::Tools::run_command(['mount', '-o', 'bind,remount,ro', $dest]); };
@@ -1014,6 +1058,32 @@ sub bindmount {
 	    PVE::Tools::run_command(['umount', $dest]);
 	    die $err;
 	}
+    }
+
+    my $destdh;
+    if ($parentfd) {
+	# Open the mount point path coming from the parent directory since the
+	# filehandle we would have gotten as first result of walk_tree_nofollow
+	# earlier is still a handle to the underlying directory instead of the
+	# mounted path.
+	$destdh = PVE::Tools::openat(fileno($parentfd), $last_dir, PVE::Tools::O_PATH)
+    } else {
+	# For the rootfs we don't have a parentfd so we open the path directly.
+	# Note that this means bindmounting any prefix of the host's
+	# /var/lib/lxc/$vmid path into another container is considered a grave
+	# security error.
+	sysopen $destdh, $last_dir, O_PATH | O_DIRECTORY;
+    }
+    die "failed to open directory $dir: $!\n" if !$destdh;
+
+    my ($srcdev, $srcinode) = stat($srcdh);
+    my ($dstdev, $dstinode) = stat($destdh);
+    close $srcdh;
+    close $destdh;
+
+    if ($srcdev != $dstdev || $srcinode != $dstinode) {
+	PVE::Tools::run_command(['umount', $dest]);
+	die "detected mount path change at: $dir\n";
     }
 }
 
@@ -1029,14 +1099,16 @@ sub mountpoint_mount {
     
     return if !$volid || !$mount;
 
+    $mount =~ s!/+!/!g;
+
     my $mount_path;
+    my ($mpfd, $parentfd, $last_dir);
     
     if (defined($rootdir)) {
+	$rootdir =~ s!/+!/!g;
 	$rootdir =~ s!/+$!!;
 	$mount_path = "$rootdir/$mount";
-	$mount_path =~ s!/+!/!g;
-	&$check_mount_path($mount_path);
-	File::Path::mkpath($mount_path);
+	($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1);
     }
     
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
@@ -1079,7 +1151,7 @@ sub mountpoint_mount {
 			$name .= "\@$snapname" if defined($snapname);
 			PVE::Tools::run_command(['zfs', 'set', $acltype, "$scfg->{pool}/$name"]);
 		    }
-		    bindmount($path, $mount_path, $readonly, @extra_opts);
+		    bindmount($path, $parentfd, $last_dir//$rootdir, $mount_path, $readonly, @extra_opts);
 		    warn "cannot enable quota control for bind mounted subvolumes\n" if $quota;
 		}
 	    }
@@ -1130,8 +1202,7 @@ sub mountpoint_mount {
 	return wantarray ? ($volid, 0, $devpath) : $volid;
     } elsif ($type eq 'bind') {
 	die "directory '$volid' does not exist\n" if ! -d $volid;
-	&$check_mount_path($volid);
-	bindmount($volid, $mount_path, $readonly, @extra_opts) if $mount_path;
+	bindmount($volid, $parentfd, $last_dir//$rootdir, $mount_path, $readonly, @extra_opts) if $mount_path;
 	warn "cannot enable quota control for bind mounts\n" if $quota;
 	return wantarray ? ($volid, 0, undef) : $volid;
     }
