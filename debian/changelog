@@ -14,6 +14,10 @@ pve-container (1.0-66) unstable; urgency=medium
 
   * warn about unsupported backup configuration
 
+  * add ignore_ro flag to mount_all
+
+  * automatically restore mountpoints from backup
+
   * deal with a check_mount_path race condition
 
  -- Proxmox Support Team <support@proxmox.com>  Wed, 25 May 2016 10:18:25 +0200
