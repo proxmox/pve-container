@@ -11,7 +11,7 @@ use File::Path;
 use File::Spec;
 use Cwd qw();
 use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP);
+use Errno qw(ELOOP EROFS);
 
 use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
@@ -1044,11 +1044,58 @@ sub walk_tree_nofollow($$$) {
     return $fd;
 }
 
-sub bindmount {
-    my ($dir, $parentfd, $last_dir, $dest, $ro, @extra_opts) = @_;
+# To guard against symlink attack races against other currently running
+# containers with shared recursive bind mount hierarchies we prepare a
+# directory handle for the directory we're mounting over to verify the
+# mountpoint afterwards.
+sub __bindmount_prepare {
+    my ($hostroot, $dir) = @_;
+    my $srcdh = walk_tree_nofollow($hostroot, $dir, 0);
+    return $srcdh;
+}
 
-    my $srcdh = walk_tree_nofollow('/', $dir, 0);
+# Assuming we mount to rootfs/a/b/c, verify with the directory handle to 'b'
+# ($parentfd) that 'b/c' (openat($parentfd, 'c')) really leads to the directory
+# we intended to bind mount.
+sub __bindmount_verify {
+    my ($srcdh, $parentfd, $last_dir, $ro) = @_;
+    my $destdh;
+    if ($parentfd) {
+	# Open the mount point path coming from the parent directory since the
+	# filehandle we would have gotten as first result of walk_tree_nofollow
+	# earlier is still a handle to the underlying directory instead of the
+	# mounted path.
+	$destdh = PVE::Tools::openat(fileno($parentfd), $last_dir, PVE::Tools::O_PATH | O_NOFOLLOW | O_DIRECTORY);
+	die "failed to open mount point: $!\n" if !$destdh;
+	if ($ro) {
+	    my $dot = '.';
+	    # 269: faccessat()
+	    # no separate function because 99% of the time it's the wrong thing to use.
+	    if (syscall(269, fileno($destdh), $dot, &POSIX::W_OK, 0) != -1) {
+		die "failed to mark bind mount read only\n";
+	    }
+	    die "read-only check failed: $!\n" if $! != EROFS;
+	}
+    } else {
+	# For the rootfs we don't have a parentfd so we open the path directly.
+	# Note that this means bindmounting any prefix of the host's
+	# /var/lib/lxc/$vmid path into another container is considered a grave
+	# security error.
+	sysopen $destdh, $last_dir, O_PATH | O_DIRECTORY;
+	die "failed to open mount point: $!\n" if !$destdh;
+    }
 
+    my ($srcdev, $srcinode) = stat($srcdh);
+    my ($dstdev, $dstinode) = stat($destdh);
+    close $srcdh;
+    close $destdh;
+
+    return ($srcdev == $dstdev && $srcinode == $dstinode);
+}
+
+# Perform the actual bind mounting:
+sub __bindmount_do {
+    my ($dir, $dest, $ro, @extra_opts) = @_;
     PVE::Tools::run_command(['mount', '-o', 'bind', @extra_opts, $dir, $dest]);
     if ($ro) {
 	eval { PVE::Tools::run_command(['mount', '-o', 'bind,remount,ro', $dest]); };
@@ -1059,32 +1106,31 @@ sub bindmount {
 	    die $err;
 	}
     }
+}
 
-    my $destdh;
-    if ($parentfd) {
-	# Open the mount point path coming from the parent directory since the
-	# filehandle we would have gotten as first result of walk_tree_nofollow
-	# earlier is still a handle to the underlying directory instead of the
-	# mounted path.
-	$destdh = PVE::Tools::openat(fileno($parentfd), $last_dir, PVE::Tools::O_PATH)
-    } else {
-	# For the rootfs we don't have a parentfd so we open the path directly.
-	# Note that this means bindmounting any prefix of the host's
-	# /var/lib/lxc/$vmid path into another container is considered a grave
-	# security error.
-	sysopen $destdh, $last_dir, O_PATH | O_DIRECTORY;
-    }
-    die "failed to open directory $dir: $!\n" if !$destdh;
+sub bindmount {
+    my ($dir, $parentfd, $last_dir, $dest, $ro, @extra_opts) = @_;
 
-    my ($srcdev, $srcinode) = stat($srcdh);
-    my ($dstdev, $dstinode) = stat($destdh);
-    close $srcdh;
-    close $destdh;
+    my $srcdh = __bindmount_prepare('/', $dir);
 
-    if ($srcdev != $dstdev || $srcinode != $dstinode) {
+    __bindmount_do($dir, $dest, $ro, @extra_opts);
+
+    if (!__bindmount_verify($srcdh, $parentfd, $last_dir, $ro)) {
 	PVE::Tools::run_command(['umount', $dest]);
 	die "detected mount path change at: $dir\n";
     }
+}
+
+# Cleanup $rootdir a bit (double and trailing slashes), build the mount path
+# from $rootdir and $mount and walk the path from $rootdir to the final
+# directory to check for symlinks.
+sub __mount_prepare_rootdir {
+    my ($rootdir, $mount) = @_;
+    $rootdir =~ s!/+!/!g;
+    $rootdir =~ s!/+$!!;
+    my $mount_path = "$rootdir/$mount";
+    my ($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1);
+    return ($rootdir, $mount_path, $mpfd, $parentfd, $last_dir);
 }
 
 # use $rootdir = undef to just return the corresponding mount path
@@ -1105,10 +1151,8 @@ sub mountpoint_mount {
     my ($mpfd, $parentfd, $last_dir);
     
     if (defined($rootdir)) {
-	$rootdir =~ s!/+!/!g;
-	$rootdir =~ s!/+$!!;
-	$mount_path = "$rootdir/$mount";
-	($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1);
+	($rootdir, $mount_path, $mpfd, $parentfd, $last_dir) =
+	    __mount_prepare_rootdir($rootdir, $mount);
     }
     
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
