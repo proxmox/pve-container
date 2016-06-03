@@ -518,7 +518,7 @@ sub delete_mountpoint_volume {
 }
 
 sub destroy_lxc_container {
-    my ($storage_cfg, $vmid, $conf) = @_;
+    my ($storage_cfg, $vmid, $conf, $replacement_conf) = @_;
 
     PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
@@ -528,7 +528,11 @@ sub destroy_lxc_container {
     rmdir "/var/lib/lxc/$vmid/rootfs";
     unlink "/var/lib/lxc/$vmid/config";
     rmdir "/var/lib/lxc/$vmid";
-    destroy_config($vmid);
+    if (defined $replacement_conf) {
+	PVE::LXC::Config->write_config($vmid, $replacement_conf);
+    } else {
+	destroy_config($vmid);
+    }
 
     #my $cmd = ['lxc-destroy', '-n', $vmid ];
     #PVE::Tools::run_command($cmd);

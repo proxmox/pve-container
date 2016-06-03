@@ -314,7 +314,22 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 	    &$check_vmid_usage(); # final check after locking
-	    	    
+	    my $old_conf;
+
+	    my $config_fn = PVE::LXC::Config->config_file($vmid);
+	    if (-f $config_fn) {
+		die "container exists" if !$restore; # just to be sure
+		$old_conf = PVE::LXC::Config->load_config($vmid);
+	    } else {
+		eval {
+		    # try to create empty config on local node, we have an flock
+		    PVE::LXC::Config->write_config($vmid, {});
+		};
+
+		# another node was faster, abort
+		die "Could not reserve ID $vmid, already taken\n" if $@;
+	    }
+
 	    PVE::Cluster::check_cfs_quorum();
 	    my $vollist = [];
 
@@ -355,15 +370,10 @@ __PACKAGE__->register_method({
 
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
-		my $config_fn = PVE::LXC::Config->config_file($vmid);
-		if (-f $config_fn) {
-		    die "container exists" if !$restore; # just to be sure
-			my $old_conf = PVE::LXC::Config->load_config($vmid);
-
+		if (defined($old_conf)) {
 		    # destroy old container volumes
-		    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
+		    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf, {});
 		}
-		PVE::LXC::Config->write_config($vmid, $conf);
 
 		eval {
 		    my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
