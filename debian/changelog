@@ -1,3 +1,17 @@
+pve-container (1.0-67) unstable; urgency=medium
+
+  * restore: use empty config to reserve container ID
+
+  * split up create_rootfs and restore_and_configure
+
+  * ignore ro flag when creating/restoring CT
+
+  * bindmount: catch rw/ro race and add tests
+
+  * add bindmount regression tests
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 03 Jun 2016 10:33:41 +0200
+
 pve-container (1.0-66) unstable; urgency=medium
 
   * Setup: add gentoo support
