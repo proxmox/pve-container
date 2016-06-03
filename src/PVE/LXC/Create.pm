@@ -67,45 +67,10 @@ sub restore_archive {
     });
 }
 
-sub tar_archive_search_conf {
-    my ($archive) = @_;
-
-    die "ERROR: file '$archive' does not exist\n" if ! -f $archive;
-
-    my $pid = open(my $fh, '-|', 'tar', 'tf', $archive) ||
-       die "unable to open file '$archive'\n";
-
-    my $file;
-    while (defined($file = <$fh>)) {
-	if ($file =~ m!^(\./etc/vzdump/(pct|vps)\.conf)$!) {
-	    $file = $1; # untaint
-	    last;
-	}
-    }
-
-    kill 15, $pid;
-    waitpid $pid, 0;
-    close $fh;
-
-    die "ERROR: archive contains no configuration file\n" if !$file;
-    chomp $file;
-
-    return $file;
-}
-
 sub recover_config {
     my ($archive) = @_;
 
-    my $conf_file = tar_archive_search_conf($archive);
-    
-    my $raw = '';
-    my $out = sub {
-	my $output = shift;
-	$raw .= "$output\n";
-    };
-
-    PVE::Tools::run_command(['tar', '-xpOf', $archive, $conf_file, '--occurrence'], outfunc => $out);
-
+    my ($raw, $conf_file) = PVE::Storage::extract_vzdump_config_tar($archive, qr!(\./etc/vzdump/(pct|vps)\.conf)$!);
     my $conf;
     my $mp_param = {};
 
