@@ -207,7 +207,7 @@ sub create_rootfs {
     PVE::LXC::Config->write_config($vmid, $conf);
 
     eval {
-	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf);
+	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
         restore_and_configure($vmid, $archive, $rootdir, $conf, $password,
 			      $restore, $no_unpack_error, $ssh_keys);
     };
