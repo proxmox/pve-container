@@ -133,88 +133,53 @@ sub recover_config {
     return wantarray ? ($conf, $mp_param) : $conf;
 }
 
-sub restore_and_configure {
-    my ($vmid, $archive, $rootdir, $conf, $password, $restore, $no_unpack_error, $ssh_keys) = @_;
+sub restore_configuration {
+    my ($vmid, $rootdir, $conf) = @_;
 
-    restore_archive($archive, $rootdir, $conf, $no_unpack_error);
+    # restore: try to extract configuration from archive
 
-    if (!$restore) {
-	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
+    my $pct_cfg_fn = "$rootdir/etc/vzdump/pct.conf";
+    my $pct_fwcfg_fn = "$rootdir/etc/vzdump/pct.fw";
+    my $ovz_cfg_fn = "$rootdir/etc/vzdump/vps.conf";
+    if (-f $pct_cfg_fn) {
+	my $raw = PVE::Tools::file_get_contents($pct_cfg_fn);
+	my $oldconf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $raw);
 
-	PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
-	$lxc_setup->post_create_hook($password, $ssh_keys);
-    } else {
-	# restore: try to extract configuration from archive
-
-	my $pct_cfg_fn = "$rootdir/etc/vzdump/pct.conf";
-	my $pct_fwcfg_fn = "$rootdir/etc/vzdump/pct.fw";
-	my $ovz_cfg_fn = "$rootdir/etc/vzdump/vps.conf";
-	if (-f $pct_cfg_fn) {
-	    my $raw = PVE::Tools::file_get_contents($pct_cfg_fn);
-	    my $oldconf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $raw);
-
-	    foreach my $key (keys %$oldconf) {
-		next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
-		next if $key =~ /^mp\d+$/; # don't recover mountpoints
-		next if $key =~ /^unused\d+$/; # don't recover unused disks
-		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
-	    }
-	    unlink($pct_cfg_fn);
-
-	    if (-f $pct_fwcfg_fn) {
-		my $pve_firewall_dir = '/etc/pve/firewall';
-		mkdir $pve_firewall_dir; # make sure the directory exists
-		PVE::Tools::file_copy($pct_fwcfg_fn, "${pve_firewall_dir}/$vmid.fw");
-		unlink $pct_fwcfg_fn;
-	    }
-
-	} elsif (-f $ovz_cfg_fn) {
-	    print "###########################################################\n";
-	    print "Converting OpenVZ configuration to LXC.\n";
-	    print "Please check the configuration and reconfigure the network.\n";
-	    print "###########################################################\n";
-
-	    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
-	    $conf->{ostype} = $lxc_setup->{conf}->{ostype};
-	    my $raw = PVE::Tools::file_get_contents($ovz_cfg_fn);
-	    my $oldconf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
-	    foreach my $key (keys %$oldconf) {
-		$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
-	    }
-	    unlink($ovz_cfg_fn);
-
-	} else {
-	    print "###########################################################\n";
-	    print "Backup archive does not contain any configuration\n";
-	    print "###########################################################\n";
+	foreach my $key (keys %$oldconf) {
+	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
+	    next if $key =~ /^mp\d+$/; # don't recover mountpoints
+	    next if $key =~ /^unused\d+$/; # don't recover unused disks
+	    $conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	}
+	unlink($pct_cfg_fn);
+
+	if (-f $pct_fwcfg_fn) {
+	    my $pve_firewall_dir = '/etc/pve/firewall';
+	    mkdir $pve_firewall_dir; # make sure the directory exists
+	    PVE::Tools::file_copy($pct_fwcfg_fn, "${pve_firewall_dir}/$vmid.fw");
+	    unlink $pct_fwcfg_fn;
+	}
+
+    } elsif (-f $ovz_cfg_fn) {
+	print "###########################################################\n";
+	print "Converting OpenVZ configuration to LXC.\n";
+	print "Please check the configuration and reconfigure the network.\n";
+	print "###########################################################\n";
+
+	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
+	$conf->{ostype} = $lxc_setup->{conf}->{ostype};
+	my $raw = PVE::Tools::file_get_contents($ovz_cfg_fn);
+	my $oldconf = PVE::VZDump::ConvertOVZ::convert_ovz($raw);
+	foreach my $key (keys %$oldconf) {
+	    $conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
+	}
+	unlink($ovz_cfg_fn);
+
+    } else {
+	print "###########################################################\n";
+	print "Backup archive does not contain any configuration\n";
+	print "###########################################################\n";
     }
-}
-
-sub create_rootfs {
-    my ($storage_cfg, $vmid, $conf, $archive, $password, $restore, $no_unpack_error, $ssh_keys) = @_;
-
-    my $config_fn = PVE::LXC::Config->config_file($vmid);
-    if (-f $config_fn) {
-	die "container exists" if !$restore; # just to be sure
-
-	my $old_conf = PVE::LXC::Config->load_config($vmid);
-	
-	# destroy old container volume
-	PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
-    }
-
-    PVE::LXC::Config->write_config($vmid, $conf);
-
-    eval {
-	my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
-        restore_and_configure($vmid, $archive, $rootdir, $conf, $password,
-			      $restore, $no_unpack_error, $ssh_keys);
-    };
-    my $err = $@;
-    PVE::LXC::umount_all($vmid, $storage_cfg, $conf, $err ? 1 : 0);
-    PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::Config->get_vm_volumes($conf));
-    die $err if $err;
 }
 
 1;

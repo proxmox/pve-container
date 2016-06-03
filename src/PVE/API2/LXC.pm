@@ -355,10 +355,32 @@ __PACKAGE__->register_method({
 
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
+		my $config_fn = PVE::LXC::Config->config_file($vmid);
+		if (-f $config_fn) {
+		    die "container exists" if !$restore; # just to be sure
+			my $old_conf = PVE::LXC::Config->load_config($vmid);
 
-		PVE::LXC::Create::create_rootfs($storage_cfg, $vmid, $conf,
-						$archive, $password, $restore,
-						$ignore_unpack_errors, $ssh_keys);
+		    # destroy old container volumes
+		    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf);
+		}
+		PVE::LXC::Config->write_config($vmid, $conf);
+
+		eval {
+		    my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
+		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors);
+
+		    if ($restore) {
+			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf);
+		    } else {
+			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
+			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
+			$lxc_setup->post_create_hook($password, $ssh_keys);
+		    }
+		};
+		my $err = $@;
+		PVE::LXC::umount_all($vmid, $storage_cfg, $conf, $err ? 1 : 0);
+		PVE::Storage::deactivate_volumes($storage_cfg, PVE::LXC::Config->get_vm_volumes($conf));
+		die $err if $err;
 		# set some defaults
 		$conf->{hostname} ||= "CT$vmid";
 		$conf->{memory} ||= 512;
