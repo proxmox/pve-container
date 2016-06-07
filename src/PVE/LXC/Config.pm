@@ -551,9 +551,10 @@ my $mp_desc = {
 	type => 'string',
 	format => 'pve-lxc-mp-string',
 	format_description => 'Path',
-	description => 'Path to the mountpoint as seen from inside the container.',
+	description => 'Path to the mountpoint as seen from inside the container '.
+		       '(must not contain symlinks).',
 	verbose_description => "Path to the mountpoint as seen from inside the container.\n\n".
-			       "WARNING: Must not contain any symlinks for security reasons."
+			       "NOTE: Must not contain any symlinks for security reasons."
     },
 };
 PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
