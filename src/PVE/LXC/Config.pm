@@ -208,7 +208,7 @@ my $rootfs_desc = {
     },
     ro => {
 	type => 'boolean',
-	description => 'Read-only mountpoint (not supported with bind mounts)',
+	description => 'Read-only mountpoint',
 	optional => 1,
     },
     quota => {
@@ -543,6 +543,8 @@ my $mp_desc = {
     backup => {
 	type => 'boolean',
 	description => 'Whether to include the mountpoint in backups.',
+	verbose_description => 'Whether to include the mountpoint in backups '.
+			       '(only used for volume mountpoints).',
 	optional => 1,
     },
     mp => {
@@ -550,6 +552,8 @@ my $mp_desc = {
 	format => 'pve-lxc-mp-string',
 	format_description => 'Path',
 	description => 'Path to the mountpoint as seen from inside the container.',
+	verbose_description => "Path to the mountpoint as seen from inside the container.\n\n".
+			       "WARNING: Must not contain any symlinks for security reasons."
     },
 };
 PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
