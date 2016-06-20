@@ -99,17 +99,49 @@ sub phase1 {
 	$self->log('info', "container is running - using online migration");
     }
 
-    $self->{volumes} = [];
+    $self->{volumes} = []; # list of already migrated volumes
+    my $volhash = {}; # 1 for local volumes
 
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
-	my ($ms, $mountpoint) = @_;
+    my $test_volid = sub {
+	my ($volid, $snapname) = @_;
+
+	return if !$volid;
+
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+
+	# check if storage is available on both nodes
+	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $sid);
+	PVE::Storage::storage_check_node($self->{storecfg}, $sid, $self->{node});
+
+	return if $scfg->{shared};
+
+	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
+
+	die "can't migrate volume '$volid' - owned by other guest (owner = $owner)\n"
+	    if !$owner || ($owner != $self->{vmid});
+
+	if (defined($snapname)) {
+	    # we cannot migrate shapshots on local storage
+	    # exceptions: 'zfspool'
+	    if (($scfg->{type} eq 'zfspool')) {
+		$volhash->{$volid} = 1;
+		return;
+	    }
+	    die "can't migrate snapshot of local volume '$volid'\n";
+	} else {
+	    $volhash->{$volid} = 1;
+	}
+    };
+
+    my $test_mp = sub {
+	my ($ms, $mountpoint, $snapname) = @_;
 
 	my $volid = $mountpoint->{volume};
-
 	# already checked in prepare
 	if ($mountpoint->{type} ne 'volume') {
 	    $self->log('info', "ignoring mountpoint '$ms' ('$volid') of type " .
-		"'$mountpoint->{type}', migration is forced.");
+		"'$mountpoint->{type}', migration is forced.")
+		if !$snapname;
 	    return;
 	}
 
@@ -117,14 +149,72 @@ sub phase1 {
 	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
 
 	if (!$scfg->{shared}) {
-
-	    $self->log('info', "copy mountpoint '$ms' ($volid) to node ' $self->{node}'");
-	    PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{nodeip}, $storage);
-	    push @{$self->{volumes}}, $volid;
+	    $self->log('info', "copy mountpoint '$ms' ($volid) to node ' $self->{node}'")
+		if !$snapname;
+	    $volhash->{$volid} = 1;
 	} else {
-	    $self->log('info', "mountpoint '$ms' is on shared storage '$storage'");
+	    $self->log('info', "mountpoint '$ms' is on shared storage '$storage'")
+		if !$snapname;
 	}
-    });
+	&$test_volid($volid, $snapname);
+    };
+
+    # first all currently used volumes
+    PVE::LXC::Config->foreach_mountpoint($conf, $test_mp);
+
+    # then all volumes referenced in snapshots
+    foreach my $snapname (keys %{$conf->{snapshots}}) {
+	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
+	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
+	PVE::LXC::Config->foreach_mountpoint($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
+    }
+
+    # finally unused / lost volumes owned by this container
+    my @sids = PVE::Storage::storage_ids($self->{storecfg});
+    foreach my $storeid (@sids) {
+	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $storeid);
+	next if $scfg->{shared};
+	next if !PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, undef, 1);
+
+	# get list from PVE::Storage (for unused volumes)
+	my $dl = PVE::Storage::vdisk_list($self->{storecfg}, $storeid, $vmid);
+
+	next if @{$dl->{$storeid}} == 0;
+
+	# check if storage is available on target node
+	PVE::Storage::storage_check_node($self->{storecfg}, $storeid, $self->{node});
+
+	PVE::Storage::foreach_volid($dl, sub {
+	    my ($volid, $sid, $volname) = @_;
+
+	    $self->log('info', "copy volume '$volid' to node '$self->{node}'")
+		if !$volhash->{$volid};
+	    $volhash->{$volid} = 1;
+	});
+    }
+
+    # additional checks for local storage
+    foreach my $volid (keys %$volhash) {
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+	my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
+
+	my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool') ||
+	    ($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm');
+
+	die "can't migrate '$volid' - storage type '$scfg->{type}' not supported\n"
+	    if !$migratable;
+
+	# image is a linked clone on local storage, se we can't migrate.
+	if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
+	    die "can't migrate '$volid' as it's a clone of '$basename'";
+	}
+    }
+
+    foreach my $volid (keys %$volhash) {
+	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+	push @{$self->{volumes}}, $volid;
+	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{nodeip}, $sid);
+    }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
     my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
