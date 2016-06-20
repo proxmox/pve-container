@@ -1122,7 +1122,7 @@ sub mountpoint_names {
 }
 
 sub foreach_mountpoint_full {
-    my ($class, $conf, $reverse, $func) = @_;
+    my ($class, $conf, $reverse, $func, @param) = @_;
 
     foreach my $key ($class->mountpoint_names($reverse)) {
 	my $value = $conf->{$key};
@@ -1130,20 +1130,20 @@ sub foreach_mountpoint_full {
 	my $mountpoint = $key eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);
 	next if !defined($mountpoint);
 
-	&$func($key, $mountpoint);
+	&$func($key, $mountpoint, @param);
     }
 }
 
 sub foreach_mountpoint {
-    my ($class, $conf, $func) = @_;
+    my ($class, $conf, $func, @param) = @_;
 
-    $class->foreach_mountpoint_full($conf, 0, $func);
+    $class->foreach_mountpoint_full($conf, 0, $func, @param);
 }
 
 sub foreach_mountpoint_reverse {
-    my ($class, $conf, $func) = @_;
+    my ($class, $conf, $func, @param) = @_;
 
-    $class->foreach_mountpoint_full($conf, 1, $func);
+    $class->foreach_mountpoint_full($conf, 1, $func, @param);
 }
 
 sub get_vm_volumes {
