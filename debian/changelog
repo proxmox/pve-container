@@ -1,3 +1,9 @@
+pve-container (1.0-69) unstable; urgency=medium
+
+  * migration: add checks from QemuMigrate
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 21 Jun 2016 06:38:22 +0200
+
 pve-container (1.0-68) unstable; urgency=medium
 
   * docs: update mountpoint descriptions
