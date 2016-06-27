@@ -101,6 +101,9 @@ sub prepare {
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::Config->load_config($vmid);
     my $storage_cfg = $self->{storecfg};
 
+    $self->loginfo("CT Name: $conf->{hostname}")
+	if defined($conf->{hostname});
+
     my $running = PVE::LXC::check_running($vmid);
 
     my $disks = $task->{disks} = [];
