@@ -1,3 +1,9 @@
+pve-container (1.0-70) unstable; urgency=medium
+
+  * fix #146: add name to backup log
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 28 Jun 2016 08:26:23 +0200
+
 pve-container (1.0-69) unstable; urgency=medium
 
   * migration: add checks from QemuMigrate
