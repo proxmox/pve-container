@@ -766,8 +766,10 @@ sub update_pct_config {
 		next;
 	    }
 
-	    if ($opt eq 'hostname' || $opt eq 'memory' || $opt eq 'rootfs') {
+	    if ($opt eq 'memory' || $opt eq 'rootfs') {
 		die "unable to delete required option '$opt'\n";
+	    } elsif ($opt eq 'hostname') {
+		delete $conf->{$opt};
 	    } elsif ($opt eq 'swap') {
 		delete $conf->{$opt};
 		PVE::LXC::write_cgroup_value("memory", $vmid,
