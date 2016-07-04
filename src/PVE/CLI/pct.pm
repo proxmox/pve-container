@@ -283,6 +283,89 @@ __PACKAGE__->register_method({
 	return undef;
     }});
 
+__PACKAGE__->register_method({
+    name => 'df',
+    path => 'df',
+    method => 'GET',
+    description => "Get the container's current disk usage.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	# JSONSchema's format_size is exact, this uses floating point numbers
+	my $format = sub {
+	    my ($size) = @_;
+	    return $size if $size < 1024.;
+	    $size /= 1024.;
+	    return sprintf('%.1fK', ${size}) if $size < 1024.;
+	    $size /= 1024.;
+	    return sprintf('%.1fM', ${size}) if $size < 1024.;
+	    $size /= 1024.;
+	    return sprintf('%.1fG', ${size}) if $size < 1024.;
+	    $size /= 1024.;
+	    return sprintf('%.1fT', ${size}) if $size < 1024.;
+	};
+
+	my $vmid = extract_param($param, 'vmid');
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $pid = eval { PVE::LXC::find_lxc_pid($vmid) };
+	    my ($conf, $rootdir, $storecfg, $mounted);
+	    if ($@ || !$pid) {
+		$conf = PVE::LXC::Config->set_lock($vmid, 'mounted');
+		$rootdir = "/var/lib/lxc/$vmid/rootfs";
+		$storecfg = PVE::Storage::config();
+		PVE::LXC::mount_all($vmid, $storecfg, $conf);
+		$mounted = 1;
+	    } else {
+		$conf = PVE::LXC::Config->load_config($vmid);
+		$rootdir = "/proc/$pid/root";
+	    }
+
+	    my @list = [qw(MP Volume Size Used Avail Use% Path)];
+	    my @len = map { length($_) } @{$list[0]};
+
+	    eval {
+		PVE::LXC::Config->foreach_mountpoint($conf, sub {
+		    my ($name, $mp) = @_;
+		    my $path = $mp->{mp};
+
+		    my $df = PVE::Tools::df("$rootdir/$path", 3);
+		    my $total = $format->($df->{total});
+		    my $used = $format->($df->{used});
+		    my $avail = $format->($df->{avail});
+
+		    my $pc = sprintf('%.1f', $df->{used}/$df->{total});
+
+		    my $entry = [ $name, $mp->{volume}, $total, $used, $avail, $pc, $path ];
+		    push @list, $entry;
+
+		    foreach my $i (0..5) {
+			$len[$i] = length($entry->[$i])
+			    if $len[$i] < length($entry->[$i]);
+		    }
+		});
+
+		my $format = "%-$len[0]s %-$len[1]s %$len[2]s %$len[3]s %$len[4]s %$len[5]s %s\n";
+		printf($format, @$_) foreach @list;
+	    };
+	    warn $@ if $@;
+
+	    if ($mounted) {
+		PVE::LXC::umount_all($vmid, $storecfg, $conf, 0);
+		PVE::LXC::Config->remove_lock($vmid, 'mounted');
+	    }
+	});
+	return undef;
+    }});
+
 # File creation with specified ownership and permissions.
 # User and group can be names or decimal numbers.
 # Permissions are explicit (not affected by umask) and can be numeric with the
@@ -575,7 +658,9 @@ our $cmddef = {
     unmount => [ __PACKAGE__, 'unmount', ['vmid']],
     push => [ __PACKAGE__, 'push', ['vmid', 'file', 'destination']],
     pull => [ __PACKAGE__, 'pull', ['vmid', 'path', 'destination']],
-    
+
+    df => [ __PACKAGE__, 'df', ['vmid']],
+
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],
 
