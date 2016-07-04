@@ -174,6 +174,35 @@ sub __snapshot_rollback_vm_start {
     die "implement me - save vmstate\n";
 }
 
+sub __snapshot_rollback_get_unused {
+    my ($class, $conf, $snap) = @_;
+
+    my $unused = [];
+
+    $class->__snapshot_foreach_volume($conf, sub {
+	my ($vs, $volume) = @_;
+
+	return if $volume->{type} ne 'volume';
+
+	my $found = 0;
+	my $volid = $volume->{volume};
+
+	$class->__snapshot_foreach_volume($snap, sub {
+	    my ($ms, $mountpoint) = @_;
+
+	    return if $found;
+	    return if ($mountpoint->{type} ne 'volume');
+
+	    $found = 1
+		if ($mountpoint->{volume} && $mountpoint->{volume} eq $volid);
+	});
+
+	push @$unused, $volid if !$found;
+    });
+
+    return $unused;
+}
+
 sub __snapshot_foreach_volume {
     my ($class, $conf, $func) = @_;
 
