@@ -51,7 +51,6 @@ __PACKAGE__->register_method({
 	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
 	delete $conf->{snapshots};
-	delete $conf->{lxc};
 
 	return $conf;
     }});

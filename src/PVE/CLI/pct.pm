@@ -625,11 +625,18 @@ our $cmddef = {
 		    my $config = shift;
 		    foreach my $k (sort (keys %$config)) {
 			next if $k eq 'digest';
+			next if $k eq 'lxc';
 			my $v = $config->{$k};
 			if ($k eq 'description') {
 			    $v = PVE::Tools::encode_text($v);
 			}
 			print "$k: $v\n";
+		    }
+		    if (defined($config->{'lxc'})) {
+			my $lxc_list = $config->{'lxc'};
+			foreach my $lxc_opt (@$lxc_list) {
+			    print "$lxc_opt->[0]: $lxc_opt->[1]\n"
+			}
 		    }
 		}],
     set => [ 'PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
