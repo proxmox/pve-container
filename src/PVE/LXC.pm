@@ -1215,7 +1215,9 @@ sub mountpoint_mount {
 	    # device-mapper devices is special-cased to use the /dev/mapper symlinks.
 	    # Our autodev hook expects the /dev/dm-* device currently
 	    # and will create the /dev/mapper symlink accordingly
-	    ($path) = (Cwd::realpath($path) =~ /^(.*)$/s); # realpath() taints
+	    $path = Cwd::realpath($path);
+	    die "failed to get device path\n" if !$path;
+	    ($path) = ($path =~ /^(.*)$/s); #untaint
 	    my $domount = sub {
 		my ($path) = @_;
 		if ($mount_path) {
