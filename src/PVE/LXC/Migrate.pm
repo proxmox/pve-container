@@ -100,7 +100,7 @@ sub phase1 {
     }
 
     $self->{volumes} = []; # list of already migrated volumes
-    my $volhash = {}; # 1 for local volumes
+    my $volhash = {}; # 'config', 'snapshot' or 'storage' for local volumes
 
     my $test_volid = sub {
 	my ($volid, $snapname) = @_;
@@ -115,6 +115,8 @@ sub phase1 {
 
 	return if $scfg->{shared};
 
+	$volhash->{$volid} = defined($snapname) ? 'snapshot' : 'config';
+
 	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
 	die "can't migrate volume '$volid' - owned by other guest (owner = $owner)\n"
@@ -124,12 +126,9 @@ sub phase1 {
 	    # we cannot migrate shapshots on local storage
 	    # exceptions: 'zfspool'
 	    if (($scfg->{type} eq 'zfspool')) {
-		$volhash->{$volid} = 1;
 		return;
 	    }
 	    die "can't migrate snapshot of local volume '$volid'\n";
-	} else {
-	    $volhash->{$volid} = 1;
 	}
     };
 
@@ -151,7 +150,6 @@ sub phase1 {
 	if (!$scfg->{shared}) {
 	    $self->log('info', "copy mountpoint '$ms' ($volid) to node ' $self->{node}'")
 		if !$snapname;
-	    $volhash->{$volid} = 1;
 	} else {
 	    $self->log('info', "mountpoint '$ms' is on shared storage '$storage'")
 		if !$snapname;
@@ -189,7 +187,7 @@ sub phase1 {
 
 	    $self->log('info', "copy volume '$volid' to node '$self->{node}'")
 		if !$volhash->{$volid};
-	    $volhash->{$volid} = 1;
+	    $volhash->{$volid} = 'storage' if !defined($volhash->{$volid});
 	});
     }
 
@@ -207,6 +205,18 @@ sub phase1 {
 	# image is a linked clone on local storage, se we can't migrate.
 	if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
 	    die "can't migrate '$volid' as it's a clone of '$basename'";
+	}
+    }
+
+    foreach my $volid (sort keys %$volhash) {
+	if ($volhash->{$volid} eq 'storage') {
+	    $self->log('info', "found local volume '$volid' (via storage)\n");
+	} elsif ($volhash->{$volid} eq 'config') {
+	    $self->log('info', "found local volume '$volid' (in current VM config)\n");
+	} elsif ($volhash->{$volid} eq 'snapshot') {
+	    $self->log('info', "found local volume '$volid' (referenced by snapshot(s))\n");
+	} else {
+	    $self->log('info', "found local volume '$volid'\n");
 	}
     }
 
