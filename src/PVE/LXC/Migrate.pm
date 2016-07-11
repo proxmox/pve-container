@@ -157,17 +157,7 @@ sub phase1 {
 	&$test_volid($volid, $snapname);
     };
 
-    # first all currently used volumes
-    PVE::LXC::Config->foreach_mountpoint($conf, $test_mp);
-
-    # then all volumes referenced in snapshots
-    foreach my $snapname (keys %{$conf->{snapshots}}) {
-	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
-	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
-	PVE::LXC::Config->foreach_mountpoint($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
-    }
-
-    # finally unused / lost volumes owned by this container
+    # first unused / lost volumes owned by this container
     my @sids = PVE::Storage::storage_ids($self->{storecfg});
     foreach my $storeid (@sids) {
 	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $storeid);
@@ -185,11 +175,20 @@ sub phase1 {
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;
 
-	    $self->log('info', "copy volume '$volid' to node '$self->{node}'")
-		if !$volhash->{$volid};
-	    $volhash->{$volid} = 'storage' if !defined($volhash->{$volid});
+	    $volhash->{$volid} = 'storage';
 	});
     }
+
+    # then all volumes referenced in snapshots
+    foreach my $snapname (keys %{$conf->{snapshots}}) {
+	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
+	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
+	PVE::LXC::Config->foreach_mountpoint($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
+    }
+
+    # finally all currently used volumes
+    PVE::LXC::Config->foreach_mountpoint($conf, $test_mp);
+
 
     # additional checks for local storage
     foreach my $volid (keys %$volhash) {
