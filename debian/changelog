@@ -1,3 +1,19 @@
+pve-container (1.0-71) unstable; urgency=medium
+
+  * fix a possible undefined value error
+
+  * provide a better error message for rbd without krbd
+
+  * improve migration output concerning local volumes
+
+  * include custom lxc options when displaying config
+
+  * fix #1046: add non-snapshotted disks as unused
+
+  * added 'pct df'
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 11 Jul 2016 12:35:03 +0200
+
 pve-container (1.0-70) unstable; urgency=medium
 
   * fix #146: add name to backup log
