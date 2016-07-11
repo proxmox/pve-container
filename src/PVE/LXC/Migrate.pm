@@ -101,6 +101,15 @@ sub phase1 {
 
     $self->{volumes} = []; # list of already migrated volumes
     my $volhash = {}; # 'config', 'snapshot' or 'storage' for local volumes
+    my $volhash_errors = {};
+    my $abort = 0;
+
+    my $log_error = sub {
+	my ($msg, $volid) = @_;
+
+	$volhash_errors->{$volid} = $msg if !defined($volhash_errors->{$volid});
+	$abort = 1;
+    };
 
     my $test_volid = sub {
 	my ($volid, $snapname) = @_;
@@ -113,13 +122,17 @@ sub phase1 {
 	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $sid);
 	PVE::Storage::storage_check_node($self->{storecfg}, $sid, $self->{node});
 
-	return if $scfg->{shared};
+	if ($scfg->{shared}) {
+	    $self->log('info', "volume '$volid' is on shared storage '$sid'")
+		if !$snapname;
+	    return;
+	}
 
 	$volhash->{$volid} = defined($snapname) ? 'snapshot' : 'config';
 
 	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
-	die "can't migrate volume '$volid' - owned by other guest (owner = $owner)\n"
+	die "owned by other guest (owner = $owner)\n"
 	    if !$owner || ($owner != $self->{vmid});
 
 	if (defined($snapname)) {
@@ -128,7 +141,7 @@ sub phase1 {
 	    if (($scfg->{type} eq 'zfspool')) {
 		return;
 	    }
-	    die "can't migrate snapshot of local volume '$volid'\n";
+	    die "non-migratable snapshot exists\n";
 	}
     };
 
@@ -144,17 +157,11 @@ sub phase1 {
 	    return;
 	}
 
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid);
-	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
+	eval {
+	    &$test_volid($volid, $snapname);
+	};
 
-	if (!$scfg->{shared}) {
-	    $self->log('info', "copy mountpoint '$ms' ($volid) to node ' $self->{node}'")
-		if !$snapname;
-	} else {
-	    $self->log('info', "mountpoint '$ms' is on shared storage '$storage'")
-		if !$snapname;
-	}
-	&$test_volid($volid, $snapname);
+	&$log_error($@, $volid) if $@;
     };
 
     # first unused / lost volumes owned by this container
@@ -192,19 +199,22 @@ sub phase1 {
 
     # additional checks for local storage
     foreach my $volid (keys %$volhash) {
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
-	my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
+	eval {
+	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+	    my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
 
-	my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool') ||
-	    ($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm');
+	    my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool') ||
+		($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm');
 
-	die "can't migrate '$volid' - storage type '$scfg->{type}' not supported\n"
-	    if !$migratable;
+	    die "storage type '$scfg->{type}' not supported\n"
+		if !$migratable;
 
-	# image is a linked clone on local storage, se we can't migrate.
-	if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
-	    die "can't migrate '$volid' as it's a clone of '$basename'";
-	}
+	    # image is a linked clone on local storage, se we can't migrate.
+	    if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
+		die "clone of '$basename'";
+	    }
+	};
+	&$log_error($@, $volid) if $@;
     }
 
     foreach my $volid (sort keys %$volhash) {
@@ -217,6 +227,14 @@ sub phase1 {
 	} else {
 	    $self->log('info', "found local volume '$volid'\n");
 	}
+    }
+
+    foreach my $volid (sort keys %$volhash_errors) {
+	$self->log('warn', "can't migrate local volume '$volid': $volhash_errors->{$volid}");
+    }
+
+    if ($abort) {
+	die "can't migrate CT - check log\n";
     }
 
     foreach my $volid (keys %$volhash) {
