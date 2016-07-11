@@ -1175,6 +1175,12 @@ sub mountpoint_mount {
     if ($storage) {
 
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
+
+	# early sanity checks:
+	# we otherwise call realpath on the rbd url
+	die "containers on rbd storage without krbd are not supported\n"
+	    if $scfg->{type} eq 'rbd' && !$scfg->{krbd};
+
 	my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
 
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
