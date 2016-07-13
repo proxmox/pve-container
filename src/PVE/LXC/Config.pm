@@ -1079,7 +1079,10 @@ sub parse_lxc_network {
     $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data);
 
     $res->{type} = 'veth';
-    $res->{hwaddr} = PVE::Tools::random_ether_addr() if !$res->{hwaddr};
+    if (!$res->{hwaddr}) {
+	my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
+	$res->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
+    }
 
     return $res;
 }

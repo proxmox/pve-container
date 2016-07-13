@@ -243,7 +243,10 @@ sub parse_lxc_config {
 	
 	foreach my $net (@{$network_list}) {
 	    next if $net->{type} eq 'empty'; # skip
-	    $net->{hwaddr} =  PVE::Tools::random_ether_addr() if !$net->{hwaddr};
+	    if (!$net->{hwaddr}) {
+		my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
+		$net->{hwaddr} =  PVE::Tools::random_ether_addr($dc->{mac_prefix});
+	    }
 	    die "unsupported network type '$net->{type}'\n" if $net->{type} ne 'veth';
 	    die "undefined veth network pair'\n" if !$net->{'veth.pair'};
 	    
