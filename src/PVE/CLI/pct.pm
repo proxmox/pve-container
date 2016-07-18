@@ -32,6 +32,45 @@ my $upid_exit = sub {
     exit($status eq 'OK' ? 0 : -1);
 };
 
+__PACKAGE__->register_method ({
+    name => 'status',
+    path => 'status',
+    method => 'GET',
+    description => "Show CT status.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    verbose => {
+		description => "Verbose output format",
+		type => 'boolean',
+		optional => 1,
+	    }
+	},
+    },
+    returns => { type => 'null'},
+    code => sub {
+	my ($param) = @_;
+
+	# test if CT exists
+	my $conf = PVE::LXC::Config->load_config ($param->{vmid});
+
+	my $vmstatus = PVE::LXC::vmstatus($param->{vmid});
+	my $stat = $vmstatus->{$param->{vmid}};
+	if ($param->{verbose}) {
+	    foreach my $k (sort (keys %$stat)) {
+		my $v = $stat->{$k};
+		next if !defined($v);
+		print "$k: $v\n";
+	    }
+	} else {
+	    my $status = $stat->{status} || 'unknown';
+	    print "status: $status\n";
+	}
+
+	return undef;
+    }});
+
 sub read_password {
     my $term = new Term::ReadLine ('pct');
     my $attribs = $term->Attribs;
@@ -655,6 +694,7 @@ our $cmddef = {
     clone => [ "PVE::API2::LXC", 'clone_vm', ['vmid', 'newid'], { node => $nodename }, $upid_exit ],
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
     
+    status => [ __PACKAGE__, 'status', ['vmid']],
     console => [ __PACKAGE__, 'console', ['vmid']],
     enter => [ __PACKAGE__, 'enter', ['vmid']],
     unlock => [ __PACKAGE__, 'unlock', ['vmid']],
