@@ -205,7 +205,7 @@ sub setup_container_getty_service {
     my $servicefile = "$systemd_dir_rel/container-getty\@.service";
     my $raw = $self->ct_file_get_contents($servicefile);
     my $ttyname = ($nosubdir ? '' : 'lxc/') . 'tty%I';
-    if ($raw =~ s@pts/%I@$ttyname@g) {
+    if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
 	$self->ct_file_set_contents($servicefile, $raw);
     }
 }
