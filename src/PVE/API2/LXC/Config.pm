@@ -139,7 +139,7 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete);
 
 	    PVE::LXC::Config->write_config($vmid, $conf);
-	    PVE::LXC::update_lxc_config($storage_cfg, $vmid, $conf);
+	    PVE::LXC::update_lxc_config($vmid, $conf);
 	};
 
 	PVE::LXC::Config->lock_config($vmid, $code);

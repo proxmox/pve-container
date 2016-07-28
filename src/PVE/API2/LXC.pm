@@ -1038,7 +1038,7 @@ __PACKAGE__->register_method({
 
 	    PVE::LXC::Config->write_config($vmid, $conf);
 	    # and remove lxc config
-	    PVE::LXC::update_lxc_config(undef, $vmid, $conf);
+	    PVE::LXC::update_lxc_config($vmid, $conf);
 
 	    return $rpcenv->fork_worker('vztemplate', $vmid, $authuser, $realcmd);
 	};

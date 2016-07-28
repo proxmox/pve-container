@@ -326,7 +326,7 @@ sub parse_ipv4_cidr {
 
 
 sub update_lxc_config {
-    my ($storage_cfg, $vmid, $conf) = @_;
+    my ($vmid, $conf) = @_;
 
     my $dir = "/var/lib/lxc/$vmid";
 
