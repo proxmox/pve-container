@@ -412,7 +412,7 @@ sub update_lxc_config {
     $raw .= "lxc.rootfs = $dir/rootfs\n";
 
     my $netcount = 0;
-    foreach my $k (keys %$conf) {
+    foreach my $k (sort keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $ind = $1;
 	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
