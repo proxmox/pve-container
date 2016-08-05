@@ -1,3 +1,23 @@
+pve-container (1.0-72) unstable; urgency=medium
+
+  * Fix #1070: vzdump: handle sparse files in suspend mode
+
+  * don't let lxc handle container reboots directly
+
+  * update_lxc_config: sort network devices for consistency
+
+  * update_lxc_config: remove unused parameter
+
+  * ArchLinux: don't use the lxc/ subdir for ttys
+
+  * add status call to pct
+
+  * allow deleting of container hostname
+
+  * pass datacenter.cfg's mac_prefix to random_ether_addr
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 05 Aug 2016 13:14:32 +0200
+
 pve-container (1.0-71) unstable; urgency=medium
 
   * fix a possible undefined value error
