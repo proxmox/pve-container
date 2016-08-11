@@ -865,7 +865,7 @@ sub update_pct_config {
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	my $check_protection_msg = "can't update CT $vmid drive '$opt'";
-	if ($opt eq 'hostname') {
+	if ($opt eq 'hostname' || $opt eq 'arch') {
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'onboot') {
 	    $conf->{$opt} = $value ? 1 : 0;

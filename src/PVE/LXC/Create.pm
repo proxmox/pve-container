@@ -49,7 +49,10 @@ sub restore_archive {
 	eval { PVE::Tools::run_command($cmd); };
     }
     die $@ if $@ && !$no_unpack_error;
-    
+
+    # if arch is set, we do not try to autodetect it
+    return if defined($conf->{arch});
+
     # determine file type of /usr/bin/file itself to get guests' architecture
     $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/bin/sh"];
     PVE::Tools::run_command($cmd, outfunc => sub {
