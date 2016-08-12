@@ -1,3 +1,9 @@
+pve-container (1.0-73) unstable; urgency=medium
+
+  * fix #1078: accept arch parameter
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 12 Aug 2016 07:26:30 +0200
+
 pve-container (1.0-72) unstable; urgency=medium
 
   * Fix #1070: vzdump: handle sparse files in suspend mode
