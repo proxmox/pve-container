@@ -1,3 +1,11 @@
+pve-container (1.0-74) unstable; urgency=medium
+
+  * correctly set unlimited cpulimit at runtime
+
+  * use integer values for minimum and maximum (json schema cleanup)
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 16 Sep 2016 07:44:29 +0200
+
 pve-container (1.0-73) unstable; urgency=medium
 
   * fix #1078: accept arch parameter
