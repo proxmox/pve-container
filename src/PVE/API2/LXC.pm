@@ -383,7 +383,7 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors);
 
 		    if ($restore) {
-			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf);
+			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, $authuser ne 'root@pam');
 		    } else {
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)

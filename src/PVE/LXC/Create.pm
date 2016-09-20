@@ -102,7 +102,7 @@ sub recover_config {
 }
 
 sub restore_configuration {
-    my ($vmid, $rootdir, $conf) = @_;
+    my ($vmid, $rootdir, $conf, $restricted) = @_;
 
     # restore: try to extract configuration from archive
 
@@ -117,6 +117,16 @@ sub restore_configuration {
 	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
 	    next if $key =~ /^mp\d+$/; # don't recover mountpoints
 	    next if $key =~ /^unused\d+$/; # don't recover unused disks
+	    if ($restricted && $key eq 'lxc') {
+		warn "skipping custom lxc options, restore manually as root:\n";
+		warn "--------------------------------\n";
+		my $lxc_list = $oldconf->{'lxc'};
+		foreach my $lxc_opt (@$lxc_list) {
+		    warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
+		}
+		warn "--------------------------------\n";
+		next;
+	    }
 	    $conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
 	}
 	unlink($pct_cfg_fn);
