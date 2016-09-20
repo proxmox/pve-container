@@ -353,6 +353,8 @@ __PACKAGE__->register_method({
 				my $type = $mountpoint->{type};
 				die "restoring rootfs to $type mount is only possible by specifying -rootfs manually!\n"
 				    if ($ms eq 'rootfs');
+				die "restoring '$ms' to $type mount is only possible for root\n"
+				    if $authuser ne 'root@pam';
 
 				if ($mountpoint->{backup}) {
 				    warn "WARNING - unsupported configuration!\n";
