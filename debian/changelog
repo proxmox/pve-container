@@ -1,3 +1,11 @@
+pve-container (1.0-75) unstable; urgency=medium
+
+  * restore: fix simple with non-volume mps
+
+  * restore: add permission check, only restore lxc.* if root
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 20 Sep 2016 14:14:06 +0200
+
 pve-container (1.0-74) unstable; urgency=medium
 
   * correctly set unlimited cpulimit at runtime
