@@ -360,6 +360,7 @@ __PACKAGE__->register_method({
 				    warn "mountpoint configuration will be restored after archive extraction!\n";
 				    warn "contained files will be restored to wrong directory!\n";
 				}
+				delete $mp_param->{$ms}; # actually delay bind/dev mps
 				$delayed_mp_param->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 			    }
 			});
