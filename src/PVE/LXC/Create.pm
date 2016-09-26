@@ -64,7 +64,7 @@ sub restore_archive {
 	    print "Detected container architecture: $conf->{'arch'}\n";
 	} else {
 	    print "CT architecture detection failed, falling back to amd64.\n" .
-	          "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}/config " .
+	          "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}.conf " .
 	          "to set another architecture.\n";
 	}
     });
