@@ -209,8 +209,10 @@ sub setup_network {
 	if ($section->{type} eq 'ipv4') {
 	    $done_v4_hash->{$ifname} = 1;
 
-	    if (defined($net->{address}) && $net->{address} =~ /^(dhcp|manual)$/) {
-		$interfaces .= "iface $ifname inet $1\n";
+	    if (!defined($net->{address})) {
+		# no address => no iface line
+	    } elsif ($net->{address} =~ /^(dhcp|manual)$/) {
+		$interfaces .= "iface $ifname inet $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet static\n";
 		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
@@ -227,15 +229,15 @@ sub setup_network {
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
+		$interfaces .= "\n";
 	    }
-
-	    $interfaces .= "\n";
-
 	} elsif ($section->{type} eq 'ipv6') {
 	    $done_v6_hash->{$ifname} = 1;
 
-	    if (defined($net->{address6}) && $net->{address6} =~ /^(auto|dhcp|manual)$/) {
-		$interfaces .= "iface $ifname inet6 $1\n";
+	    if (!defined($net->{address6})) {
+		# no address => no iface line
+	    } elsif ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
+		$interfaces .= "iface $ifname inet6 $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet6 static\n";
 		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
@@ -251,9 +253,8 @@ sub setup_network {
 		foreach my $attr (@{$section->{attr}}) {
 		    $interfaces .= "\t$attr\n";
 		}
+		$interfaces .= "\n";
 	    }
-
-	    $interfaces .= "\n";
 	} else {
 	    die "unknown section type '$section->{type}'";
 	}

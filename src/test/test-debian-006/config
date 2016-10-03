@@ -1,2 +1,4 @@
 hostname: test1
 tty: 0
+net0: bridge=vmbr0,name=eth0,ip=1.2.3.4/24
+net1: bridge=vmbr1,name=eth1,ip6=1234::1/64

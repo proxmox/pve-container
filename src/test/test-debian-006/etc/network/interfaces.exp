@@ -1,0 +1,15 @@
+# Scenario:
+#  An address was previously configured but then removed.
+
+# ipv6 removed
+auto eth0
+iface eth0 inet static
+	address 1.2.3.4
+	netmask 255.255.255.0
+
+# ipv4 removed
+auto eth1
+iface eth1 inet6 static
+	address 1234::1
+	netmask 64
+
