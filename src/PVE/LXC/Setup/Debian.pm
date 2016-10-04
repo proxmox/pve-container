@@ -353,6 +353,14 @@ sub setup_network {
 	}
     }
 
+    # older templates (< Debian 8) do not configure the loopback interface
+    # if not explicitly told to do so
+    if (!$done_auto->{lo}) {
+	$interfaces = "auto lo\niface lo inet loopback\n" .
+	              "iface lo inet6 loopback\n\n" .
+	              $interfaces;
+    }
+
     $self->ct_file_set_contents($filename, $interfaces);
 }
 
