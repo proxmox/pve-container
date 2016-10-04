@@ -1,3 +1,9 @@
+pve-container (1.0-77) unstable; urgency=medium
+
+  * fix #1134: debian: don't start empty interface sections
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 04 Oct 2016 11:49:48 +0200
+
 pve-container (1.0-76) unstable; urgency=medium
 
   * bug #1021: add loopback interface if not network config
