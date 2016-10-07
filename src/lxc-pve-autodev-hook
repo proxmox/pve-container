@@ -22,9 +22,9 @@ if ($vmid ne $ARGV[0]) {
 }
 
 my $devlist_file = "/var/lib/lxc/$vmid/devices";
+my $fd;
 
-open my $fd, '<', $devlist_file;
-if (!$fd) {
+if (! open $fd, '<', $devlist_file) {
     exit 0 if $!{ENOENT}; # If the list is empty the file might not exist.
     die "failed to open device list: $!\n";
 }
