@@ -1,3 +1,7 @@
+auto lo
+iface lo inet loopback
+iface lo inet6 loopback
+
 # Scenario:
 #  An address was previously configured but then removed.
 
