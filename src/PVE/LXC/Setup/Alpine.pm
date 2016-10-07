@@ -53,7 +53,7 @@ sub setup_init {
 
     my @lines = grep {
 	    # remove getty lines
-	    !/^\s*tty\d+::[^:]*:.*getty/
+	    !/^\s*tty\d+:\d*:[^:]*:.*getty/
     } split(/\n/, $inittab);
 
     $inittab = join("\n", @lines) . "\n";

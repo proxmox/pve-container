@@ -53,7 +53,7 @@ sub setup_init {
 
     my @lines = grep {
 	    # remove getty lines
-	    !/^\s*\d+:\d+:[^:]*:.*getty/ &&
+	    !/^\s*\d+:\d*:[^:]*:.*getty/ &&
 	    # remove power lines
 	    !/^\s*p[fno0]:/
 	} split(/\n/, $inittab);
