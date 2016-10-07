@@ -1,3 +1,11 @@
+pve-container (1.0-78) unstable; urgency=medium
+
+  * alpine: fix getty line removal
+
+  * tests: add missing loopback interfaces
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 07 Oct 2016 09:35:34 +0200
+
 pve-container (1.0-77) unstable; urgency=medium
 
   * fix #1134: debian: don't start empty interface sections
