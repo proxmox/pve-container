@@ -46,11 +46,21 @@ sub prepare {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
+	my $type = $mountpoint->{type};
 
-	# skip dev/bind mps when forced
-	if ($mountpoint->{type} ne 'volume' && $force) {
-	    return;
+	# skip dev/bind mps when forced / shared
+	if ($type ne 'volume') {
+	    if ($force) {
+		warn "-force is deprecated, please use the 'shared' property on individual non-volume mount points instead!\n";
+		return;
+	    }
+	    if ($mountpoint->{shared}) {
+		return;
+	    } else {
+		die "cannot migrate local $type mount point '$ms'\n";
+	    }
 	}
+
 	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
 	die "can't determine assigned storage for mountpoint '$ms'\n" if !$storage;
 
@@ -151,8 +161,7 @@ sub phase1 {
 	my $volid = $mountpoint->{volume};
 	# already checked in prepare
 	if ($mountpoint->{type} ne 'volume') {
-	    $self->log('info', "ignoring mountpoint '$ms' ('$volid') of type " .
-		"'$mountpoint->{type}', migration is forced.")
+	    $self->log('info', "ignoring shared '$mountpoint->{type}' mount point '$ms' ('$volid')")
 		if !$snapname;
 	    return;
 	}

@@ -245,6 +245,13 @@ my $rootfs_desc = {
 	description => 'Enable user quotas inside the container (not supported with zfs subvolumes)',
 	optional => 1,
     },
+    shared => {
+	type => 'boolean',
+	description => 'Mark this non-volume mount point as available on multiple nodes (see \'nodes\')',
+	verbose_description => "Mark this non-volume mount point as available on all nodes.\n\nWARNING: This option does not share the mount point automatically, it assumes it is shared already!",
+	optional => 1,
+	default => 0,
+    },
 };
 
 PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {

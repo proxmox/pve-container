@@ -848,8 +848,7 @@ __PACKAGE__->register_method({
 	    force => {
 		type => 'boolean',
 		description => "Force migration despite local bind / device" .
-		    " mounts. WARNING: identical bind / device mounts need to ".
-		    " be available on the target node.",
+		    " mounts. NOTE: deprecated, use 'shared' property of mount point instead.",
 		optional => 1,
 	    },
 	},
