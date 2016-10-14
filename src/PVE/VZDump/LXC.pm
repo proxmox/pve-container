@@ -87,12 +87,12 @@ sub vm_status {
 my $check_mountpoint_empty = sub {
     my ($mountpoint) = @_;
 
-    die "mountpoint '$mountpoint' is not a directory\n" if ! -d $mountpoint;
+    die "mount point '$mountpoint' is not a directory\n" if ! -d $mountpoint;
 
     PVE::Tools::dir_glob_foreach($mountpoint, qr/.*/, sub {
 	my $entry = shift;
 	return if $entry eq '.' || $entry eq '..';
-	die "mountpoint '$mountpoint' not empty\n";
+	die "mount point '$mountpoint' not empty\n";
     });
 };
 
@@ -126,7 +126,7 @@ sub prepare {
 
 	if (!PVE::LXC::Config->mountpoint_backup_enabled($name, $data)) {
 	    push @$exclude_dirs, $mount;
-	    $self->loginfo("excluding $type mountpoint $name ('$mount') from backup");
+	    $self->loginfo("excluding $type mount point $name ('$mount') from backup");
 	    return;
 	}
 

@@ -62,7 +62,7 @@ sub prepare {
 	}
 
 	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
-	die "can't determine assigned storage for mountpoint '$ms'\n" if !$storage;
+	die "can't determine assigned storage for mount point '$ms'\n" if !$storage;
 
 	# check if storage is available on both nodes
 	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
@@ -78,7 +78,7 @@ sub prepare {
 	    # only activate if not shared
 	    push @$need_activate, $volid;
 
-	    die "unable to migrate local mountpoint '$volid' while CT is running"
+	    die "unable to migrate local mount point '$volid' while CT is running"
 		if $running;
 	}
 

@@ -276,7 +276,7 @@ __PACKAGE__->register_method({
 	    }
 	}
 
-	die "mountpoints configured, but 'rootfs' not set - aborting\n"
+	die "mount points configured, but 'rootfs' not set - aborting\n"
 	    if !$storage_only_mode && !defined($mp_param->{rootfs});
 
 	# check storage access, activate storage
@@ -358,8 +358,8 @@ __PACKAGE__->register_method({
 
 				if ($mountpoint->{backup}) {
 				    warn "WARNING - unsupported configuration!\n";
-				    warn "backup was enabled for $type mountpoint $ms ('$mountpoint->{mp}')\n";
-				    warn "mountpoint configuration will be restored after archive extraction!\n";
+				    warn "backup was enabled for $type mount point $ms ('$mountpoint->{mp}')\n";
+				    warn "mount point configuration will be restored after archive extraction!\n";
 				    warn "contained files will be restored to wrong directory!\n";
 				}
 				delete $mp_param->{$ms}; # actually delay bind/dev mps
@@ -1254,7 +1254,7 @@ __PACKAGE__->register_method({
 			if ($fullclone->{$opt}) {
 			    die "fixme: full clone not implemented\n";
 			} else {
-			    print "create linked clone of mountpoint $opt ($volid)\n";
+			    print "create linked clone of mount point $opt ($volid)\n";
 			    my $newvolid = PVE::Storage::vdisk_clone($storecfg, $volid, $newid, $snapname);
 			    push @$newvollist, $newvolid;
 			    $mp->{volume} = $newvolid;
@@ -1300,7 +1300,7 @@ __PACKAGE__->register_method({
     method => 'PUT',
     protected => 1,
     proxyto => 'node',
-    description => "Resize a container mountpoint.",
+    description => "Resize a container mount point.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', ['VM.Config.Disk'], any => 1],
     },
@@ -1373,7 +1373,7 @@ __PACKAGE__->register_method({
 	    my (undef, undef, $owner, undef, undef, undef, $format) =
 		PVE::Storage::parse_volname($storage_cfg, $volid);
 
-	    die "can't resize mountpoint owned by another container ($owner)"
+	    die "can't resize mount point owned by another container ($owner)"
 		if $vmid != $owner;
 
 	    die "can't resize volume: $disk if snapshot exists\n"
@@ -1411,7 +1411,7 @@ __PACKAGE__->register_method({
 			$mp->{mp} = '/';
 			my $use_loopdev = (PVE::LXC::mountpoint_mount_path($mp, $storage_cfg))[1];
 			$path = PVE::LXC::query_loopdev($path) if $use_loopdev;
-			die "internal error: CT running but mountpoint not attached to a loop device"
+			die "internal error: CT running but mount point not attached to a loop device"
 			    if !$path;
 			PVE::Tools::run_command(['losetup', '--set-capacity', $path]) if $use_loopdev;
 

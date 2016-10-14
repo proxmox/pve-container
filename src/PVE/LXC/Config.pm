@@ -237,7 +237,7 @@ my $rootfs_desc = {
     },
     ro => {
 	type => 'boolean',
-	description => 'Read-only mountpoint',
+	description => 'Read-only mount point',
 	optional => 1,
     },
     quota => {
@@ -439,7 +439,7 @@ my $valid_lxc_conf_keys = {
     'lxc.rootfs' => 'lxc.rootfs is auto generated from rootfs',
     'lxc.rootfs.mount' => 1,
     'lxc.rootfs.options' => 'lxc.rootfs.options is not supported' .
-                            ', please use mountpoint options in the "rootfs" key',
+                            ', please use mount point options in the "rootfs" key',
     # lxc.cgroup.*
     'lxc.cap.drop' => 1,
     'lxc.cap.keep' => 1,
@@ -585,18 +585,18 @@ my $mp_desc = {
     %$rootfs_desc,
     backup => {
 	type => 'boolean',
-	description => 'Whether to include the mountpoint in backups.',
-	verbose_description => 'Whether to include the mountpoint in backups '.
-			       '(only used for volume mountpoints).',
+	description => 'Whether to include the mount point in backups.',
+	verbose_description => 'Whether to include the mount point in backups '.
+			       '(only used for volume mount points).',
 	optional => 1,
     },
     mp => {
 	type => 'string',
 	format => 'pve-lxc-mp-string',
 	format_description => 'Path',
-	description => 'Path to the mountpoint as seen from inside the container '.
+	description => 'Path to the mount point as seen from inside the container '.
 		       '(must not contain symlinks).',
-	verbose_description => "Path to the mountpoint as seen from inside the container.\n\n".
+	verbose_description => "Path to the mount point as seen from inside the container.\n\n".
 			       "NOTE: Must not contain any symlinks for security reasons."
     },
 };

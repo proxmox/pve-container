@@ -228,7 +228,7 @@ __PACKAGE__->register_method ({
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    my $storage_cfg = PVE::Storage::config();
 
-	    defined($conf->{$device}) || die "cannot run command on unexisting mountpoint $device\n";
+	    defined($conf->{$device}) || die "cannot run command on non-existing mount point $device\n";
 
 	    my $mount_point = $device eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$device}) :
 		PVE::LXC::Config->parse_ct_mountpoint($conf->{$device});
