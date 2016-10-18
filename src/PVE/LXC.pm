@@ -192,8 +192,11 @@ sub vmstatus {
 	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
 	$d->{uptime} = time - $ctime; # the method lxcfs uses
 
-	$d->{mem} = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
-	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $d->{mem};
+	my $memory_stat = read_cgroup_list('memory', $vmid, 'memory.stat');
+	my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
+
+	$d->{mem} = $mem_usage_in_bytes - $memory_stat->{cache};
+	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $mem_usage_in_bytes;
 
 	my $blkio_bytes = read_cgroup_value('blkio', $vmid, 'blkio.throttle.io_service_bytes', 1);
 	my @bytes = split(/\n/, $blkio_bytes);
@@ -249,6 +252,14 @@ sub vmstatus {
     }
 
     return $list;
+}
+
+sub read_cgroup_list {
+    my ($group, $vmid, $name) = @_;
+
+    my $content = read_cgroup_value($group, $vmid, $name, 1);
+
+    return { split(/\s+/, $content) };
 }
 
 sub read_cgroup_value {
