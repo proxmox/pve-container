@@ -1135,6 +1135,19 @@ sub has_dev_console {
     return !(defined($conf->{console}) && !$conf->{console});
 }
 
+sub has_lxc_entry {
+    my ($class, $conf, $keyname) = @_;
+
+    if (my $lxcconf = $conf->{lxc}) {
+	foreach my $entry (@$lxcconf) {
+	    my ($key, undef) = @$entry;
+	    return 1 if $key eq $keyname;
+	}
+    }
+
+    return 0;
+}
+
 sub get_tty_count {
     my ($class, $conf) = @_;
 
