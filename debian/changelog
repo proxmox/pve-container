@@ -1,3 +1,15 @@
+pve-container (1.0-79) unstable; urgency=medium
+
+  * PVE::LXC::Config::has_lxc_entry() new helper
+
+  * vmstatus: fix memory usage value including cache sizes
+
+  * fix devices file check in autodev hook
+
+  * add new option 'cores' to restrict visible cores
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 26 Oct 2016 11:46:49 +0200
+
 pve-container (1.0-78) unstable; urgency=medium
 
   * alpine: fix getty line removal
