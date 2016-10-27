@@ -10,6 +10,7 @@ use Term::ReadLine;
 
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
+use PVE::CpuSet;
 use PVE::Cluster;
 use PVE::INotify;
 use PVE::RPCEnvironment;
@@ -649,6 +650,60 @@ __PACKAGE__->register_method({
 	return PVE::LXC::Config->lock_config($vmid, $code);
     }});
 
+__PACKAGE__->register_method ({
+    name => 'cpusets',
+    path => 'cpusets',
+    method => 'GET',
+    description => "Print the list of assigned CPU sets.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {},
+    },
+    returns => { type => 'null'},
+    code => sub {
+	my ($param) = @_;
+
+	my $ctlist = PVE::LXC::config_list();
+
+	my $len = 0;
+	my $id_len = 0;
+	my $res = {};
+
+	foreach my $vmid (sort keys %$ctlist) {
+	    next if ! -d "/sys/fs/cgroup/cpuset/lxc/$vmid";
+
+	    my $cpuset = eval { PVE::CpuSet->new_from_cgroup("lxc/$vmid"); };
+	    if (my $err = $@) {
+		warn $err;
+		next;
+	    }
+	    my @cpuset_members = $cpuset->members();
+
+	    my $line = ': ';
+
+	    my $last = $cpuset_members[-1];
+
+	    for (my $id = 0; $id <= $last; $id++) {
+		my $empty = ' ' x length("$id");
+		$line .= ' ' . ($cpuset->has($id) ? $id : $empty);
+	    }
+	    $len = length($line) if length($line) > $len;
+	    $id_len = length($vmid) if length($vmid) > $id_len;
+
+	    $res->{$vmid} = $line;
+	}
+
+	my $header = '-' x ($len + $id_len) . "\n";
+
+	print $header;
+	foreach my $vmid (sort keys %$res) {
+	    print sprintf("%${id_len}i%s\n", $vmid, $res->{$vmid});
+	}
+	print $header;
+
+	return undef;
+    }});
+
 our $cmddef = {
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
@@ -730,6 +785,9 @@ our $cmddef = {
     rollback => [ "PVE::API2::LXC::Snapshot", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 
     template => [ "PVE::API2::LXC", 'template', ['vmid'], { node => $nodename }],
+
+    cpusets => [ __PACKAGE__, 'cpusets', []],
+
 };
 
 
