@@ -306,6 +306,13 @@ my $confdesc = {
 	maximum => 6,
 	default => 2,
     },
+    cores => {
+	optional => 1,
+	type => 'integer',
+	description => "The number of cores assigned to the container. A container can use all available cores by default.",
+	minimum => 1,
+	maximum => 128,
+    },
     cpulimit => {
 	optional => 1,
 	type => 'number',
@@ -780,6 +787,8 @@ sub update_pct_config {
 		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
 		next if $hotplug_error->($opt);
 		delete $conf->{$opt};
+	    } elsif ($opt eq 'cores') {
+		delete $conf->{$opt}; # rest is handled by pvestatd
 	    } elsif ($opt eq 'cpulimit') {
 		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
 		delete $conf->{$opt};
@@ -882,6 +891,8 @@ sub update_pct_config {
 	    next if $hotplug_error->($opt);
 	    my $list = PVE::LXC::verify_searchdomain_list($value);
 	    $conf->{$opt} = $list;
+	} elsif ($opt eq 'cores') {
+	    $conf->{$opt} = $value;# rest is handled by pvestatd
 	} elsif ($opt eq 'cpulimit') {
 	    if ($value == 0) {
 		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);

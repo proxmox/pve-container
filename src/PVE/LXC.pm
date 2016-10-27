@@ -147,7 +147,8 @@ sub vmstatus {
 	$d->{name} = $conf->{'hostname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
 
-	$d->{cpus} = $conf->{cpulimit} || $cpucount;
+	$d->{cpus} = $conf->{cores} || $conf->{cpulimit};
+	$d->{cpus} = $cpucount if !$d->{cpus};
 
 	$d->{lock} = $conf->{lock} || '';
 
@@ -873,7 +874,7 @@ sub check_ct_modify_config_perm {
 
     my $check = sub {
 	my ($opt, $delete) = @_;
-	if ($opt eq 'cpus' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
+	if ($opt eq 'cores' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.CPU']);
 	} elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
