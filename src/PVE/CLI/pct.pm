@@ -693,13 +693,20 @@ __PACKAGE__->register_method ({
 	    $res->{$vmid} = $line;
 	}
 
-	my $header = '-' x ($len + $id_len) . "\n";
+	my @vmlist = sort keys %$res;
 
-	print $header;
-	foreach my $vmid (sort keys %$res) {
-	    print sprintf("%${id_len}i%s\n", $vmid, $res->{$vmid});
+	if (scalar(@vmlist)) {
+	    my $header = '-' x ($len + $id_len) . "\n";
+
+	    print $header;
+	    foreach my $vmid (@vmlist) {
+		print sprintf("%${id_len}i%s\n", $vmid, $res->{$vmid});
+	    }
+	    print $header;
+
+	} else {
+	    print "no running containers\n";
 	}
-	print $header;
 
 	return undef;
     }});
