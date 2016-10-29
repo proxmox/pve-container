@@ -1,3 +1,9 @@
+pve-container (1.0-80) unstable; urgency=medium
+
+  * pct: add new command 'pct cpusets' to print assigned cpu sets
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 29 Oct 2016 07:46:40 +0200
+
 pve-container (1.0-79) unstable; urgency=medium
 
   * PVE::LXC::Config::has_lxc_entry() new helper
