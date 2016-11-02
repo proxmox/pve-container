@@ -50,8 +50,7 @@ sub template_fixup {
 
     my $version = $self->{version};
     
-    if ($version eq '15.04' || $version eq '15.10' || $version eq '16.04' ||
-	$version eq '16.10') {
+    if ($version eq '15.04' || $version eq '15.10' || $version eq '16.04') {
 	# edit /etc/securetty (enable login on console)
 	$self->setup_securetty($conf, qw(pts/0));
     }
@@ -70,6 +69,10 @@ sub setup_init {
 
     my $version = $self->{version};
 
+    if ($version eq '16.10') {
+        $self->setup_container_getty_service(0);
+    }
+    
     if ($version eq '12.04' || $version eq '14.04') {
 	my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
 	for (my $i = 1; $i < 7; $i++) {
