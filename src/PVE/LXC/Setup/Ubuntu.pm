@@ -34,7 +34,8 @@ sub new {
     
     die "unable to read version info\n" if !defined($version);
   
-    die "unsupported ubunt version '$version'\n" if !$known_versions->{$version};
+    die "unsupported Ubuntu version '$version'\n"
+	if !$known_versions->{$version};
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
