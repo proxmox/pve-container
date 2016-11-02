@@ -1,3 +1,9 @@
+pve-container (1.0-81) unstable; urgency=medium
+
+  * add support for Ubuntu 16.10
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 02 Nov 2016 08:43:29 +0100
+
 pve-container (1.0-80) unstable; urgency=medium
 
   * pct: add new command 'pct cpusets' to print assigned cpu sets
