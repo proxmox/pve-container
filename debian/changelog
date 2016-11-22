@@ -1,3 +1,13 @@
+pve-container (1.0-82) unstable; urgency=medium
+
+  * fix spelling: 'mountpoint' 'mount point'
+
+  * fix #1147: allow marking non-volume mps as shared
+
+  * Ubuntu 16.10: fix systemd console files
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 22 Nov 2016 16:50:34 +0100
+
 pve-container (1.0-81) unstable; urgency=medium
 
   * add support for Ubuntu 16.10
