@@ -325,6 +325,26 @@ __PACKAGE__->register_method({
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
+	if (PVE::HA::Config::vm_is_ha_managed($vmid) &&
+	    $rpcenv->{type} ne 'ha') {
+
+	    my $hacmd = sub {
+		my $upid = shift;
+
+		my $service = "ct:$vmid";
+
+		my $cmd = ['ha-manager', 'set', $service, '--state', 'stopped'];
+
+		print "Executing HA stop for CT $vmid\n";
+
+		PVE::Tools::run_command($cmd);
+
+		return;
+	    };
+
+	    return $rpcenv->fork_worker('hastop', $vmid, $authuser, $hacmd);
+	}
+
 	my $lockcmd = sub {
 	    my $realcmd = sub {
 		my $upid = shift;
