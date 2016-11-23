@@ -1,3 +1,9 @@
+pve-container (1.0-84) unstable; urgency=medium
+
+  * start: use a random cpuset at startup
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 23 Nov 2016 15:51:20 +0100
+
 pve-container (1.0-83) unstable; urgency=medium
 
   * vm_shutdown: request 'stopped' state for HA enabled CTs
