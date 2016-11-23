@@ -18,6 +18,7 @@ use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH);
+use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
@@ -436,15 +437,29 @@ sub update_lxc_config {
 	$raw .= "lxc.network.mtu = $d->{mtu}\n" if defined($d->{mtu});
     }
 
+    my $had_cpuset = 0;
     if (my $lxcconf = $conf->{lxc}) {
 	foreach my $entry (@$lxcconf) {
 	    my ($k, $v) = @$entry;
 	    $netcount++ if $k eq 'lxc.network.type';
+	    $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus';
 	    $raw .= "$k = $v\n";
 	}
     }
 
     $raw .= "lxc.network.type = empty\n" if !$netcount;
+
+    my $cores = $conf->{cores};
+    if (!$had_cpuset && $cores) {
+	my $cpuset = PVE::CpuSet->new_from_cgroup('lxc', 'effective_cpus');
+	my @members = $cpuset->members();
+	while (scalar(@members) > $cores) {
+	    my $randidx = int(rand(scalar(@members)));
+	    $cpuset->delete($members[$randidx]);
+	    splice(@members, $randidx, 1); # keep track of the changes
+	}
+	$raw .= "lxc.cgroup.cpuset.cpus = ".$cpuset->short_string()."\n";
+    }
     
     File::Path::mkpath("$dir/rootfs");
 
