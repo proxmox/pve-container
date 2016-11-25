@@ -451,7 +451,8 @@ sub update_lxc_config {
 
     my $cores = $conf->{cores};
     if (!$had_cpuset && $cores) {
-	my $cpuset = PVE::CpuSet->new_from_cgroup('lxc', 'effective_cpus');
+	my $cpuset = eval { PVE::CpuSet->new_from_cgroup('lxc', 'effective_cpus') };
+	$cpuset = PVE::CpuSet->new_from_cgroup('', 'effective_cpus') if !$cpuset;
 	my @members = $cpuset->members();
 	while (scalar(@members) > $cores) {
 	    my $randidx = int(rand(scalar(@members)));
