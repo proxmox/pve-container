@@ -248,7 +248,10 @@ sub copy_data_phase2 {
 sub stop_vm {
     my ($self, $task, $vmid) = @_;
 
-    $self->cmd("lxc-stop -n $vmid");
+    my $opts = $self->{vzdump}->{opts};
+    my $timeout = $opts->{stopwait} * 60;
+
+    $self->cmd("lxc-stop -n $vmid -t $timeout");
 
     # make sure container is stopped
     $self->cmd("lxc-wait -n $vmid -s STOPPED");
