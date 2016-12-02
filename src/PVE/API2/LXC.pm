@@ -845,6 +845,17 @@ __PACKAGE__->register_method({
 		description => "Use online/live migration.",
 		optional => 1,
 	    },
+	    restart => {
+		type => 'boolean',
+		description => "Use restart migration",
+		optional => 1,
+	    },
+	    timeout => {
+		type => 'integer',
+		description => "Timeout in seconds for shutdown for restart migration",
+		optional => 1,
+		default => 180,
+	    },
 	    force => {
 		type => 'boolean',
 		description => "Force migration despite local bind / device" .
@@ -882,8 +893,8 @@ __PACKAGE__->register_method({
 
 	# try to detect errors early
 	if (PVE::LXC::check_running($vmid)) {
-	    die "can't migrate running container without --online\n"
-		if !$param->{online};
+	    die "can't migrate running container without --online or --restart\n"
+		if !$param->{online} && !$param->{restart};
 	}
 
 	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
