@@ -23,6 +23,7 @@ sub prepare {
     my ($self, $vmid) = @_;
 
     my $online = $self->{opts}->{online};
+    my $restart= $self->{opts}->{restart};
 
     $self->{storecfg} = PVE::Storage::config();
 
@@ -33,11 +34,11 @@ sub prepare {
 
     my $running = 0;
     if (PVE::LXC::check_running($vmid)) {
-	die "lxc live migration is currently not implemented\n";
-
-	die "can't migrate running container without --online\n" if !$online;
+	die "lxc live migration is currently not implemented\n" if $online;
+	die "running container can only be migrated in restart mode" if !$restart;
 	$running = 1;
     }
+    $self->{was_running} = $running;
 
     my $force = $self->{opts}->{force} // 0;
     my $need_activate = [];
@@ -78,8 +79,9 @@ sub prepare {
 	    # only activate if not shared
 	    push @$need_activate, $volid;
 
+	    # unless in restart mode because we shut the container down
 	    die "unable to migrate local mount point '$volid' while CT is running"
-		if $running;
+		if $running && !$restart;
 	}
 
     });
@@ -92,6 +94,22 @@ sub prepare {
     my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
     eval { $self->cmd_quiet($cmd); };
     die "Can't connect to destination address using public key\n" if $@;
+
+    # in restart mode, we shutdown the container before migrating
+    if ($restart && $running) {
+	my $timeout = $self->{opts}->{timeout} // 180;
+
+	$self->log('info', "shutdown CT $vmid\n");
+
+	my $cmd = ['lxc-stop', '-n', $vmid, '--timeout', $timeout];
+	$self->cmd($cmd, timeout => $timeout + 5);
+
+	# make sure container is stopped
+	$cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
+	$self->cmd($cmd);
+
+	$running = 0;
+    }
 
     return $running;
 }
@@ -321,6 +339,14 @@ sub final_cleanup {
     } else {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
 	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");	
+    }
+
+    # in restart mode, we start the container on the target node
+    # after migration
+    if ($self->{opts}->{restart} && $self->{was_running}) {
+	$self->log('info', "start container on target node");
+	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'start', $vmid];
+	$self->cmd($cmd);
     }
 }
 
