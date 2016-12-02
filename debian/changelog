@@ -1,3 +1,11 @@
+pve-container (1.0-87) unstable; urgency=medium
+
+  * implement lxc restart migration
+
+  * VZDump: implement stopwait
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 02 Dec 2016 12:12:26 +0100
+
 pve-container (1.0-86) unstable; urgency=medium
 
   * Do not skip unprivileged config parameter when restoring a container
