@@ -22,6 +22,11 @@ sub new {
     return bless $self, $class;
 }
 
+# Alpine doesn't support the /dev/lxc/ subdirectory.
+sub devttydir {
+    return '';
+}
+
 sub template_fixup {
     my ($self, $conf) = @_;
 
@@ -39,7 +44,7 @@ sub template_fixup {
     $self->ct_symlink('/etc/init.d/savecache',
                       '/etc/runlevels/shutdown/savecache');
 
-    $self->setup_securetty($conf, qw(lxc/console lxc/tty1 lxc/tty2 lxc/tty3 lxc/tty4));
+    $self->setup_securetty($conf);
 }
 
 sub setup_init {

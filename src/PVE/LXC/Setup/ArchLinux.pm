@@ -39,12 +39,12 @@ sub template_fixup {
                       '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
 
     # edit /etc/securetty (enable login on console)
-    $self->setup_securetty($conf, qw(console tty1 tty2 tty3 tty4));
+    $self->setup_securetty($conf);
 }
 
 sub setup_init {
     my ($self, $conf) = @_;
-    $self->setup_container_getty_service(1);
+    $self->setup_container_getty_service($conf);
 }
 
 sub setup_network {

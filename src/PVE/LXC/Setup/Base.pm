@@ -198,13 +198,21 @@ sub setup_systemd_console {
     }
 }
 
+# A few distros as well as unprivileged containers cannot deal with the
+# /dev/lxc/ tty subdirectory.
+sub devttydir {
+    my ($self, $conf) = @_;
+    return $conf->{unprivileged} ? '' : 'lxc/';
+}
+
 sub setup_container_getty_service {
-    my ($self, $nosubdir) = @_;
+    my ($self, $conf) = @_;
+
     my $systemd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
 	"/lib/systemd/system" : "/usr/lib/systemd/system";
     my $servicefile = "$systemd_dir_rel/container-getty\@.service";
     my $raw = $self->ct_file_get_contents($servicefile);
-    my $ttyname = ($nosubdir ? '' : 'lxc/') . 'tty%I';
+    my $ttyname = $self->devttydir($conf) . 'tty%I';
     if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
 	$self->ct_file_set_contents($servicefile, $raw);
     }
@@ -280,6 +288,13 @@ sub setup_securetty {
     my $filename = "/etc/securetty";
     # root login is already allowed on every device if no securetty present
     return if !$self->ct_file_exists($filename);
+
+    if (!scalar(@add)) {
+	@add = qw(console tty1 tty2 tty3 tty4);
+	if (my $dir = $self->devttydir($conf)) {
+	    @add = map { "${dir}$_" } @add;
+	}
+    }
 
     my $data = $self->ct_file_get_contents($filename);
     chomp $data; $data .= "\n";

@@ -42,7 +42,7 @@ sub setup_init {
 
     my $systemd = $self->ct_readlink('/sbin/init');
     if (defined($systemd) && $systemd =~ m@/systemd$@) {
-	$self->setup_container_getty_service(1);
+	$self->setup_container_getty_service($conf);
     }
 
     my $filename = "/etc/inittab";

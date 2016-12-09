@@ -70,7 +70,7 @@ sub setup_init {
     my $version = $self->{version};
 
     if ($version eq '16.10') {
-        $self->setup_container_getty_service(0);
+        $self->setup_container_getty_service($conf);
     }
     
     if ($version eq '12.04' || $version eq '14.04') {
