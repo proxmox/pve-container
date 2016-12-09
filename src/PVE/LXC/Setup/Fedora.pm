@@ -16,7 +16,7 @@ sub new {
     my $version;
 
     if ($release =~ m/release\s+(\d+(?:\.\d+)?)(\.\d+)?/) {
-	if ($1 >= 22 && $1 < 23) {
+	if ($1 >= 22 && $1 < 26) {
 	    $version = $1;
 	}
     }
@@ -28,6 +28,17 @@ sub new {
     $conf->{ostype} = "fedora";
 
     return bless $self, $class;
+}
+
+sub template_fixup {
+    my ($self, $conf) = @_;
+    $self->setup_securetty($conf);
+    $self->ct_unlink('/etc/systemd/system/getty@.service');
+}
+
+sub setup_init {
+    my ($self, $conf) = @_;
+    $self->setup_container_getty_service($conf);
 }
 
 1;
