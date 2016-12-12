@@ -176,7 +176,7 @@ sub prepare {
 	# If we perform mount operations, let's unshare the mount namespace
 	# to not influence the running host.
 	PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
-	PVE::Tools::run_command(['mount', '--make-rprivate', '/']);
+	PVE::Tools::run_command(['mount', '--make-rslave', '/']);
     }
 }
 
