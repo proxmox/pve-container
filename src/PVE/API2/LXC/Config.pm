@@ -72,6 +72,7 @@ __PACKAGE__->register_method({
     description => "Set container options.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', $vm_config_perm_list, any => 1],
+	description => 'non-volume mount points in rootfs and mp[n] are restricted to root@pam',
     },
     parameters => {
     	additionalProperties => 0,

@@ -897,7 +897,8 @@ sub check_ct_modify_config_perm {
 	    return if $delete;
 	    my $data = $opt eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($newconf->{$opt})
 					: PVE::LXC::Config->parse_ct_mountpoint($newconf->{$opt});
-	    raise_perm_exc("mount point type $data->{type}") if $data->{type} ne 'volume';
+	    raise_perm_exc("mount point type $data->{type} is only allowed for root\@pam")
+		if $data->{type} ne 'volume';
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
 	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
