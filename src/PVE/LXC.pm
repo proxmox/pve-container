@@ -197,7 +197,7 @@ sub vmstatus {
 	my $memory_stat = read_cgroup_list('memory', $vmid, 'memory.stat');
 	my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
 
-	$d->{mem} = $mem_usage_in_bytes - $memory_stat->{cache};
+	$d->{mem} = $mem_usage_in_bytes - $memory_stat->{total_cache};
 	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $mem_usage_in_bytes;
 
 	my $blkio_bytes = read_cgroup_value('blkio', $vmid, 'blkio.throttle.io_service_bytes', 1);
