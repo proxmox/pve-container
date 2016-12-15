@@ -218,13 +218,13 @@ __PACKAGE__->register_method({
 	    raise_perm_exc();
 	}
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, $param, []);
-
+	my $ostemplate = extract_param($param, 'ostemplate');
 	my $storage = extract_param($param, 'storage') // 'local';
+
+	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, $param, []);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	my $ostemplate = extract_param($param, 'ostemplate');
 
 	my $archive;
 
