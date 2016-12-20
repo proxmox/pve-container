@@ -776,7 +776,7 @@ sub update_pct_config {
     if (defined($delete)) {
 	foreach my $opt (@$delete) {
 	    if (!exists($conf->{$opt})) {
-		warn "no such option: $opt\n";
+		# silently ignore
 		next;
 	    }
 
