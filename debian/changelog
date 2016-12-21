@@ -1,3 +1,15 @@
+pve-container (1.0-89) unstable; urgency=medium
+
+  * supress warning when we try to delete a non-existent option
+
+  * fix #1226: show the right amount of memory usage
+
+  * fix #1225: restore without config changes for VMUser
+
+  * document bind/device mp permissions better
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 21 Dec 2016 11:56:17 +0100
+
 pve-container (1.0-88) unstable; urgency=medium
 
   * setup: allow fedora 22-25
