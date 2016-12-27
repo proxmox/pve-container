@@ -1,3 +1,10 @@
+pve-container (1.0-90) unstable; urgency=medium
+
+  * skip unprivileged config parameter when restoring a container (revert
+    previos patch)
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 27 Dec 2016 09:02:41 +0100
+
 pve-container (1.0-89) unstable; urgency=medium
 
   * supress warning when we try to delete a non-existent option
