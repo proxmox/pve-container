@@ -114,7 +114,7 @@ sub restore_configuration {
 	my $oldconf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $raw);
 
 	foreach my $key (keys %$oldconf) {
-	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'parent';
+	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
 	    next if $key =~ /^mp\d+$/; # don't recover mountpoints
 	    next if $key =~ /^unused\d+$/; # don't recover unused disks
 	    if ($restricted && $key eq 'lxc') {
