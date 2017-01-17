@@ -218,17 +218,24 @@ sub rewrite_ssh_host_keys {
 
     my $hostname = $conf->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
+    my $ssh_comment = "root\@$hostname";
+
+    my $keygen_outfunc = sub {
+	my $line = shift;
+
+	print "done: $line\n"
+	    if ($line =~ m/^([0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i);
+    };
 
     # Create temporary keys in /tmp on the host
-
     my $keyfiles = {};
     foreach my $keytype (keys %$keynames) {
 	my $basename = $keynames->{$keytype};
 	my $file = "/tmp/$$.$basename";
 	print "Creating SSH host key '$basename' - this may take some time ...\n";
-	my $cmd = ['ssh-keygen', '-q', '-f', $file, '-t', $keytype,
-		   '-N', '', '-C', "root\@$hostname"];
-	PVE::Tools::run_command($cmd);
+	my $cmd = ['ssh-keygen', '-f', $file, '-t', $keytype,
+		   '-N', '', '-C', $ssh_comment];
+	PVE::Tools::run_command($cmd, outfunc => $keygen_outfunc);
 	$keyfiles->{"/etc/ssh/$basename"} = [PVE::Tools::file_get_contents($file), 0600];
 	$keyfiles->{"/etc/ssh/$basename.pub"} = [PVE::Tools::file_get_contents("$file.pub"), 0644];
 	unlink $file;
