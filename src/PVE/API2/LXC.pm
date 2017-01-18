@@ -236,7 +236,7 @@ __PACKAGE__->register_method({
 	    $archive = '-';
 	    die "restore from pipe requires rootfs parameter\n" if !defined($param->{rootfs});
 	} else {
-	    $rpcenv->check_volume_access($authuser, $storage_cfg, $vmid, $ostemplate);
+	    PVE::Storage::check_volume_access($rpcenv, $authuser, $storage_cfg, $vmid, $ostemplate);
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
 	}
 
