@@ -363,7 +363,7 @@ sub set_user_password {
     if (defined($opt_password)) {
 	if ($opt_password !~ m/^\$/) {
 	    my $time = substr (Digest::SHA::sha1_base64 (time), 0, 8);
-	    $opt_password = crypt(encode("utf8", $opt_password), "\$1\$$time\$");
+	    $opt_password = crypt($opt_password, "\$1\$$time\$");
 	};
     } else {
 	$opt_password = '*';
