@@ -1,3 +1,9 @@
+pve-container (1.0-93) unstable; urgency=medium
+
+  * add dependency on libpve-guest-common-perl
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 25 Jan 2017 09:40:19 +0100
+
 pve-container (1.0-92) unstable; urgency=medium
 
   * use new PVE::Storage::check_volume_access()
