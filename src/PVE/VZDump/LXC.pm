@@ -260,7 +260,7 @@ sub stop_vm {
 sub start_vm {
     my ($self, $task, $vmid) = @_;
 
-    $self->cmd ("lxc-start -n $vmid");
+    $self->cmd(['systemctl', 'start', "lxc\@$vmid"]);
 }
 
 sub suspend_vm {

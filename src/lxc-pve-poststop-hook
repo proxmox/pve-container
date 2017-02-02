@@ -74,21 +74,14 @@ __PACKAGE__->register_method ({
 
 	my $target = $ENV{LXC_TARGET};
 	if ($target && $target eq 'reboot') {
-	    # in order to make sure hot-plugged config changes aren't reverted
+	    # In order to make sure hot-plugged config changes aren't reverted
 	    # to what the monitor initially loaded we need to stop the container
-	    # and restart it
-	    local $SIG{HUP} = 'IGNORE';
-	    my $pid = fork();
-	    die "fork failed during container reboot: $!\n" if !defined($pid);
-	    if (!$pid) {
-		POSIX::setsid();
-		close STDIN;
-		close STDOUT;
-		close STDERR;
-		PVE::LXC::update_lxc_config($vmid, $conf);
-		exec {'lxc-start'} 'lxc-start', '-n', $vmid
-		or POSIX::_exit(-1);
-	    }
+	    # and restart it.
+	    # Update the config and queue a restart of the lxc@$vmid task, note
+	    # that we must not block because we're part of the service cgroup
+	    # systemd waits for to die before issuing the new lxc-start command.
+	    PVE::LXC::update_lxc_config($vmid, $conf);
+	    PVE::Tools::run_command(['systemctl', '--no-block', 'restart', "lxc\@$vmid"]);
 	    # cause lxc to stop instead of rebooting
 	    POSIX::_exit(1);
 	}
