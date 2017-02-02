@@ -1,3 +1,12 @@
+pve-container (1.0-94) unstable; urgency=medium
+
+  * fix #1153: improve behavior when entering unicode in passwords prompts
+
+  * use the lxc@.service unit to start containers to avoid issues with
+    pvedaemon restarts.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 02 Feb 2017 14:13:10 +0100
+
 pve-container (1.0-93) unstable; urgency=medium
 
   * add dependency on libpve-guest-common-perl
