@@ -15,12 +15,17 @@ use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
 use PVE::LXC::Create;
-use PVE::HA::Env::PVE2;
-use PVE::HA::Config;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
 
-use Data::Dumper; # fixme: remove
+BEGIN {
+    if (!$ENV{PVE_GENERATING_DOCS}) {
+	require PVE::HA::Env::PVE2;
+	import  PVE::HA::Env::PVE2;
+	require PVE::HA::Config;
+	import  PVE::HA::Config;
+    }
+}
 
 __PACKAGE__->register_method({
     name => 'vmcmdidx',

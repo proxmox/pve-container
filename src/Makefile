@@ -22,12 +22,12 @@ include /usr/share/pve-doc-generator/pve-doc-generator.mk
 all:
 
 pct.bash-completion:
-	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@.tmp
+	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@.tmp
 	mv $@.tmp $@
 
 .PHONY: install
 install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pve-update-lxc-config pct.bash-completion
-	perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
+	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
 	install -m 0755 pve-update-lxc-config ${SBINDIR}
