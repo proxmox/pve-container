@@ -11,7 +11,7 @@ use File::Path;
 use File::Spec;
 use Cwd qw();
 use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP EROFS);
+use Errno qw(ELOOP ENOTDIR EROFS);
 
 use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
@@ -1052,7 +1052,7 @@ sub walk_tree_nofollow($$$) {
 
 	if (!$next) {
 	    # failed, check for symlinks and try to create the path
-	    die "symlink encountered at: $dir\n" if $! == ELOOP;
+	    die "symlink encountered at: $dir\n" if $! == ELOOP || $! == ENOTDIR;
 	    die "cannot open directory $dir: $!\n" if !$mkdir;
 
 	    # We don't check for errors on mkdirat() here and just try to
