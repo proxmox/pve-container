@@ -15,7 +15,8 @@ dinstall: ${DEB}
 	dpkg -i ${DEB}
 
 .PHONY: deb
-deb ${DEB}:
+deb: ${DEB}
+${DEB}:
 	rm -rf build
 	mkdir build
 	rsync -a src/ build
