@@ -11,6 +11,7 @@ use PVE::LXC;
 use PVE::LXC::Setup;
 use PVE::VZDump::ConvertOVZ;
 use PVE::Tools;
+use POSIX;
 
 sub next_free_nbd_dev {
     
@@ -21,6 +22,49 @@ sub next_free_nbd_dev {
 	return $dev;
     }
     die "unable to find free nbd device\n";
+}
+
+sub get_elf_class {
+    my ($rootdir, $elf_fn) = @_;
+
+    my $child_pid = fork();
+    die "fork failed: $!\n" if !defined($child_pid);
+
+    if (!$child_pid) {
+	# chroot avoids a problem where we check the binary of the host system
+	# if $elf_fn is an absolut symlink (e.g. $rootdir/bin/sh -> /bin/bash)
+	chroot($rootdir) or die "chroot '$rootdir' failed: $!\n";
+	chdir('/') or die "failed to change to root directory\n";
+
+	my $fh;
+	open($fh, "<", $elf_fn) or die "open '$elf_fn' failed: $!\n";
+	binmode($fh);
+
+	my $data;
+	my $length = read($fh, $data, 5);
+	die "read failed: $!\n" if !defined($length);
+
+	# 4 bytes ELF magic number and 1 byte ELF class
+	my ($magic, $class) = unpack("A4C", $data);
+
+	die "'$elf_fn' does not resolve to an ELF!\n"
+	    if (!defined($class) || !defined($magic) || $magic ne "\177ELF");
+
+	die "'$elf_fn' has unknown ELF class '$class'!\n"
+	    if ($class != 1 && $class != 2);
+
+	POSIX::_exit($class);
+    }
+
+    while (waitpid($child_pid, 0) != $child_pid) {}
+    my $exit_code = $?;
+    if (my $sig = ($exit_code & 127)) {
+	warn "could not get architecture, got signal $sig\n";
+    } else {
+	$exit_code >>= 8;
+    }
+
+    return $exit_code;
 }
 
 sub restore_archive {
@@ -53,21 +97,18 @@ sub restore_archive {
     # if arch is set, we do not try to autodetect it
     return if defined($conf->{arch});
 
-    # determine file type of /usr/bin/file itself to get guests' architecture
-    $cmd = [@$userns_cmd, '/usr/bin/file', '-b', '-L', "$rootdir/bin/sh"];
-    PVE::Tools::run_command($cmd, outfunc => sub {
-	shift =~ /^ELF (\d{2}-bit)/; # safely assumes x86 linux
-	my $arch_str = $1;
-	$conf->{'arch'} = 'amd64'; # defaults to 64bit
-	if(defined($arch_str)) {
-	    $conf->{'arch'} = 'i386' if $arch_str =~ /32/;
-	    print "Detected container architecture: $conf->{'arch'}\n";
-	} else {
-	    print "CT architecture detection failed, falling back to amd64.\n" .
-	          "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}.conf " .
-	          "to set another architecture.\n";
-	}
-    });
+
+    my $elf_class = get_elf_class($rootdir, '/bin/sh'); # /bin/sh is POSIX mandatory
+
+    $conf->{'arch'} = 'amd64'; # defaults to 64bit
+    if ($elf_class == 1 || $elf_class == 2) {
+	$conf->{'arch'} = 'i386' if $elf_class == 1;
+	print "Detected container architecture: $conf->{'arch'}\n";
+    } else {
+	print "CT architecture detection failed, falling back to amd64.\n" .
+	      "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}.conf " .
+	      "to set another architecture.\n";
+    }
 }
 
 sub recover_config {
