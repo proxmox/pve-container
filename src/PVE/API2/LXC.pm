@@ -714,7 +714,7 @@ __PACKAGE__->register_method ({
 
 	    push @$cmd, '-c', @$remcmd, @$shcmd;
 
-	    run_command($cmd);
+	    run_command($cmd, keeplocale => 1);
 
 	    return;
 	};
