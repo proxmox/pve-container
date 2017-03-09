@@ -1,6 +1,6 @@
 VERSION=1.0
 PACKAGE=pve-container
-PKGREL=94
+PKGREL=95
 
 GITVERSION:=$(shell cat .git/refs/heads/master)
 

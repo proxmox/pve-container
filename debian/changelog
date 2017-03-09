@@ -1,3 +1,13 @@
+pve-container (1.0-95) unstable; urgency=medium
+
+  * correctly handle reboots within containers
+
+  * improve locale handling in vnc console
+
+  * fix architecture detection in restore_archive
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 9 Mar 2017 15:19:33 +0100
+
 pve-container (1.0-94) unstable; urgency=medium
 
   * fix #1153: improve behavior when entering unicode in passwords prompts
