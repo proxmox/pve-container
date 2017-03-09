@@ -1,3 +1,9 @@
+pve-container (2.0-1) unstable; urgency=medium
+
+  * rebuild for PVE 5.0 / Debian Stretch
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 9 Mar 2017 15:27:11 +0100
+
 pve-container (1.0-95) unstable; urgency=medium
 
   * correctly handle reboots within containers
