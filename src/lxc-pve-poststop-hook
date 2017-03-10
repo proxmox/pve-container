@@ -9,7 +9,6 @@ exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use POSIX;
 use File::Path;
-use IO::Pipe;
 
 use PVE::SafeSyslog;
 use PVE::Tools;
@@ -82,39 +81,9 @@ __PACKAGE__->register_method ({
 	    # that we must not block because we're part of the service cgroup
 	    # systemd waits for to die before issuing the new lxc-start command.
 	    PVE::LXC::update_lxc_config($vmid, $conf);
-	    $SIG{HUP} = 'IGNORE';
-	    # Synchronization pipe
-	    my $scope = IO::Pipe->new() or die "pipe failed: $!\n";
-	    my $pid = fork();
-	    die "fork failed: $!\n" if !defined($pid);
-	    if (!$pid) {
-		$scope->writer();
-		# We inherit a pipe from LXC, replace it with stderr otherwise
-		# lxc will keep waiting for us...
-		POSIX::dup2(2, 1);
-		POSIX::setsid();
-		eval {
-		    # Change scope otherwise we're part of lxc@.service and then
-		    # if lxc finishes cleaning up before we restart it systemd
-		    # might clean US up as well (read: kill us) => race
-		    PVE::Tools::enter_systemd_scope("restart-$vmid", "Restarter for Proxmox VE CT $vmid",
-		        Slice => 'lxc.slice',
-		        KillMode => 'none');
-		    # Tell the main stop hook we're "in the clear":
-		    close($scope);
-		    # Wait for the container to clean up everything...
-		    PVE::Tools::run_command(['lxc-wait', "--name=$vmid", '--state=STOPPED']);
-		    # ... before finally triggering a restart:
-		    PVE::Tools::run_command(['systemctl', 'restart', "lxc\@$vmid"]);
-		};
-		warn "$@" if $@;
-		POSIX::_exit(0);
-	    }
-	    # Wait for the restarter scope to make sure systemd doesn't kill it before it started...
-	    $scope->reader();
-	    <$scope>;
+	    PVE::Tools::run_command(['systemctl', '--no-block', 'restart', "lxc\@$vmid"]);
 	    # cause lxc to stop instead of rebooting
-	    exit(1);
+	    POSIX::_exit(1);
 	}
 
 	return undef;
