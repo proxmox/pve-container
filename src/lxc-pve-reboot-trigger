@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $vmid = $ARGV[0] or exit(1);
+exit(0) if $vmid !~ /^\d+$/; # check for a PVE ID
+exit(0) if !-e "/etc/pve/lxc/${vmid}.conf";
+exit(0) if !unlink("/var/lib/lxc/$vmid/reboot");
+exec {'systemctl'} 'systemctl', '--no-block', 'restart', "lxc\@${vmid}.service";

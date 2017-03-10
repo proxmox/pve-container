@@ -1,1 +1,2 @@
 activate-noawait pve-api-updates
+activate-noawait /etc/init.d

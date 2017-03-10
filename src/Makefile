@@ -2,6 +2,7 @@ PACKAGE=pve-container
 
 PREFIX=${DESTDIR}/usr
 BINDIR=${PREFIX}/bin
+LIBDIR=${PREFIX}/lib
 SBINDIR=${PREFIX}/sbin
 MANDIR=${PREFIX}/share/man
 DOCDIR=${PREFIX}/share/doc/${PACKAGE}
@@ -9,6 +10,7 @@ LXC_SCRIPT_DIR=${PREFIX}/share/lxc
 LXC_TMPL_DIR=${LXC_SCRIPT_DIR}/templates
 LXC_HOOK_DIR=${LXC_SCRIPT_DIR}/hooks
 LXC_COMMON_CONFIG_DIR=${LXC_SCRIPT_DIR}/config/common.conf.d
+SERVICEDIR=$(LIBDIR)/systemd/system
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
 MAN5DIR=${MANDIR}/man5/
@@ -33,6 +35,9 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0755 pve-update-lxc-config ${SBINDIR}
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
+	install -m 0755 lxc-pve-reboot-trigger ${LXC_SCRIPT_DIR}
+	install -d -m0755 ${SERVICEDIR}/lxc@.service.d
+	install -m0644 pve-reboot.conf ${SERVICEDIR}/lxc@.service.d/
 	install -d ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-autodev-hook ${LXC_HOOK_DIR}

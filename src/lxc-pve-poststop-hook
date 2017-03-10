@@ -81,9 +81,12 @@ __PACKAGE__->register_method ({
 	    # that we must not block because we're part of the service cgroup
 	    # systemd waits for to die before issuing the new lxc-start command.
 	    PVE::LXC::update_lxc_config($vmid, $conf);
-	    PVE::Tools::run_command(['systemctl', '--no-block', 'restart', "lxc\@$vmid"]);
+	    # Tell the post-stop hook we want to be restarted.
+	    open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
+		or die "failed to create reboot trigger file: $!\n";
+	    close($fh);
 	    # cause lxc to stop instead of rebooting
-	    POSIX::_exit(1);
+	    exit(1);
 	}
 
 	return undef;

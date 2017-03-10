@@ -76,6 +76,9 @@ __PACKAGE__->register_method ({
 
 	my $rootdir = $param->{rootfs};
 
+	# Delete any leftover reboot-trigger file
+	unlink("/var/lib/lxc/$vmid/reboot");
+
 	my $devlist_file = "/var/lib/lxc/$vmid/devices";
 	unlink $devlist_file;
 	my $devices = [];
