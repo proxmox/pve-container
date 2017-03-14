@@ -209,7 +209,6 @@ sub rewrite_ssh_host_keys {
     return if ! -d "$rootdir/etc/ssh";
 
     my $keynames = {
-	rsa1 => 'ssh_host_key',
 	rsa => 'ssh_host_rsa_key',
 	dsa => 'ssh_host_dsa_key',
 	ecdsa => 'ssh_host_ecdsa_key', 
