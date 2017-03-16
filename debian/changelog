@@ -1,3 +1,9 @@
+pve-container (2.0-4) unstable; urgency=medium
+
+  * add console fix for debian containers using systemd
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 16 Mar 2017 12:57:05 +0100
+
 pve-container (2.0-3) unstable; urgency=medium
 
   * don't try to create the deprecated rsa1 ssh keys
