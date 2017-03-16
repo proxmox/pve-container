@@ -37,6 +37,11 @@ sub new {
     return bless $self, $class;
 }
 
+# Debian doesn't support the /dev/lxc/ subdirectory.
+sub devttydir {
+    return '';
+}
+
 sub setup_init {
     my ($self, $conf) = @_;
 
