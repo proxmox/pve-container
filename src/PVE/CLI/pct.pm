@@ -605,7 +605,7 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 	    my $running = PVE::LXC::check_running($vmid);
-	    die "can only push files to a running VM" if !$running;
+	    die "can only push files to a running CT\n" if !$running;
 
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    my $unprivileged = $conf->{unprivileged};
