@@ -1,3 +1,9 @@
+pve-container (1.0-99) unstable; urgency=medium
+
+  * fix suse version check
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 6 Apr 2017 09:39:53 +0200
+
 pve-container (1.0-98) unstable; urgency=medium
 
   * support opensuse >= 42
