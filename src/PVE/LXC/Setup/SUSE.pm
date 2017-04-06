@@ -19,10 +19,11 @@ sub new {
 
     # Fixme: not sure whether the minor part is optional.
     if ($release =~ m/^\s*VERSION\s*=\s*(\d+)(?:\.(\d+))?\s*$/m) {
-	$version = "$1.$2";
-	if ($1 >= 42) {
+	my ($major, $minor) = ($1, $2//0);
+	$version = "$major.$minor";
+	if ($major >= 42) {
 	    # OK
-	} elsif ($1 == 13 || ($2//0) > 2) {
+	} elsif ($major == 13 && $minor <= 2) {
 	    # Note: 13.2 needs an updated AppArmor profile (in lxc
 	    # *after* 2.0.0.beta2)
 	    # OK
