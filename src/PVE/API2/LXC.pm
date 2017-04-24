@@ -19,6 +19,7 @@ use PVE::LXC::Migrate;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
+use PVE::ReplicationTools;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
 
@@ -613,6 +614,9 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->check_lock($conf);
 
 	    die $running_error_msg if PVE::LXC::check_running($vmid);
+
+	    # return without error if vm has no replica job
+	    PVE::ReplicationTools::destroy_replica($vmid);
 
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
 	    PVE::AccessControl::remove_vm_access($vmid);
