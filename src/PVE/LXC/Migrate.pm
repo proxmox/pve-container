@@ -10,6 +10,7 @@ use PVE::INotify;
 use PVE::Cluster;
 use PVE::Storage;
 use PVE::LXC;
+use PVE::ReplicationTools;
 
 use base qw(PVE::AbstractMigrate);
 
@@ -270,6 +271,17 @@ sub phase1 {
 	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{nodeip}, $sid);
     }
 
+    # set new replica_target if we migrate to replica target.
+    if ($conf->{replica}) {
+	$self->log('info', "change replica target to Node: $self->{opts}->{node}");
+	if ($conf->{replica_target} eq $self->{node}) {
+	    $conf->{replica_target} = $self->{opts}->{node};
+	}
+
+	PVE::ReplicationTools::job_remove($vmid);
+	PVE::LXC::Config->write_config($vmid, $conf);
+    }
+
     my $conffile = PVE::LXC::Config->config_file($vmid);
     my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
 
@@ -312,13 +324,20 @@ sub phase3 {
 
     my $volids = $self->{volumes};
 
+    my $synced_volumes = PVE::ReplicationTools::get_syncable_guestdisks($self->{vmconf}, 'lxc')
+	if $self->{vmconf}->{replica};
+
     # destroy local copies
     foreach my $volid (@$volids) {
-	eval { PVE::Storage::vdisk_free($self->{storecfg}, $volid); };
-	if (my $err = $@) {
-	    $self->log('err', "removing local copy of '$volid' failed - $err");
-	    $self->{errors} = 1;
-	    last if $err =~ /^interrupted by signal$/;
+	# do not destroy if new target is local_host
+	if (!($self->{vmconf}->{replica} && defined($synced_volumes->{$volid})
+	      && $self->{vmconf}->{replica_target} eq $self->{opts}->{node}) ) {
+	    eval { PVE::Storage::vdisk_free($self->{storecfg}, $volid); };
+	    if (my $err = $@) {
+		$self->log('err', "removing local copy of '$volid' failed - $err");
+		$self->{errors} = 1;
+		last if $err =~ /^interrupted by signal$/;
+	    }
 	}
     }
 }
@@ -339,6 +358,11 @@ sub final_cleanup {
     } else {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
 	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");	
+    }
+
+    if ($self->{vmconf}->{replica}) {
+	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'set', $vmid, '--replica'];
+	$self->cmd_logerr($cmd, errmsg => "failed to activate replica");
     }
 
     # in restart mode, we start the container on the target node
