@@ -441,6 +441,7 @@ my $valid_lxc_conf_keys = {
     'lxc.rootfs.options' => 'lxc.rootfs.options is not supported' .
                             ', please use mount point options in the "rootfs" key',
     # lxc.cgroup.*
+    # lxc.limit.*
     'lxc.cap.drop' => 1,
     'lxc.cap.keep' => 1,
     'lxc.aa_profile' => 1,
@@ -661,7 +662,7 @@ sub parse_pct_config {
 	    my $key = $1;
 	    my $value = $3;
 	    my $validity = $valid_lxc_conf_keys->{$key} || 0;
-	    if ($validity eq 1 || $key =~ m/^lxc\.cgroup\./) {
+	    if ($validity eq 1 || $key =~ m/^lxc\.(?:cgroup|limit)\./) {
 		push @{$conf->{lxc}}, [$key, $value];
 	    } elsif (my $errmsg = $validity) {
 		warn "vm $vmid - $key: $errmsg\n";
