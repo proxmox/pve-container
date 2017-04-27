@@ -28,7 +28,7 @@ ${DEB}:
 .PHONY: clean
 clean:
 	make -C src clean
-	rm -rf build *.deb ${PACKAGE}-*.tar.gz *.changes 
+	rm -rf build *.deb ${PACKAGE}-*.tar.gz *.changes *.buildinfo
 	find . -name '*~' -exec rm {} ';'
 
 .PHONY: distclean
