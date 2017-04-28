@@ -862,12 +862,9 @@ sub update_pct_config {
 		delete $conf->{replica} if $opt eq "replica_target";
 
 		# job_remove required updated lxc conf
-		PVE::LXC::Config->write_config($vmid, $conf);
 		PVE::ReplicationTools::job_remove($vmid);
-		next;
 	    } elsif ($opt eq "replica_interval" || $opt eq "replica_rate_limit") {
 		delete $conf->{$opt};
-		PVE::LXC::Config->write_config($vmid, $conf);
 		PVE::ReplicationTools::update_conf($vmid, $opt, $param->{$opt});
 	    } else {
 		die "implement me (delete: $opt)"
@@ -1013,6 +1010,11 @@ sub update_pct_config {
 	    $conf->{$opt} = $param->{$opt};
 	    die "replica_target is required\n" if !$conf->{replica_target}
 	    && !$param->{replica_target};
+	    if ($param->{replica}) {
+		PVE::ReplicationTools::job_enable($vmid);
+	    } else {
+		PVE::ReplicationTools::job_disable($vmid);
+	    }
 	    $update = 1;
 	} elsif ($opt eq "replica_interval" || $opt eq "replica_rate_limit") {
 	    $conf->{$opt} = $param->{$opt};
@@ -1029,14 +1031,6 @@ sub update_pct_config {
 	    die "implement me: $opt";
 	}
 	PVE::LXC::Config->write_config($vmid, $conf) if $running || $update;
-    }
-
-    if (defined($param->{replica})) {
-	if ($param->{replica}) {
-	    PVE::ReplicationTools::job_enable($vmid);
-	} else {
-	    PVE::ReplicationTools::job_disable($vmid);
-	}
     }
 
     # Apply deletions and creations of new volumes
