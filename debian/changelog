@@ -1,3 +1,11 @@
+pve-container (2.0-7) unstable; urgency=medium
+
+  * whitelisted lxc.limit.* config entries usable with the next lxc release
+
+  * added storage replication settings
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 28 Apr 2017 13:59:28 +0200
+
 pve-container (2.0-6) unstable; urgency=medium
 
   * support opensuse >= 42
