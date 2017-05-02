@@ -1,3 +1,9 @@
+pve-container (1.0-100) unstable; urgency=medium
+
+  * add support for Ubuntu 17.04 (zesty)
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 02 May 2017 07:07:31 +0200
+
 pve-container (1.0-99) unstable; urgency=medium
 
   * fix suse version check
