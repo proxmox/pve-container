@@ -1,3 +1,9 @@
+pve-container (2.0-9) unstable; urgency=medium
+
+  * correctly handle passwords with utf8 wide characters
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 02 May 2017 11:50:10 +0200
+
 pve-container (2.0-8) unstable; urgency=medium
 
   * add support for Ubuntu 17.04 (zesty)
