@@ -8,7 +8,6 @@ use PVE::Cluster qw(cfs_register_file);
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools;
-use PVE::ReplicationTools;
 
 use base qw(PVE::AbstractConfig);
 
@@ -879,12 +878,13 @@ sub update_pct_config {
 	PVE::LXC::Config->write_config($vmid, $conf) if $running;
     }
 
+    my $storecfg = PVE::Storage::config();
+
     my $used_volids = {};
     my $check_content_type = sub {
 	my ($mp) = @_;
 	my $sid = PVE::Storage::parse_volume_id($mp->{volume});
-	my $scfg = PVE::Storage::config();
-	my $storage_config = PVE::Storage::storage_config($scfg, $sid);
+	my $storage_config = PVE::Storage::storage_config($storecfg, $sid);
 	die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
 	    if !$storage_config->{content}->{rootdir};
     };
@@ -973,8 +973,8 @@ sub update_pct_config {
 	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq "replicate") {
-	    die "Not all volumes are syncable, please check your config\n"
-		if !PVE::ReplicationTools::check_guest_volumes_syncable($conf, 'lxc');
+	    # check replicate feature on all mountpoints
+	    PVE::LXC::Config->get_replicatable_volumes($storecfg, $conf);
 	    my $repl = PVE::JSONSchema::check_format('pve-replicate', $value);
 	    PVE::Cluster::check_node_exists($repl->{target});
 	    $conf->{$opt} = $value;
@@ -1254,4 +1254,40 @@ sub get_vm_volumes {
     return $vollist;
 }
 
-return 1;
+sub get_replicatable_volumes {
+    my ($class, $storecfg, $conf, $noerr) = @_;
+
+    my $volhash = {};
+
+    my $test_volid = sub {
+	my ($volid, $mountpoint) = @_;
+
+	return if !$volid;
+
+	return if defined($mountpoint->{replicate}) && !$mountpoint->{replicate};
+
+	if (!PVE::Storage::volume_has_feature($storecfg, 'replicate', $volid)) {
+	    return if $noerr;
+	    die "missing replicate feature on volume '$volid'\n";
+	}
+
+	$volhash->{$volid} = 1;
+    };
+
+    $class->foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+	$test_volid->($mountpoint->{volume}, $mountpoint);
+    });
+
+    foreach my $snapname (keys %{$conf->{snapshots}}) {
+	my $snap = $conf->{snapshots}->{$snapname};
+	$class->foreach_mountpoint($snap, sub {
+	    my ($ms, $mountpoint) = @_;
+	    $test_volid->($mountpoint->{volume}, $mountpoint);
+        });
+    }
+
+    return $volhash;
+}
+
+1;
