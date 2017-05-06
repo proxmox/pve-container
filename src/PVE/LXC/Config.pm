@@ -246,7 +246,7 @@ my $rootfs_desc = {
 	description => 'Enable user quotas inside the container (not supported with zfs subvolumes)',
 	optional => 1,
     },
-    replica => {
+    replicate => {
 	type => 'boolean',
 	description => 'Will include this volume to a storage replica job.',
 	optional => 1,
@@ -391,31 +391,7 @@ my $confdesc = {
 	type => 'integer',
 	minimum => 0,
     },
-    replica => {
-	optional => 1,
-	description => "Storage replica for local storage.",
-	type => 'boolean',
-	default => 0,
-    },
-    replica_rate_limit => {
-	optional => 1,
-	description => "Storage replica rate limit in KBytes/s.",
-	type => 'integer',
-	minimum => 1,
-    },
-    replica_target => {
-	optional => 1,
-	description => "Storage replica target node.",
-	type => 'string',
-    },
-    replica_interval => {
-	optional => 1,
-	description => "Storage replica sync interval.",
-	type => 'integer',
-	minimum => 1,
-	maximum => 1440,
-	default => 15,
-    },
+    replicate => get_standard_option('pve-replicate'),
     cmode => {
 	optional => 1,
 	description => "Console mode. By default, the console command tries to open a connection to one of the available tty devices. By setting cmode to 'console' it tries to attach to /dev/console instead. If you set cmode to 'shell', it simply invokes a shell inside the container (no login).",
@@ -857,15 +833,8 @@ sub update_pct_config {
 		}
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
-	    }  elsif ($opt eq "replica" || $opt eq "replica_target") {
+	    }  elsif ($opt eq "replicate") {
 		delete $conf->{$opt};
-		delete $conf->{replica} if $opt eq "replica_target";
-
-		# job_remove required updated lxc conf
-		PVE::ReplicationTools::job_remove($vmid);
-	    } elsif ($opt eq "replica_interval" || $opt eq "replica_rate_limit") {
-		delete $conf->{$opt};
-		PVE::ReplicationTools::update_conf($vmid, $opt, $param->{$opt});
 	    } else {
 		die "implement me (delete: $opt)"
 	    }
@@ -923,7 +892,6 @@ sub update_pct_config {
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	my $check_protection_msg = "can't update CT $vmid drive '$opt'";
-	my $update;
 	if ($opt eq 'hostname' || $opt eq 'arch') {
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'onboot') {
@@ -1004,33 +972,16 @@ sub update_pct_config {
 	} elsif ($opt eq 'ostype') {
 	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
-	} elsif ($opt eq "replica") {
+	} elsif ($opt eq "replicate") {
 	    die "Not all volumes are syncable, please check your config\n"
 		if !PVE::ReplicationTools::check_guest_volumes_syncable($conf, 'lxc');
-	    $conf->{$opt} = $param->{$opt};
-	    die "replica_target is required\n" if !$conf->{replica_target}
-	    && !$param->{replica_target};
-	    if ($param->{replica}) {
-		PVE::ReplicationTools::job_enable($vmid);
-	    } else {
-		PVE::ReplicationTools::job_disable($vmid);
-	    }
-	    $update = 1;
-	} elsif ($opt eq "replica_interval" || $opt eq "replica_rate_limit") {
-	    $conf->{$opt} = $param->{$opt};
-	    PVE::ReplicationTools::update_conf($vmid, $opt, $param->{$opt});
-	    $update = 1;
-	} elsif ($opt eq "replica_target") {
-	    die "Node: $param->{$opt} does not exists in Cluster.\n"
-		if !PVE::Cluster::check_node_exists($param->{$opt});
-	    $update = 1;
-	    PVE::ReplicationTools::update_conf($vmid, $opt, $param->{$opt})
-		if defined($conf->{$opt});
-	    $conf->{$opt} = $param->{$opt};
+	    my $repl = PVE::JSONSchema::check_format('pve-replicate', $value);
+	    PVE::Cluster::check_node_exists($repl->{target});
+	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";
 	}
-	PVE::LXC::Config->write_config($vmid, $conf) if $running || $update;
+	PVE::LXC::Config->write_config($vmid, $conf) if $running;
     }
 
     # Apply deletions and creations of new volumes
