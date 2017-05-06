@@ -973,14 +973,18 @@ sub update_pct_config {
 	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq "replicate") {
-	    # check replicate feature on all mountpoints
-	    PVE::LXC::Config->get_replicatable_volumes($storecfg, $conf);
 	    my $repl = PVE::JSONSchema::check_format('pve-replicate', $value);
 	    PVE::Cluster::check_node_exists($repl->{target});
 	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";
 	}
+
+	if ($conf->{replicate}) {
+	    # check replicate feature on all mountpoints
+	    PVE::LXC::Config->get_replicatable_volumes($storecfg, $conf);
+	}
+
 	PVE::LXC::Config->write_config($vmid, $conf) if $running;
     }
 
