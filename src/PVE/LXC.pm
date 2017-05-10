@@ -22,6 +22,7 @@ use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
+use PVE::Syscall;
 use PVE::LXC::Config;
 use Time::HiRes qw (gettimeofday);
 
@@ -1102,9 +1103,8 @@ sub __bindmount_verify {
 	die "failed to open mount point: $!\n" if !$destdh;
 	if ($ro) {
 	    my $dot = '.';
-	    # 269: faccessat()
 	    # no separate function because 99% of the time it's the wrong thing to use.
-	    if (syscall(269, fileno($destdh), $dot, &POSIX::W_OK, 0) != -1) {
+	    if (syscall(PVE::Syscall::faccessat, fileno($destdh), $dot, &POSIX::W_OK, 0) != -1) {
 		die "failed to mark bind mount read only\n";
 	    }
 	    die "read-only check failed: $!\n" if $! != EROFS;
