@@ -547,7 +547,7 @@ our $netconf_desc = {
     ip => {
 	type => 'string',
 	format => 'pve-ipv4-config',
-	format_description => 'IPv4Format/CIDR',
+	format_description => '(IPv4/CIDR|dhcp|manual)',
 	description => 'IPv4 address in CIDR format.',
 	optional => 1,
     },
