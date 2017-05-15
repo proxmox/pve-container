@@ -561,7 +561,7 @@ our $netconf_desc = {
     ip6 => {
 	type => 'string',
 	format => 'pve-ipv6-config',
-	format_description => 'IPv6Format/CIDR',
+	format_description => '(IPv6/CIDR|auto|dhcp|manual)',
 	description => 'IPv6 address in CIDR format.',
 	optional => 1,
     },
