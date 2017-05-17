@@ -27,6 +27,10 @@ pct.bash-completion:
 	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->generate_bash_completions();" >$@.tmp
 	mv $@.tmp $@
 
+.PHONY: check
+check: test
+	make -C test
+
 .PHONY: install
 install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pve-update-lxc-config pct.bash-completion
 	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
