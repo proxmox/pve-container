@@ -1,7 +1,6 @@
 RUN_USERNS := lxc-usernsexec -m "b:0:`id -u`:1" --
 
-all:
-
+all: test
 
 test: test_setup test_snapshot test_bindmount
 
