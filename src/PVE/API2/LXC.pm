@@ -13,6 +13,7 @@ use PVE::Firewall;
 use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
+use PVE::ReplicationConfig;
 use PVE::LXC;
 use PVE::LXC::Create;
 use PVE::LXC::Migrate;
@@ -602,6 +603,10 @@ __PACKAGE__->register_method({
 
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
+
+	# do not allow destroy if there are replication jobs
+	my $repl_conf = PVE::ReplicationConfig->new();
+	$repl_conf->check_for_existing_jobs($vmid);
 
 	my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
 
