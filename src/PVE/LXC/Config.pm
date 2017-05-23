@@ -390,7 +390,6 @@ my $confdesc = {
 	type => 'integer',
 	minimum => 0,
     },
-    replicate => get_standard_option('pve-replicate'),
     cmode => {
 	optional => 1,
 	description => "Console mode. By default, the console command tries to open a connection to one of the available tty devices. By setting cmode to 'console' it tries to attach to /dev/console instead. If you set cmode to 'shell', it simply invokes a shell inside the container (no login).",
@@ -832,8 +831,6 @@ sub update_pct_config {
 		}
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
-	    }  elsif ($opt eq "replicate") {
-		delete $conf->{$opt};
 	    } else {
 		die "implement me (delete: $opt)"
 	    }
@@ -972,17 +969,8 @@ sub update_pct_config {
 	} elsif ($opt eq 'ostype') {
 	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
-	} elsif ($opt eq "replicate") {
-	    my $repl = PVE::JSONSchema::check_format('pve-replicate', $value);
-	    PVE::Cluster::check_node_exists($repl->{target});
-	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";
-	}
-
-	if ($conf->{replicate}) {
-	    # check replicate feature on all mountpoints
-	    PVE::LXC::Config->get_replicatable_volumes($storecfg, $conf);
 	}
 
 	PVE::LXC::Config->write_config($vmid, $conf) if $running;
