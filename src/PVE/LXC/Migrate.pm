@@ -267,7 +267,7 @@ sub phase1 {
     foreach my $volid (keys %$volhash) {
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
-	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{nodeip}, $sid);
+	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid);
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
