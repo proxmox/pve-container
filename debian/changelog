@@ -1,3 +1,19 @@
+pve-container (2.0-10) unstable; urgency=medium
+
+  * migrate: aquire guest_migration_lock during
+
+  * use new PVE::ReplicationConfig
+
+  * do not allow destroy if there are replication jobs
+
+  * use Syscall module instead of raw syscall numbers
+
+  * migrate: pass ssh_info to storage_migrate
+
+  * tests: fix broken snapshot delete tests
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 31 May 2017 09:31:14 +0200
+
 pve-container (2.0-9) unstable; urgency=medium
 
   * correctly handle passwords with utf8 wide characters
