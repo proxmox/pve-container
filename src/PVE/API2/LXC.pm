@@ -17,6 +17,7 @@ use PVE::ReplicationConfig;
 use PVE::LXC;
 use PVE::LXC::Create;
 use PVE::LXC::Migrate;
+use PVE::GuestHelpers;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
@@ -927,15 +928,19 @@ __PACKAGE__->register_method({
 
 	} else {
 
-	    my $realcmd = sub {
-		my $upid = shift;
+	    my $code = sub {
+		my $realcmd = sub {
+		    my $upid = shift;
 
-		PVE::LXC::Migrate->migrate($target, $targetip, $vmid, $param);
+		    PVE::LXC::Migrate->migrate($target, $targetip, $vmid, $param);
 
-		return;
+		    return;
+		};
+
+		return $rpcenv->fork_worker('vzmigrate', $vmid, $authuser, $realcmd);
 	    };
 
-	    return $rpcenv->fork_worker('vzmigrate', $vmid, $authuser, $realcmd);
+	    return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $code);
 	}
     }});
 
