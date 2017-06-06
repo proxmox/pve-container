@@ -264,10 +264,11 @@ sub phase1 {
 	die "can't migrate CT - check log\n";
     }
 
+    my $insecure = $self->{opts}->{migration_type} eq 'insecure';
     foreach my $volid (keys %$volhash) {
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
-	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid);
+	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, undef, $insecure);
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
