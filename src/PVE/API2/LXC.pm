@@ -950,19 +950,15 @@ __PACKAGE__->register_method({
 
 	} else {
 
-	    my $code = sub {
-		my $realcmd = sub {
-		    my $upid = shift;
-
-		    PVE::LXC::Migrate->migrate($target, $targetip, $vmid, $param);
-
-		    return;
-		};
-
-		return $rpcenv->fork_worker('vzmigrate', $vmid, $authuser, $realcmd);
+	    my $realcmd = sub {
+		PVE::LXC::Migrate->migrate($target, $targetip, $vmid, $param);
 	    };
 
-	    return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $code);
+	    my $worker = sub {
+		return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $realcmd);
+	    };
+
+	    return $rpcenv->fork_worker('vzmigrate', $vmid, $authuser, $worker);
 	}
     }});
 
