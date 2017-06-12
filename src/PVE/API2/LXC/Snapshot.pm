@@ -257,7 +257,12 @@ __PACKAGE__->register_method({
 	    PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 	};
 
-	return $rpcenv->fork_worker('vzrollback', $vmid, $authuser, $realcmd);
+	my $worker = sub {
+	    # hold migration lock, this makes sure that nobody create replication snapshots
+	    return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $realcmd);
+	};
+
+	return $rpcenv->fork_worker('vzrollback', $vmid, $authuser, $worker);
     }});
 
 __PACKAGE__->register_method({
