@@ -1247,7 +1247,7 @@ sub get_vm_volumes {
 }
 
 sub get_replicatable_volumes {
-    my ($class, $storecfg, $conf, $noerr) = @_;
+    my ($class, $storecfg, $conf, $cleanup, $noerr) = @_;
 
     my $volhash = {};
 
@@ -1256,10 +1256,10 @@ sub get_replicatable_volumes {
 
 	return if !$volid;
 
-	return if defined($mountpoint->{replicate}) && !$mountpoint->{replicate};
+	return if !$cleanup && defined($mountpoint->{replicate}) && !$mountpoint->{replicate};
 
 	if (!PVE::Storage::volume_has_feature($storecfg, 'replicate', $volid)) {
-	    return if $noerr;
+	    return if $cleanup || $noerr;
 	    die "missing replicate feature on volume '$volid'\n";
 	}
 
