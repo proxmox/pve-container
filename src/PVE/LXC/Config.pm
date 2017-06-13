@@ -1247,7 +1247,7 @@ sub get_vm_volumes {
 }
 
 sub get_replicatable_volumes {
-    my ($class, $storecfg, $conf, $cleanup, $noerr) = @_;
+    my ($class, $storecfg, $vmid, $conf, $cleanup, $noerr) = @_;
 
     my $volhash = {};
 
