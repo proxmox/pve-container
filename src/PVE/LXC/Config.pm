@@ -1256,6 +1256,21 @@ sub get_replicatable_volumes {
 
 	return if !$volid;
 
+	my $mptype = $mountpoint->{type};
+	die "unable to replicate mountpoint type '$mptype'\n"
+	    if $mptype ne 'volume';
+
+	my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid, $noerr);
+	return if !$storeid;
+
+	my $scfg = storage_config($storecfg, $storeid);
+	return if $scfg->{shared};
+
+	my ($path, $owner, $vtype) = PVE::Storage::path($storecfg, $volid);
+	return if !$owner || ($owner != $vmid);
+
+	die "unable to replicate volume '$volid', type '$vtype'\n" if $vtype ne 'images';
+
 	return if !$cleanup && defined($mountpoint->{replicate}) && !$mountpoint->{replicate};
 
 	if (!PVE::Storage::volume_has_feature($storecfg, 'replicate', $volid)) {
