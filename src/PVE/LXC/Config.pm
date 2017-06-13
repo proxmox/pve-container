@@ -1294,6 +1294,13 @@ sub get_replicatable_volumes {
         });
     }
 
+    # add 'unusedX' volumes to volhash
+    foreach my $key (keys %$conf) {
+	if ($key =~ m/^unused/) {
+	    $test_volid->($conf->{$key}, { type => 'volume', replicate => 1 });
+	}
+    }
+
     return $volhash;
 }
 
