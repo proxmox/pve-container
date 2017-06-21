@@ -11,6 +11,9 @@ use PVE::Cluster;
 use PVE::Storage;
 use PVE::LXC::Config;
 use PVE::LXC;
+use PVE::ReplicationConfig;
+use PVE::ReplicationState;
+use PVE::Replication;
 
 use base qw(PVE::AbstractMigrate);
 
@@ -265,8 +268,21 @@ sub phase1 {
 	die "can't migrate CT - check log\n";
     }
 
+    my $rep_volumes;
+
+    my $rep_cfg = PVE::ReplicationConfig->new();
+
+    if (my $jobcfg = $rep_cfg->find_local_replication_job($vmid, $self->{node})) {
+	die "can't live migrate VM with replicated volumes\n" if $self->{running};
+	my $start_time = time();
+	my $logfunc = sub { my ($msg) = @_;  $self->log('info', $msg); };
+	$rep_volumes = PVE::Replication::run_replication(
+	    'PVE::LXC::Config', $jobcfg, $start_time, $start_time, $logfunc);
+    }
+
     my $insecure = $self->{opts}->{migration_type} eq 'insecure';
     foreach my $volid (keys %$volhash) {
+	next if $rep_volumes->{$volid};
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
 	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, undef, $insecure);
@@ -289,11 +305,16 @@ sub phase1 {
     my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
+   # transfer replication state before move config
+    $self->transfer_replication_state();
+
     # move config
     die "Failed to move config to node '$self->{node}' - rename failed: $!\n"
 	if !rename($conffile, $newconffile);
 
     $self->{conf_migrated} = 1;
+
+    $self->switch_replication_job_target();
 }
 
 sub phase1_cleanup {
