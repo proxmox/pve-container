@@ -939,7 +939,7 @@ __PACKAGE__->register_method({
 
 		my $cmd = ['ha-manager', 'migrate', $service, $target];
 
-		print "Executing HA migrate for CT $vmid to node $target\n";
+		print "Requesting HA migration for CT $vmid to node $target\n";
 
 		PVE::Tools::run_command($cmd);
 
