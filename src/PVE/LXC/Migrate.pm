@@ -9,6 +9,7 @@ use PVE::Tools;
 use PVE::INotify;
 use PVE::Cluster;
 use PVE::Storage;
+use PVE::LXC::Config;
 use PVE::LXC;
 
 use base qw(PVE::AbstractMigrate);
