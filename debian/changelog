@@ -1,3 +1,9 @@
+pve-container (2.0-13) unstable; urgency=medium
+
+  * migrate: pass the with_snapshots parameter
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 22 Jun 2017 12:56:02 +0200
+
 pve-container (2.0-12) unstable; urgency=medium
 
   * PVE::LXC::Migrate - use replication job, transfer replication state
