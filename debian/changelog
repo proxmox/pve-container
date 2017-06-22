@@ -1,3 +1,19 @@
+pve-container (2.0-12) unstable; urgency=medium
+
+  * PVE::LXC::Migrate - use replication job, transfer replication state
+
+  * get_replicatable_volumes: add additional tests
+
+  * src/PVE/API2/LXC.pm: aquire guest_migration_lock inside worker
+
+  * Add a migration lock to avoid a replication on rollback-time
+
+  * PVE::LXC::Config - implement $cleanup flag for get_replicatable_volumes
+
+  * migrate: implement insecure storage migration
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 22 Jun 2017 09:10:56 +0200
+
 pve-container (2.0-11) unstable; urgency=medium
 
   * support width and height parameter for vncproxy
