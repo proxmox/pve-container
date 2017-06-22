@@ -160,7 +160,8 @@ sub phase1 {
 	    return;
 	}
 
-	$volhash->{$volid} = defined($snapname) ? 'snapshot' : 'config';
+	$volhash->{$volid}->{ref} = defined($snapname) ? 'snapshot' : 'config';
+	$volhash->{$volid}->{snapshots} = defined($snapname);
 
 	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
@@ -213,7 +214,7 @@ sub phase1 {
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;
 
-	    $volhash->{$volid} = 'storage';
+	    $volhash->{$volid}->{ref} = 'storage';
 	});
     }
 
@@ -249,11 +250,12 @@ sub phase1 {
     }
 
     foreach my $volid (sort keys %$volhash) {
-	if ($volhash->{$volid} eq 'storage') {
+	my $ref = $volhash->{$volid}->{ref};
+	if ($ref eq 'storage') {
 	    $self->log('info', "found local volume '$volid' (via storage)\n");
-	} elsif ($volhash->{$volid} eq 'config') {
+	} elsif ($ref eq 'config') {
 	    $self->log('info', "found local volume '$volid' (in current VM config)\n");
-	} elsif ($volhash->{$volid} eq 'snapshot') {
+	} elsif ($ref eq 'snapshot') {
 	    $self->log('info', "found local volume '$volid' (referenced by snapshot(s))\n");
 	} else {
 	    $self->log('info', "found local volume '$volid'\n");
@@ -285,7 +287,8 @@ sub phase1 {
 	next if $rep_volumes->{$volid};
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
-	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, undef, $insecure);
+	my $with_snapshots = $volhash->{$volid}->{snapshots};
+	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, undef, $insecure, $with_snapshots);
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
