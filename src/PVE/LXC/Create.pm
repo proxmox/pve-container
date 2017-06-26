@@ -13,17 +13,6 @@ use PVE::VZDump::ConvertOVZ;
 use PVE::Tools;
 use POSIX;
 
-sub next_free_nbd_dev {
-    
-    for(my $i = 0;;$i++) {
-	my $dev = "/dev/nbd$i";
-	last if ! -b $dev;
-	next if -f "/sys/block/nbd$i/pid"; # busy
-	return $dev;
-    }
-    die "unable to find free nbd device\n";
-}
-
 sub get_elf_class {
     my ($rootdir, $elf_fn) = @_;
 
