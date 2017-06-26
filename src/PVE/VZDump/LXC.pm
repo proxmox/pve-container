@@ -331,7 +331,7 @@ sub archive {
 
     my $userns_cmd = $task->{userns_cmd};
     my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
-               @$PVE::LXC::COMMON_TAR_FLAGS,
+               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
                '--one-file-system', '--warning=no-file-ignored'];
 
     # note: --remove-files does not work because we do not 

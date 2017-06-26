@@ -74,7 +74,7 @@ sub restore_archive {
     }
 
     my $cmd = [@$userns_cmd, 'tar', 'xpf', $tar_input_file, '--totals',
-               @$PVE::LXC::COMMON_TAR_FLAGS,
+               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
                '-C', $rootdir];
 
     # skip-old-files doesn't have anything to do with time (old/new), but is

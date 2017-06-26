@@ -32,12 +32,6 @@ my $nodename = PVE::INotify::nodename();
 
 my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
 
-our $COMMON_TAR_FLAGS = [ '--sparse', '--numeric-owner', '--acls',
-                          '--xattrs',
-                          '--xattrs-include=user.*',
-                          '--xattrs-include=security.capability',
-                          '--warning=no-xattr-write' ];
-
 sub config_list {
     my $vmlist = PVE::Cluster::get_vmlist();
     my $res = {};
