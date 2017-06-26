@@ -5,6 +5,7 @@ use warnings;
 use File::Basename;
 use File::Path;
 use Data::Dumper;
+use Fcntl;
 
 use PVE::Storage;
 use PVE::LXC;
@@ -62,7 +63,17 @@ sub restore_archive {
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
 
-    my $cmd = [@$userns_cmd, 'tar', 'xpf', $archive, '--totals',
+    my $archive_fh;
+    my $tar_input_file = '-';
+    if ($archive ne '-') {
+	sysopen($archive_fh, $archive, O_RDONLY)
+	    or die "failed to open '$archive': $!\n";
+	$tar_input_file = '/proc/self/fd/'.fileno($archive_fh);
+	my $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
+	$archive_fh->fcntl(Fcntl::F_SETFD(), $flags & ~(Fcntl::FD_CLOEXEC()));
+    }
+
+    my $cmd = [@$userns_cmd, 'tar', 'xpf', $tar_input_file, '--totals',
                @$PVE::LXC::COMMON_TAR_FLAGS,
                '-C', $rootdir];
 
@@ -81,7 +92,9 @@ sub restore_archive {
 	print "extracting archive '$archive'\n";
 	eval { PVE::Tools::run_command($cmd); };
     }
-    die $@ if $@ && !$no_unpack_error;
+    my $err = $@;
+    close($archive_fh) if defined $archive_fh;
+    die $err if $err && !$no_unpack_error;
 
     # if arch is set, we do not try to autodetect it
     return if defined($conf->{arch});
