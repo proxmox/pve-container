@@ -145,6 +145,8 @@ __PACKAGE__->register_method({
 			$format = (PVE::Storage::parse_volname($storage_cfg, $volid))[6];
 		    }
 		    return if PVE::Storage::storage_can_replicate($storage_cfg, $storeid, $format);
+		    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+		    return if $scfg->{shared};
 		}
 		die "cannot add non-replicatable volume to a replicated VM\n";
 	    });
