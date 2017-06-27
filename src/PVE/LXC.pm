@@ -1331,6 +1331,7 @@ sub destroy_disks {
     }
 }
 
+our $NEW_DISK_RE = qr/^([^:\s]+):(\d+(\.\d+)?)$/;
 sub create_disks {
     my ($storecfg, $vmid, $settings, $conf) = @_;
 
@@ -1348,7 +1349,7 @@ sub create_disks {
 
 	    my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
-	    if ($storage && ($volid =~ m/^([^:\s]+):(\d+(\.\d+)?)$/)) {
+	    if ($storage && ($volid =~ $NEW_DISK_RE)) {
 		my ($storeid, $size_gb) = ($1, $2);
 
 		my $size_kb = int(${size_gb}*1024) * 1024;

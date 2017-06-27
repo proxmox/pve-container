@@ -128,6 +128,28 @@ __PACKAGE__->register_method({
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
+	my $repl_conf = PVE::ReplicationConfig->new();
+	my $is_replicated = $repl_conf->check_for_existing_jobs($vmid, 1);
+	if ($is_replicated) {
+	    PVE::LXC::Config->foreach_mountpoint_full($param, 0, sub {
+		my ($opt, $mountpoint) = @_;
+		my $volid = $mountpoint->{volume};
+		return if !$volid || !($mountpoint->{replicate}//1);
+		if ($mountpoint->{type} eq 'volume') {
+		    my ($storeid, $format);
+		    if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
+			$storeid = $1;
+			$format = $mountpoint->{format} || PVE::Storage::storage_default_format($storage_cfg, $storeid);
+		    } else {
+			($storeid, undef) = PVE::Storage::parse_volume_id($volid, 1);
+			$format = (PVE::Storage::parse_volname($storage_cfg, $volid))[6];
+		    }
+		    return if PVE::Storage::storage_can_replicate($storage_cfg, $storeid, $format);
+		}
+		die "cannot add non-replicatable volume to a replicated VM\n";
+	    });
+	}
+
 	my $code = sub {
 
 	    my $conf = PVE::LXC::Config->load_config($vmid);
