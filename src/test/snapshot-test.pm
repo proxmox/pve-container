@@ -10,6 +10,7 @@ use PVE::Storage::Plugin;
 use PVE::LXC;
 use PVE::LXC::Config;
 use PVE::Tools;
+use PVE::ReplicationConfig;
 
 use Test::MockModule;
 use Test::More;
@@ -280,6 +281,10 @@ $lxc_config_module->mock('cfs_config_path', \&mocked_cfs_config_path);
 $lxc_config_module->mock('load_config', \&mocked_load_config);
 $lxc_config_module->mock('write_config', \&mocked_write_config);
 $lxc_config_module->mock('has_feature', \&mocked_has_feature);
+
+# ignore existing replication config
+my $repl_config_module = new Test::MockModule('PVE::ReplicationConfig');
+$repl_config_module->mock('check_for_existing_jobs' => sub { return undef });
 
 $running = 1;
 $freeze_possible = 1;
