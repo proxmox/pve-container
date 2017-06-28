@@ -1,3 +1,19 @@
+pve-container (2.0-14) unstable; urgency=medium
+
+  * allow disks on shared storages on replicated VMs
+
+  * refuse to add non-replicatable disks to replicating VMs
+
+  * API HA tasks: we request states not execute them
+
+  * use COMMON_TAR_FLAGS from pve-storage
+
+  * create: open templates as real root
+
+  * remove unused next_free_nbd_dev function
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 28 Jun 2017 12:50:37 +0200
+
 pve-container (2.0-13) unstable; urgency=medium
 
   * migrate: pass the with_snapshots parameter
