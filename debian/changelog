@@ -1,3 +1,13 @@
+pve-container (1.0-101) unstable; urgency=medium
+
+  * support debian 9.1
+
+  * recognize debian buster/sid
+
+  * recognize ubuntu 17.10
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 24 Jul 2017 10:19:33 +0200
+
 pve-container (1.0-100) unstable; urgency=medium
 
   * add support for Ubuntu 17.04 (zesty)
