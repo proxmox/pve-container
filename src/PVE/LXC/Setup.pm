@@ -223,7 +223,8 @@ sub rewrite_ssh_host_keys {
 	my $line = shift;
 
 	print "done: $line\n"
-	    if ($line =~ m/^([0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i);
+	    if $line =~ m/^(?:[0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i ||
+	       $line =~ m/^SHA256:[0-9a-z+\/]{43}\s+\Q$ssh_comment\E$/i;
     };
 
     # Create temporary keys in /tmp on the host
@@ -233,7 +234,7 @@ sub rewrite_ssh_host_keys {
 	my $file = "/tmp/$$.$basename";
 	print "Creating SSH host key '$basename' - this may take some time ...\n";
 	my $cmd = ['ssh-keygen', '-f', $file, '-t', $keytype,
-		   '-N', '', '-C', $ssh_comment];
+		   '-N', '', '-E', 'sha256', '-C', $ssh_comment];
 	PVE::Tools::run_command($cmd, outfunc => $keygen_outfunc);
 	$keyfiles->{"/etc/ssh/$basename"} = [PVE::Tools::file_get_contents($file), 0600];
 	$keyfiles->{"/etc/ssh/$basename.pub"} = [PVE::Tools::file_get_contents("$file.pub"), 0644];
