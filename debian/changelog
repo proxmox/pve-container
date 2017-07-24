@@ -1,3 +1,13 @@
+pve-container (2.0-15) unstable; urgency=medium
+
+  * support debian 9.1
+
+  * recognize debian buster/sid
+
+  * recognize ubuntu 17.10
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 24 Jul 2017 09:17:03 +0200
+
 pve-container (2.0-14) unstable; urgency=medium
 
   * allow disks on shared storages on replicated VMs
