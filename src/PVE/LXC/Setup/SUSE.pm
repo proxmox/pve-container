@@ -8,19 +8,13 @@ use PVE::LXC::Setup::Base;
 use base qw(PVE::LXC::Setup::Base);
 
 sub new {
-    my ($class, $conf, $rootdir) = @_;
+    my ($class, $conf, $rootdir, $os_release) = @_;
 
-    my $release = eval { -f "$rootdir/etc/SuSE-release"
-                   ? PVE::Tools::file_get_contents("$rootdir/etc/SuSE-release")
-                   : PVE::Tools::file_get_contents("$rootdir/etc/SuSE-brand") };
-    die "unable to read version info\n" if $@;
+    my $version = $os_release->{VERSION_ID};
+    my $ostype = $os_release->{ID};
 
-    my $version;
-
-    # Fixme: not sure whether the minor part is optional.
-    if ($release =~ m/^\s*VERSION\s*=\s*(\d+)(?:\.(\d+))?\s*$/m) {
-	my ($major, $minor) = ($1, $2//0);
-	$version = "$major.$minor";
+    if ($version =~ m/^(\d+)\.(\d+)$/) {
+	my ($major, $minor) = ($1, $2);
 	if ($major >= 42) {
 	    # OK
 	} elsif ($major == 13 && $minor <= 2) {
@@ -34,7 +28,7 @@ sub new {
 	die "unrecognized suse release";
     }
 
-    my $self = { conf => $conf, rootdir => $rootdir, version => $version };
+    my $self = { conf => $conf, rootdir => $rootdir, version => $version, os_release => $os_release };
 
     $conf->{ostype} = 'opensuse';
 

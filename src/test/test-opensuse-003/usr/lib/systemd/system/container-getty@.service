@@ -1,0 +1,20 @@
+[Unit]
+Description=Container Getty on /dev/lxc/tty%I
+Documentation=man:agetty(8) man:machinectl(1)
+After=systemd-user-sessions.service plymouth-quit-wait.service
+After=rc-local.service
+Before=getty.target
+IgnoreOnIsolate=yes
+
+[Service]
+ExecStart=-/sbin/agetty --noclear --keep-baud lxc/tty%I 115200,38400,9600 $TERM
+Type=idle
+Restart=always
+RestartSec=0
+UtmpIdentifier=%I
+TTYPath=/dev/%I
+TTYReset=yes
+TTYVHangup=yes
+KillMode=process
+IgnoreSIGPIPE=no
+SendSIGHUP=yes
