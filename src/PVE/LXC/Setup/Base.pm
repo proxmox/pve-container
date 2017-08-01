@@ -17,9 +17,9 @@ use PVE::Tools;
 use PVE::Network;
 
 sub new {
-    my ($class, $conf, $rootdir) = @_;
+    my ($class, $conf, $rootdir, $os_release) = @_;
 
-    return bless { conf => $conf, rootdir => $rootdir }, $class;
+    return bless { conf => $conf, rootdir => $rootdir, os_release => $os_release }, $class;
 }
 
 sub lookup_dns_conf {

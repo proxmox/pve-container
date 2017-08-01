@@ -27,7 +27,13 @@ my $plugins = {
 };
 
 my $autodetect_type = sub {
-    my ($rootdir) = @_;
+    my ($self, $rootdir, $os_release) = @_;
+
+    if (my $id = $os_release->{ID}) {
+	return $id if $id =~ /^(?:alpine|arch|centos|debian|fedora|gentoo|opensuse|ubuntu)$/;
+    }
+
+    # fallback compatibility checks
 
     my $lsb_fn = "$rootdir/etc/lsb-release";
     if (-f $lsb_fn) {
@@ -62,11 +68,13 @@ sub new {
 
     my $self = bless { conf => $conf, rootdir => $rootdir};
 
+    my $os_release = $self->get_ct_os_release();
+
     if ($conf->{ostype} && $conf->{ostype} eq 'unmanaged') {
 	return $self;
     } elsif (!defined($type)) {
 	# try to autodetect type
-	$type = &$autodetect_type($rootdir);
+	$type = &$autodetect_type($self, $rootdir, $os_release);
 	my $expected_type = $conf->{ostype} || $type;
 
 	die "got unexpected ostype ($type != $expected_type)\n"
@@ -76,7 +84,7 @@ sub new {
     my $plugin_class = $plugins->{$type} ||
 	"no such OS type '$type'\n";
 
-    my $plugin = $plugin_class->new($conf, $rootdir);
+    my $plugin = $plugin_class->new($conf, $rootdir, $os_release);
     $self->{plugin} = $plugin;
     $self->{in_chroot} = 0;
 
@@ -285,6 +293,55 @@ sub post_create_hook {
     };
     $self->protected_call($code);
     $self->rewrite_ssh_host_keys();
+}
+
+# os-release(5):
+#   (...) a newline-separated list of environment-like shell-compatible
+#   variable assignments. (...) beyond mere variable assignments, no shell
+#   features are supported (this means variable expansion is explicitly not
+#   supported) (...). Variable assignment values must be enclosed in double or
+#   single quotes *if* they include spaces, semicolons or other special
+#   characters outside of A-Z, a-z, 0-9. Shell special characters ("$", quotes,
+#   backslash, backtick) must be escaped with backslashes (...). All strings
+#   should be in UTF-8 format, and non-printable characters should not be used.
+#   It is not supported to concatenate multiple individually quoted strings.
+#   Lines beginning with "#" shall be ignored as comments.
+my $parse_os_release = sub {
+    my ($data) = @_;
+    my $variables = {};
+    while (defined($data) && $data =~ /^(.+)$/gm) {
+	next if $1 !~ /^\s*([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/;
+	my ($var, $content) = ($1, $2);
+	chomp $content;
+
+	if ($content =~ /^'([^']*)'/) {
+	    $variables->{$var} = $1;
+	} elsif ($content =~ /^"((?:[^"\\]|\\.)*)"/) {
+	    my $s = $1;
+	    $s =~ s/(\\["'`nt\$\\])/"\"$1\""/eeg;
+	    $variables->{$var} = $s;
+	} elsif ($content =~ /^([A-Za-z0-9]*)/) {
+	    $variables->{$var} = $1;
+	}
+    }
+    return $variables;
+};
+
+sub get_ct_os_release {
+    my ($self) = @_;
+
+    my $code = sub {
+	if (-f '/etc/os-release') {
+	    return PVE::Tools::file_get_contents('/etc/os-release');
+	} elsif (-f '/usr/lib/os-release') {
+	    return PVE::Tools::file_get_contents('/usr/lib/os-release');
+	}
+	return undef;
+    };
+
+    my $data = $self->protected_call($code);
+
+    return &$parse_os_release($data);
 }
 
 1;
