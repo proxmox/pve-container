@@ -12,15 +12,16 @@ sub new {
 
     my $version = $os_release->{VERSION_ID};
     my $ostype = $os_release->{ID};
+    my $setup_ct_getty_service;
 
     if ($version =~ m/^(\d+)\.(\d+)$/) {
 	my ($major, $minor) = ($1, $2);
 	if ($major >= 42) {
 	    # OK
+	    $setup_ct_getty_service = 1;
 	} elsif ($major == 13 && $minor <= 2) {
-	    # Note: 13.2 needs an updated AppArmor profile (in lxc
-	    # *after* 2.0.0.beta2)
 	    # OK
+	    $setup_ct_getty_service = 1 if $minor >= 2;
 	} else {
 	    die "unsupported suse release '$version'\n";
 	}
@@ -29,6 +30,7 @@ sub new {
     }
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version, os_release => $os_release };
+    $self->{setup_ct_getty_service} = 1 if $setup_ct_getty_service;
 
     $conf->{ostype} = 'opensuse';
 
@@ -44,7 +46,7 @@ sub template_fixup {
 sub setup_init {
     my ($self, $conf) = @_;
 
-    if ($self->{version} >= 13.2) {
+    if ($self->{setup_ct_getty_service}) {
 	$self->setup_container_getty_service($conf);
     }
     $self->setup_systemd_console($conf);
