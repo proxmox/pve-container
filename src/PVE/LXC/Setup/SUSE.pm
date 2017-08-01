@@ -22,6 +22,9 @@ sub new {
 	} elsif ($major == 13 && $minor <= 2) {
 	    # OK
 	    $setup_ct_getty_service = 1 if $minor >= 2;
+	} elsif ($ostype eq 'sles' && $major == 12) {
+	    # OK - shares base with LEAP (42)
+	    $setup_ct_getty_service = 1;
 	} else {
 	    die "unsupported suse release '$version'\n";
 	}
