@@ -97,8 +97,6 @@ sub new {
 sub protected_call {
     my ($self, $sub) = @_;
 
-    die "internal error" if !$self->{plugin};
-
     # avoid recursion:
     return $sub->() if $self->{in_chroot};
 
@@ -116,7 +114,6 @@ sub protected_call {
 	close($res_in);
 	# avoid recursive forks
 	$self->{in_chroot} = 1;
-	$self->{plugin}->{in_chroot} = 1;
 	eval {
 	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
 	    chdir('/') or die "failed to change to root directory\n";
