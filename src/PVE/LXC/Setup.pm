@@ -21,6 +21,7 @@ my $plugins = {
     fedora    => 'PVE::LXC::Setup::Fedora',
     opensuse  => 'PVE::LXC::Setup::SUSE',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
+    arch      => 'PVE::LXC::Setup::ArchLinux',
     alpine    => 'PVE::LXC::Setup::Alpine',
     gentoo    => 'PVE::LXC::Setup::Gentoo',
 };
