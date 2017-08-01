@@ -1,0 +1,5 @@
+# --- BEGIN PVE ---
+4.3.2.1 0.0.0.0 255.255.255.255 eth0
+default 4.3.2.1 0.0.0.0 eth0
+default 2001:1::ffff - eth0
+# --- END PVE ---

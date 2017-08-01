@@ -1,0 +1,24 @@
+[Unit]
+Description=Container Getty on /dev/pts/%I
+Documentation=man:agetty(8) man:machinectl(1)
+After=systemd-user-sessions.service plymouth-quit-wait.service
+After=rc-local.service
+Before=getty.target
+IgnoreOnIsolate=yes
+ConditionPathExists=/dev/pts/%I
+
+[Service]
+# The '-o' option value tells agetty to replace 'login' arguments with an
+# option to preserve environment (-p), followed by '--' for safety, and then
+# the entered username.
+ExecStart=-/sbin/agetty -o '-p -- \\u' --noclear --keep-baud pts/%I 115200,38400,9600 $TERM
+Type=idle
+Restart=always
+RestartSec=0
+UtmpIdentifier=pts/%I
+TTYPath=/dev/pts/%I
+TTYReset=yes
+TTYVHangup=yes
+KillMode=process
+IgnoreSIGPIPE=no
+SendSIGHUP=yes

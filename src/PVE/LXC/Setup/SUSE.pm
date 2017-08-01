@@ -25,6 +25,14 @@ sub new {
 	} else {
 	    die "unsupported suse release '$version'\n";
 	}
+    } elsif ($version =~ m/^(\d{4})(\d{2})(\d{2})$/) {
+	my ($year, $month, $day) = ($1, $2, $3);
+	if ($year >= 2017 && $month <= 12 && $day <= 31) {
+	    # OK
+	    $setup_ct_getty_service = 1;
+	} else {
+	    die "unsupported suse tumbleweed release '$version'\n";
+	}
     } else {
 	die "unrecognized suse release";
     }
