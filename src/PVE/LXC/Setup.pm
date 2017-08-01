@@ -93,6 +93,7 @@ sub new {
     return $self;
 }
 
+# Forks into a chroot and executes $sub
 sub protected_call {
     my ($self, $sub) = @_;
 
@@ -106,17 +107,24 @@ sub protected_call {
 	die "failed to create temporary /dev directory: $!\n";
     }
 
+    pipe(my $res_in, my $res_out) or die "pipe failed: $!\n";
+
     my $child = fork();
     die "fork failed: $!\n" if !defined($child);
 
     if (!$child) {
+	close($res_in);
 	# avoid recursive forks
 	$self->{in_chroot} = 1;
 	$self->{plugin}->{in_chroot} = 1;
 	eval {
 	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
 	    chdir('/') or die "failed to change to root directory\n";
-	    $sub->();
+	    my $res = $sub->();
+	    if (defined($res)) {
+		print {$res_out} "$res";
+		$res_out->flush();
+	    }
 	};
 	if (my $err = $@) {
 	    warn $err;
@@ -124,11 +132,14 @@ sub protected_call {
 	}
 	POSIX::_exit(0);
     }
+    close($res_out);
+    my $result = do { local $/ = undef; <$res_in> };
     while (waitpid($child, 0) != $child) {}
     if ($? != 0) {
 	my $method = (caller(1))[3];
 	die "error in setup task $method\n";
     }
+    return $result;
 }
 
 sub template_fixup {
