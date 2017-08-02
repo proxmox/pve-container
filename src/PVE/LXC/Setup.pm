@@ -31,7 +31,7 @@ my $autodetect_type = sub {
     my ($self, $rootdir, $os_release) = @_;
 
     if (my $id = $os_release->{ID}) {
-	return $id if $id =~ /^(?:alpine|arch|centos|debian|fedora|gentoo|opensuse|ubuntu)$/;
+	return $id if $id =~ /^(?:alpine|arch|centos|debian|fedora|gentoo|opensuse|sles|ubuntu)$/;
     }
 
     # fallback compatibility checks
