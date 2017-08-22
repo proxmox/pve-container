@@ -26,8 +26,6 @@ use PVE::Syscall;
 use PVE::LXC::Config;
 use Time::HiRes qw (gettimeofday);
 
-use Data::Dumper;
-
 my $nodename = PVE::INotify::nodename();
 
 my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
