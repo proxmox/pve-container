@@ -352,17 +352,14 @@ sub update_lxc_config {
     my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
-    if ($ostype =~ /^(?:debian | ubuntu | centos | fedora | opensuse | archlinux | alpine | gentoo | unmanaged)$/x) {
-	my $inc ="/usr/share/lxc/config/$ostype.common.conf";
-	$inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
-	$raw .= "lxc.include = $inc\n";
-	if ($unprivileged || $custom_idmap) {
-	    $inc = "/usr/share/lxc/config/$ostype.userns.conf";
-	    $inc = "/usr/share/lxc/config/userns.conf" if !-f $inc;
-	    $raw .= "lxc.include = $inc\n"
-	}
-    } else {
-	die "implement me (ostype $ostype)";
+
+    my $inc ="/usr/share/lxc/config/$ostype.common.conf";
+    $inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
+    $raw .= "lxc.include = $inc\n";
+    if ($unprivileged || $custom_idmap) {
+	$inc = "/usr/share/lxc/config/$ostype.userns.conf";
+	$inc = "/usr/share/lxc/config/userns.conf" if !-f $inc;
+	$raw .= "lxc.include = $inc\n"
     }
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
