@@ -20,18 +20,23 @@ my $plugins = {
     centos    => 'PVE::LXC::Setup::CentOS',
     fedora    => 'PVE::LXC::Setup::Fedora',
     opensuse  => 'PVE::LXC::Setup::SUSE',
-    sles      => 'PVE::LXC::Setup::SUSE',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
-    arch      => 'PVE::LXC::Setup::ArchLinux',
     alpine    => 'PVE::LXC::Setup::Alpine',
     gentoo    => 'PVE::LXC::Setup::Gentoo',
+};
+
+# a map to allow supporting related distro flavours
+my $plugin_alias = {
+    arch => 'archlinux',
+    sles => 'opensuse',
 };
 
 my $autodetect_type = sub {
     my ($self, $rootdir, $os_release) = @_;
 
     if (my $id = $os_release->{ID}) {
-	return $id if $id =~ /^(?:alpine|arch|centos|debian|fedora|gentoo|opensuse|sles|ubuntu)$/;
+	return $id if $plugins->{$id};
+	return $plugin_alias->{$id} if $plugin_alias->{$id};
     }
 
     # fallback compatibility checks
@@ -78,7 +83,7 @@ sub new {
 	$type = &$autodetect_type($self, $rootdir, $os_release);
 	my $expected_type = $conf->{ostype} || $type;
 
-	die "got unexpected ostype ($type != $expected_type)\n"
+	warn "got unexpected ostype ($type != $expected_type)\n"
 	    if $type ne $expected_type;
     }
 
