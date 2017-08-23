@@ -177,6 +177,14 @@ __PACKAGE__->register_method({
 			PVE::LXC::Config->check_lock($conf);
 		    }
 
+		    if ($conf->{unprivileged}) {
+			PVE::LXC::Config->foreach_mountpoint($conf, sub {
+			    my ($ms, $mountpoint) = @_;
+			    die "Quotas are not supported by unprivileged containers.\n" if $mountpoint->{quota};
+			});
+
+		    }
+
 		    my $storage_cfg = cfs_read_file("storage.cfg");
 
 		    PVE::LXC::update_lxc_config($vmid, $conf);
