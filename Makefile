@@ -2,7 +2,7 @@ VERSION=2.0
 PACKAGE=pve-container
 PKGREL=15
 
-GITVERSION:=$(shell cat .git/refs/heads/master)
+GITVERSION:=$(git rev-parse HEAD)
 
 ARCH:=all
 
