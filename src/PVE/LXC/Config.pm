@@ -412,49 +412,37 @@ my $confdesc = {
 };
 
 my $valid_lxc_conf_keys = {
+    'lxc.apparmor.profile' => 1,
+    'lxc.apparmor.allow_incomplete' => 1,
+    'lxc.selinux.context' => 1,
     'lxc.include' => 1,
     'lxc.arch' => 1,
-    'lxc.utsname' => 1,
-    'lxc.haltsignal' => 1,
-    'lxc.rebootsignal' => 1,
-    'lxc.stopsignal' => 1,
-    'lxc.init_cmd' => 1,
-    'lxc.network.type' => 1,
-    'lxc.network.flags' => 1,
-    'lxc.network.link' => 1,
-    'lxc.network.mtu' => 1,
-    'lxc.network.name' => 1,
-    'lxc.network.hwaddr' => 1,
-    'lxc.network.ipv4' => 1,
-    'lxc.network.ipv4.gateway' => 1,
-    'lxc.network.ipv6' => 1,
-    'lxc.network.ipv6.gateway' => 1,
-    'lxc.network.script.up' => 1,
-    'lxc.network.script.down' => 1,
-    'lxc.pts' => 1,
+    'lxc.uts.name' => 1,
+    'lxc.signal.halt' => 1,
+    'lxc.signal.reboot' => 1,
+    'lxc.signal.stop' => 1,
+    'lxc.init.cmd' => 1,
+    'lxc.pty.max' => 1,
     'lxc.console.logfile' => 1,
-    'lxc.console' => 1,
-    'lxc.tty' => 1,
-    'lxc.devttydir' => 1,
+    'lxc.console.path' => 1,
+    'lxc.tty.max' => 1,
+    'lxc.devtty.dir' => 1,
     'lxc.hook.autodev' => 1,
     'lxc.autodev' => 1,
     'lxc.kmsg' => 1,
-    'lxc.mount' => 1,
+    'lxc.mount.fstab' => 1,
     'lxc.mount.entry' => 1,
     'lxc.mount.auto' => 1,
-    'lxc.rootfs' => 'lxc.rootfs is auto generated from rootfs',
+    'lxc.rootfs.path' => 'lxc.rootfs.path is auto generated from rootfs',
     'lxc.rootfs.mount' => 1,
     'lxc.rootfs.options' => 'lxc.rootfs.options is not supported' .
                             ', please use mount point options in the "rootfs" key',
     # lxc.cgroup.*
-    # lxc.limit.*
+    # lxc.prlimit.*
     'lxc.cap.drop' => 1,
     'lxc.cap.keep' => 1,
-    'lxc.aa_profile' => 1,
-    'lxc.aa_allow_incomplete' => 1,
-    'lxc.se_context' => 1,
-    'lxc.seccomp' => 1,
-    'lxc.id_map' => 1,
+    'lxc.seccomp.profile' => 1,
+    'lxc.idmap' => 1,
     'lxc.hook.pre-start' => 1,
     'lxc.hook.pre-mount' => 1,
     'lxc.hook.mount' => 1,
@@ -463,14 +451,65 @@ my $valid_lxc_conf_keys = {
     'lxc.hook.post-stop' => 1,
     'lxc.hook.clone' => 1,
     'lxc.hook.destroy' => 1,
-    'lxc.loglevel' => 1,
-    'lxc.logfile' => 1,
+    'lxc.log.level' => 1,
+    'lxc.log.file' => 1,
     'lxc.start.auto' => 1,
     'lxc.start.delay' => 1,
     'lxc.start.order' => 1,
     'lxc.group' => 1,
     'lxc.environment' => 1,
 };
+
+my $deprecated_lxc_conf_keys = {
+    # Deprecated (removed with lxc 3.0):
+    'lxc.aa_profile'           => 'lxc.apparmor.profile',
+    'lxc.aa_allow_incomplete'  => 'lxc.apparmor.allow_incomplete',
+    'lxc.console'              => 'lxc.console.path',
+    'lxc.devttydir'            => 'lxc.tty.dir',
+    'lxc.haltsignal'           => 'lxc.signal.halt',
+    'lxc.rebootsignal'         => 'lxc.signal.reboot',
+    'lxc.stopsignal'           => 'lxc.signal.stop',
+    'lxc.id_map'               => 'lxc.idmap',
+    'lxc.init_cmd'             => 'lxc.init.cmd',
+    'lxc.loglevel'             => 'lxc.log.level',
+    'lxc.logfile'              => 'lxc.log.file',
+    'lxc.mount'                => 'lxc.mount.fstab',
+    'lxc.network.type'         => 'lxc.net.INDEX.type',
+    'lxc.network.flags'        => 'lxc.net.INDEX.flags',
+    'lxc.network.link'         => 'lxc.net.INDEX.link',
+    'lxc.network.mtu'          => 'lxc.net.INDEX.mtu',
+    'lxc.network.name'         => 'lxc.net.INDEX.name',
+    'lxc.network.hwaddr'       => 'lxc.net.INDEX.hwaddr',
+    'lxc.network.ipv4'         => 'lxc.net.INDEX.ipv4.address',
+    'lxc.network.ipv4.gateway' => 'lxc.net.INDEX.ipv4.gateway',
+    'lxc.network.ipv6'         => 'lxc.net.INDEX.ipv6.address',
+    'lxc.network.ipv6.gateway' => 'lxc.net.INDEX.ipv6.gateway',
+    'lxc.network.script.up'    => 'lxc.net.INDEX.script.up',
+    'lxc.network.script.down'  => 'lxc.net.INDEX.script.down',
+    'lxc.pts'                  => 'lxc.pty.max',
+    'lxc.se_context'           => 'lxc.selinux.context',
+    'lxc.seccomp'              => 'lxc.seccomp.profile',
+    'lxc.tty'                  => 'lxc.tty.max',
+    'lxc.utsname'              => 'lxc.uts.name',
+};
+
+sub is_valid_lxc_conf_key {
+    my ($vmid, $key) = @_;
+    if ($key =~ /^lxc\.limit\./) {
+	warn "vm $vmid - $key: lxc.limit.* was renamed to lxc.prlimit.*\n";
+	return 1;
+    }
+    if (defined(my $new_name = $deprecated_lxc_conf_keys->{$key})) {
+	warn "vm $vmid - $key is deprecated and was renamed to $new_name\n";
+	return 1;
+    }
+    my $validity = $valid_lxc_conf_keys->{$key};
+    return $validity if defined($validity);
+    return 1 if $key =~ /^lxc\.cgroup\./  # allow all cgroup values
+             || $key =~ /^lxc\.prlimit\./ # allow all prlimits
+             || $key =~ /^lxc\.net\./;    # allow custom network definitions
+    return 0;
+}
 
 our $netconf_desc = {
     type => {
@@ -667,8 +706,8 @@ sub parse_pct_config {
 	if ($line =~ m/^(lxc\.[a-z0-9_\-\.]+)(:|\s*=)\s*(.*?)\s*$/) {
 	    my $key = $1;
 	    my $value = $3;
-	    my $validity = $valid_lxc_conf_keys->{$key} || 0;
-	    if ($validity eq 1 || $key =~ m/^lxc\.(?:cgroup|limit)\./) {
+	    my $validity = is_valid_lxc_conf_key($vmid, $key);
+	    if ($validity eq 1) {
 		push @{$conf->{lxc}}, [$key, $value];
 	    } elsif (my $errmsg = $validity) {
 		warn "vm $vmid - $key: $errmsg\n";

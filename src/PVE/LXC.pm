@@ -349,7 +349,7 @@ sub update_lxc_config {
     $raw .= "lxc.arch = $conf->{arch}\n";
 
     my $unprivileged = $conf->{unprivileged};
-    my $custom_idmap = grep { $_->[0] eq 'lxc.id_map' } @{$conf->{lxc}};
+    my $custom_idmap = grep { $_->[0] eq 'lxc.idmap' } @{$conf->{lxc}};
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
 
@@ -371,23 +371,23 @@ sub update_lxc_config {
 
     # Should we read them from /etc/subuid?
     if ($unprivileged && !$custom_idmap) {
-	$raw .= "lxc.id_map = u 0 100000 65536\n";
-	$raw .= "lxc.id_map = g 0 100000 65536\n";
+	$raw .= "lxc.idmap = u 0 100000 65536\n";
+	$raw .= "lxc.idmap = g 0 100000 65536\n";
     }
 
     if (!PVE::LXC::Config->has_dev_console($conf)) {
-	$raw .= "lxc.console = none\n";
+	$raw .= "lxc.console.path = none\n";
 	$raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
     }
 
     my $ttycount = PVE::LXC::Config->get_tty_count($conf);
-    $raw .= "lxc.tty = $ttycount\n";
+    $raw .= "lxc.tty.max = $ttycount\n";
 
     # some init scripts expect a linux terminal (turnkey).
     $raw .= "lxc.environment = TERM=linux\n";
     
     my $utsname = $conf->{hostname} || "CT$vmid";
-    $raw .= "lxc.utsname = $utsname\n";
+    $raw .= "lxc.uts.name = $utsname\n";
 
     my $memory = $conf->{memory} || 512;
     my $swap = $conf->{swap} // 0;
@@ -412,32 +412,27 @@ sub update_lxc_config {
 
     my $mountpoint = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
 
-    $raw .= "lxc.rootfs = $dir/rootfs\n";
+    $raw .= "lxc.rootfs.path = $dir/rootfs\n";
 
-    my $netcount = 0;
     foreach my $k (sort keys %$conf) {
 	next if $k !~ m/^net(\d+)$/;
 	my $ind = $1;
 	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	$netcount++;
-	$raw .= "lxc.network.type = veth\n";
-	$raw .= "lxc.network.veth.pair = veth${vmid}i${ind}\n";
-	$raw .= "lxc.network.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
-	$raw .= "lxc.network.name = $d->{name}\n" if defined($d->{name});
-	$raw .= "lxc.network.mtu = $d->{mtu}\n" if defined($d->{mtu});
+	$raw .= "lxc.net.$ind.type = veth\n";
+	$raw .= "lxc.net.$ind.veth.pair = veth${vmid}i${ind}\n";
+	$raw .= "lxc.net.$ind.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
+	$raw .= "lxc.net.$ind.name = $d->{name}\n" if defined($d->{name});
+	$raw .= "lxc.net.$ind.mtu = $d->{mtu}\n" if defined($d->{mtu});
     }
 
     my $had_cpuset = 0;
     if (my $lxcconf = $conf->{lxc}) {
 	foreach my $entry (@$lxcconf) {
 	    my ($k, $v) = @$entry;
-	    $netcount++ if $k eq 'lxc.network.type';
 	    $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus';
 	    $raw .= "$k = $v\n";
 	}
     }
-
-    $raw .= "lxc.network.type = empty\n" if !$netcount;
 
     my $cores = $conf->{cores};
     if (!$had_cpuset && $cores) {
@@ -1475,7 +1470,8 @@ sub parse_id_maps {
     my $lxc = $conf->{lxc};
     foreach my $entry (@$lxc) {
 	my ($key, $value) = @$entry;
-	next if $key ne 'lxc.id_map';
+	# FIXME: remove the 'id_map' variant when lxc-3.0 arrives
+	next if $key ne 'lxc.idmap' && $key ne 'lxc.id_map';
 	if ($value =~ /^([ug])\s+(\d+)\s+(\d+)\s+(\d+)\s*$/) {
 	    my ($type, $ct, $host, $length) = ($1, $2, $3, $4);
 	    push @$id_map, [$type, $ct, $host, $length];
@@ -1484,7 +1480,7 @@ sub parse_id_maps {
 		$rootgid = $host if $type eq 'g';
 	    }
 	} else {
-	    die "failed to parse id_map: $value\n";
+	    die "failed to parse idmap: $value\n";
 	}
     }
 
