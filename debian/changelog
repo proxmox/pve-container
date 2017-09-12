@@ -1,3 +1,33 @@
+pve-container (2.0-16) unstable; urgency=medium
+
+  * fix #1253: show ssh key fingerprints again
+
+  * fix #1464: setup/suse: support SLES 12 container
+
+  * close #1478: add check for unsupported config
+
+  * config: update for lxc-2.1
+
+  * API/clone: do not overwrite global signal handlers
+
+  * setup/fedora: use os_release and support 26
+
+  * fix os-release mapping for similar flavoured distros
+
+  * setup: recognize 'sles' os_release ID
+
+  * setup/suse: support tumbleweed container
+
+  * setup/suse: check early if setting up the ct getty service is needed
+
+  * setup/suse: use new os_release_var to simplify version detection
+
+  * use /etc/os-release
+
+  * setup: add a additional mapping for archlinux
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 12 Sep 2017 13:48:50 +0200
+
 pve-container (2.0-15) unstable; urgency=medium
 
   * support debian 9.1
