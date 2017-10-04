@@ -2,13 +2,30 @@ Source: pve-container
 Section: perl
 Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
-Build-Depends: debhelper (>= 7.0.50~), libpve-common-perl, libpve-guest-common-perl | libpve-common-perl (<= 4.0-89), libpve-storage-perl, pve-cluster (>= 4.0-8), libtest-mockmodule-perl, pve-doc-generator, lxc (>= 2.1.0-1) | lxc-pve (>= 2.1.0-1)
+Build-Depends: debhelper (>= 7.0.50~),
+               libpve-common-perl,
+               libpve-guest-common-perl | libpve-common-perl (<= 4.0-89),
+               libpve-storage-perl,
+               libtest-mockmodule-perl,
+               lxc (>= 2.1.0-1) | lxc-pve (>= 2.1.0-1),
+               pve-cluster (>= 4.0-8),
+               pve-doc-generator,
 Standards-Version: 3.8.4
 
 Package: pve-container
 Section: perl
 Priority: optional
 Architecture: all
-Depends: ${shlibs:Depends}, ${perl:Depends}, ${misc:Depends}, libpve-common-perl, libpve-guest-common-perl, libpve-storage-perl, pve-cluster (>= 4.0-8), pve-ha-manager, lxc-pve, xz-utils, file
+Depends: file,
+         libpve-common-perl,
+         libpve-guest-common-perl,
+         libpve-storage-perl,
+         lxc-pve,
+         pve-cluster (>= 4.0-8),
+         pve-ha-manager,
+         xz-utils,
+         ${misc:Depends},
+         ${perl:Depends},
+         ${shlibs:Depends},
 Description: Proxmox VE Container management tool
  Tool to manage Linux Containers on Proxmox VE.
