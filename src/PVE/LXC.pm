@@ -197,8 +197,8 @@ sub vmstatus {
 	my @bytes = split(/\n/, $blkio_bytes);
 	foreach my $byte (@bytes) {
 	    if (my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/) {
-		$d->{diskread} = $2 if $key eq 'Read';
-		$d->{diskwrite} = $2 if $key eq 'Write';
+		$d->{diskread} += $2 if $key eq 'Read';
+		$d->{diskwrite} += $2 if $key eq 'Write';
 	    }
 	}
 
@@ -260,7 +260,7 @@ sub read_cgroup_list {
 sub read_cgroup_value {
     my ($group, $vmid, $name, $full) = @_;
 
-    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/$name";
+    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/ns/$name";
 
     return PVE::Tools::file_get_contents($path) if $full;
 
