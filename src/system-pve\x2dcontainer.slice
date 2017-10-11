@@ -1,0 +1,9 @@
+# needed because instances of template service units automatically
+# get their own slice with DefaultDependencies=yes, regardless of
+# the DefaultDependencies value of the template unit
+#
+# see man systemd.service and pve-container@.service
+[Unit]
+Description=PVE LXC Container Slice
+DefaultDependencies=No
+Documentation=man:pct

@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+# sanity checks
+my $vmid = $ARGV[0] or exit(1);
+exit(0) if $vmid !~ /^\d+$/;
+exit(0) if !-e "/etc/pve/lxc/${vmid}.conf";
+
+if (unlink("/var/lib/lxc/$vmid/reboot")) {
+    # restart if rebooted from within container
+    exec {'systemctl'} 'systemctl', '--no-block', 'restart', "pve-container\@${vmid}.service";
+} elsif (!defined($ENV{EXIT_CODE}) || $ENV{EXIT_CODE} ne "exited") {
+    # stop if called via "systemctl stop lxc@ID"
+    exec {'lxc-stop'} 'lxc-stop', '-n', $vmid;
+} else {
+    # just exit if container was shutdown from within or via lxc-stop
+    exit(0);
+}

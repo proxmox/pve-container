@@ -40,8 +40,11 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
 	install -m 0755 lxc-pve-reboot-trigger ${LXC_SCRIPT_DIR}
+	install -m 0755 pve-container-stop-wrapper ${LXC_SCRIPT_DIR}
 	install -d -m0755 ${SERVICEDIR}/lxc@.service.d
 	install -m0644 pve-reboot.conf ${SERVICEDIR}/lxc@.service.d/
+	install -m0644 pve-container@.service ${SERVICEDIR}/
+	install -m0644 'system-pve\x2dcontainer.slice' ${SERVICEDIR}/
 	install -d ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-autodev-hook ${LXC_HOOK_DIR}
