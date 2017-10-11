@@ -39,10 +39,8 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0755 pve-update-lxc-config ${SBINDIR}
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
-	install -m 0755 lxc-pve-reboot-trigger ${LXC_SCRIPT_DIR}
 	install -m 0755 pve-container-stop-wrapper ${LXC_SCRIPT_DIR}
-	install -d -m0755 ${SERVICEDIR}/lxc@.service.d
-	install -m0644 pve-reboot.conf ${SERVICEDIR}/lxc@.service.d/
+	install -d -m0755 ${SERVICEDIR}
 	install -m0644 pve-container@.service ${SERVICEDIR}/
 	install -m0644 'system-pve\x2dcontainer.slice' ${SERVICEDIR}/
 	install -d ${LXC_HOOK_DIR}
@@ -60,6 +58,12 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0644 pct.conf.5 ${MAN5DIR}
 	gzip -9 ${MAN5DIR}/pct.conf.5
 	cd ${MAN5DIR}; ln -s pct.conf.5.gz ct.conf.5.gz
+	
+	# Note: for backwards compatibility only
+	# lxc@.service.d, snippet and reboot script can be removed in PVE 6.0
+	install -d -m 0755 ${SERVICEDIR}/lxc@.service.d
+	install -m 0644 pve-reboot.conf ${SERVICEDIR}/lxc@.service.d/
+	install -m 0755 lxc-pve-reboot-trigger ${LXC_SCRIPT_DIR}
 
 .PHONY: test
 test:
