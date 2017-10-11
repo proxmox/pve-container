@@ -191,7 +191,7 @@ __PACKAGE__->register_method({
 
 		    local $ENV{PVE_SKIPLOCK}=1 if $skiplock;
 
-		    my $cmd = ['systemctl', 'start', "lxc\@$vmid"];
+		    my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
 		    run_command($cmd);
 

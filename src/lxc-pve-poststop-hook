@@ -77,9 +77,10 @@ __PACKAGE__->register_method ({
 	    # In order to make sure hot-plugged config changes aren't reverted
 	    # to what the monitor initially loaded we need to stop the container
 	    # and restart it.
-	    # Update the config and queue a restart of the lxc@$vmid task, note
-	    # that we must not block because we're part of the service cgroup
-	    # systemd waits for to die before issuing the new lxc-start command.
+	    # Update the config and queue a restart of the pve-container@$vmid
+	    # task, note that we must not block because we're part of the
+	    # service cgroup systemd waits for to die before issuing the new
+	    # lxc-start command.
 	    PVE::LXC::update_lxc_config($vmid, $conf);
 	    # Tell the post-stop hook we want to be restarted.
 	    open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
