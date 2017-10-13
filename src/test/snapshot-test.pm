@@ -112,6 +112,15 @@ sub mocked_volume_rollback_is_possible {
     die "volume_rollback_is_possible failed\n";
 }
 
+sub mocked_vm_stop {
+    if ($kill_possible) {
+	$running = 0;
+	return 1;
+    } else {
+	return 0;
+    }
+}
+
 sub mocked_run_command {
     my ($cmd, %param) = @_;
     my $cmdstring;
@@ -122,12 +131,7 @@ sub mocked_run_command {
 	    die "lxc-[un]freeze disabled\n";
 	}
 	if ($cmdstring =~ m/.*\/lxc-stop.*--kill.*/) {
-	    if ($kill_possible) {
-		$running = 0;
-		return 1;
-	    } else {
-		return 0;
-	    }
+	    mocked_vm_stop();
 	}
     }
     die "unexpected run_command call: '$cmdstring', aborting\n";
@@ -274,6 +278,7 @@ printf("Setting up Mocking for PVE::LXC and PVE::LXC::Config\n");
 my $lxc_module = new Test::MockModule('PVE::LXC');
 $lxc_module->mock('sync_container_namespace', sub { return; });
 $lxc_module->mock('check_running', \&mocked_check_running);
+$lxc_module->mock('vm_stop', \&mocked_vm_stop);
 
 my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
 $lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });

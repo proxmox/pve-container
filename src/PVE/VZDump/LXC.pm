@@ -251,10 +251,7 @@ sub stop_vm {
     my $opts = $self->{vzdump}->{opts};
     my $timeout = $opts->{stopwait} * 60;
 
-    $self->cmd("lxc-stop -n $vmid -t $timeout");
-
-    # make sure container is stopped
-    $self->cmd("lxc-wait -n $vmid -s STOPPED");
+    PVE::LXC::vm_stop($vmid, 0, $timeout);
 }
 
 sub start_vm {

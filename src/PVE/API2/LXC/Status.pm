@@ -275,9 +275,7 @@ __PACKAGE__->register_method({
 			PVE::LXC::Config->check_lock($conf);
 		    }
 
-		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
-
-		    run_command($cmd);
+		    PVE::LXC::vm_stop($vmid, 1);
 
 		    return;
 		};
@@ -364,34 +362,13 @@ __PACKAGE__->register_method({
 
 		syslog('info', "shutdown CT $vmid: $upid\n");
 
-		my $cmd = ['lxc-stop', '-n', $vmid];
-
 		$timeout = 60 if !defined($timeout);
 
 		my $conf = PVE::LXC::Config->load_config($vmid);
 
 		PVE::LXC::Config->check_lock($conf);
 
-		my $storage_cfg = PVE::Storage::config();
-
-		push @$cmd, '--timeout', $timeout;
-
-		eval { run_command($cmd, timeout => $timeout+5); };
-		my $err = $@;
-		if ($err && $param->{forceStop}) {
-		    $err = undef;
-		    warn "shutdown failed - forcing stop now\n";
-
-		    my $cmd = ['lxc-stop', '-n', $vmid, '--kill'];
-		    run_command($cmd);
-		}
-
-		# make sure container is stopped
-		$cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
-		run_command($cmd);
-		$err = $@;
-
-		die $err if $err;
+		PVE::LXC::vm_stop($vmid, $param->{forceStop}, $timeout);
 
 		return;
 	    };

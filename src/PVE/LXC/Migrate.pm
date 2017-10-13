@@ -105,12 +105,7 @@ sub prepare {
 
 	$self->log('info', "shutdown CT $vmid\n");
 
-	my $cmd = ['lxc-stop', '-n', $vmid, '--timeout', $timeout];
-	$self->cmd($cmd, timeout => $timeout + 5);
-
-	# make sure container is stopped
-	$cmd = ['lxc-wait',  '-n', $vmid, '-t', 5, '-s', 'STOPPED'];
-	$self->cmd($cmd);
+	PVE::LXC::vm_stop($vmid, 0, $timeout);
 
 	$running = 0;
     }

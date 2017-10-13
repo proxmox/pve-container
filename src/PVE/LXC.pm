@@ -11,7 +11,8 @@ use File::Path;
 use File::Spec;
 use Cwd qw();
 use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP ENOTDIR EROFS);
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED);
+use IO::Socket::UNIX;
 
 use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
@@ -1509,5 +1510,51 @@ sub userns_command {
     return [];
 }
 
+# Helper to stop a container completely and make sure it has stopped completely.
+# This is necessary because we want the post-stop hook to have completed its
+# unmount-all step, but post-stop happens after lxc puts the container into the
+# STOPPED state.
+sub vm_stop {
+    my ($vmid, $kill, $shutdown_timeout, $exit_timeout) = @_;
+
+    # Open the container's command socket.
+    my $path = "\0/var/lib/lxc/$vmid/command";
+    my $sock = IO::Socket::UNIX->new(
+	Type => SOCK_STREAM(),
+	Peer => $path,
+    );
+    if (!$sock) {
+	return if $! == ECONNREFUSED; # The container is not running
+	die "failed to open container ${vmid}'s command socket: $!\n";
+    }
+
+    # Stop the container:
+
+    my $cmd = ['lxc-stop', '-n', $vmid];
+
+    if ($kill) {
+	push @$cmd, '--kill'; # doesn't allow timeouts
+    } elsif (defined($shutdown_timeout)) {
+	push @$cmd, '--timeout', $shutdown_timeout;
+	# Give run_command 5 extra seconds
+	$shutdown_timeout += 5;
+    }
+
+    eval { PVE::Tools::run_command($cmd, timeout => $shutdown_timeout) };
+    if (my $err = $@) {
+	warn $@ if $@;
+    }
+
+    my $result = 1;
+    my $wait = sub { $result = <$sock>; };
+    if (defined($exit_timeout)) {
+	PVE::Tools::run_with_timeout($exit_timeout, $wait);
+    } else {
+	$wait->();
+    }
+
+    return if !defined $result; # monitor is gone and the ct has stopped.
+    die "container did not stop\n";
+}
 
 1;

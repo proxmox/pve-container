@@ -164,7 +164,7 @@ sub __snapshot_rollback_vol_rollback {
 sub __snapshot_rollback_vm_stop {
     my ($class, $vmid) = @_;
 
-    PVE::Tools::run_command(['/usr/bin/lxc-stop', '-n', $vmid, '--kill'])
+    PVE::LXC::vm_stop($vmid, 1)
 	if $class->__snapshot_check_running($vmid);
 }
 
