@@ -350,10 +350,7 @@ sub final_cleanup {
     $self->log('info', "start final cleanup");
 
     if (!$self->{conf_migrated}) {
-	my $conf = $self->{vmconf};
-	delete $conf->{lock};
-
-	eval { PVE::LXC::Config->write_config($vmid, $conf); };
+	eval { PVE::LXC::Config->remove_lock($vmid, 'migrate'); };
 	if (my $err = $@) {
 	    $self->log('err', $err);
 	}
