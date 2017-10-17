@@ -1334,6 +1334,59 @@ sub destroy_disks {
     }
 }
 
+sub alloc_disk {
+    my ($storecfg, $vmid, $storage, $size_kb, $rootuid, $rootgid) = @_;
+
+    my $needs_chown = 0;
+    my $volid;
+
+    my $scfg = PVE::Storage::storage_config($storecfg, $storage);
+    # fixme: use better naming ct-$vmid-disk-X.raw?
+
+    eval {
+	my $do_format = 0;
+	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+	    if ($size_kb > 0) {
+		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
+						   undef, $size_kb);
+		$do_format = 1;
+	    } else {
+		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
+						   undef, 0);
+		$needs_chown = 1;
+	    }
+	} elsif ($scfg->{type} eq 'zfspool') {
+
+	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
+					       undef, $size_kb);
+	    $needs_chown = 1;
+	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' || $scfg->{type} eq 'lvmthin') {
+
+	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
+	    $do_format = 1;
+
+	} elsif ($scfg->{type} eq 'rbd') {
+
+	    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
+	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
+	    $do_format = 1;
+	} else {
+	    die "unable to create containers on storage type '$scfg->{type}'\n";
+	}
+	format_disk($storecfg, $volid, $rootuid, $rootgid) if $do_format;
+    };
+    if (my $err = $@) {
+	# in case formatting got interrupted:
+	if (defined($volid)) {
+	    eval { PVE::Storage::vdisk_free($storecfg, $volid); };
+	    warn $@ if $@;
+	}
+	die $err;
+    }
+
+    return ($volid, $needs_chown);
+}
+
 our $NEW_DISK_RE = qr/^([^:\s]+):(\d+(\.\d+)?)$/;
 sub create_disks {
     my ($storecfg, $vmid, $settings, $conf) = @_;
@@ -1357,37 +1410,9 @@ sub create_disks {
 
 		my $size_kb = int(${size_gb}*1024) * 1024;
 
-		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
-		# fixme: use better naming ct-$vmid-disk-X.raw?
-
-		if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
-		    if ($size_kb > 0) {
-			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
-							   undef, $size_kb);
-			format_disk($storecfg, $volid, $rootuid, $rootgid);
-		    } else {
-			$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
-							   undef, 0);
-			push @$chown_vollist, $volid;
-		    }
-		} elsif ($scfg->{type} eq 'zfspool') {
-
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
-					               undef, $size_kb);
-		    push @$chown_vollist, $volid;
-		} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' || $scfg->{type} eq 'lvmthin') {
-
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
-		    format_disk($storecfg, $volid, $rootuid, $rootgid);
-
-		} elsif ($scfg->{type} eq 'rbd') {
-
-		    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
-		    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
-		    format_disk($storecfg, $volid, $rootuid, $rootgid);
-		} else {
-		    die "unable to create containers on storage type '$scfg->{type}'\n";
-		}
+		my $needs_chown = 0;
+		($volid, $needs_chown) = alloc_disk($storecfg, $vmid, $storage, $size_kb, $rootuid, $rootgid);
+		push @$chown_vollist, $volid if $needs_chown;
 		push @$vollist, $volid;
 		$mountpoint->{volume} = $volid;
 		$mountpoint->{size} = $size_kb * 1024;
