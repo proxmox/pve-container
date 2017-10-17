@@ -1588,4 +1588,156 @@ __PACKAGE__->register_method({
 	return PVE::LXC::Config->lock_config($vmid, $code);;
     }});
 
+__PACKAGE__->register_method({
+    name => 'move_volume',
+    path => '{vmid}/move_volume',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Move a rootfs-/mp-volume to a different storage",
+    permissions => {
+	description => "You need 'VM.Config.Disk' permissions on /vms/{vmid}, " .
+	    "and 'Datastore.AllocateSpace' permissions on the storage.",
+	check =>
+	[ 'and',
+	  ['perm', '/vms/{vmid}', [ 'VM.Config.Disk' ]],
+	  ['perm', '/storage/{storage}', [ 'Datastore.AllocateSpace' ]],
+	],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    volume => {
+		type => 'string',
+		enum => [ PVE::LXC::Config->mountpoint_names() ],
+		description => "Volume which will be moved.",
+	    },
+	    storage => get_standard_option('pve-storage-id', {
+		description => "Target Storage.",
+		completion => \&PVE::Storage::complete_storage_enabled,
+	    }),
+	    delete => {
+		type => 'boolean',
+		description => "Delete the original volume after successful copy. By default the original is kept as an unused volume entry.",
+		optional => 1,
+		default => 0,
+	    },
+	    digest => {
+		type => 'string',
+		description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
+		maxLength => 40,
+		optional => 1,
+	    }
+	},
+    },
+    returns => {
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $vmid = extract_param($param, 'vmid');
+
+	my $storage = extract_param($param, 'storage');
+
+	my $mpkey = extract_param($param, 'volume');
+
+	my $lockname = 'disk';
+
+	my ($mpdata, $old_volid);
+
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
+
+	    die "cannot move volumes of a running container\n" if PVE::LXC::check_running($vmid);
+
+	    if ($mpkey eq 'rootfs') {
+		$mpdata = PVE::LXC::Config->parse_ct_rootfs($conf->{$mpkey});
+	    } elsif ($mpkey =~ m/mp\d+/) {
+		$mpdata = PVE::LXC::Config->parse_ct_mountpoint($conf->{$mpkey});
+	    } else {
+		die "Can't parse $mpkey\n";
+	    }
+	    $old_volid = $mpdata->{volume};
+
+	    die "you can't move a volume with snapshots and delete the source\n"
+		if $param->{delete} && PVE::LXC::Config->is_volume_in_use_by_snapshots($conf, $old_volid);
+
+	    PVE::Tools::assert_if_modified($param->{digest}, $conf->{digest});
+
+	    PVE::LXC::Config->set_lock($vmid, $lockname);
+	});
+
+	my $realcmd = sub {
+	    eval {
+		PVE::Cluster::log_msg('info', $authuser, "move volume CT $vmid: move --volume $mpkey --storage $storage");
+
+		my $conf = PVE::LXC::Config->load_config($vmid);
+		my $storage_cfg = PVE::Storage::config();
+
+		my $new_volid;
+
+		eval {
+		    PVE::Storage::activate_volumes($storage_cfg, [ $old_volid ]);
+		    $new_volid = PVE::LXC::copy_volume($mpdata, $vmid, $storage, $storage_cfg, $conf);
+		    $mpdata->{volume} = $new_volid;
+
+		    PVE::LXC::Config->lock_config($vmid, sub {
+			my $digest = $conf->{digest};
+			$conf = PVE::LXC::Config->load_config($vmid);
+			PVE::Tools::assert_if_modified($digest, $conf->{digest});
+
+			$conf->{$mpkey} = PVE::LXC::Config->print_ct_mountpoint($mpdata, $mpkey eq 'rootfs');
+
+			PVE::LXC::Config->add_unused_volume($conf, $old_volid) if !$param->{delete};
+
+			PVE::LXC::Config->write_config($vmid, $conf);
+		    });
+
+		    eval {
+			# try to deactivate volumes - avoid lvm LVs to be active on several nodes
+			PVE::Storage::deactivate_volumes($storage_cfg, [ $new_volid ])
+		    };
+		    warn $@ if $@;
+		};
+		if (my $err = $@) {
+		    eval {
+			PVE::Storage::vdisk_free($storage_cfg, $new_volid)
+			    if defined($new_volid);
+		    };
+		    warn $@ if $@;
+		    die $err;
+		}
+
+		if ($param->{delete}) {
+		    eval {
+			PVE::Storage::deactivate_volumes($storage_cfg, [ $old_volid ]);
+			PVE::Storage::vdisk_free($storage_cfg, $old_volid);
+		    };
+		    warn $@ if $@;
+		}
+	    };
+	    my $err = $@;
+	    eval { PVE::LXC::Config->remove_lock($vmid, $lockname) };
+	    warn $@ if $@;
+	    die $err if $err;
+	};
+	my $task = eval {
+	    $rpcenv->fork_worker('move_volume', $vmid, $authuser, $realcmd);
+	};
+	if (my $err = $@) {
+	    eval { PVE::LXC::Config->remove_lock($vmid, $lockname) };
+	    warn $@ if $@;
+	    die $err;
+	}
+	return $task;
+  }});
+
 1;

@@ -761,6 +761,7 @@ our $cmddef = {
     
     clone => [ "PVE::API2::LXC", 'clone_vm', ['vmid', 'newid'], { node => $nodename }, $upid_exit ],
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
+    move_volume => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage'], { node => $nodename }, $upid_exit ],
     
     status => [ __PACKAGE__, 'status', ['vmid']],
     console => [ __PACKAGE__, 'console', ['vmid']],
