@@ -304,7 +304,7 @@ sub phase1 {
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
    # transfer replication state before move config
-    $self->transfer_replication_state();
+    $self->transfer_replication_state() if $rep_volumes;
 
     # move config
     die "Failed to move config to node '$self->{node}' - rename failed: $!\n"
@@ -312,7 +312,7 @@ sub phase1 {
 
     $self->{conf_migrated} = 1;
 
-    $self->switch_replication_job_target();
+    $self->switch_replication_job_target() if $rep_volumes;
 }
 
 sub phase1_cleanup {
