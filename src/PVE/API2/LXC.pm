@@ -1275,6 +1275,9 @@ __PACKAGE__->register_method({
 
 	my $storage = extract_param($param, 'storage');
 
+	die "Full clone requires a target storage.\n"
+	    if $param->{full} && !$storage;
+
         my $localnode = PVE::INotify::nodename();
 
 	my $storecfg = PVE::Storage::config();
@@ -1286,142 +1289,153 @@ __PACKAGE__->register_method({
 
 	PVE::Cluster::check_cfs_quorum();
 
-	my $running = PVE::LXC::check_running($vmid) || 0;
+	my $conffile;
+	my $newconf = {};
+	my $mountpoints = {};
+	my $fullclone = {};
+	my $vollist = [];
 
-	my $clonefn = sub {
+	PVE::LXC::Config->lock_config($vmid, sub {
+	    my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
+	    eval {
+		die "snapshot '$snapname' does not exist\n"
+		    if $snapname && !defined($src_conf->{snapshots}->{$snapname});
 
-	    # do all tests after lock
-	    # we also try to do all tests before we fork the worker
-	    my $conf = PVE::LXC::Config->load_config($vmid);
+		my $running = PVE::LXC::check_running($vmid) || 0;
 
-	    PVE::LXC::Config->check_lock($conf);
+		my $src_conf = $snapname ? $src_conf->{snapshots}->{$snapname} : $src_conf;
 
-	    my $verify_running = PVE::LXC::check_running($vmid) || 0;
+		$conffile = PVE::LXC::Config->config_file($newid);
+		die "unable to create CT $newid: config file already exists\n"
+		    if -f $conffile;
 
-	    die "unexpected state change\n" if $verify_running != $running;
+		foreach my $opt (keys %$src_conf) {
+		    next if $opt =~ m/^unused\d+$/;
 
-	    die "snapshot '$snapname' does not exist\n"
-		if $snapname && !defined( $conf->{snapshots}->{$snapname});
+		    my $value = $src_conf->{$opt};
 
-	    my $oldconf = $snapname ? $conf->{snapshots}->{$snapname} : $conf;
+		    if (($opt eq 'rootfs') || ($opt =~ m/^mp\d+$/)) {
+			my $mp = $opt eq 'rootfs' ?
+			    PVE::LXC::Config->parse_ct_rootfs($value) :
+			    PVE::LXC::Config->parse_ct_mountpoint($value);
 
-	    my $conffile = PVE::LXC::Config->config_file($newid);
-	    die "unable to create CT $newid: config file already exists\n"
-		if -f $conffile;
+			if ($mp->{type} eq 'volume') {
+			    my $volid = $mp->{volume};
+			    if ($param->{full}) {
+				die "Cannot do full clones on a running container without snapshots\n"
+				    if $running && !defined($snapname);
+				$fullclone->{$opt} = 1;
+			    } else {
+				# not full means clone instead of copy
+				die "Linked clone feature for '$volid' is not available\n"
+				    if !PVE::Storage::volume_has_feature($storecfg, 'clone', $volid, $snapname, $running);
+			    }
 
-	    my $newconf = { lock => 'clone' };
-	    my $mountpoints = {};
-	    my $fullclone = {};
-	    my $vollist = [];
+			    $mountpoints->{$opt} = $mp;
+			    push @$vollist, $volid;
 
-	    foreach my $opt (keys %$oldconf) {
-		my $value = $oldconf->{$opt};
-
-		# no need to copy unused images, because VMID(owner) changes anyways
-		next if $opt =~ m/^unused\d+$/;
-
-		if (($opt eq 'rootfs') || ($opt =~ m/^mp\d+$/)) {
-		    my $mp = $opt eq 'rootfs' ?
-			PVE::LXC::Config->parse_ct_rootfs($value) :
-			PVE::LXC::Config->parse_ct_mountpoint($value);
-
-		    if ($mp->{type} eq 'volume') {
-			my $volid = $mp->{volume};
-			if ($param->{full}) {
-			    die "fixme: full clone not implemented";
-
-			    die "Full clone feature for '$volid' is not available\n"
-				if !PVE::Storage::volume_has_feature($storecfg, 'copy', $volid, $snapname, $running);
-			    $fullclone->{$opt} = 1;
 			} else {
-			    # not full means clone instead of copy
-			    die "Linked clone feature for '$volid' is not available\n"
-				if !PVE::Storage::volume_has_feature($storecfg, 'clone', $volid, $snapname, $running);
+			    # TODO: allow bind mounts?
+			    die "unable to clone mountpint '$opt' (type $mp->{type})\n";
 			}
-
-			$mountpoints->{$opt} = $mp;
-			push @$vollist, $volid;
-
 		    } else {
-			# TODO: allow bind mounts?
-			die "unable to clone mountpint '$opt' (type $mp->{type})\n";
+			# copy everything else
+			$newconf->{$opt} = $value;
 		    }
-
-		} else {
-		    # copy everything else
-		    $newconf->{$opt} = $value;
-		}
-	    }
-
-	    delete $newconf->{template};
-	    if ($param->{hostname}) {
-		$newconf->{hostname} = $param->{hostname};
-	    }
-
-	    if ($param->{description}) {
-		$newconf->{description} = $param->{description};
-	    }
-
-	    # create empty/temp config - this fails if CT already exists on other node
-	    PVE::Tools::file_set_contents($conffile, "# ctclone temporary file\nlock: clone\n");
-
-	    my $realcmd = sub {
-		my $upid = shift;
-
-		my $newvollist = [];
-
-		eval {
-		    local $SIG{INT} =
-			local $SIG{TERM} =
-			local $SIG{QUIT} =
-			local $SIG{HUP} = sub { die "interrupted by signal\n"; };
-
-		    PVE::Storage::activate_volumes($storecfg, $vollist, $snapname);
-
-		    foreach my $opt (keys %$mountpoints) {
-			my $mp = $mountpoints->{$opt};
-			my $volid = $mp->{volume};
-
-			if ($fullclone->{$opt}) {
-			    die "fixme: full clone not implemented\n";
-			} else {
-			    print "create linked clone of mount point $opt ($volid)\n";
-			    my $newvolid = PVE::Storage::vdisk_clone($storecfg, $volid, $newid, $snapname);
-			    push @$newvollist, $newvolid;
-			    $mp->{volume} = $newvolid;
-
-			    $newconf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp, $opt eq 'rootfs');
-			    PVE::LXC::Config->write_config($newid, $newconf);
-			}
-		    }
-
-		    delete $newconf->{lock};
-		    PVE::LXC::Config->write_config($newid, $newconf);
-
-		    PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
-		};
-		if (my $err = $@) {
-		    unlink $conffile;
-
-		    sleep 1; # some storage like rbd need to wait before release volume - really?
-
-		    foreach my $volid (@$newvollist) {
-			eval { PVE::Storage::vdisk_free($storecfg, $volid); };
-			warn $@ if $@;
-		    }
-		    die "clone failed: $err";
 		}
 
-		return;
+		# Replace the 'disk' lock with a 'create' lock.
+		$newconf->{lock} = 'create';
+
+		delete $newconf->{template};
+		if ($param->{hostname}) {
+		    $newconf->{hostname} = $param->{hostname};
+		}
+
+		if ($param->{description}) {
+		    $newconf->{description} = $param->{description};
+		}
+
+		# create empty/temp config - this fails if CT already exists on other node
+		PVE::LXC::Config->write_config($newid, $newconf);
 	    };
+	    if (my $err = $@) {
+		eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
+		warn $@ if $@;
+		die $err;
+	    }
+	});
 
-	    PVE::Firewall::clone_vmfw_conf($vmid, $newid);
-
-	    return $rpcenv->fork_worker('vzclone', $vmid, $authuser, $realcmd);
-
+	my $update_conf = sub {
+	    my ($key, $value) = @_;
+	    return PVE::LXC::Config->lock_config($newid, sub {
+		my $conf = PVE::LXC::Config->load_config($newid);
+		die "Lost 'create' config lock, aborting.\n"
+		    if !PVE::LXC::Config->has_lock($conf, 'create');
+		$conf->{$key} = $value;
+		PVE::LXC::Config->write_config($newid, $conf);
+	    });
 	};
 
-	return PVE::LXC::Config->lock_config($vmid, $clonefn);
+	my $realcmd = sub {
+	    my ($upid) = @_;
+
+	    my $newvollist = [];
+
+	    eval {
+		local $SIG{INT} =
+		    local $SIG{TERM} =
+		    local $SIG{QUIT} =
+		    local $SIG{HUP} = sub { die "interrupted by signal\n"; };
+
+		PVE::Storage::activate_volumes($storecfg, $vollist, $snapname);
+
+		foreach my $opt (keys %$mountpoints) {
+		    my $mp = $mountpoints->{$opt};
+		    my $volid = $mp->{volume};
+
+		    my $newvolid;
+		    if ($fullclone->{$opt}) {
+			print "create full clone of mountpoint $opt ($volid)\n";
+			$newvolid = PVE::LXC::copy_volume($mp, $newid, $storage, $storecfg, $newconf, $snapname);
+		    } else {
+			print "create linked clone of mount point $opt ($volid)\n";
+			$newvolid = PVE::Storage::vdisk_clone($storecfg, $volid, $newid, $snapname);
+		    }
+
+		    push @$newvollist, $newvolid;
+		    $mp->{volume} = $newvolid;
+
+		    $update_conf->($opt, PVE::LXC::Config->print_ct_mountpoint($mp, $opt eq 'rootfs'));
+		}
+
+		PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
+		PVE::LXC::Config->remove_lock($newid, 'create');
+	    };
+	    my $err = $@;
+
+	    # Unlock the source config in any case:
+	    eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
+	    warn $@ if $@;
+
+	    if ($err) {
+		# Now cleanup the config & disks:
+		unlink $conffile;
+
+		sleep 1; # some storages like rbd need to wait before release volume - really?
+
+		foreach my $volid (@$newvollist) {
+		    eval { PVE::Storage::vdisk_free($storecfg, $volid); };
+		    warn $@ if $@;
+		}
+		die "clone failed: $err";
+	    }
+
+	    return;
+	};
+
+	PVE::Firewall::clone_vmfw_conf($vmid, $newid);
+	return $rpcenv->fork_worker('vzclone', $vmid, $authuser, $realcmd);
     }});
 
 
