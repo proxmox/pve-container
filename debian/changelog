@@ -1,3 +1,19 @@
+pve-container (2.0-17) unstable; urgency=medium
+
+  * migrate: skip replication handling if not replicated
+
+  * migrate: only restart if conf was moved
+
+  * add vm_stop helper
+
+  * switch to pve-container@ unit
+
+  * fixes #1227: include ns/ dir in read_cgroup_value
+
+  * VM.Snapshot.Rollback privilege added
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 17 Oct 2017 15:11:19 +0200
+
 pve-container (2.0-16) unstable; urgency=medium
 
   * fix #1253: show ssh key fingerprints again
