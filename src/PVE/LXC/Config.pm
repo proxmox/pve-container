@@ -1175,8 +1175,8 @@ sub classify_mountpoint {
     return 'volume';
 }
 
-sub is_volume_in_use {
-    my ($class, $config, $volid, $include_snapshots) = @_;
+my $is_volume_in_use = sub {
+    my ($class, $config, $volid) = @_;
     my $used = 0;
 
     $class->foreach_mountpoint($config, sub {
@@ -1185,14 +1185,26 @@ sub is_volume_in_use {
 	$used = $mountpoint->{type} eq 'volume' && $mountpoint->{volume} eq $volid;
     });
 
-    my $snapshots = $config->{snapshots};
-    if ($include_snapshots && $snapshots) {
+    return $used;
+};
+
+sub is_volume_in_use_by_snapshots {
+    my ($class, $config, $volid) = @_;
+
+    if (my $snapshots = $config->{snapshots}) {
 	foreach my $snap (keys %$snapshots) {
-	    $used ||= $class->is_volume_in_use($snapshots->{$snap}, $volid);
+	    return 1 if $is_volume_in_use->($class, $snapshots->{$snap}, $volid);
 	}
     }
 
-    return $used;
+    return 0;
+};
+
+sub is_volume_in_use {
+    my ($class, $config, $volid, $include_snapshots) = @_;
+    return 1 if $is_volume_in_use->($class, $config, $volid);
+    return 1 if $include_snapshots && $class->is_volume_in_use_by_snapshots($config, $volid);
+    return 0;
 }
 
 sub has_dev_console {
