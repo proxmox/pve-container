@@ -105,9 +105,9 @@ sub get_container_disk_usage {
 my $last_proc_vmid_stat;
 
 my $parse_cpuacct_stat = sub {
-    my ($vmid) = @_;
+    my ($vmid, $unprivileged) = @_;
 
-    my $raw = read_cgroup_value('cpuacct', $vmid, 'cpuacct.stat', 1);
+    my $raw = read_cgroup_value('cpuacct', $vmid, $unprivileged, 'cpuacct.stat', 1);
 
     my $stat = {};
 
@@ -134,6 +134,8 @@ sub vmstatus {
 
     my $uptime = (PVE::ProcFSTools::read_proc_uptime(1))[0];
 
+    my $unprivileged = {};
+
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 
@@ -144,6 +146,8 @@ sub vmstatus {
 
 	my $cfspath = PVE::LXC::Config->cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
+
+	$unprivileged->{$vmid} = $conf->{unprivileged};
 
 	$d->{name} = $conf->{'hostname'} || "CT$vmid";
 	$d->{name} =~ s/[\s]//g;
@@ -194,13 +198,15 @@ sub vmstatus {
 	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
 	$d->{uptime} = time - $ctime; # the method lxcfs uses
 
-	my $memory_stat = read_cgroup_list('memory', $vmid, 'memory.stat');
-	my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, 'memory.usage_in_bytes');
+	my $unpriv = $unprivileged->{$vmid};
+
+	my $memory_stat = read_cgroup_list('memory', $vmid, $unpriv, 'memory.stat');
+	my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, $unpriv, 'memory.usage_in_bytes');
 
 	$d->{mem} = $mem_usage_in_bytes - $memory_stat->{total_cache};
-	$d->{swap} = read_cgroup_value('memory', $vmid, 'memory.memsw.usage_in_bytes') - $mem_usage_in_bytes;
+	$d->{swap} = read_cgroup_value('memory', $vmid, $unpriv, 'memory.memsw.usage_in_bytes') - $mem_usage_in_bytes;
 
-	my $blkio_bytes = read_cgroup_value('blkio', $vmid, 'blkio.throttle.io_service_bytes', 1);
+	my $blkio_bytes = read_cgroup_value('blkio', $vmid, $unpriv, 'blkio.throttle.io_service_bytes', 1);
 	my @bytes = split(/\n/, $blkio_bytes);
 	foreach my $byte (@bytes) {
 	    if (my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/) {
@@ -209,7 +215,7 @@ sub vmstatus {
 	    }
 	}
 
-	my $pstat = &$parse_cpuacct_stat($vmid);
+	my $pstat = $parse_cpuacct_stat->($vmid, $unpriv);
 
 	my $used = $pstat->{utime} + $pstat->{stime};
 
@@ -256,18 +262,19 @@ sub vmstatus {
     return $list;
 }
 
-sub read_cgroup_list {
-    my ($group, $vmid, $name) = @_;
+sub read_cgroup_list($$$$) {
+    my ($group, $vmid, $unprivileged, $name) = @_;
 
-    my $content = read_cgroup_value($group, $vmid, $name, 1);
+    my $content = read_cgroup_value($group, $vmid, $unprivileged, $name, 1);
 
     return { split(/\s+/, $content) };
 }
 
-sub read_cgroup_value {
-    my ($group, $vmid, $name, $full) = @_;
+sub read_cgroup_value($$$$$) {
+    my ($group, $vmid, $unprivileged, $name, $full) = @_;
 
-    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/ns/$name";
+    my $nsdir = $unprivileged ? '' : 'ns/';
+    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/${nsdir}$name";
 
     return PVE::Tools::file_get_contents($path) if $full;
 
