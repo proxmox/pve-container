@@ -1601,4 +1601,91 @@ sub vm_stop {
     die "container did not stop\n";
 }
 
+sub run_unshared {
+    my ($code) = @_;
+
+    return PVE::Tools::run_fork(sub {
+	# Unshare the mount namespace
+	die "failed to unshare mount namespace: $!\n"
+	    if !PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
+	PVE::Tools::run_command(['mount', '--make-rslave', '/']);
+	return $code->();
+    });
+}
+
+my $copy_volume = sub {
+    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname) = @_;
+
+    my $src_mp = { volume => $src_volid, mp => '/' };
+    $src_mp->{type} = PVE::LXC::Config->classify_mountpoint($src_volid);
+
+    my $dst_mp = { volume => $dst_volid, mp => '/' };
+    $dst_mp->{type} = PVE::LXC::Config->classify_mountpoint($dst_volid);
+
+    my @mounted;
+    eval {
+	# mount and copy
+	mkdir $src;
+	mountpoint_mount($src_mp, $src, $storage_cfg, $snapname);
+	push @mounted, $src;
+	mkdir $dest;
+	mountpoint_mount($dst_mp, $dest, $storage_cfg);
+	push @mounted, $dest;
+
+	PVE::Tools::run_command(['/usr/bin/rsync', '--stats', '-X', '-A', '--numeric-ids',
+				 '-aH', '--whole-file', '--sparse', '--one-file-system',
+				 "$src/", $dest]);
+    };
+    my $err = $@;
+    foreach my $mount (reverse @mounted) {
+	eval { PVE::Tools::run_command(['/bin/umount', '--lazy', $mount], errfunc => sub{})};
+	warn "Can't umount $mount\n" if $@;
+    }
+
+    # If this fails they're used as mount points in a concurrent operation
+    # (which should not happen but there's also no real need to get rid of them).
+    rmdir $dest;
+    rmdir $src;
+
+    die $err if $err;
+};
+
+# Should not be called after unsharing the mount namespace!
+sub copy_volume {
+    my ($mp, $vmid, $storage, $storage_cfg, $conf, $snapname) = @_;
+
+    die "cannot copy volumes of type $mp->{type}\n" if $mp->{type} ne 'volume';
+    File::Path::make_path("/var/lib/lxc/$vmid");
+    my $dest = "/var/lib/lxc/$vmid/.copy-volume-1";
+    my $src  = "/var/lib/lxc/$vmid/.copy-volume-2";
+
+    # get id's for unprivileged container
+    my (undef, $rootuid, $rootgid) = parse_id_maps($conf);
+
+    # Allocate the disk before unsharing in order to make sure zfs subvolumes
+    # are visible in this namespace, otherwise the host only sees the empty
+    # (not-mounted) directory.
+    my $new_volid;
+    eval {
+	my $needs_chown;
+	($new_volid, $needs_chown) = alloc_disk($storage_cfg, $vmid, $storage, $mp->{size}/1024, $rootuid, $rootgid);
+	if ($needs_chown) {
+	    PVE::Storage::activate_volumes($storage_cfg, [$new_volid], undef);
+	    my $path = PVE::Storage::path($storage_cfg, $new_volid, undef);
+	    chown($rootuid, $rootgid, $path);
+	}
+
+	run_unshared(sub {
+	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname);
+	});
+    };
+    if (my $err = $@) {
+	PVE::Storage::vdisk_free($storage_cfg, $new_volid)
+	    if defined($new_volid);
+	die $err;
+    }
+
+    return $new_volid;
+}
+
 1;
