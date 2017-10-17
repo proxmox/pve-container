@@ -359,16 +359,17 @@ sub final_cleanup {
 	}
     } else {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
-	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");	
+	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");
+
+	# in restart mode, we start the container on the target node
+	# after migration
+	if ($self->{opts}->{restart} && $self->{was_running}) {
+	    $self->log('info', "start container on target node");
+	    my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'start', $vmid];
+	    $self->cmd($cmd);
+	}
     }
 
-    # in restart mode, we start the container on the target node
-    # after migration
-    if ($self->{opts}->{restart} && $self->{was_running}) {
-	$self->log('info', "start container on target node");
-	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'start', $vmid];
-	$self->cmd($cmd);
-    }
 }
 
 1;
