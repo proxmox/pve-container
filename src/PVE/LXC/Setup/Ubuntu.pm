@@ -84,7 +84,7 @@ sub setup_init {
 
     my $version = $self->{version};
 
-    if ($version eq '17.10' || $version eq '17.04' || $version eq '16.10') {
+    if ($version >= '16.10') {
         $self->setup_container_getty_service($conf);
     }
     
