@@ -29,14 +29,14 @@ sub new {
     my $lsbinfo = PVE::Tools::file_get_contents($lsb_fn);
 
     die "got unknown DISTRIB_ID\n" if $lsbinfo !~ m/^DISTRIB_ID=Ubuntu$/mi;
-    
+
     my $version;
     if ($lsbinfo =~ m/^DISTRIB_RELEASE=(\d+\.\d+)$/mi) {
 	$version = $1;
     }
-    
+
     die "unable to read version info\n" if !defined($version);
-  
+
     die "unsupported Ubuntu version '$version'\n"
 	if !$known_versions->{$version};
 
@@ -87,7 +87,7 @@ sub setup_init {
     if ($version >= '16.10') {
         $self->setup_container_getty_service($conf);
     }
-    
+
     if ($version eq '12.04' || $version eq '14.04') {
 	my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
 	for (my $i = 1; $i < 7; $i++) {
