@@ -51,7 +51,20 @@ sub template_fixup {
     my ($self, $conf) = @_;
 
     my $version = $self->{version};
-    
+
+    if ($version >= '17.10') {
+	# enable systemd-networkd
+	$self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
+	$self->ct_mkdir('/etc/systemd/system/socket.target.wants');
+	$self->ct_symlink('/lib/systemd/system/systemd-networkd.service',
+			  '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service');
+	$self->ct_symlink('/lib/systemd/system/systemd-networkd.socket',
+			  '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
+
+	# unlink default netplan lxc config
+	$self->ct_unlink('/etc/netplan/10-lxc.yaml');
+    }
+
     if ($version eq '15.04' || $version eq '15.10' || $version eq '16.04') {
 	# edit /etc/securetty (enable login on console)
 	$self->setup_securetty($conf, qw(pts/0));
@@ -103,6 +116,16 @@ __EOD__
 		}
 	    }
 	}
+    }
+}
+
+sub setup_network {
+    my ($self, $conf) = @_;
+
+    if ($self->{version} >= '17.10') {
+	$self->setup_systemd_networkd($conf);
+    } else {
+	$self->SUPER::setup_network($conf);
     }
 }
 
