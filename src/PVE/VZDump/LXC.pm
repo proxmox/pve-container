@@ -230,8 +230,10 @@ sub copy_data_phase1 {
 
     if (my $mntinfo = PVE::VZDump::get_mount_info($task->{snapdir})) {
 	if ($mntinfo->{fstype} =~ /^nfs4?/) {
-	    warn "temporary directory is on NFS, disabling xattr and acl support"
-	    . ", consider configuring a local tmpdir via /etc/vzdump.conf\n";
+	    $self->loginfo(
+		 "temporary directory is on NFS, disabling xattr and acl"
+		." support, consider configuring a local tmpdir via"
+		." /etc/vzdump.conf\n");
 	    $task->{no_xattrs} = 1;
 	}
     }
