@@ -1,3 +1,11 @@
+pve-container (1.0-103) unstable; urgency=medium
+
+  * fixes #1227: I/O graph fixes for privileged containers
+
+  * API/clone: do not overwrite global signal handlers
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 15 Nov 2017 10:36:20 +0100
+
 pve-container (1.0-101) unstable; urgency=medium
 
   * support debian 9.1
