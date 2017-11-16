@@ -297,6 +297,8 @@ __PACKAGE__->register_method({
 	    my $conf = PVE::LXC::Config->set_lock($vmid, 'mounted');
 	    PVE::LXC::mount_all($vmid, $storecfg, $conf);
 	});
+
+	print "mounted CT $vmid in '/var/lib/lxc/$vmid/rootfs'\n";
 	return undef;
     }});
 
