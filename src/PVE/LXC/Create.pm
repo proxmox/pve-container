@@ -14,25 +14,25 @@ use PVE::VZDump::ConvertOVZ;
 use PVE::Tools;
 use POSIX;
 
-sub get_elf_class {
-    my ($rootdir, $elf_fn) = @_;
+sub detect_architecture {
+    my ($rootdir) = @_;
 
-    my $child_pid = fork();
-    die "fork failed: $!\n" if !defined($child_pid);
+    my $supported_elf_class = {
+	1 => 'i386',
+	2 => 'amd64',
+    };
 
-    if (!$child_pid) {
+    my $elf_fn = '/bin/sh'; # '/bin/sh' is POSIX mandatory
+    my $detect_arch = sub {
 	# chroot avoids a problem where we check the binary of the host system
 	# if $elf_fn is an absolut symlink (e.g. $rootdir/bin/sh -> /bin/bash)
 	chroot($rootdir) or die "chroot '$rootdir' failed: $!\n";
 	chdir('/') or die "failed to change to root directory\n";
 
-	my $fh;
-	open($fh, "<", $elf_fn) or die "open '$elf_fn' failed: $!\n";
+	open(my $fh, "<", $elf_fn) or die "open '$elf_fn' failed: $!\n";
 	binmode($fh);
 
-	my $data;
-	my $length = read($fh, $data, 5);
-	die "read failed: $!\n" if !defined($length);
+	my $length = read($fh, my $data, 5) or die "read failed: $!\n";
 
 	# 4 bytes ELF magic number and 1 byte ELF class
 	my ($magic, $class) = unpack("A4C", $data);
@@ -41,20 +41,21 @@ sub get_elf_class {
 	    if (!defined($class) || !defined($magic) || $magic ne "\177ELF");
 
 	die "'$elf_fn' has unknown ELF class '$class'!\n"
-	    if ($class != 1 && $class != 2);
+	    if !defined($supported_elf_class->{$class});
 
-	POSIX::_exit($class);
-    }
+	return $supported_elf_class->{$class};
+    };
 
-    while (waitpid($child_pid, 0) != $child_pid) {}
-    my $exit_code = $?;
-    if (my $sig = ($exit_code & 127)) {
-	warn "could not get architecture, got signal $sig\n";
+    my $arch = eval { PVE::Tools::run_fork_with_timeout(5, $detect_arch) };
+    if (my $err = $@) {
+	$arch = 'amd64';
+	print "Architecture detection failed: $err\nFalling back to amd64.\n" .
+	      "Use `pct set VMID --arch ARCH` to change.\n";
     } else {
-	$exit_code >>= 8;
+	print "Detected container architecture: $arch\n";
     }
 
-    return $exit_code;
+    return $arch;
 }
 
 sub restore_archive {
@@ -99,18 +100,7 @@ sub restore_archive {
     # if arch is set, we do not try to autodetect it
     return if defined($conf->{arch});
 
-
-    my $elf_class = get_elf_class($rootdir, '/bin/sh'); # /bin/sh is POSIX mandatory
-
-    $conf->{'arch'} = 'amd64'; # defaults to 64bit
-    if ($elf_class == 1 || $elf_class == 2) {
-	$conf->{'arch'} = 'i386' if $elf_class == 1;
-	print "Detected container architecture: $conf->{'arch'}\n";
-    } else {
-	print "CT architecture detection failed, falling back to amd64.\n" .
-	      "Edit the config in /etc/pve/nodes/{node}/lxc/{vmid}.conf " .
-	      "to set another architecture.\n";
-    }
+    $conf->{arch} = detect_architecture($rootdir);
 }
 
 sub recover_config {
