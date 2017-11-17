@@ -707,7 +707,7 @@ __PACKAGE__->register_method ({
 	# NOTE: vncterm VNC traffic is already TLS encrypted,
 	# so we select the fastest chipher here (or 'none'?)
 	my $remcmd = $remip ?
-	    ['/usr/bin/ssh', '-t', $remip] : [];
+	    ['/usr/bin/ssh', '-e', 'none', '-t', $remip] : [];
 
 	my $conf = PVE::LXC::Config->load_config($vmid, $node);
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
