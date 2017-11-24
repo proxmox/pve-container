@@ -710,7 +710,7 @@ __PACKAGE__->register_method ({
 	    ['/usr/bin/ssh', '-e', 'none', '-t', $remip] : [];
 
 	my $conf = PVE::LXC::Config->load_config($vmid, $node);
-	my $concmd = PVE::LXC::get_console_command($vmid, $conf);
+	my $concmd = PVE::LXC::get_console_command($vmid, $conf, 1);
 
 	my $shcmd = [ '/usr/bin/dtach', '-A',
 		      "/var/run/dtach/vzctlconsole$vmid",

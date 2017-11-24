@@ -486,19 +486,24 @@ sub verify_searchdomain_list {
 }
 
 sub get_console_command {
-    my ($vmid, $conf) = @_;
+    my ($vmid, $conf, $noescapechar) = @_;
 
     my $cmode = PVE::LXC::Config->get_cmode($conf);
 
+    my $cmd = [];
     if ($cmode eq 'console') {
-	return ['lxc-console', '-n',  $vmid, '-t', 0];
+	push @$cmd, 'lxc-console', '-n',  $vmid, '-t', 0;
+	push @$cmd, '-e', -1 if $noescapechar;
     } elsif ($cmode eq 'tty') {
-	return ['lxc-console', '-n',  $vmid];
+	push @$cmd, 'lxc-console', '-n',  $vmid;
+	push @$cmd, '-e', -1 if $noescapechar;
     } elsif ($cmode eq 'shell') {
-	return ['lxc-attach', '--clear-env', '-n', $vmid];
+	push @$cmd, 'lxc-attach', '--clear-env', '-n', $vmid;
     } else {
 	die "internal error";
     }
+
+    return $cmd;
 }
 
 sub get_primary_ips {
