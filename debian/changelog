@@ -1,3 +1,9 @@
+pve-container (1.0-104) unstable; urgency=medium
+
+  * fix read_cgroup_value for unprivileged containers
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 1 Dec 2017 09:24:08 +0100
+
 pve-container (1.0-103) unstable; urgency=medium
 
   * fixes #1227: I/O graph fixes for privileged containers
