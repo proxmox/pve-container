@@ -463,6 +463,7 @@ __PACKAGE__->register_method({
 	    { subdir => 'config' },
 	    { subdir => 'status' },
 	    { subdir => 'vncproxy' },
+	    { subdir => 'termproxy' },
 	    { subdir => 'vncwebsocket' },
 	    { subdir => 'spiceproxy' },
 	    { subdir => 'migrate' },
@@ -757,6 +758,89 @@ __PACKAGE__->register_method ({
 	    port => $port,
 	    upid => $upid,
 	    cert => $sslcert,
+	};
+    }});
+
+__PACKAGE__->register_method ({
+    name => 'termproxy',
+    path => '{vmid}/termproxy',
+    method => 'POST',
+    protected => 1,
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Console' ]],
+    },
+    description => "Creates a TCP proxy connection.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	},
+    },
+    returns => {
+	additionalProperties => 0,
+	properties => {
+	    user => { type => 'string' },
+	    ticket => { type => 'string' },
+	    port => { type => 'integer' },
+	    upid => { type => 'string' },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+
+	my $authuser = $rpcenv->get_user();
+
+	my $vmid = $param->{vmid};
+	my $node = $param->{node};
+
+	my $authpath = "/vms/$vmid";
+
+	my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath);
+
+	my ($remip, $family);
+
+	if ($node ne 'localhost' && $node ne PVE::INotify::nodename()) {
+	    ($remip, $family) = PVE::Cluster::remote_node_ip($node);
+	} else {
+	    $family = PVE::Tools::get_host_address_family($node);
+	}
+
+	my $port = PVE::Tools::next_vnc_port($family);
+
+	my $remcmd = $remip ?
+	    ['/usr/bin/ssh', '-e', 'none', '-t', $remip, '--'] : [];
+
+	my $conf = PVE::LXC::Config->load_config($vmid, $node);
+	my $concmd = PVE::LXC::get_console_command($vmid, $conf, 1);
+
+	my $shcmd = [ '/usr/bin/dtach', '-A',
+		      "/var/run/dtach/vzctlconsole$vmid",
+		      '-r', 'winch', '-z', @$concmd];
+
+	my $realcmd = sub {
+	    my $upid = shift;
+
+	    syslog ('info', "starting lxc termproxy $upid\n");
+
+	    my $cmd = ['/usr/bin/termproxy', $port, '--path', $authpath,
+		       '--perm', 'VM.Console', '--'];
+	    push @$cmd, @$remcmd, @$shcmd;
+
+	    PVE::Tools::run_command($cmd);
+	};
+
+	my $upid = $rpcenv->fork_worker('vncproxy', $vmid, $authuser, $realcmd, 1);
+
+	PVE::Tools::wait_for_vnc_port($port);
+
+	return {
+	    user => $authuser,
+	    ticket => $ticket,
+	    port => $port,
+	    upid => $upid,
 	};
     }});
 
