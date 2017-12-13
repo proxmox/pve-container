@@ -1,6 +1,6 @@
 VERSION=2.0
 PACKAGE=pve-container
-PKGREL=17
+PKGREL=18
 
 GITVERSION:=$(git rev-parse HEAD)
 
