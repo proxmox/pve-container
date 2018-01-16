@@ -912,7 +912,7 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	    PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
 	} elsif ($opt eq 'description') {
-	    $conf->{$opt} = PVE::Tools::encode_text($value);
+	    $conf->{$opt} = $value;
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $netid = $1;
 	    my $net = PVE::LXC::Config->parse_lxc_network($value);
