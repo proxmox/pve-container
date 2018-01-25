@@ -26,13 +26,6 @@ case "$1" in
     # Configure this package.  If the package must prompt the user for
     # information, do it here.
 
-    # test if /etc/pve is mounted; else simple exit to avoid
-    # error during updates
-    if test -f /etc/pve/local/pve-ssl.pem
-    then
-        /usr/sbin/pve-update-lxc-config
-    fi
-
     # There are three sub-cases:
     if test "${2+set}" != set; then
       # We're being installed by an ancient dpkg which doesn't remember
