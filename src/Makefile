@@ -3,6 +3,7 @@ PACKAGE=pve-container
 PREFIX=${DESTDIR}/usr
 BINDIR=${PREFIX}/bin
 LIBDIR=${PREFIX}/lib
+SBINDIR=${PREFIX}/sbin
 MANDIR=${PREFIX}/share/man
 DOCDIR=${PREFIX}/share/doc/${PACKAGE}
 LXC_SCRIPT_DIR=${PREFIX}/share/lxc
@@ -33,6 +34,8 @@ check: test
 .PHONY: install
 install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pct.bash-completion
 	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
+	install -d ${SBINDIR}
+	install -m 0755 pct ${SBINDIR}
 	install -d ${LXC_SCRIPT_DIR}
 	install -m 0755 lxcnetaddbr ${LXC_SCRIPT_DIR}
 	install -m 0755 pve-container-stop-wrapper ${LXC_SCRIPT_DIR}
