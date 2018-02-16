@@ -13,9 +13,11 @@ use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::ArchLinux;
 use PVE::LXC::Setup::Alpine;
 use PVE::LXC::Setup::Gentoo;
+use PVE::LXC::Setup::Devuan;
 
 my $plugins = {
     debian    => 'PVE::LXC::Setup::Debian',
+    devuan    => 'PVE::LXC::Setup::Devuan',
     ubuntu    => 'PVE::LXC::Setup::Ubuntu',
     centos    => 'PVE::LXC::Setup::CentOS',
     fedora    => 'PVE::LXC::Setup::Fedora',
@@ -51,6 +53,8 @@ my $autodetect_type = sub {
 
     if (-f "$rootdir/etc/debian_version") {
 	return "debian";
+    } elsif (-f "$rootdir/etc/devuan_version") {
+	return "devuan";
     } elsif (-f  "$rootdir/etc/SuSE-brand" || -f "$rootdir/etc/SuSE-release") {
 	return "opensuse";
     } elsif (-f  "$rootdir/etc/fedora-release") {

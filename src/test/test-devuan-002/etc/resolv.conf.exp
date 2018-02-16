@@ -1,0 +1,10 @@
+# Existing data
+# Will be kept because there's a PVE section to be replaced
+
+# --- BEGIN PVE ---
+search proxmox.com
+nameserver 8.8.8.8
+nameserver 8.8.8.9
+# --- END PVE ---
+
+# This will be kept, too

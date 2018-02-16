@@ -1,0 +1,9 @@
+arch: i386
+cpulimit: 1
+memory: 512
+swap: 512
+ostype: devuan
+hostname: CT102
+nameserver: 8.8.8.8,8.8.8.9
+searchdomain: proxmox.com
+net0: bridge=vmbr0,name=eth0,hwaddr=2A:31:01:D5:A4:BF,ip=192.168.3.102/20,gw=192.168.2.1
