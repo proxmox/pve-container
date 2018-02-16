@@ -1,3 +1,9 @@
+pve-container (2.0-19) unstable; urgency=medium
+
+  * close #1668: add Devuan support
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 16 Feb 2018 06:12:06 +0100
+
 pve-container (2.0-18) unstable; urgency=medium
 
   * add termproxy api call
