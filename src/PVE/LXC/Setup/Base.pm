@@ -28,27 +28,24 @@ sub lookup_dns_conf {
     my $nameserver = $conf->{nameserver};
     my $searchdomains = $conf->{searchdomain};
 
-    if (!($nameserver && $searchdomains)) {
+    if ($conf->{'testmode'}) {
+	return ('proxmox.com', '8.8.8.8 8.8.8.9');
+    }
 
-	if ($conf->{'testmode'}) {
-	    
-	    $nameserver = "8.8.8.8 8.8.8.9";
-	    $searchdomains = "proxmox.com";
-	
-	} else {
+    my $host_resolv_conf = $self->{host_resolv_conf};
 
-	    my $host_resolv_conf = $self->{host_resolv_conf};
-
-	    $searchdomains = $host_resolv_conf->{search};
-
-	    my @list = ();
-	    foreach my $k ("dns1", "dns2", "dns3") {
-		if (my $ns = $host_resolv_conf->{$k}) {
-		    push @list, $ns;
-		}
+    if (!defined($nameserver)) {
+	my @list = ();
+	foreach my $k ("dns1", "dns2", "dns3") {
+	    if (my $ns = $host_resolv_conf->{$k}) {
+		push @list, $ns;
 	    }
-	    $nameserver = join(' ', @list);
 	}
+	$nameserver = join(' ', @list);
+    }
+
+    if (!defined($searchdomains)) {
+	$searchdomains = $host_resolv_conf->{search};
     }
 
     return ($searchdomains, $nameserver);
