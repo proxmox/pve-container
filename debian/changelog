@@ -1,3 +1,9 @@
+pve-container (1.0-105) unstable; urgency=medium
+
+  * use systemd-networkd for ubuntu >= 17.10
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 08 Mar 2018 15:23:54 +0100
+
 pve-container (1.0-104) unstable; urgency=medium
 
   * fix read_cgroup_value for unprivileged containers
