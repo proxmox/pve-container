@@ -185,8 +185,6 @@ __PACKAGE__->register_method({
 
 		    }
 
-		    my $storage_cfg = cfs_read_file("storage.cfg");
-
 		    PVE::LXC::vm_start($vmid, $conf, $skiplock);
 
 		    return;
