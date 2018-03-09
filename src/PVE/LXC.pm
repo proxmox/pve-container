@@ -1515,6 +1515,20 @@ sub userns_command {
     return [];
 }
 
+sub vm_start {
+    my ($vmid, $conf, $skiplock) = @_;
+
+    update_lxc_config($vmid, $conf);
+
+    local $ENV{PVE_SKIPLOCK}=1 if $skiplock;
+
+    my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
+
+    PVE::Tools::run_command($cmd);
+
+    return;
+}
+
 # Helper to stop a container completely and make sure it has stopped completely.
 # This is necessary because we want the post-stop hook to have completed its
 # unmount-all step, but post-stop happens after lxc puts the container into the

@@ -354,6 +354,13 @@ sub final_cleanup {
 	if (my $err = $@) {
 	    $self->log('err', $err);
 	}
+	# in restart mode, we start the container on the source node
+	# on migration error
+	if ($self->{opts}->{restart} && $self->{was_running}) {
+	    $self->log('info', "start container on source node");
+	    my $skiplock = 1;
+	    PVE::LXC::vm_start($vmid, $self->{vmconf}, $skiplock);
+	}
     } else {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
 	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");

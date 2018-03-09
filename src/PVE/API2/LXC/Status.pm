@@ -187,13 +187,7 @@ __PACKAGE__->register_method({
 
 		    my $storage_cfg = cfs_read_file("storage.cfg");
 
-		    PVE::LXC::update_lxc_config($vmid, $conf);
-
-		    local $ENV{PVE_SKIPLOCK}=1 if $skiplock;
-
-		    my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
-
-		    run_command($cmd);
+		    PVE::LXC::vm_start($vmid, $conf, $skiplock);
 
 		    return;
 		};
