@@ -1,3 +1,11 @@
+pve-container (2.0-20) unstable; urgency=medium
+
+  * Fix #1547: on migration abort, the CT starts again
+
+  * seperate serachdomain and nameserver config
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 12 Mar 2018 13:24:08 +0100
+
 pve-container (2.0-19) unstable; urgency=medium
 
   * close #1668: add Devuan support
