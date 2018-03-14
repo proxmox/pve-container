@@ -1557,7 +1557,7 @@ sub vm_start {
     eval { PVE::Tools::run_command($cmd); };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;
-	die $err if $err;
+	die $err;
     }
 
     return;
