@@ -1545,11 +1545,20 @@ sub vm_start {
 
     update_lxc_config($vmid, $conf);
 
-    local $ENV{PVE_SKIPLOCK}=1 if $skiplock;
+    my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
+
+    if ($skiplock) {
+	open(my $fh, '>', $skiplock_flag_fn) || die "failed to open $skiplock_flag_fn for writing: $!\n";
+	close($fh);
+    }
 
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
-    PVE::Tools::run_command($cmd);
+    eval { PVE::Tools::run_command($cmd); };
+    if (my $err = $@) {
+	unlink $skiplock_flag_fn;
+	die $err if $err;
+    }
 
     return;
 }

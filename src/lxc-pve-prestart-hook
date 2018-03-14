@@ -57,13 +57,16 @@ __PACKAGE__->register_method ({
 	return undef if $param->{name} !~ m/^\d+$/;
 
 	my $vmid = $param->{name};
+	my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
+	my $skiplock = 1 if -e $skiplock_flag_fn;
+	unlink $skiplock_flag_fn if $skiplock;
 
 	PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
 
 	return undef if ! -f PVE::LXC::Config->config_file($vmid);
 
 	my $conf = PVE::LXC::Config->load_config($vmid);
-	if (!$ENV{PVE_SKIPLOCK} && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+	if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
 	    PVE::LXC::Config->check_lock($conf);
 	}
 
