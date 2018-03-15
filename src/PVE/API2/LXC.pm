@@ -1221,7 +1221,6 @@ __PACKAGE__->register_method({
             }),
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Target storage for full clone.",
-		requires => 'full',
 		optional => 1,
 	    }),
 	    full => {
@@ -1229,7 +1228,6 @@ __PACKAGE__->register_method({
 	        type => 'boolean',
 	        description => "Create a full copy of all disk. This is always done when " .
 		    "you clone a normal CT. For CT templates, we try to create a linked clone by default.",
-		default => 0,
 	    },
 #	    target => get_standard_option('pve-node', {
 #		description => "Target node. Only allowed if the original VM is on shared storage.",
@@ -1282,6 +1280,13 @@ __PACKAGE__->register_method({
 
 	PVE::LXC::Config->lock_config($vmid, sub {
 	    my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
+
+	    my $full = extract_param($param, 'full');
+	    if (!defined($full)) {
+		$full = !PVE::LXC::Config->is_template($src_conf);
+	    }
+	    die "parameter 'storage' not allowed for linked clones\n" if defined($storage) && !$full;
+
 	    eval {
 		die "snapshot '$snapname' does not exist\n"
 		    if $snapname && !defined($src_conf->{snapshots}->{$snapname});
@@ -1306,7 +1311,7 @@ __PACKAGE__->register_method({
 
 			if ($mp->{type} eq 'volume') {
 			    my $volid = $mp->{volume};
-			    if ($param->{full}) {
+			    if ($full) {
 				die "Cannot do full clones on a running container without snapshots\n"
 				    if $running && !defined($snapname);
 				$fullclone->{$opt} = 1;
