@@ -1126,12 +1126,6 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
-	    experimental => {
-		type => 'boolean',
-		description => "The template feature is experimental, set this " .
-		    "flag if you know what you are doing.",
-		default => 0,
-	    },
 	},
     },
     returns => { type => 'null'},
@@ -1235,12 +1229,6 @@ __PACKAGE__->register_method({
 	        type => 'boolean',
 	        description => "Create a full copy of all disk. This is always done when " .
 		    "you clone a normal CT. For CT templates, we try to create a linked clone by default.",
-		default => 0,
-	    },
-	    experimental => {
-		type => 'boolean',
-		description => "The clone feature is experimental, set this " .
-		    "flag if you know what you are doing.",
 		default => 0,
 	    },
 #	    target => get_standard_option('pve-node', {
