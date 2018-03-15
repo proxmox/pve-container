@@ -1263,9 +1263,6 @@ __PACKAGE__->register_method({
 
 	my $storage = extract_param($param, 'storage');
 
-	die "Full clone requires a target storage.\n"
-	    if $param->{full} && !$storage;
-
         my $localnode = PVE::INotify::nodename();
 
 	my $storecfg = PVE::Storage::config();
@@ -1385,7 +1382,8 @@ __PACKAGE__->register_method({
 		    my $newvolid;
 		    if ($fullclone->{$opt}) {
 			print "create full clone of mountpoint $opt ($volid)\n";
-			$newvolid = PVE::LXC::copy_volume($mp, $newid, $storage, $storecfg, $newconf, $snapname);
+			my $target_storage = $storage // PVE::Storage::parse_volume_id($volid);
+			$newvolid = PVE::LXC::copy_volume($mp, $newid, $target_storage, $storecfg, $newconf, $snapname);
 		    } else {
 			print "create linked clone of mount point $opt ($volid)\n";
 			$newvolid = PVE::Storage::vdisk_clone($storecfg, $volid, $newid, $snapname);
