@@ -362,13 +362,15 @@ sub update_lxc_config {
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
 
-    my $inc ="/usr/share/lxc/config/$ostype.common.conf";
-    $inc ="/usr/share/lxc/config/common.conf" if !-f $inc;
+    my $cfgpath = '/usr/share/lxc/config';
+    my $inc = "$cfgpath/$ostype.common.conf";
+    $inc ="$cfgpath/common.conf" if !-f $inc;
     $raw .= "lxc.include = $inc\n";
     if ($unprivileged || $custom_idmap) {
-	$inc = "/usr/share/lxc/config/$ostype.userns.conf";
-	$inc = "/usr/share/lxc/config/userns.conf" if !-f $inc;
-	$raw .= "lxc.include = $inc\n"
+	$inc = "$cfgpath/$ostype.userns.conf";
+	$inc = "$cfgpath/userns.conf" if !-f $inc;
+	$raw .= "lxc.include = $inc\n";
+	$raw .= "lxc.seccomp.profile = $cfgpath/pve-userns.seccomp\n";
     }
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes

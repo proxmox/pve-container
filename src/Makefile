@@ -9,7 +9,8 @@ DOCDIR=${PREFIX}/share/doc/${PACKAGE}
 LXC_SCRIPT_DIR=${PREFIX}/share/lxc
 LXC_TMPL_DIR=${LXC_SCRIPT_DIR}/templates
 LXC_HOOK_DIR=${LXC_SCRIPT_DIR}/hooks
-LXC_COMMON_CONFIG_DIR=${LXC_SCRIPT_DIR}/config/common.conf.d
+LXC_CONFIG_DIR=${LXC_SCRIPT_DIR}/config
+LXC_COMMON_CONFIG_DIR=${LXC_CONFIG_DIR}/common.conf.d
 SERVICEDIR=${DESTDIR}/lib/systemd/system
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
@@ -32,7 +33,7 @@ check: test
 	make -C test
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pct.bash-completion
+install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr pct.1 pct.conf.5 pct.bash-completion pve-userns.seccomp
 	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -46,6 +47,8 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-autodev-hook ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-poststop-hook ${LXC_HOOK_DIR}
+	install -d ${LXC_CONFIG_DIR}
+	install -m 0644 pve-userns.seccomp ${LXC_CONFIG_DIR}/pve-userns.seccomp
 	install -d ${LXC_COMMON_CONFIG_DIR}
 	install -m 0644 lxc-pve.conf ${LXC_COMMON_CONFIG_DIR}/01-pve.conf
 	install -m 0644 -D pct.bash-completion ${BASHCOMPLDIR}/pct
@@ -63,6 +66,11 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -d -m 0755 ${SERVICEDIR}/lxc@.service.d
 	install -m 0644 pve-reboot.conf ${SERVICEDIR}/lxc@.service.d/
 	install -m 0755 lxc-pve-reboot-trigger ${LXC_SCRIPT_DIR}
+
+pve-userns.seccomp: /usr/share/lxc/config/common.seccomp
+	cp $< $@
+	echo 'keyctl errno 38' >> $@
+
 
 .PHONY: test
 test:
