@@ -1226,7 +1226,7 @@ __PACKAGE__->register_method({
 	    full => {
 		optional => 1,
 	        type => 'boolean',
-	        description => "Create a full copy of all disk. This is always done when " .
+	        description => "Create a full copy of all disks. This is always done when " .
 		    "you clone a normal CT. For CT templates, we try to create a linked clone by default.",
 	    },
 #	    target => get_standard_option('pve-node', {
