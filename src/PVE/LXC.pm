@@ -133,6 +133,7 @@ sub vmstatus {
     my $cdtime = gettimeofday;
 
     my $uptime = (PVE::ProcFSTools::read_proc_uptime(1))[0];
+    my $clock_ticks = POSIX::sysconf(&POSIX::_SC_CLK_TCK);
 
     my $unprivileged = {};
 
@@ -195,8 +196,8 @@ sub vmstatus {
 
 	next if !$pid; # skip stopped CTs
 
-	my $ctime = (stat("/proc/$pid"))[10]; # 10 = ctime
-	$d->{uptime} = time - $ctime; # the method lxcfs uses
+	my $proc_pid_stat = PVE::ProcFSTools::read_proc_pid_stat($pid);
+	$d->{uptime} = int(($uptime - $proc_pid_stat->{starttime}) / $clock_ticks); # the method lxcfs uses
 
 	my $unpriv = $unprivileged->{$vmid};
 
