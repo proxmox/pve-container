@@ -1350,6 +1350,12 @@ __PACKAGE__->register_method({
 			    # TODO: allow bind mounts?
 			    die "unable to clone mountpint '$opt' (type $mp->{type})\n";
 			}
+		    } elsif ($opt =~ m/^net(\d+)$/) {
+			# always change MAC! address
+			my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
+			my $net = PVE::LXC::Config->parse_lxc_network($value);
+			$net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
+			$newconf->{$opt} = PVE::LXC::Config->print_lxc_network($net);
 		    } else {
 			# copy everything else
 			$newconf->{$opt} = $value;
