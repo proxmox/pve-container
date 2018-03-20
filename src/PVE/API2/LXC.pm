@@ -1326,6 +1326,13 @@ __PACKAGE__->register_method({
 
 			if ($mp->{type} eq 'volume') {
 			    my $volid = $mp->{volume};
+
+			    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+			    $sid = $storage if defined($storage);
+			    my $scfg = PVE::Storage::storage_config($storecfg, $sid);
+
+			    $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
+
 			    if ($full) {
 				die "Cannot do full clones on a running container without snapshots\n"
 				    if $running && !defined($snapname);
