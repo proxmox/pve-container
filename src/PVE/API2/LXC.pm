@@ -1229,10 +1229,10 @@ __PACKAGE__->register_method({
 	        description => "Create a full copy of all disks. This is always done when " .
 		    "you clone a normal CT. For CT templates, we try to create a linked clone by default.",
 	    },
-#	    target => get_standard_option('pve-node', {
-#		description => "Target node. Only allowed if the original VM is on shared storage.",
-#		optional => 1,
-#	    }),
+	    target => get_standard_option('pve-node', {
+		description => "Target node. Only allowed if the original VM is on shared storage.",
+		optional => 1,
+	    }),
         },
     },
     returns => {
@@ -1261,13 +1261,26 @@ __PACKAGE__->register_method({
 
 	my $storage = extract_param($param, 'storage');
 
+	my $target = extract_param($param, 'target');
+
         my $localnode = PVE::INotify::nodename();
+
+        undef $target if $target && ($target eq $localnode || $target eq 'localhost');
+
+	PVE::Cluster::check_node_exists($target) if $target;
 
 	my $storecfg = PVE::Storage::config();
 
 	if ($storage) {
 	    # check if storage is enabled on local node
 	    PVE::Storage::storage_check_enabled($storecfg, $storage);
+	    if ($target) {
+		# check if storage is available on target node
+		PVE::Storage::storage_check_node($storecfg, $storage, $target);
+		# clone only works if target storage is shared
+		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
+		die "can't clone to non-shared storage '$storage'\n" if !$scfg->{shared};
+	    }
 	}
 
 	PVE::Cluster::check_cfs_quorum();
@@ -1277,9 +1290,12 @@ __PACKAGE__->register_method({
 	my $mountpoints = {};
 	my $fullclone = {};
 	my $vollist = [];
+	my $running;
 
 	PVE::LXC::Config->lock_config($vmid, sub {
 	    my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
+
+	    $running = PVE::LXC::check_running($vmid) || 0;
 
 	    my $full = extract_param($param, 'full');
 	    if (!defined($full)) {
@@ -1291,7 +1307,6 @@ __PACKAGE__->register_method({
 		die "snapshot '$snapname' does not exist\n"
 		    if $snapname && !defined($src_conf->{snapshots}->{$snapname});
 
-		my $running = PVE::LXC::check_running($vmid) || 0;
 
 		my $src_conf = $snapname ? $src_conf->{snapshots}->{$snapname} : $src_conf;
 
@@ -1372,6 +1387,9 @@ __PACKAGE__->register_method({
 
 	    my $newvollist = [];
 
+	    my $verify_running = PVE::LXC::check_running($vmid) || 0;
+	    die "unexpected state change\n" if $verify_running != $running;
+
 	    eval {
 		local $SIG{INT} =
 		    local $SIG{TERM} =
@@ -1402,6 +1420,16 @@ __PACKAGE__->register_method({
 
 		PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
 		PVE::LXC::Config->remove_lock($newid, 'create');
+
+		if ($target) {
+		    # always deactivate volumes - avoid lvm LVs to be active on several nodes
+		    PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
+		    PVE::Storage::deactivate_volumes($storecfg, $newvollist);
+
+		    my $newconffile = PVE::LXC::Config->config_file($newid, $target);
+		    die "Failed to move config to node '$target' - rename failed: $!\n"
+			if !rename($conffile, $newconffile);
+		}
 	    };
 	    my $err = $@;
 
