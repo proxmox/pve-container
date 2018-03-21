@@ -161,6 +161,12 @@ __PACKAGE__->register_method({
 		description => "Setup public SSH keys (one key per line, " .
 				"OpenSSH format).",
 	    },
+	    bwlimit => {
+		description => "Override i/o bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'number',
+		minimum => '0',
+	    },
 	}),
     },
     returns => {
@@ -178,6 +184,8 @@ __PACKAGE__->register_method({
 	my $vmid = extract_param($param, 'vmid');
 
 	my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
+
+	my $bwlimit = extract_param($param, 'bwlimit');
 
 	my $basecfg_fn = PVE::LXC::Config->config_file($vmid);
 
@@ -247,6 +255,7 @@ __PACKAGE__->register_method({
 	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
 	}
 
+	my %used_storages;
 	my $check_and_activate_storage = sub {
 	    my ($sid) = @_;
 
@@ -258,6 +267,8 @@ __PACKAGE__->register_method({
 	    $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 
 	    PVE::Storage::activate_storage($storage_cfg, $sid);
+
+	    $used_storages{$sid} = 1;
 	};
 
 	my $conf = {};
@@ -387,7 +398,8 @@ __PACKAGE__->register_method({
 
 		eval {
 		    my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
-		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors);
+		    $bwlimit = PVE::Storage::get_bandwidth_limit('restore', [keys %used_storages], $bwlimit);
+		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
 
 		    if ($restore) {
 			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, $authuser ne 'root@pam');

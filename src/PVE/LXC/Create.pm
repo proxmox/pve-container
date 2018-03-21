@@ -59,7 +59,7 @@ sub detect_architecture {
 }
 
 sub restore_archive {
-    my ($archive, $rootdir, $conf, $no_unpack_error) = @_;
+    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
@@ -100,6 +100,10 @@ sub restore_archive {
     push @$cmd, '--skip-old-files';
     push @$cmd, '--anchored';
     push @$cmd, '--exclude' , './dev/*';
+
+    if (defined($bwlimit)) {
+	$cmd = [ ['cstream', '-t', $bwlimit*1024], $cmd ];
+    }
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
