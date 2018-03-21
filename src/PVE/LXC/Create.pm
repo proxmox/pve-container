@@ -65,16 +65,31 @@ sub restore_archive {
     my $userns_cmd = PVE::LXC::userns_command($id_map);
 
     my $archive_fh;
-    my $tar_input_file = '-';
+    my $tar_input = '<&STDIN';
+    my @compression_opt;
     if ($archive ne '-') {
+	# GNU tar refuses to autodetect this... *sigh*
+	my %compression_map = (
+	    '.gz'  => '-z',
+	    '.bz2' => '-j',
+	    '.xz'  => '-J',
+	);
+	if ($archive =~ /\.tar(\.[^.]+)?$/) {
+	    if (defined($1)) {
+		@compression_opt = $compression_map{$1}
+		    or die "unrecognized compression format: $1\n";
+	    }
+	} else {
+	    die "file does not look like a template archive: $archive\n";
+	}
 	sysopen($archive_fh, $archive, O_RDONLY)
 	    or die "failed to open '$archive': $!\n";
-	$tar_input_file = '/proc/self/fd/'.fileno($archive_fh);
 	my $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
 	$archive_fh->fcntl(Fcntl::F_SETFD(), $flags & ~(Fcntl::FD_CLOEXEC()));
+	$tar_input = '<&'.fileno($archive_fh);
     }
 
-    my $cmd = [@$userns_cmd, 'tar', 'xpf', $tar_input_file, '--totals',
+    my $cmd = [@$userns_cmd, 'tar', 'xpf', '-', @compression_opt, '--totals',
                @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
                '-C', $rootdir];
 
@@ -88,11 +103,10 @@ sub restore_archive {
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
-	eval { PVE::Tools::run_command($cmd, input => "<&STDIN"); };
     } else {
 	print "extracting archive '$archive'\n";
-	eval { PVE::Tools::run_command($cmd); };
     }
+    eval { PVE::Tools::run_command($cmd, input => $tar_input); };
     my $err = $@;
     close($archive_fh) if defined $archive_fh;
     die $err if $err && !$no_unpack_error;
