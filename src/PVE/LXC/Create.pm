@@ -73,6 +73,7 @@ sub restore_archive {
 	    '.gz'  => '-z',
 	    '.bz2' => '-j',
 	    '.xz'  => '-J',
+	    '.lzo'  => '--lzop',
 	);
 	if ($archive =~ /\.tar(\.[^.]+)?$/) {
 	    if (defined($1)) {
