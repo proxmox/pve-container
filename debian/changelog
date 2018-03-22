@@ -1,3 +1,21 @@
+pve-container (2.0-21) unstable; urgency=medium
+
+  * create: fix passing of template file descriptor
+
+  * restore: support i/o rate limiting
+
+  * fix #1704: get container uptime with /proc/<pid>/stat
+
+  * fix skiplock for pct start
+
+  * clone: randomize network MAC HW address of clone
+
+  * clone: implement target parameter
+
+  * implement full clone
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 22 Mar 2018 09:14:19 +0100
+
 pve-container (2.0-20) unstable; urgency=medium
 
   * Fix #1547: on migration abort, the CT starts again
