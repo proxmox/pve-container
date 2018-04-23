@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '18.04' => 1, # bionic
     '17.10' => 1, # artful
     '17.04' => 1, # zesty
     '16.10' => 1, # yakkety
