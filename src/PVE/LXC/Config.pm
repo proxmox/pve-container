@@ -925,6 +925,15 @@ sub update_pct_config {
 	    if !$storage_config->{content}->{rootdir};
     };
 
+    my $rescan_volume = sub {
+	my ($mp) = @_;
+	eval {
+	    $mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
+		if !defined($mp->{size});
+	};
+	warn "Could not rescan volume size - $@\n" if $@;
+    };
+
     foreach my $opt (keys %$param) {
 	my $value = $param->{$opt};
 	my $check_protection_msg = "can't update CT $vmid drive '$opt'";
@@ -977,8 +986,11 @@ sub update_pct_config {
 	    if ($mp->{type} eq 'volume') {
 		&$check_content_type($mp);
 		$used_volids->{$mp->{volume}} = 1;
+		&$rescan_volume($mp);
+		$conf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp);
+	    } else {
+		$conf->{$opt} = $value;
 	    }
-	    $conf->{$opt} = $value;
 	    if (defined($old)) {
 		my $mp = PVE::LXC::Config->parse_ct_mountpoint($old);
 		if ($mp->{type} eq 'volume') {
@@ -990,11 +1002,14 @@ sub update_pct_config {
 	    next if $hotplug_error->($opt);
 	    PVE::LXC::Config->check_protection($conf, $check_protection_msg);
 	    my $old = $conf->{$opt};
-	    $conf->{$opt} = $value;
 	    my $mp = PVE::LXC::Config->parse_ct_rootfs($value);
 	    if ($mp->{type} eq 'volume') {
 		&$check_content_type($mp);
 		$used_volids->{$mp->{volume}} = 1;
+		&$rescan_volume($mp);
+		$conf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp, 1);
+	    } else {
+		$conf->{$opt} = $value;
 	    }
 	    if (defined($old)) {
 		my $mp = PVE::LXC::Config->parse_ct_rootfs($old);
