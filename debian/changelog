@@ -1,3 +1,14 @@
+pve-container (1.0-106) unstable; urgency=medium
+
+  * fix #1618: do not double-encode the description
+
+  * fix #1704: get container uptime with /proc/<pid>/stat to avoid resets
+    from dropped caches
+
+  * add ubuntu 18.04 to known versions
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 30 Apr 2018 12:30:30 +0200
+
 pve-container (1.0-105) unstable; urgency=medium
 
   * use systemd-networkd for ubuntu >= 17.10
