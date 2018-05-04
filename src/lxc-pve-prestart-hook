@@ -94,6 +94,9 @@ __PACKAGE__->register_method ({
 	    push @$devices, $dev if $dev && $mountpoint->{quota};
 	};
 
+	# Unmount first when the user mounted the container with "pct mount".
+	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
+
 	PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
 
 	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
