@@ -95,7 +95,9 @@ __PACKAGE__->register_method ({
 	};
 
 	# Unmount first when the user mounted the container with "pct mount".
-	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
+	eval {
+	    PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
+	};
 
 	PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
 
