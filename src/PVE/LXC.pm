@@ -1679,6 +1679,8 @@ sub copy_volume {
     # (not-mounted) directory.
     my $new_volid;
     eval {
+	# Make sure $mp contains a correct size.
+	$mp->{size} = PVE::Storage::volume_size_info($storage_cfg, $mp->{volume});
 	my $needs_chown;
 	($new_volid, $needs_chown) = alloc_disk($storage_cfg, $vmid, $storage, $mp->{size}/1024, $rootuid, $rootgid);
 	if ($needs_chown) {
