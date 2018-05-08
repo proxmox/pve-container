@@ -1348,7 +1348,7 @@ sub alloc_disk {
 
     eval {
 	my $do_format = 0;
-	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs') {
+	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs' || $scfg->{type} eq 'cifs' ) {
 	    if ($size_kb > 0) {
 		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
 						   undef, $size_kb);
