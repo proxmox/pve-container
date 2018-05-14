@@ -1,3 +1,17 @@
+pve-container (2.0-23) unstable; urgency=medium
+
+  * rescan volume size when attaching unused volume
+
+  * support Fedora 28
+
+  * fix #1721: unmount containers before trying to mount them
+
+  * rescan volume zie when copying volume
+
+  * add cifs as allowed storage type
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 14 May 2018 11:09:39 +0200
+
 pve-container (2.0-22) unstable; urgency=medium
 
   * add Ubuntu 18.04 to known versions
