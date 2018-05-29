@@ -1326,6 +1326,7 @@ __PACKAGE__->register_method({
 		die "unable to create CT $newid: config file already exists\n"
 		    if -f $conffile;
 
+		my $sharedvm = 1;
 		foreach my $opt (keys %$src_conf) {
 		    next if $opt =~ m/^unused\d+$/;
 
@@ -1342,6 +1343,10 @@ __PACKAGE__->register_method({
 			    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 			    $sid = $storage if defined($storage);
 			    my $scfg = PVE::Storage::storage_config($storecfg, $sid);
+			    if (!$scfg->{shared}) {
+				$sharedvm = 0;
+				warn "found non-shared volume: $volid\n" if $target;
+			    }
 
 			    $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 
@@ -1373,6 +1378,8 @@ __PACKAGE__->register_method({
 			$newconf->{$opt} = $value;
 		    }
 		}
+		die "can't clone CT to node '$target' (CT uses local storage)\n"
+		    if $target && !$sharedvm;
 
 		# Replace the 'disk' lock with a 'create' lock.
 		$newconf->{lock} = 'create';
