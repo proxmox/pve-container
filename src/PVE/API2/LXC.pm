@@ -1168,13 +1168,13 @@ __PACKAGE__->register_method({
 
 	    my $realcmd = sub {
 		PVE::LXC::template_create($vmid, $conf);
+
+		$conf->{template} = 1;
+
+		PVE::LXC::Config->write_config($vmid, $conf);
+		# and remove lxc config
+		PVE::LXC::update_lxc_config($vmid, $conf);
 	    };
-
-	    $conf->{template} = 1;
-
-	    PVE::LXC::Config->write_config($vmid, $conf);
-	    # and remove lxc config
-	    PVE::LXC::update_lxc_config($vmid, $conf);
 
 	    return $rpcenv->fork_worker('vztemplate', $vmid, $authuser, $realcmd);
 	};
