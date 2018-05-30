@@ -869,17 +869,26 @@ sub template_create {
 
     my $storecfg = PVE::Storage::config();
 
-    my $rootinfo = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
-    my $volid = $rootinfo->{volume};
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
 
-    die "Template feature is not available for '$volid'\n"
-	if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
+	my $volid = $mountpoint->{volume};
 
-    PVE::Storage::activate_volumes($storecfg, [$volid]);
+	die "Template feature is not available for '$volid'\n"
+	    if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
+    });
 
-    my $template_volid = PVE::Storage::vdisk_create_base($storecfg, $volid);
-    $rootinfo->{volume} = $template_volid;
-    $conf->{rootfs} = PVE::LXC::Config->print_ct_mountpoint($rootinfo, 1);
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	my $volid = $mountpoint->{volume};
+
+	PVE::Storage::activate_volumes($storecfg, [$volid]);
+
+	my $template_volid = PVE::Storage::vdisk_create_base($storecfg, $volid);
+	$mountpoint->{volume} = $template_volid;
+	$conf->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq "rootfs");
+    });
 
     PVE::LXC::Config->write_config($vmid, $conf);
 }
