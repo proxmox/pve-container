@@ -1171,7 +1171,7 @@ __PACKAGE__->register_method({
 		my ($ms, $mp) = @_;
 
 		my ($sid) =PVE::Storage::parse_volume_id($mp->{volume}, 0);
-		die "Storage '$sid' does not support templates!\n"
+		die "Directory storage '$sid' does not support container templates!\n"
 		    if $scfg->{ids}->{$sid}->{path};
 	    });
 
