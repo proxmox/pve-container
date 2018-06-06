@@ -1166,6 +1166,15 @@ __PACKAGE__->register_method({
 	    die "you can't convert a CT to template if the CT is running\n"
 		if PVE::LXC::check_running($vmid);
 
+	    my $scfg = PVE::Storage::config();
+	    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+		my ($ms, $mp) = @_;
+
+		my ($sid) =PVE::Storage::parse_volume_id($mp->{volume}, 0);
+		die "Storage '$sid' does not support templates!\n"
+		    if $scfg->{ids}->{$sid}->{path};
+	    });
+
 	    my $realcmd = sub {
 		PVE::LXC::template_create($vmid, $conf);
 
