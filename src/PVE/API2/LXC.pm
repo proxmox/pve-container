@@ -167,6 +167,12 @@ __PACKAGE__->register_method({
 		type => 'number',
 		minimum => '0',
 	    },
+	    start => {
+		optional => 1,
+		type => 'boolean',
+		default => 0,
+		description => "Start the CT after its creation finished successfully.",
+	    },
 	}),
     },
     returns => {
@@ -186,6 +192,8 @@ __PACKAGE__->register_method({
 	my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
 
 	my $bwlimit = extract_param($param, 'bwlimit');
+
+	my $start_after_create = extract_param($param, 'start');
 
 	my $basecfg_fn = PVE::LXC::Config->config_file($vmid);
 
@@ -428,6 +436,9 @@ __PACKAGE__->register_method({
 		die $err;
 	    }
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
+
+	    PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node })
+		if $start_after_create;
 	};
 
 	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
