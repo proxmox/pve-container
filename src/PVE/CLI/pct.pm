@@ -661,6 +661,12 @@ __PACKAGE__->register_method ({
     code => sub {
 	my ($param) = @_;
 
+	my $cgv1 = PVE::LXC::get_cgroup_subsystems();
+	if (!$cgv1->{cpuset}) {
+	    print "cpuset cgroup not available\n";
+	    return undef;
+	}
+
 	my $ctlist = PVE::LXC::config_list();
 
 	my $len = 0;
