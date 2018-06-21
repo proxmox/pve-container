@@ -12,7 +12,16 @@ use PVE::LXC::Setup;
 sub test_file {
     my ($exp_fn, $real_fn) = @_;
 
-    return if system("diff -u '$exp_fn' '$real_fn'") == 0;
+    # replace @DAYS@ with the current correct value
+    if ($exp_fn =~ m/shadow.exp$/) {
+	my $expecteddays = int(time()/(60*60*24));
+	system ("sed -i.bak 's/\@DAYS\@/$expecteddays/' $exp_fn");
+	my $ret = system("diff -u '$exp_fn' '$real_fn'");
+	system("mv '$exp_fn.bak' '$exp_fn'");
+	return if $ret == 0;
+    } else {
+	return if system("diff -u '$exp_fn' '$real_fn'") == 0;
+    }
 
     die "files do not match\n";
 }

@@ -324,10 +324,6 @@ my $replacepw  = sub {
 
 	my $last_change = int(time()/(60*60*24));
 
-	if ($epw =~ m/^\$TEST\$/) { # for regression tests
-	    $last_change = 12345;
-	}
-	
 	while (defined (my $line = <$src>)) {
 	    if ($shadow) {
 		$line =~ s/^${user}:[^:]*:[^:]*:/${user}:${epw}:${last_change}:/;
