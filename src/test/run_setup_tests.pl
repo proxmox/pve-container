@@ -50,7 +50,7 @@ sub run_test {
 	# run tests twice, to make sure scripts are idempotent
 	
 	srand(0);
-	$lxc_setup->post_create_hook('$TEST$ABCDEF','ssh-rsa ABCDEFG ABC@DEF');
+	$lxc_setup->post_create_hook('$5$SALT$PASS','ssh-rsa ABCDEFG ABC@DEF');
 
 	my @testfiles = qw(/etc/hostname
 	                   /etc/hosts

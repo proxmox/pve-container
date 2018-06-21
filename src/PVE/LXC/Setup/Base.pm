@@ -354,7 +354,7 @@ sub set_user_password {
     my $shadow = "/etc/shadow";
     
     if (defined($opt_password)) {
-	if ($opt_password !~ m/^\$/) {
+	if ($opt_password !~ m/^\$(?:1|2[axy]?|5|6)\$[a-zA-Z0-9.\/]{1,16}\$[a-zA-Z0-9.\/]+$/) {
 	    my $time = substr (Digest::SHA::sha1_base64 (time), 0, 8);
 	    $opt_password = crypt(encode("utf8", $opt_password), "\$1\$$time\$");
 	};
