@@ -6,7 +6,6 @@ use warnings;
 use POSIX;
 use Fcntl;
 use File::Copy 'copy';
-use Term::ReadLine;
 
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
@@ -76,24 +75,17 @@ __PACKAGE__->register_method ({
 	return undef;
     }});
 
-sub read_password {
-    my $term = new Term::ReadLine ('pct');
-    my $attribs = $term->Attribs;
-    $attribs->{redisplay_function} = $attribs->{shadow_redisplay};
-    my $input = $term->readline('Enter password: ');
-    my $conf = $term->readline('Retype password: ');
-    die "Passwords do not match.\n" if ($input ne $conf);
-    return $input;
-}
-
-sub string_param_file_mapping {
+sub param_mapping {
     my ($name) = @_;
 
     my $mapping = {
-	'create_vm' => ['ssh-public-keys'],
+	'create_vm' => [
+	    PVE::CLIHandler::get_standard_mapping('pve-password'),
+	    'ssh-public-keys',
+	],
     };
 
-    return defined($mapping->{$name}) ? $mapping->{$name} : [];
+    return $mapping->{$name};
 }
 
 __PACKAGE__->register_method ({
