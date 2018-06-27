@@ -1,3 +1,17 @@
+pve-container (2.0-24) unstable; urgency=medium
+
+  * correctly handle extra mounpoints when creating a template
+
+  * fix #1786: check for shared storage on clone
+
+  * fix #1792: Do not assign vars in conditional statement
+
+  * fix #1778: check if storage support templates
+
+  * api create: allow auto start of container after create finished
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 27 Jun 2018 09:10:35 +0200
+
 pve-container (2.0-23) unstable; urgency=medium
 
   * rescan volume size when attaching unused volume
