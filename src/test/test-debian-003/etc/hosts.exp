@@ -1,5 +1,5 @@
 # --- BEGIN PVE ---
 127.0.0.1 localhost.localnet localhost
 ::1 localhost.localnet localhost
-127.0.1.1 test3
+127.0.1.1 test3.proxmox.com test3
 # --- END PVE ---

@@ -90,6 +90,8 @@ sub update_etc_hosts {
 
     if (defined($hostip)) {
 	$section .= "$hostip $all_names\n";
+    } elsif ($namepart ne 'localhost') {
+	$section .= "127.0.1.1 $all_names\n";
     } else {
 	$section .= "127.0.1.1 $namepart\n";
     }
