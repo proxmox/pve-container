@@ -5,7 +5,7 @@ use warnings;
 
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param run_command);
-use PVE::Exception qw(raise raise_param_exc);
+use PVE::Exception qw(raise raise_param_exc raise_perm_exc);
 use PVE::INotify;
 use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
