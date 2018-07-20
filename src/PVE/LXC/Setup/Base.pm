@@ -54,6 +54,9 @@ sub lookup_dns_conf {
 sub update_etc_hosts {
     my ($self, $hostip, $oldname, $newname, $searchdomains) = @_;
 
+    my $hosts_fn = '/etc/hosts';
+    return if $self->ct_is_file_ignored($hosts_fn);
+
     my $namepart = ($newname =~ s/\..*$//r);
 
     my $all_names = '';
@@ -70,7 +73,6 @@ sub update_etc_hosts {
 
     # Prepare section:
     my $section = '';
-    my $hosts_fn = '/etc/hosts';
 
     my $lo4 = "127.0.0.1 localhost.localnet localhost\n";
     my $lo6 = "::1 localhost.localnet localhost\n";
