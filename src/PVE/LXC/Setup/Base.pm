@@ -54,8 +54,6 @@ sub lookup_dns_conf {
 sub update_etc_hosts {
     my ($self, $hostip, $oldname, $newname, $searchdomains) = @_;
 
-    my $done = 0;
-
     my $namepart = ($newname =~ s/\..*$//r);
 
     my $all_names = '';

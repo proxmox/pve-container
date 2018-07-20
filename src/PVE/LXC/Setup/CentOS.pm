@@ -137,8 +137,6 @@ sub set_hostname {
 	}
     }
 
-    my $hosts_fn = "/etc/hosts";
-
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
     my $hostip = $ipv4 || $ipv6;
 
