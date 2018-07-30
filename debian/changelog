@@ -1,3 +1,13 @@
+pve-container (2.0-25) unstable; urgency=medium
+
+  * deal with disabled cgroup subsystems
+
+  * use systemd-networkd for newer Fedora containers
+
+  * fix #1844: check /etc/.pve-ignore.hosts early
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 30 Jul 2018 09:19:42 +0200
+
 pve-container (2.0-24) unstable; urgency=medium
 
   * correctly handle extra mounpoints when creating a template
