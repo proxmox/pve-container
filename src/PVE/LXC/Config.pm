@@ -1320,11 +1320,10 @@ sub get_replicatable_volumes {
     my $test_volid = sub {
 	my ($volid, $mountpoint) = @_;
 
-	my $replicate = $mountpoint->{replicate} // 1;
-
 	return if !$volid;
 
 	my $mptype = $mountpoint->{type};
+	my $replicate = $mountpoint->{replicate} // 1;
 
 	if ($mptype ne 'volume') {
 	    # skip bindmounts if replicate = 0 even for cleanup,
