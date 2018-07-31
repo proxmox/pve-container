@@ -1320,11 +1320,18 @@ sub get_replicatable_volumes {
     my $test_volid = sub {
 	my ($volid, $mountpoint) = @_;
 
+	my $replicate = $mountpoint->{replicate} // 1;
+
 	return if !$volid;
 
 	my $mptype = $mountpoint->{type};
-	die "unable to replicate mountpoint type '$mptype'\n"
-	    if $mptype ne 'volume';
+
+	if ($mptype ne 'volume') {
+	    # skip bindmounts if replicate = 0 even for cleanup,
+	    # since bind mounts could not have been replicated ever
+	    return if !$replicate;
+	    die "unable to replicate mountpoint type '$mptype'\n";
+	}
 
 	my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid, $noerr);
 	return if !$storeid;
@@ -1337,7 +1344,7 @@ sub get_replicatable_volumes {
 
 	die "unable to replicate volume '$volid', type '$vtype'\n" if $vtype ne 'images';
 
-	return if !$cleanup && defined($mountpoint->{replicate}) && !$mountpoint->{replicate};
+	return if !$cleanup && !$replicate;
 
 	if (!PVE::Storage::volume_has_feature($storecfg, 'replicate', $volid)) {
 	    return if $cleanup || $noerr;
