@@ -39,7 +39,27 @@ __PACKAGE__->register_method({
 	type => 'array',
 	items => {
 	    type => "object",
-	    properties => {},
+	    properties => {
+		name => {
+		    description => "Snapshot identifier. Value 'current' identifies the current VM.",
+		    type => 'string',
+		},
+		description => {
+		    description => "Snapshot description.",
+		    type => 'string',
+		},
+		snaptime => {
+		    description => "Snapshot creation time",
+		    type => 'integer',
+		    renderer => 'timestamp',
+		    optional => 1,
+		},
+		parent => {
+		    description => "Parent snapshot identifier.",
+		    type => 'string',
+		    optional => 1,
+		},
+	    },
 	},
 	links => [ { rel => 'child', href => "{name}" } ],
     },
@@ -66,7 +86,12 @@ __PACKAGE__->register_method({
 	}
 
 	my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
-	my $current = { name => 'current', digest => $conf->{digest}, running => $running };
+	my $current = {
+	    name => 'current',
+	    digest => $conf->{digest},
+	    running => $running,
+	    description => "You are here!",
+	};
 	$current->{parent} = $conf->{parent} if defined($conf->{parent});
 
 	push @$res, $current;
