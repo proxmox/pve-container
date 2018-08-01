@@ -14,6 +14,7 @@ use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::LXC::Create;
 use PVE::JSONSchema qw(get_standard_option);
 use base qw(PVE::RESTHandler);
@@ -38,12 +39,18 @@ __PACKAGE__->register_method({
     },
     returns => {
 	type => "object",
-	properties => {
+	properties => PVE::LXC::Config->json_config_properties({
+	    lxc => {
+		description => "Array of lxc low-level configurations ([[key1, value1], [key2, value2] ...]).",
+		type => 'array',
+		items => { type => 'array', items => { type => 'string' }},
+		optional => 1,
+	    },
 	    digest => {
 		type => 'string',
 		description => 'SHA1 digest of configuration file. This can be used to prevent concurrent modifications.',
 	    }
-	},
+	}),
     },
     code => sub {
 	my ($param) = @_;
