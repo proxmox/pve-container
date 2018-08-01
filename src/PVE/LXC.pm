@@ -18,6 +18,7 @@ use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
+use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH);
 use PVE::CpuSet;
 use PVE::Network;
@@ -25,6 +26,7 @@ use PVE::AccessControl;
 use PVE::ProcFSTools;
 use PVE::Syscall;
 use PVE::LXC::Config;
+
 use Time::HiRes qw (gettimeofday);
 
 my $nodename = PVE::INotify::nodename();
@@ -42,7 +44,7 @@ sub config_list {
 	my $d = $ids->{$vmid};
 	next if !$d->{node} || $d->{node} ne $nodename;
 	next if !$d->{type} || $d->{type} ne 'lxc';
-	$res->{$vmid}->{type} = 'lxc';
+	$res->{$vmid} = { type => 'lxc', vmid => $vmid };
     }
     return $res;
 }
@@ -115,10 +117,53 @@ my $parse_cpuacct_stat = sub {
     return $stat;
 };
 
+our $vmstatus_return_properties = {
+    vmid => get_standard_option('pve-vmid'),
+    status => {
+	description => "LXC Container status.",
+	type => 'string',
+	enum => ['stopped', 'running'],
+    },
+    maxmem => {
+	description => "Maximum memory in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    maxswap => {
+	description => "Maximum SWAP memory in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    maxdisk => {
+	description => "Root disk size in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    name => {
+	description => "Container name.",
+	type => 'string',
+	optional => 1,
+    },
+    uptime => {
+	description => "Uptime.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'duration',
+    },
+    cpus => {
+	description => "Maximum usable CPUs.",
+	type => 'number',
+	optional => 1,
+    },
+};
+
 sub vmstatus {
     my ($opt_vmid) = @_;
 
-    my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc' }} : config_list();
+    my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc', vmid => $opt_vmid }} : config_list();
 
     my $active_hash = list_active_containers();
 

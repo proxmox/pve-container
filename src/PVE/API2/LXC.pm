@@ -74,48 +74,7 @@ __PACKAGE__->register_method({
 	type => 'array',
 	items => {
 	    type => "object",
-	    properties => {
-		vmid => get_standard_option('pve-vmid'),
-		status => {
-		    description => "LXC Container status.",
-		    type => 'string',
-		    enum => ['stopped', 'running'],
-		},
-		maxmem => {
-		    description => "Maximum memory in bytes.",
-		    type => 'integer',
-		    optional => 1,
-		    renderer => 'bytes',
-		},
-		maxswap => {
-		    description => "Maximum SWAP memory in bytes.",
-		    type => 'integer',
-		    optional => 1,
-		    renderer => 'bytes',
-		},
-		maxdisk => {
-		    description => "Root disk size in bytes.",
-		    type => 'integer',
-		    optional => 1,
-		    renderer => 'bytes',
-		},
-		name => {
-		    description => "Container name.",
-		    type => 'string',
-		    optional => 1,
-		},
-		uptime => {
-		    description => "Uptime.",
-		    type => 'integer',
-		    optional => 1,
-		    renderer => 'duration',
-		},
-		cpus => {
-		    description => "Maximum usable CPUs.",
-		    type => 'number',
-		    optional => 1,
-		},
-	    },
+	    properties => $PVE::LXC::vmstatus_return_properties,
 	},
 	links => [ { rel => 'child', href => "{vmid}" } ],
     },
@@ -132,7 +91,6 @@ __PACKAGE__->register_method({
 	    next if !$rpcenv->check($authuser, "/vms/$vmid", [ 'VM.Audit' ], 1);
 
 	    my $data = $vmstatus->{$vmid};
-	    $data->{vmid} = $vmid;
 	    push @$res, $data;
 	}
 

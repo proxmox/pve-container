@@ -87,7 +87,16 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid'),
 	},
     },
-    returns => { type => 'object' },
+    returns => {
+	type => 'object',
+	properties => {
+	    %$PVE::LXC::vmstatus_return_properties,
+	    ha => {
+		description => "HA manager service status.",
+		type => 'object',
+	    },
+	},
+    },
     code => sub {
 	my ($param) = @_;
 
