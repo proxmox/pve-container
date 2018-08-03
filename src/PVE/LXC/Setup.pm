@@ -31,6 +31,7 @@ my $plugins = {
 my $plugin_alias = {
     arch => 'archlinux',
     sles => 'opensuse',
+    'opensuse-leap' => 'opensuse',
 };
 
 my $autodetect_type = sub {

@@ -25,6 +25,9 @@ sub new {
 	} elsif ($ostype eq 'sles' && $major == 12) {
 	    # OK - shares base with LEAP (42)
 	    $setup_ct_getty_service = 1;
+	} elsif ($major == 15) {
+	    # OK for SLES and openSUSE Leap, see: https://lwn.net/Articles/720924/
+	    $setup_ct_getty_service = 1;
 	} else {
 	    die "unsupported suse release '$version'\n";
 	}
