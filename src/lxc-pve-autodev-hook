@@ -29,6 +29,21 @@ if (! open $fd, '<', $devlist_file) {
     die "failed to open device list: $!\n";
 }
 
+sub cgroup_do_write($$) {
+    my ($path, $value) = @_;
+    my $fd;
+    if (!open($fd, '>', $path)) {
+	warn "failed to open cgroup file $path: $!\n";
+	return 0;
+    }
+    if (!defined syswrite($fd, $value)) {
+	warn "failed to write value $value to cgroup file $path: $!\n";
+	return 0;
+    }
+    close($fd);
+    return 1;
+}
+
 while (defined(my $line = <$fd>)) {
     if ($line !~ m@^(b):(\d+):(\d+):/dev/(\S+)\s*$@) {
 	warn "invalid .pve-devices entry: $line\n";
@@ -59,6 +74,16 @@ while (defined(my $line = <$fd>)) {
 	my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
 	chomp $mapped_name;
 	symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
+    }
+
+    my $cgbase = "/sys/fs/cgroup/devices/lxc/$vmid";
+    my $limitpath = "$cgbase/devices.allow";
+    my $nspath = "$cgbase/ns/devices.allow";
+    if (!cgroup_do_write($limitpath, "$type $major:$minor rwm")) {
+	warn "failed to allow access to device $dev ($major:$minor)\n";
+    }
+    if (!cgroup_do_write($nspath, "$type $major:$minor rwm")) {
+	warn "failed to allow access to device $dev ($major:$minor) inside the namespace\n";
     }
 }
 close $fd;
