@@ -1,3 +1,17 @@
+pve-container (2.0-26) unstable; urgency=medium
+
+  * fix #1851: check 'replicate' flag for non-volume mountpoints
+
+  * document more API return properties
+
+  * use SHA-512 for container passwords
+
+  * add support for openSUSE Leap 15.0
+
+  * add fqdn to /etc/hosts even with no ip
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 23 Aug 2018 13:56:46 +0200
+
 pve-container (2.0-25) unstable; urgency=medium
 
   * deal with disabled cgroup subsystems
