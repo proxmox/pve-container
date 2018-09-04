@@ -791,9 +791,10 @@ sub update_ipconfig {
 	my $newip = $newnet->{$ip};
 	my $newgw = $newnet->{$gw};
 	my $oldip = $optdata->{$ip};
+	my $oldgw = $optdata->{$gw};
 
 	my $change_ip = &$safe_string_ne($oldip, $newip);
-	my $change_gw = &$safe_string_ne($optdata->{$gw}, $newgw);
+	my $change_gw = &$safe_string_ne($oldgw, $newgw);
 
 	return if !$change_ip && !$change_gw;
 
@@ -834,6 +835,11 @@ sub update_ipconfig {
 		eval { &$ipcmd($family_opt, 'route', 'del', 'default'); };
 		# if the route was not deleted, the guest might have deleted it manually
 		# warn and continue
+		warn $@ if $@;
+	    }
+	    if ($oldgw && $oldip && !PVE::Network::is_ip_in_cidr($oldgw, $oldip)) {
+		eval { &$ipcmd($family_opt, 'route', 'del', $oldgw, 'dev', $eth); };
+		# warn if the route was deleted manually
 		warn $@ if $@;
 	    }
 	}
