@@ -10,6 +10,7 @@ Build-Depends: debhelper (>= 7.0.50~),
                lxc (>= 2.1.0-1) | lxc-pve (>= 2.1.0-1),
                pve-cluster (>= 4.0-8),
                pve-doc-generator,
+               pve-firewall,
 Standards-Version: 3.8.4
 
 Package: pve-container
