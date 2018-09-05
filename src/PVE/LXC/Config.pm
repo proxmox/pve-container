@@ -16,7 +16,7 @@ my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
 mkdir $lockdir;
 mkdir "/etc/pve/nodes/$nodename/lxc";
-my $MAX_MOUNT_POINTS = 10;
+my $MAX_MOUNT_POINTS = 256;
 my $MAX_UNUSED_DISKS = $MAX_MOUNT_POINTS;
 
 # BEGIN implemented abstract methods from PVE::AbstractConfig
@@ -1268,9 +1268,9 @@ sub mountpoint_names {
 sub foreach_mountpoint_full {
     my ($class, $conf, $reverse, $func, @param) = @_;
 
-    foreach my $key ($class->mountpoint_names($reverse)) {
+    my $mps = [ grep { defined($conf->{$_}) } $class->mountpoint_names($reverse) ];
+    foreach my $key (@$mps) {
 	my $value = $conf->{$key};
-	next if !defined($value);
 	my $mountpoint = $key eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);
 	next if !defined($mountpoint);
 
