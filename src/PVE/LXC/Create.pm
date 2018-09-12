@@ -17,9 +17,13 @@ use POSIX;
 sub detect_architecture {
     my ($rootdir) = @_;
 
-    my $supported_elf_class = {
-	1 => 'i386',
-	2 => 'amd64',
+    # see https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+
+    my $supported_elf_machine = {
+	0x03 => 'i386',
+	0x3e => 'amd64',
+	0x28 => 'armhf',
+	0xb7 => 'arm64',
     };
 
     my $elf_fn = '/bin/sh'; # '/bin/sh' is POSIX mandatory
@@ -32,18 +36,19 @@ sub detect_architecture {
 	open(my $fh, "<", $elf_fn) or die "open '$elf_fn' failed: $!\n";
 	binmode($fh);
 
-	my $length = read($fh, my $data, 5) or die "read failed: $!\n";
+	my $length = read($fh, my $data, 20) or die "read failed: $!\n";
 
-	# 4 bytes ELF magic number and 1 byte ELF class
-	my ($magic, $class) = unpack("A4C", $data);
+	# 4 bytes ELF magic number and 1 byte ELF class, padding, machine
+	my ($magic, $class, undef, $machine) = unpack("A4CA12n", $data);
 
 	die "'$elf_fn' does not resolve to an ELF!\n"
 	    if (!defined($class) || !defined($magic) || $magic ne "\177ELF");
 
-	die "'$elf_fn' has unknown ELF class '$class'!\n"
-	    if !defined($supported_elf_class->{$class});
+	my $arch = $supported_elf_machine->{$machine};
+	die "'$elf_fn' has unknown ELF machine '$machine'!\n"
+	    if !defined($arch);
 
-	return $supported_elf_class->{$class};
+	return $arch;
     };
 
     my $arch = eval { PVE::Tools::run_fork_with_timeout(5, $detect_arch) };
