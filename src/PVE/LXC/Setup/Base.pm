@@ -242,6 +242,7 @@ DATA
 	my @DHCPMODES = ('none', 'v4', 'v6', 'both');
 	my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
 	my $dhcp = $NONE;
+	my $accept_ra = 'false';
 
 	if (defined(my $ip = $d->{ip})) {
 	    if ($ip eq 'dhcp') {
@@ -261,12 +262,15 @@ DATA
 	if (defined(my $ip = $d->{ip6})) {
 	    if ($ip eq 'dhcp') {
 		$dhcp |= $DHCP6;
+	    } elsif ($ip eq 'auto') {
+		$accept_ra = 'true';
 	    } elsif ($ip ne 'manual') {
 		$has_ipv6 = 1;
 		$data .= "Address = $ip\n";
 	    }
 	}
 	if (defined(my $gw = $d->{gw6})) {
+	    $accept_ra = 'false';
 	    $data .= "Gateway = $gw\n";
 	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6) &&
 		!PVE::Network::is_ip_in_cidr($gw, 'fe80::/10', 6)) {
@@ -275,6 +279,7 @@ DATA
 	}
 
 	$data .= "DHCP = $DHCPMODES[$dhcp]\n";
+	$data .= "IPv6AcceptRA = $accept_ra\n";
 	$data .= $routes if $routes;
 
 	$self->ct_file_set_contents($filename, $data);
