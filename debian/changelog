@@ -1,3 +1,15 @@
+pve-container (2.0-27) unstable; urgency=medium
+
+  * fix #1885: delete old route when changing gateway
+
+  * fix #1874: autodev hook: setup devices cgroup
+
+  * fix #1897: bump MAX_MOUNT_POINTS to 256
+
+  * config: add missing lock types to schema
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 13 Sep 2018 11:19:19 +0200
+
 pve-container (2.0-26) unstable; urgency=medium
 
   * fix #1851: check 'replicate' flag for non-volume mountpoints
