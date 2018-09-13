@@ -20,7 +20,7 @@ Architecture: all
 Depends: file,
          libpve-common-perl (>= 5.0-35),
          libpve-guest-common-perl,
-         libpve-storage-perl (>= 5.0-18),
+         libpve-storage-perl (>= 5.0-27),
          lxc-pve,
          pve-cluster (>= 4.0-8),
          pve-ha-manager,
