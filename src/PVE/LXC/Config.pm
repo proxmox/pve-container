@@ -169,7 +169,7 @@ sub __snapshot_rollback_vm_stop {
 }
 
 sub __snapshot_rollback_vm_start {
-    my ($class, $vmid, $vmstate, $forcemachine);
+    my ($class, $vmid, $vmstate, $data);
 
     die "implement me - save vmstate\n";
 }
