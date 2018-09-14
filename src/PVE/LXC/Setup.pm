@@ -280,12 +280,52 @@ sub rewrite_ssh_host_keys {
     $self->protected_call($code);
 }    
 
+my $get_host_arch = sub {
+
+    my @uname = POSIX::uname();
+    my $machine = $uname[4];
+
+    if ($machine eq 'x86_64') {
+	return 'amd64';
+    } elsif ($machine eq 'aarch64') {
+	return 'arm64';
+    } else {
+	die "unsupported host architecture '$machine'\n";
+    }
+};
+
+my $container_emulator_path = {
+    'amd64' => '/usr/bin/qemu-x86_64-static',
+    'arm64' => '/usr/bin/qemu-aarch64-static',
+};
+
 sub pre_start_hook {
     my ($self) = @_;
 
     return if !$self->{plugin}; # unmanaged
 
+    my $host_arch = $get_host_arch->();
+
+    my $container_arch = $self->{conf}->{arch};
+
+    $container_arch = 'amd64' if $container_arch eq 'i386'; # always use 64 bit version
+    $container_arch = 'arm64' if $container_arch eq 'armhf'; # always use 64 bit version
+
+    my $emul;
+    my $emul_data;
+
+    if ($host_arch ne $container_arch) {
+	if ($emul = $container_emulator_path->{$container_arch}) {
+	    $emul_data = PVE::Tools::file_get_contents($emul, 10*1024*1024) if -f $emul;
+	}
+    }
+
     my $code = sub {
+
+	if ($emul && $emul_data) {
+	    $self->{plugin}->ct_file_set_contents($emul, $emul_data, 0755);
+	}
+
 	# Create /fastboot to skip run fsck
 	$self->{plugin}->ct_file_set_contents('/fastboot', '');
 
