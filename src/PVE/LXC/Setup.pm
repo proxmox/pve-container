@@ -280,20 +280,6 @@ sub rewrite_ssh_host_keys {
     $self->protected_call($code);
 }    
 
-my $get_host_arch = sub {
-
-    my @uname = POSIX::uname();
-    my $machine = $uname[4];
-
-    if ($machine eq 'x86_64') {
-	return 'amd64';
-    } elsif ($machine eq 'aarch64') {
-	return 'arm64';
-    } else {
-	die "unsupported host architecture '$machine'\n";
-    }
-};
-
 my $container_emulator_path = {
     'amd64' => '/usr/bin/qemu-x86_64-static',
     'arm64' => '/usr/bin/qemu-aarch64-static',
@@ -304,7 +290,7 @@ sub pre_start_hook {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $host_arch = $get_host_arch->();
+    my $host_arch = PVE::Tools::get_host_arch();
 
     my $container_arch = $self->{conf}->{arch};
 
