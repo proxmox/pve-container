@@ -272,6 +272,41 @@ PVE::JSONSchema::register_standard_option('pve-lxc-snapshot-name', {
     maxLength => 40,
 });
 
+my $features_desc = {
+    mount => {
+	optional => 1,
+	type => 'string',
+	description => "Allow mounting file systems of specific types."
+	    ." This should be a list of file system types as used with the mount command."
+	    ." Note that this can have negative effects on the container's security."
+	    ." With access to a loop device, mounting a file can circumvent the mknod"
+	    ." permission of the devices cgroup, mounting an NFS file system can"
+	    ." block the host's I/O completely and prevent it from rebooting, etc.",
+	format_description => 'fstype;fstype;...',
+	pattern => qr/[a-zA-Z0-9; ]+/,
+    },
+    nesting => {
+	optional => 1,
+	type => 'boolean',
+	default => 0,
+	description => "Allow nesting."
+	    ." Best used with unprivileged containers with additional id mapping."
+	    ." Note that this will expose procfs and sysfs contents of the host"
+	    ." to the guest.",
+    },
+    keyctl => {
+	optional => 1,
+	type => 'boolean',
+	default => 0,
+	description => "For unprivileged containers only: Allow the use of the keyctl() system call."
+	    ." This is required to use docker inside a container."
+	    ." By default unprivileged containers will see this system call as non-existent."
+	    ." This is mostly a workaround for systemd-networkd, as it will treat it as a fatal"
+	    ." error when some keyctl() operations are denied by the kernel due to lacking permissions."
+	    ." Essentially, you can choose between running systemd-networkd or docker.",
+    },
+};
+
 my $confdesc = {
     lock => {
 	optional => 1,
@@ -408,6 +443,12 @@ my $confdesc = {
 	type => 'boolean',
 	description => "Makes the container run as unprivileged user. (Should not be modified manually.)",
 	default => 0,
+    },
+    features => {
+	optional => 1,
+	type => 'string',
+	format => $features_desc,
+	description => "Allow containers access to advanced features.",
     },
 };
 
@@ -872,6 +913,9 @@ sub update_pct_config {
 		}
 	    } elsif ($opt eq 'unprivileged') {
 		die "unable to delete read-only option: '$opt'\n";
+	    } elsif ($opt eq 'features') {
+		next if $hotplug_error->($opt);
+		delete $conf->{$opt};
 	    } else {
 		die "implement me (delete: $opt)"
 	    }
@@ -1025,6 +1069,9 @@ sub update_pct_config {
 	} elsif ($opt eq 'ostype') {
 	    next if $hotplug_error->($opt);
 	    $conf->{$opt} = $value;
+	} elsif ($opt eq 'features') {
+	    next if $hotplug_error->($opt);
+	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";
 	}
@@ -1174,6 +1221,12 @@ sub parse_lxc_network {
     }
 
     return $res;
+}
+
+sub parse_features {
+    my ($class, $data) = @_;
+    return {} if !$data;
+    return PVE::JSONSchema::parse_property_string($features_desc, $data);
 }
 
 sub option_exists {

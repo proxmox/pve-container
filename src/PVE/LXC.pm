@@ -29,6 +29,8 @@ use PVE::LXC::Config;
 
 use Time::HiRes qw (gettimeofday);
 
+my $LXC_CONFIG_PATH = '/usr/share/lxc/config';
+
 my $nodename = PVE::INotify::nodename();
 
 my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
@@ -413,6 +415,94 @@ sub get_cgroup_subsystems {
 	return wantarray ? ($v1, $v2) : $v1;
 }
 
+# Currently we do not need to create seccomp profile 'files' as the only
+# choice our configuration actually allows is "with or without keyctl()",
+# so we distinguish between using lxc's "default" seccomp profile and our
+# added pve-userns.seccomp file.
+#
+# This returns a configuration line added to the raw lxc config.
+sub make_seccomp_config {
+    my ($conf, $unprivileged, $features) = @_;
+    # User-configured profile has precedence, note that the user's entry would
+    # be written 'after' this line anyway...
+    if (PVE::LXC::Config->has_lxc_entry($conf, 'lxc.seccomp.profile')) {
+	# Warn the user if this conflicts with a feature:
+	if ($features->{keyctl}) {
+	    warn "explicitly configured lxc.seccomp.profile overrides the following settings: features:keyctl\n";
+	}
+	return '';
+    }
+
+    # Privileged containers keep using the default (which is already part of
+    # the files included via lxc.include, so we don't need to write it out,
+    # that way it stays admin-configurable via /usr/share/lxc/config/... as
+    # well)
+    return '' if !$unprivileged;
+
+    # Unprivileged containers will get keyctl() disabled by default as a
+    # workaround for systemd-networkd behavior. But we have an option to
+    # explicitly enable it:
+    return '' if $features->{keyctl};
+
+    # Finally we're in an unprivileged container without `keyctl` set
+    # explicitly. We have a file prepared for this:
+    return "lxc.seccomp.profile = $LXC_CONFIG_PATH/pve-userns.seccomp\n";
+}
+
+# Since lxc-3.0.2 we can have lxc generate a profile for the container
+# automatically. The default should be equivalent to the old
+# `lxc-container-default-cgns` profile.
+#
+# Additionally this also added `lxc.apparmor.raw` which can be used to inject
+# additional lines into the profile. We can use that to allow mounting specific
+# file systems.
+sub make_apparmor_config {
+    my ($conf, $unprivileged, $features) = @_;
+
+    # user-configured profile has precedence, but first we go through our own
+    # code to figure out whether we should warn the user:
+
+    my $raw = "lxc.apparmor.profile = generated\n";
+    my @profile_uses;
+
+    # There's lxc.apparmor.allow_nesting now, which will add the necessary
+    # apparmor lines, create an apparmor namespace for the container, but also
+    # adds proc and sysfs mounts to /dev/.lxc/{proc,sys}. These do not have
+    # lxcfs mounted over them, because that would prevent the container from
+    # mounting new instances of them for nested containers.
+    if ($features->{nesting}) {
+	push @profile_uses, 'features:nesting';
+	$raw .= "lxc.apparmor.allow_nesting = 1\n"
+    } else {
+	# In the default profile in /etc/apparmor.d we patch this in because
+	# otherwise a container can for example run `chown` on /sys, breaking
+	# access to it for non-CAP_DAC_OVERRIDE tools on the host:
+	$raw .= "lxc.apparmor.raw = deny mount -> /proc/,\n";
+	$raw .= "lxc.apparmor.raw = deny mount -> /sys/,\n";
+	# Preferably we could use the 'remount' flag but this does not sit well
+	# with apparmor_parser currently:
+	#  mount options=(rw, nosuid, nodev, noexec, remount) -> /sys/,
+    }
+
+    if (my $mount = $features->{mount}) {
+	push @profile_uses, 'features:mount';
+	foreach my $fs (PVE::Tools::split_list($mount)) {
+	    $raw .= "lxc.apparmor.raw = mount fstype=$fs,\n";
+	}
+    }
+
+    # More to come?
+
+    if (PVE::LXC::Config->has_lxc_entry($conf, 'lxc.apparmor.profile')) {
+	if (length(my $used = join(', ', @profile_uses))) {
+	    warn "explicitly configured lxc.apparmor.profile overrides the following settings: $used\n";
+	}
+	return '';
+    }
+
+    return $raw;
+}
+
 sub update_lxc_config {
     my ($vmid, $conf) = @_;
 
@@ -430,8 +520,8 @@ sub update_lxc_config {
     die "missing 'arch' - internal error" if !$conf->{arch};
     $raw .= "lxc.arch = $conf->{arch}\n";
 
-    my $unprivileged = $conf->{unprivileged};
-    my $custom_idmap = grep { $_->[0] eq 'lxc.idmap' } @{$conf->{lxc}};
+    my $custom_idmap = PVE::LXC::Config->has_lxc_entry($conf, 'lxc.idmap');
+    my $unprivileged = $conf->{unprivileged} || $custom_idmap;
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
 
@@ -439,12 +529,16 @@ sub update_lxc_config {
     my $inc = "$cfgpath/$ostype.common.conf";
     $inc ="$cfgpath/common.conf" if !-f $inc;
     $raw .= "lxc.include = $inc\n";
-    if ($unprivileged || $custom_idmap) {
+    if ($unprivileged) {
 	$inc = "$cfgpath/$ostype.userns.conf";
 	$inc = "$cfgpath/userns.conf" if !-f $inc;
 	$raw .= "lxc.include = $inc\n";
-	$raw .= "lxc.seccomp.profile = $cfgpath/pve-userns.seccomp\n";
     }
+
+    my $features = PVE::LXC::Config->parse_features($conf->{features});
+
+    $raw .= make_seccomp_config($conf, $unprivileged, $features);
+    $raw .= make_apparmor_config($conf, $unprivileged, $features);
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
     # cannot be exposed to the container with r/w access (cgroup perms).
@@ -1001,6 +1095,9 @@ sub check_ct_modify_config_perm {
 	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
 		 $opt eq 'searchdomain' || $opt eq 'hostname') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
+	} elsif ($opt eq 'features') {
+	    # For now this is restricted to root@pam
+	    raise_perm_exc("changing feature flags is only allowed for root\@pam");
 	} else {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
 	}
