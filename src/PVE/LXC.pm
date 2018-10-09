@@ -665,7 +665,7 @@ sub verify_searchdomain_list {
 
 sub get_console_command {
     my ($vmid, $conf, $escapechar) = @_;
-    
+
     # '-1' as $escapechar disables keyboard escape sequence
     # any other passed char (a-z) will result in <Ctrl+$escapechar q>
 
