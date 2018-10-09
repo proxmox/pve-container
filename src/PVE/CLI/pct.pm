@@ -119,6 +119,13 @@ __PACKAGE__->register_method ({
     	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
+	    escape => {
+		description => "Escape sequence prefix. For example to use <Ctrl+b q> as the escape sequence pass '^b'.",
+		default =>  '^a',
+		type => 'string',
+		pattern => '\^?[a-z]',
+		optional => 1,
+	    },
 	},
     },
     returns => { type => 'null' },
@@ -129,7 +136,7 @@ __PACKAGE__->register_method ({
 	# test if container exists on this node
 	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
-	my $cmd = PVE::LXC::get_console_command($param->{vmid}, $conf);
+	my $cmd = PVE::LXC::get_console_command($param->{vmid}, $conf, $param->{escape});
 	exec(@$cmd);
     }});
 

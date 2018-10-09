@@ -664,17 +664,20 @@ sub verify_searchdomain_list {
 }
 
 sub get_console_command {
-    my ($vmid, $conf, $noescapechar) = @_;
+    my ($vmid, $conf, $escapechar) = @_;
+    
+    # '-1' as $escapechar disables keyboard escape sequence
+    # any other passed char (a-z) will result in <Ctrl+$escapechar q>
 
     my $cmode = PVE::LXC::Config->get_cmode($conf);
 
     my $cmd = [];
     if ($cmode eq 'console') {
 	push @$cmd, 'lxc-console', '-n',  $vmid, '-t', 0;
-	push @$cmd, '-e', -1 if $noescapechar;
+	push @$cmd, '-e', $escapechar if $escapechar;
     } elsif ($cmode eq 'tty') {
 	push @$cmd, 'lxc-console', '-n',  $vmid;
-	push @$cmd, '-e', -1 if $noescapechar;
+	push @$cmd, '-e', $escapechar if $escapechar;
     } elsif ($cmode eq 'shell') {
 	push @$cmd, 'lxc-attach', '--clear-env', '-n', $vmid;
     } else {
