@@ -1,3 +1,11 @@
+pve-container (2.0-29) unstable; urgency=medium
+
+  * add Ubuntu 18.10 (Cosmic Cuttlefish) support
+
+  * close #1940: pct console: added ability to specify escape sequence
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 22 Oct 2018 10:24:35 +0200
+
 pve-container (2.0-28) unstable; urgency=medium
 
   * configure IPv6AcceptRA in systemd-networkd files
