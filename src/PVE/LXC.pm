@@ -1200,7 +1200,7 @@ sub query_loopdev {
 # The loop device is always detached afterwards (or set to autoclear).
 # Returns the loop device.
 sub run_with_loopdev {
-    my ($func, $file) = @_;
+    my ($func, $file, $readonly) = @_;
     my $device = query_loopdev($file);
     # Try to reuse an existing device
     if ($device) {
@@ -1216,7 +1216,14 @@ sub run_with_loopdev {
 	    $device = $1;
 	}
     };
-    PVE::Tools::run_command(['losetup', '--show', '-f', $file], outfunc => $parser);
+    my $losetup_cmd = [
+	'losetup',
+	'--show',
+	'-f',
+	$file,
+    ];
+    push @$losetup_cmd, '-r' if $readonly;
+    PVE::Tools::run_command($losetup_cmd, outfunc => $parser);
     die "failed to setup loop device for $file\n" if !$device;
     eval { &$func($device); };
     my $err = $@;
@@ -1462,7 +1469,7 @@ sub mountpoint_mount {
 	    };
 	    my $use_loopdev = 0;
 	    if ($scfg->{path}) {
-		$mounted_dev = run_with_loopdev($domount, $path);
+		$mounted_dev = run_with_loopdev($domount, $path, $readonly);
 		$use_loopdev = 1;
 	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' ||
 		     $scfg->{type} eq 'rbd' || $scfg->{type} eq 'lvmthin') {
@@ -1825,10 +1832,10 @@ sub run_unshared {
 my $copy_volume = sub {
     my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname) = @_;
 
-    my $src_mp = { volume => $src_volid, mp => '/' };
+    my $src_mp = { volume => $src_volid, mp => '/', ro => 1 };
     $src_mp->{type} = PVE::LXC::Config->classify_mountpoint($src_volid);
 
-    my $dst_mp = { volume => $dst_volid, mp => '/' };
+    my $dst_mp = { volume => $dst_volid, mp => '/', ro => 0 };
     $dst_mp->{type} = PVE::LXC::Config->classify_mountpoint($dst_volid);
 
     my @mounted;
