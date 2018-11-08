@@ -1409,12 +1409,9 @@ sub mountpoint_mount {
 
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
 
-	# early sanity checks:
-	# we otherwise call realpath on the rbd url
-	die "containers on rbd storage without krbd are not supported\n"
-	    if $scfg->{type} eq 'rbd' && !$scfg->{krbd};
+	my $path = PVE::Storage::map_volume($storage_cfg, $volid, $snapname);
 
-	my $path = PVE::Storage::path($storage_cfg, $volid, $snapname);
+	$path = PVE::Storage::path($storage_cfg, $volid, $snapname) if !defined($path);
 
 	my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	    PVE::Storage::parse_volname($storage_cfg, $volid);
@@ -1521,7 +1518,9 @@ sub format_disk {
 
     PVE::Storage::activate_volumes($storage_cfg, [$volid]);
 
-    my $path = PVE::Storage::path($storage_cfg, $volid);
+    my $path = PVE::Storage::map_volume($storage_cfg, $volid);
+
+    $path = PVE::Storage::path($storage_cfg, $volid) if !defined($path);
 
     my ($vtype, undef, undef, undef, undef, $isBase, $format) =
 	PVE::Storage::parse_volname($storage_cfg, $volid);
@@ -1574,7 +1573,6 @@ sub alloc_disk {
 
 	} elsif ($scfg->{type} eq 'rbd') {
 
-	    die "krbd option must be enabled on storage type '$scfg->{type}'\n" if !$scfg->{krbd};
 	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 	    $do_format = 1;
 	} else {
