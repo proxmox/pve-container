@@ -1,3 +1,13 @@
+pve-container (2.0-30) unstable; urgency=medium
+
+  * fix #1808: readonly mount source disk
+
+  * support Fedora 29
+
+  * call map_volume before using volumes
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 09 Nov 2018 17:33:43 +0100
+
 pve-container (2.0-29) unstable; urgency=medium
 
   * add Ubuntu 18.10 (Cosmic Cuttlefish) support
