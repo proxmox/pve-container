@@ -11,7 +11,7 @@ sub new {
     my ($class, $conf, $rootdir, $os_release) = @_;
 
     my $version = $os_release->{VERSION_ID};
-    die "unsupported fedora release\n" if !($version >= 22 && $version <= 28);
+    die "unsupported fedora release\n" if !($version >= 22 && $version <= 29);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
