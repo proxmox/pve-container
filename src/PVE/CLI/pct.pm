@@ -468,6 +468,39 @@ sub create_file {
     return $fd;
 }
 
+__PACKAGE__->register_method ({
+    name => 'rescan',
+    path => 'rescan',
+    method => 'POST',
+    description => "Rescan all storages and update disk sizes and unused disk images.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', {
+		optional => 1,
+		completion => \&PVE::LXC::complete_ctid,
+	    }),
+	    dryrun => {
+		type => 'boolean',
+		optional => 1,
+		default => 0,
+		description => 'Do not actually write changes out to conifg.',
+	    },
+	},
+    },
+    returns => { type => 'null'},
+    code => sub {
+	my ($param) = @_;
+
+	my $dryrun = $param->{dryrun};
+
+	print "NOTE: running in dry-run mode, won't write changes out!\n" if $dryrun;
+
+	PVE::LXC::rescan($param->{vmid}, 0, $dryrun);
+
+	return undef;
+    }});
+
 __PACKAGE__->register_method({
     name => 'pull',
     path => 'pull',
@@ -781,6 +814,7 @@ our $cmddef = {
     pull => [ __PACKAGE__, 'pull', ['vmid', 'path', 'destination']],
 
     df => [ __PACKAGE__, 'df', ['vmid']],
+    rescan  => [ __PACKAGE__, 'rescan', []],
 
     destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
 		 { node => $nodename }, $upid_exit ],

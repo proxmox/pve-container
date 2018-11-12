@@ -1643,6 +1643,150 @@ sub create_disks {
     return $vollist;
 }
 
+sub update_disksize {
+    my ($vmid, $conf, $all_volumes) = @_;
+
+    my $changes;
+    my $prefix = "CT $vmid:";
+
+    my $update_mp = sub {
+	my ($key, $mp, @param) = @_;
+	my $size = $all_volumes->{$mp->{volume}}->{size} // 0;
+
+	if (!defined($mp->{size}) || $size != $mp->{size}) {
+	    $changes = 1;
+	    print "$prefix updated volume size of '$mp->{volume}' in config.\n";
+	    $mp->{size} = $size;
+	    my $nomp = 1 if ($key eq 'rootfs');
+	    $conf->{$key} = PVE::LXC::Config->print_ct_mountpoint($mp, $nomp);
+	}
+    };
+
+    PVE::LXC::Config->foreach_mountpoint($conf, $update_mp);
+
+    return $changes;
+}
+
+sub update_unused {
+    my ($vmid, $conf, $all_volumes) = @_;
+
+    my $changes;
+    my $prefix = "CT $vmid:";
+
+    # Note: it is allowed to define multiple storage entries with the same path
+    # (alias), so we need to check both 'volid' and real 'path' (two different
+    # volid can point to the same path).
+
+    # used and unused disks
+    my $refpath = {};
+    my $orphans = {};
+
+    foreach my $opt (keys %$conf) {
+	next if ($opt !~ m/^unused\d+$/);
+	my $vol = $all_volumes->{$conf->{$opt}};
+	$refpath->{$vol->{path}} = $vol->{volid};
+    }
+
+    foreach my $key (keys %$all_volumes) {
+	my $vol = $all_volumes->{$key};
+	my $in_use = PVE::LXC::Config->is_volume_in_use($conf, $vol->{volid});
+	my $path = $vol->{path};
+
+	if ($in_use) {
+	    $refpath->{$path} = $key;
+	    delete $orphans->{$path};
+	} else {
+	    if ((!$orphans->{$path}) && (!$refpath->{$path})) {
+	        $orphans->{$path} = $key;
+	    }
+	}
+    }
+
+    for my $key (keys %$orphans) {
+	my $disk = $orphans->{$key};
+	my $unused = PVE::LXC::Config->add_unused_volume($conf, $disk);
+
+	if ($unused) {
+	    $changes = 1;
+	    print "$prefix add unreferenced volume '$disk' as '$unused' to config.\n";
+	}
+    }
+
+    return $changes;
+}
+
+sub scan_volids {
+    my ($cfg, $vmid) = @_;
+
+    my $info = PVE::Storage::vdisk_list($cfg, undef, $vmid);
+
+    my $all_volumes = {};
+    foreach my $storeid (keys %$info) {
+	foreach my $item (@{$info->{$storeid}}) {
+	    my $volid = $item->{volid};
+	    next if !($volid && $item->{size});
+	    $item->{path} = PVE::Storage::path($cfg, $volid);
+	    $all_volumes->{$volid} = $item;
+	}
+    }
+
+    return $all_volumes;
+}
+
+sub rescan {
+    my ($vmid, $nolock, $dryrun) = @_;
+
+    my $cfg = PVE::Storage::config();
+
+    # FIXME: Remove once our RBD plugin can handle CT and VM on a single storage
+    # see: https://pve.proxmox.com/pipermail/pve-devel/2018-July/032900.html
+    foreach my $stor (keys %{$cfg->{ids}}) {
+	delete($cfg->{ids}->{$stor}) if !$cfg->{ids}->{$stor}->{content}->{rootdir};
+    }
+
+    print "rescan volumes...\n";
+    my $all_volumes = scan_volids($cfg, $vmid);
+
+    my $updatefn =  sub {
+	my ($vmid) = @_;
+
+	my $changes;
+	my $conf = PVE::LXC::Config->load_config($vmid);
+
+	PVE::LXC::Config->check_lock($conf);
+
+	my $vm_volids = {};
+	foreach my $volid (keys %$all_volumes) {
+	    my $info = $all_volumes->{$volid};
+	    $vm_volids->{$volid} = $info if $info->{vmid} == $vmid;
+	}
+
+	my $upu = update_unused($vmid, $conf, $vm_volids);
+	my $upd = update_disksize($vmid, $conf, $vm_volids);
+	$changes = $upu || $upd;
+
+	PVE::LXC::Config->write_config($vmid, $conf) if $changes && !$dryrun;
+    };
+
+    if (defined($vmid)) {
+	if ($nolock) {
+	    &$updatefn($vmid);
+	} else {
+	    PVE::LXC::Config->lock_config($vmid, $updatefn, $vmid);
+	}
+    } else {
+	my $vmlist = config_list();
+	foreach my $vmid (keys %$vmlist) {
+	    if ($nolock) {
+		&$updatefn($vmid);
+	    } else {
+		PVE::LXC::Config->lock_config($vmid, $updatefn, $vmid);
+	    }
+	}
+    }
+}
+
+
 # bash completion helper
 
 sub complete_os_templates {
