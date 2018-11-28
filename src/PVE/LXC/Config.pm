@@ -305,6 +305,13 @@ my $features_desc = {
 	    ." error when some keyctl() operations are denied by the kernel due to lacking permissions."
 	    ." Essentially, you can choose between running systemd-networkd or docker.",
     },
+    fuse => {
+	optional => 1,
+	type => 'boolean',
+	default => 0,
+	description => "Allow using 'fuse' file systems in a container."
+	    ." Note that interactions between fuse and the freezer cgroup can potentially cause I/O deadlocks.",
+    },
 };
 
 my $confdesc = {

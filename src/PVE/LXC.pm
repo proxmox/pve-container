@@ -465,6 +465,11 @@ sub make_apparmor_config {
     my $raw = "lxc.apparmor.profile = generated\n";
     my @profile_uses;
 
+    if ($features->{fuse}) {
+	# For the informational warning:
+	push @profile_uses, 'features:fuse';
+    }
+
     # There's lxc.apparmor.allow_nesting now, which will add the necessary
     # apparmor lines, create an apparmor namespace for the container, but also
     # adds proc and sysfs mounts to /dev/.lxc/{proc,sys}. These do not have
@@ -539,6 +544,10 @@ sub update_lxc_config {
 
     $raw .= make_seccomp_config($conf, $unprivileged, $features);
     $raw .= make_apparmor_config($conf, $unprivileged, $features);
+    if ($features->{fuse}) {
+	$raw .= "lxc.apparmor.raw = mount fstype=fuse,\n";
+	$raw .= "lxc.mount.entry = /dev/fuse dev/fuse none bind,create=file 0 0\n";
+    }
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
     # cannot be exposed to the container with r/w access (cgroup perms).
