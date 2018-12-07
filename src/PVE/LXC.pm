@@ -254,7 +254,7 @@ sub vmstatus {
 	}
 
 	if (-d '/sys/fs/cgroup/blkio') {
-	    my $blkio_bytes = read_cgroup_value('blkio', $vmid, $unpriv, 'blkio.throttle.io_service_bytes', 1);
+	    my $blkio_bytes = read_cgroup_value('blkio', $vmid, 0, 'blkio.throttle.io_service_bytes', 1); # don't check if unpriv
 	    my @bytes = split(/\n/, $blkio_bytes);
 	    foreach my $byte (@bytes) {
 		if (my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/) {
