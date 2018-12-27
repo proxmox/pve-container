@@ -360,7 +360,7 @@ __PACKAGE__->register_method({
 	    eval {
 		my ($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
 		if ($authuser eq 'root@pam') {
-		    @{$conf->{lxc}} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}]; # do not remove lxc.idmap entries
+		    $conf->{lxc} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}]; # do not remove lxc.idmap entries
 		}
 		if ($storage_only_mode) {
 		    if ($restore) {
