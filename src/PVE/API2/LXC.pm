@@ -280,6 +280,8 @@ __PACKAGE__->register_method({
 
 	my $conf = {};
 
+	my $is_root = $authuser eq 'root@pam';
+
 	my $no_disk_param = {};
 	my $mp_param = {};
 	my $storage_only_mode = 1;
@@ -314,7 +316,7 @@ __PACKAGE__->register_method({
 
 	    if ($mountpoint->{type} ne 'volume') { # bind or device
 		die "Only root can pass arbitrary filesystem paths.\n"
-		    if $authuser ne 'root@pam';
+		    if !$is_root;
 	    } else {
 		my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 		&$check_and_activate_storage($sid);
@@ -359,7 +361,7 @@ __PACKAGE__->register_method({
 	    my $vollist = [];
 	    eval {
 		my ($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
-		if ($authuser eq 'root@pam') {
+		if ($is_root) {
 		    $conf->{lxc} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}]; # do not remove lxc.idmap entries
 		}
 		if ($storage_only_mode) {
@@ -382,7 +384,7 @@ __PACKAGE__->register_method({
 				die "restoring rootfs to $type mount is only possible by specifying -rootfs manually!\n"
 				    if ($ms eq 'rootfs');
 				die "restoring '$ms' to $type mount is only possible for root\n"
-				    if $authuser ne 'root@pam';
+				    if !$is_root;
 
 				if ($mountpoint->{backup}) {
 				    warn "WARNING - unsupported configuration!\n";
@@ -412,7 +414,7 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
 
 		    if ($restore) {
-			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, $authuser ne 'root@pam');
+			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root);
 		    } else {
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
