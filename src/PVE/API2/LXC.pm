@@ -357,11 +357,14 @@ __PACKAGE__->register_method({
 
 	    PVE::Cluster::check_cfs_quorum();
 	    my $vollist = [];
-
 	    eval {
+		my ($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+		if ($authuser eq 'root@pam') {
+		    @{$conf->{lxc}} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}]; # do not remove lxc.idmap entries
+		}
 		if ($storage_only_mode) {
 		    if ($restore) {
-			(undef, $mp_param) = PVE::LXC::Create::recover_config($archive);
+			$mp_param = $orig_mp_param;
 			die "rootfs configuration could not be recovered, please check and specify manually!\n"
 			    if !defined($mp_param->{rootfs});
 			PVE::LXC::Config->foreach_mountpoint($mp_param, sub {
