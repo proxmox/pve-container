@@ -489,6 +489,7 @@ my $valid_lxc_conf_keys = {
                             ', please use mount point options in the "rootfs" key',
     # lxc.cgroup.*
     # lxc.prlimit.*
+    # lxc.net.*
     'lxc.cap.drop' => 1,
     'lxc.cap.keep' => 1,
     'lxc.seccomp.profile' => 1,
