@@ -509,6 +509,17 @@ my $valid_lxc_conf_keys = {
     'lxc.start.order' => 1,
     'lxc.group' => 1,
     'lxc.environment' => 1,
+
+    # All these are namespaced via CLONE_NEWIPC (see namespaces(7)).
+    'lxc.sysctl.fs.mqueue' => 1,
+    'lxc.sysctl.kernel.msgmax' => 1,
+    'lxc.sysctl.kernel.msgmnb' => 1,
+    'lxc.sysctl.kernel.msgmni' => 1,
+    'lxc.sysctl.kernel.sem' => 1,
+    'lxc.sysctl.kernel.shmall' => 1,
+    'lxc.sysctl.kernel.shmmax' => 1,
+    'lxc.sysctl.kernel.shmmni' => 1,
+    'lxc.sysctl.kernel.shm_rmid_forced' => 1,
 };
 
 my $deprecated_lxc_conf_keys = {
