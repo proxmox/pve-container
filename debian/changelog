@@ -1,3 +1,9 @@
+pve-container (2.0-33) unstable; urgency=medium
+
+  * whitelist namespaced lxc.sysctl.* entries
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 07 Jan 2019 15:36:18 +0100
+
 pve-container (2.0-32) unstable; urgency=medium
 
   * fix #2014: don't check if unpriv for blkio
