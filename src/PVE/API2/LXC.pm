@@ -360,13 +360,16 @@ __PACKAGE__->register_method({
 	    PVE::Cluster::check_cfs_quorum();
 	    my $vollist = [];
 	    eval {
-		my ($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
-		if ($is_root) {
-		    # When we're root call 'restore_configuration' with ristricted=0,
-		    # causing it to restore the raw lxc entries, among which there may be
-		    # 'lxc.idmap' entries. We need to make sure that the extracted contents
-		    # of the container match up with the restored configuration afterwards:
-		    $conf->{lxc} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}];
+		my $orig_mp_param; # only used if $restore
+		if ($restore) {
+		    (my $orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+		    if ($is_root) {
+			# When we're root call 'restore_configuration' with ristricted=0,
+			# causing it to restore the raw lxc entries, among which there may be
+			# 'lxc.idmap' entries. We need to make sure that the extracted contents
+			# of the container match up with the restored configuration afterwards:
+			$conf->{lxc} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}];
+		    }
 		}
 		if ($storage_only_mode) {
 		    if ($restore) {
