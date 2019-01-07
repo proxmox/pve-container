@@ -1,12 +1,12 @@
-VERSION=2.0
 PACKAGE=pve-container
-PKGREL=32
+PKGVER != dpkg-parsechangelog -Sversion | cut -d- -f1
+PKGREL != dpkg-parsechangelog -Sversion | cut -d- -f2
 
 GITVERSION:=$(shell git rev-parse HEAD)
 
 ARCH:=all
 
-DEB=${PACKAGE}_${VERSION}-${PKGREL}_${ARCH}.deb
+DEB=${PACKAGE}_${PKGVER}-${PKGREL}_${ARCH}.deb
 
 all: ${DEB}
 
