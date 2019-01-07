@@ -1,3 +1,11 @@
+pve-container (2.0-32) unstable; urgency=medium
+
+  * fix #2014: don't check if unpriv for blkio
+
+  * fix #2028: keep custom uid mapping during restore
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 07 Jan 2019 13:45:47 +0100
+
 pve-container (2.0-31) unstable; urgency=medium
 
   * fix #1234: pct: implement rescan
