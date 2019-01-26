@@ -439,13 +439,12 @@ __PACKAGE__->register_method({
 		if $start_after_create;
 	};
 
+	my $workername = $restore ? 'vzrestore' : 'vzcreate';
 	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
 
 	&$check_vmid_usage(); # first check before locking
 
-	return $rpcenv->fork_worker($restore ? 'vzrestore' : 'vzcreate',
-				    $vmid, $authuser, $realcmd);
-
+	return $rpcenv->fork_worker($workername, $vmid, $authuser, $realcmd);
     }});
 
 __PACKAGE__->register_method({
