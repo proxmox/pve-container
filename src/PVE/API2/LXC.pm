@@ -181,31 +181,23 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
 
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
-
 	my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
-
 	my $bwlimit = extract_param($param, 'bwlimit');
-
 	my $start_after_create = extract_param($param, 'start');
 
 	my $basecfg_fn = PVE::LXC::Config->config_file($vmid);
-
 	my $same_container_exists = -f $basecfg_fn;
 
 	# 'unprivileged' is read-only, so we can't pass it to update_pct_config
 	my $unprivileged = extract_param($param, 'unprivileged');
-
 	my $restore = extract_param($param, 'restore');
 
 	if ($restore) {
 	    # fixme: limit allowed parameters
-
 	}
 	
 	my $force = extract_param($param, 'force');
@@ -218,12 +210,10 @@ __PACKAGE__->register_method({
 	}
 
 	my $password = extract_param($param, 'password');
-
 	my $ssh_keys = extract_param($param, 'ssh-public-keys');
 	PVE::Tools::validate_ssh_public_keys($ssh_keys) if defined($ssh_keys);
 
 	my $pool = extract_param($param, 'pool');
-
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
 	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
@@ -247,9 +237,7 @@ __PACKAGE__->register_method({
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-
 	my $archive;
-
 	if ($ostemplate eq '-') {
 	    die "pipe requires cli environment\n" 
 		if $rpcenv->{type} ne 'cli'; 
@@ -274,7 +262,6 @@ __PACKAGE__->register_method({
 	    $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 
 	    PVE::Storage::activate_storage($storage_cfg, $sid);
-
 	    $used_storages{$sid} = 1;
 	};
 
