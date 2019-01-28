@@ -430,7 +430,8 @@ __PACKAGE__->register_method({
 	    };
 	    if (my $err = $@) {
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
-		PVE::LXC::destroy_config($vmid);
+		eval { PVE::LXC::destroy_config($vmid) };
+		warn $@ if $@;
 		die $err;
 	    }
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;

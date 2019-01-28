@@ -54,7 +54,8 @@ sub config_list {
 sub destroy_config {
     my ($vmid) = @_;
 
-    unlink PVE::LXC::Config->config_file($vmid, $nodename);
+    my $config_fn = PVE::LXC::Config->config_file($vmid, $nodename);
+    unlink $config_fn or die "failed to remove config file: $!\n";
 }
 
 # container status helpers
