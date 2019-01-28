@@ -180,6 +180,8 @@ __PACKAGE__->register_method({
     code => sub {
 	my ($param) = @_;
 
+	PVE::Cluster::check_cfs_quorum();
+
 	my $rpcenv = PVE::RPCEnvironment::get();
 	my $authuser = $rpcenv->get_user();
 
@@ -205,6 +207,7 @@ __PACKAGE__->register_method({
 	if (!($same_container_exists && $restore && $force)) {
 	    PVE::Cluster::check_vmid_unused($vmid);
 	} else {
+	    die "can't overwrite running container\n" if PVE::LXC::check_running($vmid);
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_protection($conf, "unable to restore CT $vmid");
 	}
@@ -317,38 +320,19 @@ __PACKAGE__->register_method({
 
 	$conf->{unprivileged} = 1 if $unprivileged;
 
-	my $check_vmid_usage = sub {
-	    if ($force) {
-		die "can't overwrite running container\n"
-		    if PVE::LXC::check_running($vmid);
-	    } else {
-		PVE::Cluster::check_vmid_unused($vmid);
-	    }
-	};
+	my $emsg = $restore ? "unable to restore CT $vmid -" : "unable to create CT $vmid -";
+
+	eval { PVE::LXC::Config->create_and_lock_config($vmid, $force) };
+	die "$emsg $@" if $@;
 
 	my $code = sub {
-	    &$check_vmid_usage(); # final check after locking
-	    my $old_conf;
+	    my $old_conf = PVE::LXC::Config->load_config($vmid);
 
-	    my $config_fn = PVE::LXC::Config->config_file($vmid);
-	    if (-f $config_fn) {
-		die "container exists" if !$restore; # just to be sure
-		$old_conf = PVE::LXC::Config->load_config($vmid);
-	    } else {
-		eval {
-		    # try to create empty config on local node, we have an flock
-		    PVE::LXC::Config->write_config($vmid, {});
-		};
-
-		# another node was faster, abort
-		die "Could not reserve ID $vmid, already taken\n" if $@;
-	    }
-
-	    PVE::Cluster::check_cfs_quorum();
 	    my $vollist = [];
 	    eval {
 		my $orig_mp_param; # only used if $restore
 		if ($restore) {
+		    die "can't overwrite running container\n" if PVE::LXC::check_running($vmid);
 		    (my $orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
 		    if ($is_root) {
 			# When we're root call 'restore_configuration' with ristricted=0,
@@ -397,9 +381,10 @@ __PACKAGE__->register_method({
 
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
-		if (defined($old_conf)) {
+		# we always have the 'create' lock so check for more than 1 entry
+		if (scalar(keys %$old_conf) > 1) {
 		    # destroy old container volumes
-		    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf, {});
+		    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $old_conf, { lock => 'create' });
 		}
 
 		eval {
@@ -432,7 +417,7 @@ __PACKAGE__->register_method({
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
 		eval { PVE::LXC::destroy_config($vmid) };
 		warn $@ if $@;
-		die $err;
+		die "$emsg $err";
 	    }
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
 
@@ -442,8 +427,6 @@ __PACKAGE__->register_method({
 
 	my $workername = $restore ? 'vzrestore' : 'vzcreate';
 	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
-
-	&$check_vmid_usage(); # first check before locking
 
 	return $rpcenv->fork_worker($workername, $vmid, $authuser, $realcmd);
     }});
