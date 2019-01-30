@@ -35,14 +35,14 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-            snapshot => get_standard_option('pve-snapshot-name', {
-                description => "Fetch config values from given snapshot.",
-                optional => 1,
-                completion => sub {
-                    my ($cmd, $pname, $cur, $args) = @_;
-                    PVE::LXC::Config->snapshot_list($args->[0]);
-                },
-            }),
+	    snapshot => get_standard_option('pve-snapshot-name', {
+		description => "Fetch config values from given snapshot.",
+		optional => 1,
+		completion => sub {
+		    my ($cmd, $pname, $cur, $args) = @_;
+		    PVE::LXC::Config->snapshot_list($args->[0]);
+		},
+	    }),
 	},
     },
     returns => {
