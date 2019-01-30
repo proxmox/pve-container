@@ -65,11 +65,9 @@ __PACKAGE__->register_method({
 
 	my $conf = PVE::LXC::Config->load_config($param->{vmid});
 
-	my $snapname = $param->{snapshot};
-	if ($snapname) {
+	if (my $snapname = $param->{snapshot}) {
 	    my $snapshot = $conf->{snapshots}->{$snapname};
-	    die "snapshot '$snapname' does not exist\n"
-		if !defined($snapshot);
+	    die "snapshot '$snapname' does not exist\n" if !defined($snapshot);
 
 	    # we need the digest of the file
 	    $snapshot->{digest} = $conf->{digest};
