@@ -35,6 +35,14 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+            snapshot => get_standard_option('pve-snapshot-name', {
+                description => "Fetch config values from given snapshot.",
+                optional => 1,
+                completion => sub {
+                    my ($cmd, $pname, $cur, $args) = @_;
+                    PVE::LXC::Config->snapshot_list($args->[0]);
+                },
+            }),
 	},
     },
     returns => {
@@ -56,6 +64,17 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $conf = PVE::LXC::Config->load_config($param->{vmid});
+
+	my $snapname = $param->{snapshot};
+	if ($snapname) {
+	    my $snapshot = $conf->{snapshots}->{$snapname};
+	    die "snapshot '$snapname' does not exist\n"
+		if !defined($snapshot);
+
+	    # we need the digest of the file
+	    $snapshot->{digest} = $conf->{digest};
+	    $conf = $snapshot;
+	}
 
 	delete $conf->{snapshots};
 
