@@ -5,6 +5,7 @@ use warnings;
 
 use PVE::AbstractConfig;
 use PVE::Cluster qw(cfs_register_file);
+use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools;
@@ -457,6 +458,12 @@ my $confdesc = {
 	format => $features_desc,
 	description => "Allow containers access to advanced features.",
     },
+    hookscript => {
+	optional => 1,
+	type => 'string',
+	format => 'pve-volume-id',
+	description => 'Script that will be exectued during various steps in the containers lifetime.',
+    },
 };
 
 my $valid_lxc_conf_keys = {
@@ -896,7 +903,7 @@ sub update_pct_config {
 		delete $conf->{$opt};
 		PVE::LXC::write_cgroup_value("memory", $vmid,
 					     "memory.memsw.limit_in_bytes", -1);
-	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup') {
+	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup' || $opt eq 'hookscript') {
 		delete $conf->{$opt};
 	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
 		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
@@ -1090,6 +1097,9 @@ sub update_pct_config {
 	    $conf->{$opt} = $value;
 	} elsif ($opt eq 'features') {
 	    next if $hotplug_error->($opt);
+	    $conf->{$opt} = $value;
+	} elsif ($opt eq 'hookscript') {
+	    PVE::GuestHelpers::check_hookscript($value);
 	    $conf->{$opt} = $value;
 	} else {
 	    die "implement me: $opt";

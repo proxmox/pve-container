@@ -26,6 +26,7 @@ use PVE::AccessControl;
 use PVE::ProcFSTools;
 use PVE::Syscall;
 use PVE::LXC::Config;
+use PVE::GuestHelpers;
 
 use Time::HiRes qw (gettimeofday);
 
@@ -1111,6 +1112,9 @@ sub check_ct_modify_config_perm {
 	} elsif ($opt eq 'features') {
 	    # For now this is restricted to root@pam
 	    raise_perm_exc("changing feature flags is only allowed for root\@pam");
+	} elsif ($opt eq 'hookscript') {
+	    # For now this is restricted to root@pam
+	    raise_perm_exc("changing the hookscript is only allowed for root\@pam");
 	} else {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
 	}
@@ -1913,11 +1917,13 @@ sub vm_start {
 
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
+    PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-start', 1);
     eval { PVE::Tools::run_command($cmd); };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;
 	die $err;
     }
+    PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-start');
 
     return;
 }
@@ -1939,6 +1945,9 @@ sub vm_stop {
 	return if $! == ECONNREFUSED; # The container is not running
 	die "failed to open container ${vmid}'s command socket: $!\n";
     }
+
+    my $conf = PVE::LXC::Config->load_config($vmid);
+    PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-stop');
 
     # Stop the container:
 

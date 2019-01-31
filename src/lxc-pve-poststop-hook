@@ -20,6 +20,7 @@ use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::Storage::Plugin;
 use PVE::LXC;
+use PVE::GuestHelpers;
 use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
@@ -89,6 +90,8 @@ __PACKAGE__->register_method ({
 	    # cause lxc to stop instead of rebooting
 	    exit(1);
 	}
+
+	PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-stop');
 
 	return undef;
     }});
