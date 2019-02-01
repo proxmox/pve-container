@@ -1,3 +1,13 @@
+pve-container (2.0-34) unstable; urgency=medium
+
+  * fix #889: api create: reserver config with create lock early
+
+  * fix #1924: add snapshot parameter
+
+  * add pre- start/stop hookscript
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 01 Feb 2019 13:12:10 +0100
+
 pve-container (2.0-33) unstable; urgency=medium
 
   * whitelist namespaced lxc.sysctl.* entries
