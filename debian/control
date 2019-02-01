@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
 Build-Depends: debhelper (>= 7.0.50~),
                libpve-common-perl,
-               libpve-guest-common-perl (>= 2.0-19),
+               libpve-guest-common-perl (>= 2.0-20),
                libpve-storage-perl,
                libtest-mockmodule-perl,
                lxc (>= 3.0.2-1) | lxc-pve (>= 3.0.1+pve1-1),
@@ -19,7 +19,7 @@ Priority: optional
 Architecture: all
 Depends: file,
          libpve-common-perl (>= 5.0-39),
-         libpve-guest-common-perl,
+         libpve-guest-common-perl (>= 2.0-20),
          libpve-storage-perl (>= 5.0-31),
          lxc-pve,
          pve-cluster (>= 4.0-8),
