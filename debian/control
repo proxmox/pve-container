@@ -18,7 +18,7 @@ Section: perl
 Priority: optional
 Architecture: all
 Depends: file,
-         libpve-common-perl (>= 5.0-39),
+         libpve-common-perl (>= 5.0-45),
          libpve-guest-common-perl (>= 2.0-20),
          libpve-storage-perl (>= 5.0-31),
          lxc-pve,
