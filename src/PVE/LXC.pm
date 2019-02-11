@@ -186,7 +186,7 @@ sub vmstatus {
 	eval { $d->{pid} = find_lxc_pid($vmid) if defined($active_hash->{$vmid}); };
 	warn $@ if $@; # ignore errors (consider them stopped)
 
-	$d->{status} = $d->{pid} ? 'running' : 'stopped';
+	$d->{status} = $active_hash->{$vmid} ? 'running' : 'stopped';
 
 	my $cfspath = PVE::LXC::Config->cfs_config_path($vmid);
 	my $conf = PVE::Cluster::cfs_read_file($cfspath) || {};
