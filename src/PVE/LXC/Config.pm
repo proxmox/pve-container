@@ -284,7 +284,7 @@ my $features_desc = {
 	    ." permission of the devices cgroup, mounting an NFS file system can"
 	    ." block the host's I/O completely and prevent it from rebooting, etc.",
 	format_description => 'fstype;fstype;...',
-	pattern => qr/[a-zA-Z0-9; ]+/,
+	pattern => qr/[a-zA-Z0-9_; ]+/,
     },
     nesting => {
 	optional => 1,
