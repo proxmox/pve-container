@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 7.0.50~),
                libtest-mockmodule-perl,
                lxc (>= 3.0.2-1) | lxc-pve (>= 3.0.1+pve1-1),
                pve-cluster (>= 4.0-8),
-               pve-doc-generator,
+               pve-doc-generator (>= 5.3-3),
                pve-firewall,
 Standards-Version: 3.8.4
 
