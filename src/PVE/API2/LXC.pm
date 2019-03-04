@@ -331,10 +331,11 @@ __PACKAGE__->register_method({
 	    my $vollist = [];
 	    eval {
 		my $orig_mp_param; # only used if $restore
+		my $orig_conf;
 		if ($restore) {
 		    die "can't overwrite running container\n" if PVE::LXC::check_running($vmid);
-		    (my $orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
-		    if ($is_root) {
+		    if ($is_root && $archive ne '-') {
+			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
 			# When we're root call 'restore_configuration' with ristricted=0,
 			# causing it to restore the raw lxc entries, among which there may be
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
@@ -344,6 +345,9 @@ __PACKAGE__->register_method({
 		}
 		if ($storage_only_mode) {
 		    if ($restore) {
+			if (!defined $orig_mp_param) {
+			    (undef, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+			}
 			$mp_param = $orig_mp_param;
 			die "rootfs configuration could not be recovered, please check and specify manually!\n"
 			    if !defined($mp_param->{rootfs});
