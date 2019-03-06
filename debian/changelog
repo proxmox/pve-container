@@ -1,3 +1,17 @@
+pve-container (2.0-35) unstable; urgency=medium
+
+  * fix #2080: fix device encoding in the prestart hook
+
+  * fix #2086: change process checking mechanism in vmstatus
+
+  * fix #2104: config "features: mount" regex pattern
+
+  * fix #1891: Add zsh command completion generation for pct
+
+  * fix #2117: don't keep custom idmap in pct pipe restore
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 06 Mar 2019 08:11:24 +0100
+
 pve-container (2.0-34) unstable; urgency=medium
 
   * fix #889: api create: reserver config with create lock early
