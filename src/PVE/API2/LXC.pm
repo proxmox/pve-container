@@ -1606,7 +1606,7 @@ __PACKAGE__->register_method({
 		PVE::LXC::Config->write_config($vmid, $conf);
 
 		if ($format eq 'raw') {
-		    my $path = PVE::Storage::path($storage_cfg, $volid, undef);
+		    my $path = PVE::Storage::map_volume($storage_cfg, $volid) // PVE::Storage::path($storage_cfg, $volid);
 		    if ($running) {
 
 			$mp->{mp} = '/';
@@ -1634,6 +1634,8 @@ __PACKAGE__->register_method({
 			    PVE::Tools::run_command(['resize2fs', $path]);
 			};
 			warn "Failed to update the container's filesystem: $@\n" if $@;
+
+			PVE::Storage::unmap_volume($storage_cfg, $volid);
 		    }
 		}
 	    };
