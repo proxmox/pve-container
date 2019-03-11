@@ -1637,9 +1637,9 @@ __PACKAGE__->register_method({
 			};
 			warn "Failed to update the container's filesystem: $@\n" if $@;
 
+			# always un-map if not running, this is a NOP if not needed
+			PVE::Storage::unmap_volume($storage_cfg, $volid);
 		    }
-		    # always un-map, this is a NOP if not needed
-		    PVE::Storage::unmap_volume($storage_cfg, $volid);
 		}
 	    };
 
