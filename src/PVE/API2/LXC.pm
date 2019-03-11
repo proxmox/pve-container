@@ -1606,7 +1606,9 @@ __PACKAGE__->register_method({
 		PVE::LXC::Config->write_config($vmid, $conf);
 
 		if ($format eq 'raw') {
-		    my $path = PVE::Storage::map_volume($storage_cfg, $volid) // PVE::Storage::path($storage_cfg, $volid);
+		    # we need to ensure that the volume is mapped, if not needed this is a NOP
+		    my $path = PVE::Storage::map_volume($storage_cfg, $volid);
+		    $path = PVE::Storage::path($storage_cfg, $volid) if !defined($path);
 		    if ($running) {
 
 			$mp->{mp} = '/';
@@ -1635,8 +1637,9 @@ __PACKAGE__->register_method({
 			};
 			warn "Failed to update the container's filesystem: $@\n" if $@;
 
-			PVE::Storage::unmap_volume($storage_cfg, $volid);
 		    }
+		    # always un-map, this is a NOP if not needed
+		    PVE::Storage::unmap_volume($storage_cfg, $volid);
 		}
 	    };
 
