@@ -600,13 +600,9 @@ our $netconf_desc = {
 	pattern => '[-_.\w\d]+',
 	optional => 1,
     },
-    hwaddr => {
-	type => 'string',
-	format_description => "XX:XX:XX:XX:XX:XX",
+    hwaddr => get_standard_option('mac-addr', {
         description => 'The interface MAC address. This is dynamically allocated by default, but you can set that statically if needed, for example to always have the same link-local IPv6 address. (lxc.network.hwaddr)',
-	pattern => qr/(?:[a-f0-9]{2}:){5}[a-f0-9]{2}/i,
-	optional => 1,
-    },
+	}),
     mtu => {
 	type => 'integer',
 	description => 'Maximum transfer unit of the interface. (lxc.network.mtu)',
