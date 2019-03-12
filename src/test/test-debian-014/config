@@ -1,4 +1,4 @@
 hostname: test9
-net0: name=eth0,hwaddr=11:22:33:44:55:66,bridge=vmbr0,ip=10.0.0.100/32,gw=11.0.0.1
+net0: name=eth0,hwaddr=12:22:33:44:55:66,bridge=vmbr0,ip=10.0.0.100/32,gw=11.0.0.1
 net1: name=eth1,hwaddr=22:33:44:55:66:77,bridge=vmbr1,ip6=fc00::1/64,gw6=fc00:1::ff
-net2: name=eth2,hwaddr=33:44:55:66:77:88,bridge=vmbr2,ip=192.168.0.1/24
+net2: name=eth2,hwaddr=32:44:55:66:77:88,bridge=vmbr2,ip=192.168.0.1/24
