@@ -79,6 +79,13 @@ sub setup_network {
     # we can remove this bit.
     #
     # Filter out ipv6 dhcp and turn it into 'manual' so they see what's up.
+    #
+    # XXX: slaac works different from debian - busybox has no 'auto'
+    # configuration type - https://wiki.alpinelinux.org/wiki/Configure_Networking#IPv6_Stateless_Autoconfiguration
+    # the suggested configuration sadly does not take the interface up, but
+    # at least with the workaround the networking starts and if an ipv4 is
+    # configured slaac for ipv6 works (unless accept_ra = 0 in the node)
+
     my $netconf = {};
     my $networks = {};
     foreach my $k (keys %$conf) {
@@ -86,7 +93,7 @@ sub setup_network {
 	my $netstring = $conf->{$k};
 	# check for dhcp6:
 	my $d = PVE::LXC::Config->parse_lxc_network($netstring);
-	if (defined($d->{ip6}) && $d->{ip6} eq 'dhcp') {
+	if (defined($d->{ip6}) && ($d->{ip6} eq 'dhcp' || $d->{ip6} eq 'auto')) {
 	    $d->{ip6} = 'manual';
 	    $netstring = PVE::LXC::Config->print_lxc_network($d);
 	}
