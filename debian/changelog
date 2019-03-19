@@ -1,3 +1,13 @@
+pve-container (2.0-36) unstable; urgency=medium
+
+  * Fix #2109: map volumes explicitly if resizing a stopped container
+
+  * config: hwaddr: enforce unicast MAC addresses
+
+  * setup: add initial support for Ubuntu 19.04 Disco Dingo
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 19 Mar 2019 12:37:34 +0100
+
 pve-container (2.0-35) unstable; urgency=medium
 
   * fix #2080: fix device encoding in the prestart hook
