@@ -162,6 +162,11 @@ our $vmstatus_return_properties = {
 	type => 'number',
 	optional => 1,
     },
+    lock => {
+	description => "The current lock, if any.",
+	type => 'string',
+	optional => 1,
+    }
 };
 
 sub vmstatus {
@@ -231,6 +236,7 @@ sub vmstatus {
 	$d->{diskwrite} = 0;
 
 	$d->{template} = PVE::LXC::Config->is_template($conf);
+	$d->{lock} = $conf->{lock} if $conf->{lock};
     }
 
     foreach my $vmid (keys %$list) {
