@@ -1074,7 +1074,7 @@ __PACKAGE__->register_method({
                 type => 'string',
                 enum => [ 'snapshot', 'clone', 'copy' ],
             },
-            snapname => get_standard_option('pve-lxc-snapshot-name', {
+            snapname => get_standard_option('pve-snapshot-name', {
                 optional => 1,
             }),
 	},
@@ -1233,7 +1233,7 @@ __PACKAGE__->register_method({
 		type => 'string', format => 'pve-poolid',
 		description => "Add the new CT to the specified pool.",
 	    },
-	    snapname => get_standard_option('pve-lxc-snapshot-name', {
+	    snapname => get_standard_option('pve-snapshot-name', {
 		optional => 1,
             }),
 	    storage => get_standard_option('pve-storage-id', {

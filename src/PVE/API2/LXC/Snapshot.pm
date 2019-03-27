@@ -115,7 +115,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 #	    vmstate => {
 #		optional => 1,
 #		type => 'boolean',
@@ -174,7 +174,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 	    force => {
 		optional => 1,
 		type => 'boolean',
@@ -220,7 +220,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    vmid => get_standard_option('pve-vmid'),
 	    node => get_standard_option('pve-node'),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 	},
     },
     returns => {
@@ -257,7 +257,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 	},
     },
     returns => {
@@ -305,7 +305,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 	    description => {
 		optional => 1,
 		type => 'string',
@@ -360,7 +360,7 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-lxc-snapshot-name'),
+	    snapname => get_standard_option('pve-snapshot-name'),
 	},
     },
     returns => { type => "object" },

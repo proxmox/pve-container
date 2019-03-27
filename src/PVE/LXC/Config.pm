@@ -267,12 +267,6 @@ PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
     optional => 1,
 });
 
-PVE::JSONSchema::register_standard_option('pve-lxc-snapshot-name', {
-    description => "The name of the snapshot.",
-    type => 'string', format => 'pve-configid',
-    maxLength => 40,
-});
-
 my $features_desc = {
     mount => {
 	optional => 1,
