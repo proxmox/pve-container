@@ -755,6 +755,44 @@ __PACKAGE__->register_method ({
 	return undef;
     }});
 
+__PACKAGE__->register_method ({
+    name => 'fstrim',
+    path => 'fstrim',
+    method => 'POST',
+    description => "Run fstrim on a chosen CT and its mountpoints.",
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => { type => 'null' },
+    code => sub {
+
+	my ($param) = @_;
+	my $vmid = $param->{'vmid'};
+
+	my $rootdir = "/var/lib/lxc/$vmid/rootfs";
+
+	my $storecfg = PVE::Storage::config();
+	my $conf = PVE::LXC::Config->set_lock($vmid, 'fstrim');
+	PVE::LXC::mount_all($vmid, $storecfg, $conf);
+	eval {
+	    my $path = "";
+	    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+		my ($name, $mp) = @_;
+		$path = $mp->{mp};
+		my $cmd = ["fstrim", "-v", "$rootdir$path"];
+		PVE::Tools::run_command($cmd);
+	    });
+	};
+
+	PVE::LXC::umount_all($vmid, $storecfg, $conf, 0);
+	PVE::LXC::Config->remove_lock($vmid, 'fstrim');
+
+	return undef;
+    }});
+
 our $cmddef = {
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
@@ -840,6 +878,8 @@ our $cmddef = {
     template => [ "PVE::API2::LXC", 'template', ['vmid'], { node => $nodename }],
 
     cpusets => [ __PACKAGE__, 'cpusets', []],
+
+    fstrim => [ __PACKAGE__, 'fstrim', ['vmid']],
 
 };
 
