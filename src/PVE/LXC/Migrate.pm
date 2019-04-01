@@ -277,13 +277,18 @@ sub phase1 {
 	    'PVE::LXC::Config', $jobcfg, $start_time, $start_time, $logfunc);
     }
 
-    my $insecure = $self->{opts}->{migration_type} eq 'insecure';
+    my $opts = $self->{opts};
+    my $insecure = $opts->{migration_type} eq 'insecure';
     foreach my $volid (keys %$volhash) {
 	next if $rep_volumes->{$volid};
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
 	my $with_snapshots = $volhash->{$volid}->{snapshots};
-	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, undef, $insecure, $with_snapshots);
+	my $bwlimit = PVE::Storage::get_bandwidth_limit('migrate', [$sid], $opts->{bwlimit});
+	# JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
+	$bwlimit = $bwlimit * 1024 if defined($bwlimit);
+
+	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, undef, undef, undef, $bwlimit, $insecure, $with_snapshots);
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
