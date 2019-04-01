@@ -1997,7 +1997,7 @@ sub run_unshared {
 }
 
 my $copy_volume = sub {
-    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname) = @_;
+    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname, $bwlimit) = @_;
 
     my $src_mp = { volume => $src_volid, mp => '/', ro => 1 };
     $src_mp->{type} = PVE::LXC::Config->classify_mountpoint($src_volid);
@@ -2015,9 +2015,11 @@ my $copy_volume = sub {
 	mountpoint_mount($dst_mp, $dest, $storage_cfg);
 	push @mounted, $dest;
 
+	$bwlimit //= 0;
+
 	PVE::Tools::run_command(['/usr/bin/rsync', '--stats', '-X', '-A', '--numeric-ids',
 				 '-aH', '--whole-file', '--sparse', '--one-file-system',
-				 "$src/", $dest]);
+				 "--bwlimit=$bwlimit", "$src/", $dest]);
     };
     my $err = $@;
     foreach my $mount (reverse @mounted) {
@@ -2035,7 +2037,7 @@ my $copy_volume = sub {
 
 # Should not be called after unsharing the mount namespace!
 sub copy_volume {
-    my ($mp, $vmid, $storage, $storage_cfg, $conf, $snapname) = @_;
+    my ($mp, $vmid, $storage, $storage_cfg, $conf, $snapname, $bwlimit) = @_;
 
     die "cannot copy volumes of type $mp->{type}\n" if $mp->{type} ne 'volume';
     File::Path::make_path("/var/lib/lxc/$vmid");
@@ -2061,7 +2063,7 @@ sub copy_volume {
 	}
 
 	run_unshared(sub {
-	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname);
+	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname, $bwlimit);
 	});
     };
     if (my $err = $@) {
