@@ -144,6 +144,12 @@ __PACKAGE__->register_method({
 		type => 'boolean',
 		description => "Mark this as restore task.",
 	    },
+	    unique => {
+		optional => 1,
+		type => 'boolean',
+		description => "Assign a unique random ethernet address.",
+		requires => 'restore',
+	    },
 	    pool => {
 		optional => 1,
 		type => 'string', format => 'pve-poolid',
@@ -197,6 +203,7 @@ __PACKAGE__->register_method({
 	# 'unprivileged' is read-only, so we can't pass it to update_pct_config
 	my $unprivileged = extract_param($param, 'unprivileged');
 	my $restore = extract_param($param, 'restore');
+	my $unique = extract_param($param, 'unique');
 
 	if ($restore) {
 	    # fixme: limit allowed parameters
@@ -397,7 +404,7 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
 
 		    if ($restore) {
-			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root);
+			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root, $unique);
 		    } else {
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
