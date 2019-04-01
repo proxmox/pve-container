@@ -167,10 +167,11 @@ __PACKAGE__->register_method({
 				"OpenSSH format).",
 	    },
 	    bwlimit => {
-		description => "Override i/o bandwidth limit (in KiB/s).",
+		description => "Override I/O bandwidth limit (in KiB/s).",
 		optional => 1,
 		type => 'number',
 		minimum => '0',
+		default => 'restore limit from datacenter.cfg/storage.cfg',
 	    },
 	    start => {
 		optional => 1,
@@ -994,6 +995,13 @@ __PACKAGE__->register_method({
 		    " mounts. NOTE: deprecated, use 'shared' property of mount point instead.",
 		optional => 1,
 	    },
+	    bwlimit => {
+		description => "Override I/O bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'number',
+		minimum => '0',
+		default => 'migrate limit from datacenter.cfg/storage.cfg',
+	    },
 	},
     },
     returns => {
@@ -1257,6 +1265,13 @@ __PACKAGE__->register_method({
 		description => "Target node. Only allowed if the original VM is on shared storage.",
 		optional => 1,
 	    }),
+	    bwlimit => {
+		description => "Override I/O bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'number',
+		minimum => '0',
+		default => 'clone limit from datacenter.cfg/storage.cfg',
+	    },
         },
     },
     returns => {
@@ -1441,6 +1456,7 @@ __PACKAGE__->register_method({
 		    local $SIG{HUP} = sub { die "interrupted by signal\n"; };
 
 		PVE::Storage::activate_volumes($storecfg, $vollist, $snapname);
+		my $bwlimit = extract_param($param, 'bwlimit');
 
 		foreach my $opt (keys %$mountpoints) {
 		    my $mp = $mountpoints->{$opt};
@@ -1449,8 +1465,10 @@ __PACKAGE__->register_method({
 		    my $newvolid;
 		    if ($fullclone->{$opt}) {
 			print "create full clone of mountpoint $opt ($volid)\n";
-			my $target_storage = $storage // PVE::Storage::parse_volume_id($volid);
-			$newvolid = PVE::LXC::copy_volume($mp, $newid, $target_storage, $storecfg, $newconf, $snapname);
+			my $source_storage = PVE::Storage::parse_volume_id($volid);
+			my $target_storage = $storage // $source_storage;
+			my $clonelimit = PVE::Storage::get_bandwidth_limit('clone', [$source_storage, $target_storage], $bwlimit);
+			$newvolid = PVE::LXC::copy_volume($mp, $newid, $target_storage, $storecfg, $newconf, $snapname, $clonelimit);
 		    } else {
 			print "create linked clone of mount point $opt ($volid)\n";
 			$newvolid = PVE::Storage::vdisk_clone($storecfg, $volid, $newid, $snapname);
@@ -1697,7 +1715,14 @@ __PACKAGE__->register_method({
 		description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
 		maxLength => 40,
 		optional => 1,
-	    }
+	    },
+	    bwlimit => {
+		description => "Override I/O bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'number',
+		minimum => '0',
+		default => 'clone limit from datacenter.cfg/storage.cfg',
+	    },
 	},
     },
     returns => {
@@ -1754,7 +1779,10 @@ __PACKAGE__->register_method({
 
 		eval {
 		    PVE::Storage::activate_volumes($storage_cfg, [ $old_volid ]);
-		    $new_volid = PVE::LXC::copy_volume($mpdata, $vmid, $storage, $storage_cfg, $conf);
+		    my $bwlimit = extract_param($param, 'bwlimit');
+		    my $source_storage = PVE::Storage::parse_volume_id($old_volid);
+		    my $movelimit = PVE::Storage::get_bandwidth_limit('move', [$source_storage, $storage], $bwlimit);
+		    $new_volid = PVE::LXC::copy_volume($mpdata, $vmid, $storage, $storage_cfg, $conf, undef, $movelimit);
 		    $mpdata->{volume} = $new_volid;
 
 		    PVE::LXC::Config->lock_config($vmid, sub {
