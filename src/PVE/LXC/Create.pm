@@ -184,7 +184,7 @@ sub restore_configuration {
 		warn "--------------------------------\n";
 		next;
 	    }
-	    if (($unique && $key =~ /^net\d+/)) {
+	    if ($unique && $key =~ /^net\d+$/) {
 		my $net = PVE::LXC::Config->parse_lxc_network($oldconf->{$key});
 		my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
 		$net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
