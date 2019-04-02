@@ -7,11 +7,11 @@ Build-Depends: debhelper (>= 7.0.50~),
                libpve-guest-common-perl (>= 2.0-20),
                libpve-storage-perl,
                libtest-mockmodule-perl,
-               lxc (>= 3.0.2-1) | lxc-pve (>= 3.0.1+pve1-1),
+               lxc (>= 3.0.2) | lxc-pve (>= 3.0.1+pve1),
                pve-cluster (>= 4.0-8),
                pve-doc-generator (>= 5.3-3),
                pve-firewall,
-Standards-Version: 3.8.4
+Standards-Version: 3.9.8
 
 Package: pve-container
 Section: perl
