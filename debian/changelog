@@ -1,3 +1,20 @@
+pve-container (2.0-37) unstable; urgency=medium
+
+  * setup: fix alpine ipv6-slaac configuration
+
+  * add lock information to CT status call
+
+  * fix #1607: implement pct fstrim
+
+  * fix #2147: re-add support for current opensuse tumbleweed
+
+  * fix: #1218 Add flag 'unique' to pct restore in order to set new MAC
+    addresses to NICs
+
+  * storage migrate: add bwlimit parameter
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 04 Apr 2019 16:24:33 +0200
+
 pve-container (2.0-36) unstable; urgency=medium
 
   * Fix #2109: map volumes explicitly if resizing a stopped container
