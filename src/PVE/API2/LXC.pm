@@ -335,6 +335,7 @@ __PACKAGE__->register_method({
 
 	my $code = sub {
 	    my $old_conf = PVE::LXC::Config->load_config($vmid);
+	    my $was_template;
 
 	    my $vollist = [];
 	    eval {
@@ -344,6 +345,7 @@ __PACKAGE__->register_method({
 		    if ($is_root && $archive ne '-') {
 			my $orig_conf;
 			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+			$was_template = delete $orig_conf->{template};
 			# When we're root call 'restore_configuration' with ristricted=0,
 			# causing it to restore the raw lxc entries, among which there may be
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
@@ -423,6 +425,17 @@ __PACKAGE__->register_method({
 		foreach my $mp (keys %$delayed_mp_param) {
 		    $conf->{$mp} = $delayed_mp_param->{$mp};
 		}
+		# If the template flag was set, we try to convert again to template after restore
+		if ($was_template) {
+		    print STDERR "Convert restored container to template...\n";
+		    if (my $err = check_storage_supports_templates($conf)) {
+			warn $err;
+			warn "Leave restored backup as container instead of converting to template.\n"
+		    } else {
+			PVE::LXC::template_create($vmid, $conf);
+			$conf->{template} = 1;
+		    }
+		}
 		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
@@ -442,6 +455,22 @@ __PACKAGE__->register_method({
 
 	return $rpcenv->fork_worker($workername, $vmid, $authuser, $realcmd);
     }});
+
+sub check_storage_supports_templates {
+    my ($conf) = @_;
+
+    my $scfg = PVE::Storage::config();
+    eval {
+	PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	    my ($ms, $mp) = @_;
+
+	    my ($sid) = PVE::Storage::parse_volume_id($mp->{volume}, 0);
+	    die "Warning: Directory storage '$sid' does not support container templates!\n"
+		if $scfg->{ids}->{$sid}->{path};
+	});
+    };
+    return $@
+}
 
 __PACKAGE__->register_method({
     name => 'vmdiridx',
@@ -1177,14 +1206,9 @@ __PACKAGE__->register_method({
 	    die "you can't convert a CT to template if the CT is running\n"
 		if PVE::LXC::check_running($vmid);
 
-	    my $scfg = PVE::Storage::config();
-	    PVE::LXC::Config->foreach_mountpoint($conf, sub {
-		my ($ms, $mp) = @_;
-
-		my ($sid) =PVE::Storage::parse_volume_id($mp->{volume}, 0);
-		die "Directory storage '$sid' does not support container templates!\n"
-		    if $scfg->{ids}->{$sid}->{path};
-	    });
+	    if (my $err = check_storage_supports_templates($conf)) {
+		die $err;
+	    }
 
 	    my $realcmd = sub {
 		PVE::LXC::template_create($vmid, $conf);

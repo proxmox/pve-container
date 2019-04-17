@@ -139,7 +139,6 @@ sub recover_config {
 	$conf = PVE::LXC::Config::parse_pct_config("/lxc/0.conf" , $raw);
 
 	delete $conf->{snapshots};
-	delete $conf->{template}; # restored CT is never a template
 
 	PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
@@ -174,6 +173,9 @@ sub restore_configuration {
 	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
 	    next if $key =~ /^mp\d+$/; # don't recover mountpoints
 	    next if $key =~ /^unused\d+$/; # don't recover unused disks
+	    # we know if it was a template in the restore API call and check if the target
+	    # storage supports creating a template there
+	    next if $key =~ /^template$/;
 	    if ($restricted && $key eq 'lxc') {
 		warn "skipping custom lxc options, restore manually as root:\n";
 		warn "--------------------------------\n";
