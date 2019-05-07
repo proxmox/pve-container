@@ -1,3 +1,11 @@
+pve-container (2.0-38) unstable; urgency=medium
+
+  * fix: #1075: Correctly restore CT templates form backup
+
+  * raise supported fedora version to 30
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 07 May 2019 11:11:57 +0000
+
 pve-container (2.0-37) unstable; urgency=medium
 
   * setup: fix alpine ipv6-slaac configuration
