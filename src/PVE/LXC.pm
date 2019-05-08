@@ -1939,7 +1939,7 @@ sub vm_start {
 # unmount-all step, but post-stop happens after lxc puts the container into the
 # STOPPED state.
 sub vm_stop {
-    my ($vmid, $kill, $shutdown_timeout, $exit_timeout) = @_;
+    my ($vmid, $kill, $shutdown_timeout) = @_;
 
     # Open the container's command socket.
     my $path = "\0/var/lib/lxc/$vmid/command";
@@ -1972,13 +1972,7 @@ sub vm_stop {
 	warn $@ if $@;
     }
 
-    my $result = 1;
-    my $wait = sub { $result = <$sock>; };
-    if (defined($exit_timeout)) {
-	PVE::Tools::run_with_timeout($exit_timeout, $wait);
-    } else {
-	$wait->();
-    }
+    my $result = <$sock>;
 
     return if !defined $result; # monitor is gone and the ct has stopped.
     die "container did not stop\n";
