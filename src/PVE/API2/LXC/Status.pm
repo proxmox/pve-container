@@ -369,7 +369,7 @@ __PACKAGE__->register_method({
 
 		PVE::LXC::Config->check_lock($conf);
 
-		PVE::LXC::vm_stop($vmid, $param->{forceStop}, $timeout);
+		PVE::LXC::vm_stop($vmid, 0, $timeout, $param->{forceStop});
 
 		return;
 	    };

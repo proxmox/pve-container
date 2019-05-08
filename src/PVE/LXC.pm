@@ -1938,8 +1938,11 @@ sub vm_start {
 # This is necessary because we want the post-stop hook to have completed its
 # unmount-all step, but post-stop happens after lxc puts the container into the
 # STOPPED state.
+# $kill - if true it will always do an immediate hard-stop
+# $shutdown_timeout - the timeout to wait for a gracefull shutdown
+# $kill_after_timeout - if true, send a hardstop if shutdown timed out
 sub vm_stop {
-    my ($vmid, $kill, $shutdown_timeout) = @_;
+    my ($vmid, $kill, $shutdown_timeout, $kill_after_timeout) = @_;
 
     # Open the container's command socket.
     my $path = "\0/var/lib/lxc/$vmid/command";
@@ -1961,10 +1964,15 @@ sub vm_stop {
 
     if ($kill) {
 	push @$cmd, '--kill'; # doesn't allow timeouts
-    } elsif (defined($shutdown_timeout)) {
-	push @$cmd, '--timeout', $shutdown_timeout;
-	# Give run_command 5 extra seconds
-	$shutdown_timeout += 5;
+    } else {
+	# lxc-stop uses a default timeout
+	push @$cmd, '--nokill' if !$kill_after_timeout;
+
+	if (defined($shutdown_timeout)) {
+	    push @$cmd, '--timeout', $shutdown_timeout;
+	    # Give run_command 5 extra seconds
+	    $shutdown_timeout += 5;
+	}
     }
 
     eval { PVE::Tools::run_command($cmd, timeout => $shutdown_timeout) };
