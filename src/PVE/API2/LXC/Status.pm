@@ -171,34 +171,31 @@ __PACKAGE__->register_method({
 
 	} else {
 
+	    my $realcmd = sub {
+		my $upid = shift;
+
+		syslog('info', "starting CT $vmid: $upid\n");
+
+		my $conf = PVE::LXC::Config->load_config($vmid);
+
+		die "you can't start a CT if it's a template\n"
+		    if PVE::LXC::Config->is_template($conf);
+
+		if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+		    PVE::LXC::Config->check_lock($conf);
+		}
+
+		if ($conf->{unprivileged}) {
+		    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+			my ($ms, $mountpoint) = @_;
+			die "Quotas are not supported by unprivileged containers.\n" if $mountpoint->{quota};
+		    });
+		}
+
+		PVE::LXC::vm_start($vmid, $conf, $skiplock);
+	    };
+
 	    my $lockcmd = sub {
-		my $realcmd = sub {
-		    my $upid = shift;
-
-		    syslog('info', "starting CT $vmid: $upid\n");
-
-		    my $conf = PVE::LXC::Config->load_config($vmid);
-
-		    die "you can't start a CT if it's a template\n"
-			if PVE::LXC::Config->is_template($conf);
-
-		    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
-			PVE::LXC::Config->check_lock($conf);
-		    }
-
-		    if ($conf->{unprivileged}) {
-			PVE::LXC::Config->foreach_mountpoint($conf, sub {
-			    my ($ms, $mountpoint) = @_;
-			    die "Quotas are not supported by unprivileged containers.\n" if $mountpoint->{quota};
-			});
-
-		    }
-
-		    PVE::LXC::vm_start($vmid, $conf, $skiplock);
-
-		    return;
-		};
-
 		return $rpcenv->fork_worker('vzstart', $vmid, $authuser, $realcmd);
 	    };
 
@@ -264,23 +261,20 @@ __PACKAGE__->register_method({
 
 	} else {
 
+	    my $realcmd = sub {
+		my $upid = shift;
+
+		syslog('info', "stopping CT $vmid: $upid\n");
+
+		my $conf = PVE::LXC::Config->load_config($vmid);
+		if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+		    PVE::LXC::Config->check_lock($conf);
+		}
+
+		PVE::LXC::vm_stop($vmid, 1);
+	    };
+
 	    my $lockcmd = sub {
-		my $realcmd = sub {
-		    my $upid = shift;
-
-		    syslog('info', "stopping CT $vmid: $upid\n");
-
-		    my $conf = PVE::LXC::Config->load_config($vmid);
-
-		    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
-			PVE::LXC::Config->check_lock($conf);
-		    }
-
-		    PVE::LXC::vm_stop($vmid, 1);
-
-		    return;
-		};
-
 		return $rpcenv->fork_worker('vzstop', $vmid, $authuser, $realcmd);
 	    };
 
@@ -333,7 +327,7 @@ __PACKAGE__->register_method({
 
 	my $vmid = extract_param($param, 'vmid');
 
-	my $timeout = extract_param($param, 'timeout');
+	my $timeout = extract_param($param, 'timeout') // 60;
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
@@ -357,23 +351,18 @@ __PACKAGE__->register_method({
 	    return $rpcenv->fork_worker('hastop', $vmid, $authuser, $hacmd);
 	}
 
+	my $realcmd = sub {
+	    my $upid = shift;
+
+	    syslog('info', "shutdown CT $vmid: $upid\n");
+
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
+
+	    PVE::LXC::vm_stop($vmid, 0, $timeout, $param->{forceStop});
+	};
+
 	my $lockcmd = sub {
-	    my $realcmd = sub {
-		my $upid = shift;
-
-		syslog('info', "shutdown CT $vmid: $upid\n");
-
-		$timeout = 60 if !defined($timeout);
-
-		my $conf = PVE::LXC::Config->load_config($vmid);
-
-		PVE::LXC::Config->check_lock($conf);
-
-		PVE::LXC::vm_stop($vmid, 0, $timeout, $param->{forceStop});
-
-		return;
-	    };
-
 	    return $rpcenv->fork_worker('vzshutdown', $vmid, $authuser, $realcmd);
 	};
 
@@ -411,25 +400,19 @@ __PACKAGE__->register_method({
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
+	my $realcmd = sub {
+	    my $upid = shift;
 
+	    syslog('info', "suspend CT $vmid: $upid\n");
+
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($conf);
+
+	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
+	    run_command($cmd);
+	};
 
 	my $lockcmd = sub {
-	    my $realcmd = sub {
-		my $upid = shift;
-
-		syslog('info', "suspend CT $vmid: $upid\n");
-
-		my $conf = PVE::LXC::Config->load_config($vmid);
-
-		PVE::LXC::Config->check_lock($conf);
-
-		my $cmd = ['lxc-checkpoint', '-n', $vmid, '-s', '-D', '/var/lib/vz/dump'];
-
-		run_command($cmd);
-
-		return;
-	    };
-
 	    return $rpcenv->fork_worker('vzsuspend', $vmid, $authuser, $realcmd);
 	};
 
@@ -467,21 +450,16 @@ __PACKAGE__->register_method({
 
 	die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
 
+	my $realcmd = sub {
+	    my $upid = shift;
 
-        my $realcmd = sub {
-            my $upid = shift;
+	    syslog('info', "resume CT $vmid: $upid\n");
 
-            syslog('info', "resume CT $vmid: $upid\n");
-
-	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-r', '--foreground',
-		       '-D', '/var/lib/vz/dump'];
-
+	    my $cmd = ['lxc-checkpoint', '-n', $vmid, '-r', '--foreground', '-D', '/var/lib/vz/dump'];
 	    run_command($cmd);
+	};
 
-            return;
-        };
-
-        my $upid = $rpcenv->fork_worker('vzresume', $vmid, $authuser, $realcmd);
+	my $upid = $rpcenv->fork_worker('vzresume', $vmid, $authuser, $realcmd);
 
 	return $upid;
     }});
