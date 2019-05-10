@@ -101,12 +101,13 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	# test if VM exists
-	my $conf = PVE::LXC::Config->load_config($param->{vmid});
+	my $vmid = $param->{vmid};
+	my $conf = PVE::LXC::Config->load_config($vmid);
 
-	my $vmstatus =  PVE::LXC::vmstatus($param->{vmid});
-	my $status = $vmstatus->{$param->{vmid}};
+	my $vmstatus = PVE::LXC::vmstatus($vmid);
+	my $status = $vmstatus->{$vmid};
 
-	$status->{ha} = PVE::HA::Config::get_service_status("ct:$param->{vmid}");
+	$status->{ha} = PVE::HA::Config::get_service_status("ct:$vmid");
 
 	return $status;
     }});
