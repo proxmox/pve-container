@@ -388,12 +388,12 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Suspend the container.",
     permissions => {
-        check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
         additionalProperties => 0,
         properties => {
-            node => get_standard_option('pve-node'),
+	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
         },
     },
@@ -401,17 +401,17 @@ __PACKAGE__->register_method({
         type => 'string',
     },
     code => sub {
-        my ($param) = @_;
+	my ($param) = @_;
 
-        my $rpcenv = PVE::RPCEnvironment::get();
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
 
-        my $authuser = $rpcenv->get_user();
+	my $node = extract_param($param, 'node');
+	my $vmid = extract_param($param, 'vmid');
 
-        my $node = extract_param($param, 'node');
+	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
-        my $vmid = extract_param($param, 'vmid');
 
-        die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
 	my $lockcmd = sub {
 	    my $realcmd = sub {
@@ -457,17 +457,16 @@ __PACKAGE__->register_method({
         type => 'string',
     },
     code => sub {
-        my ($param) = @_;
+	my ($param) = @_;
 
-        my $rpcenv = PVE::RPCEnvironment::get();
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
 
-        my $authuser = $rpcenv->get_user();
+	my $node = extract_param($param, 'node');
+	my $vmid = extract_param($param, 'vmid');
 
-        my $node = extract_param($param, 'node');
+	die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
 
-        my $vmid = extract_param($param, 'vmid');
-
-        die "CT $vmid already running\n" if PVE::LXC::check_running($vmid);
 
         my $realcmd = sub {
             my $upid = shift;
@@ -484,7 +483,7 @@ __PACKAGE__->register_method({
 
         my $upid = $rpcenv->fork_worker('vzresume', $vmid, $authuser, $realcmd);
 
-        return $upid;
+	return $upid;
     }});
 
 1;
