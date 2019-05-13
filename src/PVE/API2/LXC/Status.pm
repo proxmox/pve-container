@@ -16,6 +16,7 @@ use PVE::RPCEnvironment;
 use PVE::LXC;
 use PVE::LXC::Create;
 use PVE::JSONSchema qw(get_standard_option);
+
 use base qw(PVE::RESTHandler);
 
 BEGIN {
@@ -37,7 +38,7 @@ __PACKAGE__->register_method({
 	user => 'all',
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
@@ -65,7 +66,7 @@ __PACKAGE__->register_method({
 	    { subdir => 'stop' },
 	    { subdir => 'shutdown' },
 	    { subdir => 'migrate' },
-	    ];
+	];
 
 	return $res;
     }});
@@ -75,13 +76,13 @@ __PACKAGE__->register_method({
     path => 'current',
     method => 'GET',
     proxyto => 'node',
-    protected => 1, # openvz /proc entries are only readable by root
+    protected => 1, # /proc entries are only readable by root
     description => "Get virtual machine status.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid'),
@@ -123,7 +124,7 @@ __PACKAGE__->register_method({
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
@@ -137,11 +138,9 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
 
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
 
 	my $skiplock = extract_param($param, 'skiplock');
@@ -210,7 +209,7 @@ __PACKAGE__->register_method({
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
@@ -285,7 +284,7 @@ __PACKAGE__->register_method({
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
@@ -362,14 +361,14 @@ __PACKAGE__->register_method({
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
-        additionalProperties => 0,
-        properties => {
+	additionalProperties => 0,
+	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
-        },
+	},
     },
     returns => {
-        type => 'string',
+	type => 'string',
     },
     code => sub {
 	my ($param) = @_;
@@ -412,14 +411,14 @@ __PACKAGE__->register_method({
         check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
     parameters => {
-        additionalProperties => 0,
-        properties => {
-            node => get_standard_option('pve-node'),
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
-        },
+	},
     },
     returns => {
-        type => 'string',
+	type => 'string',
     },
     code => sub {
 	my ($param) = @_;
