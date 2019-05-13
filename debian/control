@@ -27,6 +27,5 @@ Depends: file,
          xz-utils,
          ${misc:Depends},
          ${perl:Depends},
-         ${shlibs:Depends},
 Description: Proxmox VE Container management tool
  Tool to manage Linux Containers on Proxmox VE.
