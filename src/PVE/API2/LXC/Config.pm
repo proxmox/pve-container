@@ -17,6 +17,7 @@ use PVE::LXC;
 use PVE::LXC::Config;
 use PVE::LXC::Create;
 use PVE::JSONSchema qw(get_standard_option);
+
 use base qw(PVE::RESTHandler);
 
 use Data::Dumper; # fixme: remove
@@ -31,7 +32,7 @@ __PACKAGE__->register_method({
 	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
@@ -80,12 +81,12 @@ __PACKAGE__->register_method({
     }});
 
 my $vm_config_perm_list = [
-	    'VM.Config.Disk',
-	    'VM.Config.CPU',
-	    'VM.Config.Memory',
-	    'VM.Config.Network',
-	    'VM.Config.Options',
-    ];
+    'VM.Config.Disk',
+    'VM.Config.CPU',
+    'VM.Config.Memory',
+    'VM.Config.Network',
+    'VM.Config.Options',
+];
 
 __PACKAGE__->register_method({
     name => 'update_vm',
@@ -99,7 +100,7 @@ __PACKAGE__->register_method({
 	description => 'non-volume mount points in rootfs and mp[n] are restricted to root@pam',
     },
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => PVE::LXC::Config->json_config_properties(
 	    {
 		node => get_standard_option('pve-node'),
@@ -122,11 +123,9 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
 
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
 
 	my $digest = extract_param($param, 'digest');
@@ -139,8 +138,7 @@ __PACKAGE__->register_method({
 	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, {}, [@delete]);
 
 	foreach my $opt (@delete) {
-	    raise_param_exc({ delete => "you can't use '-$opt' and " .
-				  "-delete $opt' at the same time" })
+	    raise_param_exc({ delete => "you can't use '-$opt' and -delete $opt' at the same time" })
 		if defined($param->{$opt});
 
 	    if (!PVE::LXC::Config->option_exists($opt)) {
