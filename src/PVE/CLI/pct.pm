@@ -1,5 +1,5 @@
 package PVE::CLI::pct;
-    
+
 use strict;
 use warnings;
 
@@ -19,8 +19,6 @@ use PVE::API2::LXC;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
-
-use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
 

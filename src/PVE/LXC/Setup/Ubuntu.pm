@@ -2,7 +2,7 @@ package PVE::LXC::Setup::Ubuntu;
 
 use strict;
 use warnings;
-use Data::Dumper;
+
 use PVE::Tools;
 use PVE::LXC;
 use File::Path;

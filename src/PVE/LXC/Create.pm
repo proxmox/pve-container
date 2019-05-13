@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use File::Basename;
 use File::Path;
-use Data::Dumper;
 use Fcntl;
 
 use PVE::Storage;

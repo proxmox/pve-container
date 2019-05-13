@@ -2,7 +2,7 @@ package PVE::LXC::Setup::CentOS;
 
 use strict;
 use warnings;
-use Data::Dumper;
+
 use PVE::Tools;
 use PVE::Network;
 use PVE::LXC;

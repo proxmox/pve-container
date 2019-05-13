@@ -21,7 +21,6 @@ use PVE::CLIHandler;
 use PVE::Storage;
 use PVE::LXC;
 use PVE::LXC::Setup;
-use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
 

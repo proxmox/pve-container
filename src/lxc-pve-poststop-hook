@@ -21,7 +21,6 @@ use PVE::Storage;
 use PVE::Storage::Plugin;
 use PVE::LXC;
 use PVE::GuestHelpers;
-use Data::Dumper;
 
 use base qw(PVE::CLIHandler);
 

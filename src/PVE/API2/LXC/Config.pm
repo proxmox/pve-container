@@ -20,8 +20,6 @@ use PVE::JSONSchema qw(get_standard_option);
 
 use base qw(PVE::RESTHandler);
 
-use Data::Dumper; # fixme: remove
-
 __PACKAGE__->register_method({
     name => 'vm_config',
     path => '',

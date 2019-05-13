@@ -2,7 +2,7 @@ package PVE::LXC::Setup::Debian;
 
 use strict;
 use warnings;
-use Data::Dumper;
+
 use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
 use PVE::Network;

@@ -99,7 +99,6 @@ __PACKAGE__->register_method({
 	return $res;
     }});
 
-use Data::Dumper; # fixme: remove
 __PACKAGE__->register_method({
     name => 'snapshot',
     path => '',
