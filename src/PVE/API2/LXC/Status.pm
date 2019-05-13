@@ -157,15 +157,10 @@ __PACKAGE__->register_method({
 	    my $hacmd = sub {
 		my $upid = shift;
 
-		my $service = "ct:$vmid";
-
-		my $cmd = ['ha-manager', 'set', $service, '--state', 'started'];
-
 		print "Requesting HA start for CT $vmid\n";
 
+		my $cmd = ['ha-manager', 'set',  "ct:$vmid", '--state', 'started'];
 		PVE::Tools::run_command($cmd);
-
-		return;
 	    };
 
 	    return $rpcenv->fork_worker('hastart', $vmid, $authuser, $hacmd);
@@ -247,15 +242,10 @@ __PACKAGE__->register_method({
 	    my $hacmd = sub {
 		my $upid = shift;
 
-		my $service = "ct:$vmid";
-
-		my $cmd = ['ha-manager', 'set', $service, '--state', 'stopped'];
-
 		print "Requesting HA stop for CT $vmid\n";
 
+		my $cmd = ['ha-manager', 'set',  "ct:$vmid", '--state', 'stopped'];
 		PVE::Tools::run_command($cmd);
-
-		return;
 	    };
 
 	    return $rpcenv->fork_worker('hastop', $vmid, $authuser, $hacmd);
@@ -321,32 +311,23 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
 
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
 
 	my $timeout = extract_param($param, 'timeout') // 60;
 
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
-	if (PVE::HA::Config::vm_is_ha_managed($vmid) &&
-	    $rpcenv->{type} ne 'ha') {
-
+	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
 	    my $hacmd = sub {
 		my $upid = shift;
 
-		my $service = "ct:$vmid";
-
-		my $cmd = ['ha-manager', 'set', $service, '--state', 'stopped'];
-
 		print "Requesting HA stop for CT $vmid\n";
 
+		my $cmd = ['ha-manager', 'set',  "ct:$vmid", '--state', 'stopped'];
 		PVE::Tools::run_command($cmd);
-
-		return;
 	    };
 
 	    return $rpcenv->fork_worker('hastop', $vmid, $authuser, $hacmd);
