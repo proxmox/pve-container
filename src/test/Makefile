@@ -1,4 +1,4 @@
-RUN_USERNS := lxc-usernsexec -m "b:0:`id -u`:1" --
+RUN_USERNS := lxc-usernsexec -m "u:0:`id -u`:1" -m "g:0:`id -g`:1" --
 
 all: test
 
