@@ -1,14 +1,12 @@
+include /usr/share/dpkg/pkg-info.mk
+
 PACKAGE=pve-container
-PKGVER != dpkg-parsechangelog -Sversion | cut -d- -f1
-PKGREL != dpkg-parsechangelog -Sversion | cut -d- -f2
 
 GITVERSION:=$(shell git rev-parse HEAD)
-BUILDDIR ?= build
+BUILDDIR ?= ${PACKAGE}-${DEB_VERSION_UPSTREAM}
 
-ARCH:=all
-
-DEB=${PACKAGE}_${PKGVER}-${PKGREL}_${ARCH}.deb
-DSC=${PACKAGE}_${PKGVER}-${PKGREL}.dsc
+DEB=${PACKAGE}_${DEB_VERSION_UPSTREAM_REVISION}_all.deb
+DSC=${PACKAGE}_${DEB_VERSION_UPSTREAM_REVISION}.dsc
 
 all: ${DEB}
 
@@ -18,14 +16,13 @@ dinstall: ${DEB}
 
 ${BUILDDIR}:
 	rm -rf ${BUILDDIR}
-	rsync -a src/ ${BUILDDIR}
-	rsync -a debian ${BUILDDIR}/
+	rsync -a src/ debian ${BUILDDIR}
 	echo "git clone git://git.proxmox.com/git/pve-container\\ngit checkout ${GITVERSION}" > build/debian/SOURCE
 
 .PHONY: deb
 deb: ${DEB}
 ${DEB}: ${BUILDDIR}
-	cd build; dpkg-buildpackage -b -us -uc
+	cd ${BUILDDIR}; dpkg-buildpackage -b -us -uc
 	lintian ${DEB}
 
 
@@ -38,7 +35,7 @@ ${DSC}: ${BUILDDIR}
 .PHONY: clean
 clean:
 	make -C src clean
-	rm -rf *.deb ${PACKAGE}*.tar.gz *.changes *.buildinfo ${DSC} ${BUILDDIR}
+	rm -rf *.deb ${PACKAGE}*.tar.gz *.changes *.buildinfo ${DSC} ${PACKAGE}-*/
 	find . -name '*~' -exec rm {} ';'
 
 .PHONY: distclean
