@@ -17,7 +17,7 @@ dinstall: ${DEB}
 ${BUILDDIR}:
 	rm -rf ${BUILDDIR}
 	rsync -a src/ debian ${BUILDDIR}
-	echo "git clone git://git.proxmox.com/git/pve-container\\ngit checkout ${GITVERSION}" > build/debian/SOURCE
+	echo "git clone git://git.proxmox.com/git/pve-container\\ngit checkout ${GITVERSION}" > $(BUILDDIR)/debian/SOURCE
 
 .PHONY: deb
 deb: ${DEB}
