@@ -1,3 +1,9 @@
+pve-container (3.0-1) pve; urgency=medium
+
+  * Bump version for Debian Buster / PVE 6.0
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 22 May 2019 12:41:01 +0200
+
 pve-container (2.0-39) unstable; urgency=medium
 
   * fix #2027: do not disable IPV6_AUTOCONF on centos
