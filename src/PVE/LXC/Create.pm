@@ -81,7 +81,7 @@ sub restore_archive {
 	);
 	if ($archive =~ /\.tar(\.[^.]+)?$/) {
 	    if (defined($1)) {
-		die "unrecognized compression format: $1\n" if (!defined($compression_map{$1}));
+		die "unrecognized compression format: $1\n" if !defined($compression_map{$1});
 		@compression_opt = $compression_map{$1};
 	    }
 	} else {
