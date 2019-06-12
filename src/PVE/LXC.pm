@@ -2024,8 +2024,13 @@ my $copy_volume = sub {
 				 "--bwlimit=$bwlimit", "$src/", $dest]);
     };
     my $err = $@;
+
+    # Wait for rsync's children to release dest so that
+    # consequent file operations (umount, remove) are possible
+    while ((system {"fuser"} "fuser",  "-s", $dest) == 0) {sleep 1};
+
     foreach my $mount (reverse @mounted) {
-	eval { PVE::Tools::run_command(['/bin/umount', '--lazy', $mount], errfunc => sub{})};
+	eval { PVE::Tools::run_command(['/bin/umount', $mount], errfunc => sub{})};
 	warn "Can't umount $mount\n" if $@;
     }
 
