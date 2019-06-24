@@ -1,3 +1,11 @@
+pve-container (3.0-2) pve; urgency=medium
+
+  * Fix #576: Fix dangling files for Move Disk
+
+  * restore_archive: check if compression_map format is undefined
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 24 Jun 2019 18:37:35 +0200
+
 pve-container (3.0-1) pve; urgency=medium
 
   * Bump version for Debian Buster / PVE 6.0
