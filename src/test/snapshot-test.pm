@@ -2,6 +2,7 @@ package PVE::LXC::Test;
 
 use strict;
 use warnings;
+use Carp;
 
 use lib qw(..);
 
@@ -286,6 +287,13 @@ $lxc_config_module->mock('cfs_config_path', \&mocked_cfs_config_path);
 $lxc_config_module->mock('load_config', \&mocked_load_config);
 $lxc_config_module->mock('write_config', \&mocked_write_config);
 $lxc_config_module->mock('has_feature', \&mocked_has_feature);
+
+my $pve_cluster_module = new Test::MockModule('PVE::Cluster');
+sub mocked_get_config {
+    my ($path) = @_;
+    return PVE::Tools::file_get_contents("snapshot-working/$path");
+}
+$pve_cluster_module->mock('get_config', \&mocked_get_config);
 
 # ignore existing replication config
 my $repl_config_module = new Test::MockModule('PVE::ReplicationConfig');
