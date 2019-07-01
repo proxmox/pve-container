@@ -643,16 +643,12 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
-
 	my $vmid = $param->{vmid};
 
 	# test if container exists
 	my $conf = PVE::LXC::Config->load_config($vmid);
-
 	my $storage_cfg = cfs_read_file("storage.cfg");
-
 	PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid");
 
 	die "unable to remove CT $vmid - used in HA resources\n"
