@@ -216,6 +216,12 @@ sub __snapshot_foreach_volume {
 
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
+my $mount_option = qr/(noatime|nodev|nosuid|noexec)/;
+
+sub get_mount_options {
+    return $mount_option;
+}
+
 my $rootfs_desc = {
     volume => {
 	type => 'string',
@@ -235,6 +241,13 @@ my $rootfs_desc = {
 	type => 'boolean',
 	description => 'Explicitly enable or disable ACL support.',
 	optional => 1,
+    },
+    mountoptions => {
+	optional => 1,
+	type => 'string',
+	description => 'Extra mount options for rootfs/mps.',
+	format_description => 'opt[;opt...]',
+	pattern => qr/$mount_option(;$mount_option)*/,
     },
     ro => {
 	type => 'boolean',
