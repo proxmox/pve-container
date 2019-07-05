@@ -216,10 +216,12 @@ sub __snapshot_foreach_volume {
 
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
-my $mount_option = qr/(noatime|nodev|nosuid|noexec)/;
 
-sub get_mount_options {
-    return $mount_option;
+my $valid_mount_option_re = qr/(noatime|nodev|nosuid|noexec)/;
+
+sub is_valid_mount_option {
+    my ($option) = @_;
+    return $option =~ $valid_mount_option_re;
 }
 
 my $rootfs_desc = {
@@ -247,7 +249,7 @@ my $rootfs_desc = {
 	type => 'string',
 	description => 'Extra mount options for rootfs/mps.',
 	format_description => 'opt[;opt...]',
-	pattern => qr/$mount_option(;$mount_option)*/,
+	pattern => qr/$valid_mount_option_re(;$valid_mount_option_re)*/,
     },
     ro => {
 	type => 'boolean',
