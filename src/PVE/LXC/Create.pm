@@ -175,16 +175,22 @@ sub restore_configuration {
 	    # we know if it was a template in the restore API call and check if the target
 	    # storage supports creating a template there
 	    next if $key =~ /^template$/;
-	    if ($restricted && $key eq 'lxc') {
-		warn "skipping custom lxc options, restore manually as root:\n";
-		warn "--------------------------------\n";
+
+	    if ($key eq 'lxc') {
 		my $lxc_list = $oldconf->{'lxc'};
-		foreach my $lxc_opt (@$lxc_list) {
-		    warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
+		if ($restricted) {
+		    warn "skipping custom lxc options, restore manually as root:\n";
+		    warn "--------------------------------\n";
+		    foreach my $lxc_opt (@$lxc_list) {
+			warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
+		    }
+		    warn "--------------------------------\n";
+		} else {
+		    @{$conf->{$key}} = (@$lxc_list, @{$conf->{$key}});
 		}
-		warn "--------------------------------\n";
 		next;
 	    }
+
 	    if ($unique && $key =~ /^net\d+$/) {
 		my $net = PVE::LXC::Config->parse_lxc_network($oldconf->{$key});
 		my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
