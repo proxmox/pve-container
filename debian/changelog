@@ -1,3 +1,11 @@
+pve-container (3.0-3) pve; urgency=medium
+
+  * fix #1451: allow one to add mount options to CT mountpoints
+
+  * fix #2270: allow custom lxc options to be restored as root
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 11 Jul 2019 19:25:12 +0200
+
 pve-container (3.0-2) pve; urgency=medium
 
   * Fix #576: Fix dangling files for Move Disk
