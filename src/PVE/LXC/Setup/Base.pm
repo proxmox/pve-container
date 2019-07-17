@@ -228,6 +228,9 @@ sub setup_container_getty_service {
 	    $self->ct_symlink($template_path, "$getty_target_fn/$tty_service");
 	}
     }
+
+    # ensure getty.target is not masked
+    $self->ct_unlink("/etc/systemd/system/getty.target");
 }
 
 sub setup_systemd_networkd {
