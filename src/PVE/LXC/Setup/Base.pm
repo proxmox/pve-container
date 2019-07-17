@@ -224,6 +224,20 @@ sub setup_container_getty_service {
     if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
 	$self->ct_file_set_contents($servicefile, $raw);
     }
+
+    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
+    for (my $i = 1; $i < 7; $i++) {
+	my $getty_target_fn = "/etc/systemd/system/getty.target.wants/";
+	my $tty_service_lnk = "$getty_target_fn/container-getty\@$i.service";
+
+	# ensure that not two gettys are using the same tty!
+	$self->ct_unlink("$getty_target_fn/getty\@tty$i.service");
+
+	$self->ct_unlink($tty_service_lnk);
+	if ($i <= $ttycount) {
+	    $self->ct_symlink($servicefile, $tty_service_lnk);
+	}
+    }
 }
 
 sub setup_systemd_networkd {
