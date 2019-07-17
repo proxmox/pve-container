@@ -67,6 +67,7 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0644 pct.conf.5 ${MAN5DIR}
 	gzip -9 ${MAN5DIR}/pct.conf.5
 	cd ${MAN5DIR}; ln -s pct.conf.5.gz ct.conf.5.gz
+	install -D -m 0644 10-pve-ct-inotify-limits.conf ${LIBDIR}/sysctl.d/10-pve-ct-inotify-limits.conf
 	
 	# Note: for backwards compatibility only
 	# lxc@.service.d, snippet and reboot script can be removed in PVE 6.0
