@@ -155,31 +155,6 @@ sub setup_init {
     die "please implement this inside subclass"
 }
 
-sub setup_systemd_console {
-    my ($self, $conf) = @_;
-
-    my $systemd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
-	"/lib/systemd/system" : "/usr/lib/systemd/system";
-
-    my $systemd_getty_service_rel = "$systemd_dir_rel/getty\@.service";
-
-    return if !$self->ct_file_exists($systemd_getty_service_rel);
-
-    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
-
-    for (my $i = 1; $i < 7; $i++) {
-	my $tty_service_lnk = "/etc/systemd/system/getty.target.wants/getty\@tty$i.service";
-	if ($i > $ttycount) {
-	    $self->ct_unlink($tty_service_lnk);
-	} else {
-	    if (!$self->ct_is_symlink($tty_service_lnk)) {
-		$self->ct_unlink($tty_service_lnk);
-		$self->ct_symlink($systemd_getty_service_rel, $tty_service_lnk);
-	    }
-	}
-    }
-}
-
 # A few distros as well as unprivileged containers cannot deal with the
 # /dev/lxc/ tty subdirectory.
 sub devttydir {
