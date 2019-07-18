@@ -12,22 +12,17 @@ sub new {
 
     my $version = $os_release->{VERSION_ID};
     my $ostype = $os_release->{ID};
-    my $setup_ct_getty_service;
 
     if ($version =~ m/^(\d+)\.(\d+)$/) {
 	my ($major, $minor) = ($1, $2);
 	if ($major >= 42) {
 	    # OK
-	    $setup_ct_getty_service = 1;
 	} elsif ($major == 13 && $minor <= 2) {
 	    # OK
-	    $setup_ct_getty_service = 1 if $minor >= 2;
 	} elsif ($ostype eq 'sles' && $major == 12) {
 	    # OK - shares base with LEAP (42)
-	    $setup_ct_getty_service = 1;
 	} elsif ($major == 15) {
 	    # OK for SLES and openSUSE Leap, see: https://lwn.net/Articles/720924/
-	    $setup_ct_getty_service = 1;
 	} else {
 	    die "unsupported suse release '$version'\n";
 	}
@@ -35,7 +30,6 @@ sub new {
 	my ($year, $month, $day) = ($1, $2, $3);
 	if ($year >= 2017 && $month <= 12 && $day <= 31) {
 	    # OK
-	    $setup_ct_getty_service = 1;
 	} else {
 	    die "unsupported suse tumbleweed release '$version'\n";
 	}
@@ -44,7 +38,6 @@ sub new {
     }
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version, os_release => $os_release };
-    $self->{setup_ct_getty_service} = 1 if $setup_ct_getty_service;
 
     $conf->{ostype} = 'opensuse';
 
@@ -62,10 +55,7 @@ sub setup_init {
 
     $self->fixup_old_getty();
 
-    if ($self->{setup_ct_getty_service}) {
-	$self->setup_container_getty_service($conf);
-    }
-    $self->setup_systemd_console($conf);
+    $self->setup_container_getty_service($conf);
 }
 
 sub setup_network {

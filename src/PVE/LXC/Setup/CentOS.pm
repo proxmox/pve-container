@@ -117,7 +117,7 @@ sub setup_init {
 
     $self->fixup_old_getty();
 
-    $self->setup_systemd_console($conf);
+    $self->setup_container_getty_service($conf);
 }
 
 sub set_hostname {
