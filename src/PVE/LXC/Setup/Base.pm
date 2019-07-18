@@ -165,23 +165,6 @@ sub setup_systemd_console {
 
     return if !$self->ct_file_exists($systemd_getty_service_rel);
 
-    my $raw = $self->ct_file_get_contents($systemd_getty_service_rel);
-
-    my $systemd_container_getty_service_rel = "$systemd_dir_rel/container-getty\@.service";
-
-    # systemd on CenoOS 7.1 is too old (version 205), so there is no
-    # container-getty service
-    if (!$self->ct_file_exists($systemd_container_getty_service_rel)) {
-	if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
-	    $self->ct_file_set_contents($systemd_getty_service_rel, $raw);
-	}
-    } else {
-	# undo above change (in case someone updated systemd)
-	if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
-	    $self->ct_file_set_contents($systemd_getty_service_rel, $raw);
-	}
-    }
-
     my $ttycount = PVE::LXC::Config->get_tty_count($conf);
 
     for (my $i = 1; $i < 7; $i++) {
@@ -202,6 +185,32 @@ sub setup_systemd_console {
 sub devttydir {
     my ($self, $conf) = @_;
     return $conf->{unprivileged} ? '' : 'lxc/';
+}
+
+sub fixup_old_getty {
+    my ($self) = @_;
+
+    my $sd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
+	"/lib/systemd/system" : "/usr/lib/systemd/system";
+
+    my $sd_getty_service_rel = "$sd_dir_rel/getty\@.service";
+    return if !$self->ct_file_exists($sd_getty_service_rel);
+
+    my $raw = $self->ct_file_get_contents($sd_getty_service_rel);
+
+    my $sd_container_getty_service_rel = "$sd_dir_rel/container-getty\@.service";
+    # systemd on CenoOS 7.1 is too old (version 205), so there is no
+    # container-getty service
+    if (!$self->ct_file_exists($sd_container_getty_service_rel)) {
+	if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
+	    $self->ct_file_set_contents($sd_getty_service_rel, $raw);
+	}
+    } else {
+	# undo above change (in case someone updated systemd)
+	if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
+	    $self->ct_file_set_contents($sd_getty_service_rel, $raw);
+	}
+    }
 }
 
 sub setup_container_getty_service {

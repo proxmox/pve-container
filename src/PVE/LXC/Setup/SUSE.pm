@@ -60,6 +60,8 @@ sub template_fixup {
 sub setup_init {
     my ($self, $conf) = @_;
 
+    $self->fixup_old_getty();
+
     if ($self->{setup_ct_getty_service}) {
 	$self->setup_container_getty_service($conf);
     }

@@ -115,6 +115,8 @@ sub setup_init {
 
      # edit/etc/securetty
 
+    $self->fixup_old_getty();
+
     $self->setup_systemd_console($conf);
 }
 
