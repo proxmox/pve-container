@@ -216,26 +216,41 @@ sub fixup_old_getty {
 sub setup_container_getty_service {
     my ($self, $conf) = @_;
 
-    my $systemd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
+    my $sd_dir = $self->ct_is_executable("/lib/systemd/systemd") ?
 	"/lib/systemd/system" : "/usr/lib/systemd/system";
-    my $servicefile = "$systemd_dir_rel/container-getty\@.service";
-    my $raw = $self->ct_file_get_contents($servicefile);
-    my $ttyname = $self->devttydir($conf) . 'tty%I';
-    if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
-	$self->ct_file_set_contents($servicefile, $raw);
+
+    # prefer container-getty.service shipped by newer systemd versions
+    # fallback to getty.service and just return if that doesn't exists either..
+    my $template_base = "container-getty\@";
+    my $template_path = "${sd_dir}/${template_base}.service";
+    my $instance_base = $template_base;
+
+    if (!$self->ct_file_exists($template_path)) {
+	$template_base = "getty\@";
+	$template_path = "${template_base}.service";
+	$instance_base = "{$template_base}tty";
+	return if !$self->ct_file_exists($template_path);
     }
 
-    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
-    for (my $i = 1; $i < 7; $i++) {
-	my $getty_target_fn = "/etc/systemd/system/getty.target.wants/";
-	my $tty_service_lnk = "$getty_target_fn/container-getty\@$i.service";
+    my $raw = $self->ct_file_get_contents($template_path);
+    my $ttyname = $self->devttydir($conf) . 'tty%I';
+    if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
+	$self->ct_file_set_contents($template_path, $raw);
+    }
 
+    my $getty_target_fn = "/etc/systemd/system/getty.target.wants/";
+    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
+
+    for (my $i = 1; $i < 7; $i++) {
 	# ensure that not two gettys are using the same tty!
 	$self->ct_unlink("$getty_target_fn/getty\@tty$i.service");
+	$self->ct_unlink("$getty_target_fn/container-getty\@$i.service");
 
-	$self->ct_unlink($tty_service_lnk);
+	# re-enable only those requested
 	if ($i <= $ttycount) {
-	    $self->ct_symlink($servicefile, $tty_service_lnk);
+	    my $tty_service = "${instance_base}${i}.service";
+
+	    $self->ct_symlink($template_path, "$getty_target_fn/$tty_service");
 	}
     }
 }
