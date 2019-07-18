@@ -22,6 +22,7 @@ sub new {
     # translate testing version names
     $version = 9.1 if $version eq 'stretch/sid';
     $version = 10 if $version eq 'buster/sid';
+    $version = 11 if $version eq 'bullseye/sid';
 
     die "unable to parse version info '$version'\n"
 	if $version !~ m/^(\d+(\.\d+)?)(\.\d+)?/;
@@ -29,7 +30,7 @@ sub new {
     $version = $1;
 
     die "unsupported debian version '$version'\n"
-	if !($version >= 4 && $version <= 10);
+	if !($version >= 4 && $version <= 11);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
