@@ -11,3 +11,6 @@
 
 %:
 	dh $@
+
+override_dh_installsystemd:
+	dh_installsystemd -ppve-container --no-restart-after-upgrade -r 'system-pve\x2dcontainer.slice'
