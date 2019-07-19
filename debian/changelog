@@ -1,3 +1,19 @@
+pve-container (3.0-4) pve; urgency=medium
+
+  * setup CT getty: ensure the getty.target is not masked and improve the logic
+    which ensures that only the correct getty services are enabled
+
+  * fix #1042: inotify: increase watches, instances & queue default
+    limits
+
+  * remove obsolete lxc@.service.d
+
+  * config: whitelist lxc.seccomp.notify.proxy/cookie
+
+  * add support for debian bullseye/sid
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 19 Jul 2019 16:03:22 +0200
+
 pve-container (3.0-3) pve; urgency=medium
 
   * fix #1451: allow one to add mount options to CT mountpoints
