@@ -114,6 +114,9 @@ sub prepare {
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
+    $task->{rootuid} = $rootuid;
+    $task->{rootgid} = $rootgid;
+
 
     my $volids = $task->{volids} = [];
     PVE::LXC::Config->foreach_mountpoint($conf, sub {
@@ -219,7 +222,7 @@ sub snapshot {
     PVE::Storage::activate_volumes($storage_cfg, $volids, 'vzdump');
     foreach my $disk (@$disks) {
 	$disk->{dir} = "${rootdir}$disk->{mp}";
-	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump');
+	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump', $task->{rootuid}, $task->{rootgid});
     }
 
     $task->{snapdir} = $rootdir;
@@ -309,7 +312,7 @@ sub archive {
 	my $storage_cfg = $self->{storecfg};
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
-	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg);
+	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{rootuid}, $task->{rootgid});
 	    # add every enabled mountpoint (since we use --one-file-system)
 	    # mp already starts with a / so we only need to add the dot
 	    push @sources, ".$disk->{mp}";

@@ -85,11 +85,13 @@ __PACKAGE__->register_method ({
 	unlink $devlist_file;
 	my $devices = [];
 
+	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+
 	my $setup_mountpoint = sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    #return if $ms eq 'rootfs';
-	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
+	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
 	    push @$devices, $dev if $dev && $mountpoint->{quota};
 	};
 
