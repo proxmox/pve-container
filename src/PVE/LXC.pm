@@ -1177,13 +1177,15 @@ sub mount_all {
     my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
+    my (undef, $rootuid, $rootgid) = parse_id_maps($conf);
+
     eval {
 	PVE::LXC::Config->foreach_mountpoint($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    $mountpoint->{ro} = 0 if $ignore_ro;
 
-	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg);
+	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
         });
     };
     if (my $err = $@) {
@@ -1258,8 +1260,8 @@ sub run_with_loopdev {
 #   * the 2nd deepest directory (parent of the above)
 #   * directory name of the last directory
 # So that the path $2/$3 should lead to $1 afterwards.
-sub walk_tree_nofollow($$$) {
-    my ($start, $subdir, $mkdir) = @_;
+sub walk_tree_nofollow($$$;$$) {
+    my ($start, $subdir, $mkdir, $rootuid, $rootgid) = @_;
 
     # splitdir() returns '' for empty components including the leading /
     my @comps = grep { length($_)>0 } File::Spec->splitdir($subdir);
@@ -1288,6 +1290,9 @@ sub walk_tree_nofollow($$$) {
 
 	    $next = PVE::Tools::openat(fileno($fd), $component, O_NOFOLLOW | O_DIRECTORY);
 	    die "failed to create path: $dir: $!\n" if !$next;
+
+	    PVE::Tools::fchownat(fileno($next), '', $rootuid, $rootgid, PVE::Tools::AT_EMPTY_PATH)
+		if defined($rootuid) && defined($rootgid);
 	}
 
 	close $second if defined($last_component);
@@ -1381,17 +1386,17 @@ sub bindmount {
 # from $rootdir and $mount and walk the path from $rootdir to the final
 # directory to check for symlinks.
 sub __mount_prepare_rootdir {
-    my ($rootdir, $mount) = @_;
+    my ($rootdir, $mount, $rootuid, $rootgid) = @_;
     $rootdir =~ s!/+!/!g;
     $rootdir =~ s!/+$!!;
     my $mount_path = "$rootdir/$mount";
-    my ($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1);
+    my ($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1, $rootuid, $rootgid);
     return ($rootdir, $mount_path, $mpfd, $parentfd, $last_dir);
 }
 
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
-    my ($mountpoint, $rootdir, $storage_cfg, $snapname) = @_;
+    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid) = @_;
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
@@ -1408,7 +1413,7 @@ sub mountpoint_mount {
     
     if (defined($rootdir)) {
 	($rootdir, $mount_path, $mpfd, $parentfd, $last_dir) =
-	    __mount_prepare_rootdir($rootdir, $mount);
+	    __mount_prepare_rootdir($rootdir, $mount, $rootuid, $rootgid);
     }
     
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
@@ -2007,7 +2012,7 @@ sub run_unshared {
 }
 
 my $copy_volume = sub {
-    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname, $bwlimit) = @_;
+    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname, $bwlimit, $rootuid,  $rootgid) = @_;
 
     my $src_mp = { volume => $src_volid, mp => '/', ro => 1 };
     $src_mp->{type} = PVE::LXC::Config->classify_mountpoint($src_volid);
@@ -2019,10 +2024,10 @@ my $copy_volume = sub {
     eval {
 	# mount and copy
 	mkdir $src;
-	mountpoint_mount($src_mp, $src, $storage_cfg, $snapname);
+	mountpoint_mount($src_mp, $src, $storage_cfg, $snapname, $rootuid, $rootgid);
 	push @mounted, $src;
 	mkdir $dest;
-	mountpoint_mount($dst_mp, $dest, $storage_cfg);
+	mountpoint_mount($dst_mp, $dest, $storage_cfg, undef, $rootuid, $rootgid);
 	push @mounted, $dest;
 
 	$bwlimit //= 0;
@@ -2078,7 +2083,7 @@ sub copy_volume {
 	}
 
 	run_unshared(sub {
-	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname, $bwlimit);
+	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname, $bwlimit, $rootuid, $rootgid);
 	});
     };
     if (my $err = $@) {
