@@ -157,7 +157,7 @@ sub recover_config {
 }
 
 sub restore_configuration {
-    my ($vmid, $rootdir, $conf, $restricted, $unique) = @_;
+    my ($vmid, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
 
     # restore: try to extract configuration from archive
 
@@ -202,10 +202,21 @@ sub restore_configuration {
 	}
 	unlink($pct_cfg_fn);
 
-	if (-f $pct_fwcfg_fn) {
+	# note: this file is possibly from the container itself in backups
+	# created prior to pve-container 2.0-40 (PVE 5.x) / 3.0-5 (PVE 6.x)
+	# only copy non-empty, non-symlink files, and only if the user is
+	# allowed to modify the firewall config anyways
+	if (-f $pct_fwcfg_fn && ! -l $pct_fwcfg_fn && -s $pct_fwcfg_fn) {
 	    my $pve_firewall_dir = '/etc/pve/firewall';
-	    mkdir $pve_firewall_dir; # make sure the directory exists
-	    PVE::Tools::file_copy($pct_fwcfg_fn, "${pve_firewall_dir}/$vmid.fw");
+	    my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
+	    if ($skip_fw) {
+		warn "ignoring firewall config from backup archive's '$pct_fwcfg_fn', lacking API permission to modify firewall.\n";
+		warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
+		    if -e $pct_fwcfg_target;
+	    } else {
+		mkdir $pve_firewall_dir; # make sure the directory exists
+		PVE::Tools::file_copy($pct_fwcfg_fn, $pct_fwcfg_target);
+	    }
 	    unlink $pct_fwcfg_fn;
 	}
 

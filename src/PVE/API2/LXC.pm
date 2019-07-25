@@ -206,6 +206,9 @@ __PACKAGE__->register_method({
 	my $restore = extract_param($param, 'restore');
 	my $unique = extract_param($param, 'unique');
 
+	# used to skip firewall config restore if user lacks permission
+	my $skip_fw_config_restore = 0;
+
 	if ($restore) {
 	    # fixme: limit allowed parameters
 	}
@@ -237,6 +240,10 @@ __PACKAGE__->register_method({
 	} elsif ($restore && $force && $same_container_exists &&
 		 $rpcenv->check($authuser, "/vms/$vmid", ['VM.Backup'], 1)) {
 	    # OK: user has VM.Backup permissions, and want to restore an existing VM
+
+	    # we don't want to restore a container-provided FW conf in this case
+	    # since the user is lacking permission to configure the container's FW
+	    $skip_fw_config_restore = 1;
 	} else {
 	    raise_perm_exc();
 	}
@@ -407,7 +414,7 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
 
 		    if ($restore) {
-			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root, $unique);
+			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root, $unique, $skip_fw_config_restore);
 		    } else {
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
