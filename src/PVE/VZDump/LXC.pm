@@ -289,10 +289,13 @@ sub assemble {
     PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf));
 
     my $firewall ="/etc/pve/firewall/$vmid.fw";
+    my $fwconftmp = "$tmpdir/etc/vzdump/pct.fw";
     if (-e  $firewall) {
-	PVE::Tools::file_copy($firewall, "$tmpdir/etc/vzdump/pct.fw");
-	$task->{fw} = 1;
+	PVE::Tools::file_copy($firewall, $fwconftmp);
+    } else {
+	PVE::Tools::file_set_contents($fwconftmp, '');
     }
+    $task->{fw} = 1;
 }
 
 sub archive {
