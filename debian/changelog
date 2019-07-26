@@ -1,3 +1,10 @@
+pve-container (3.0-5) pve; urgency=medium
+
+  * vzdump: always add (empty) firewall config and improve handling of
+    restoring it from archive
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 26 Jul 2019 12:34:32 +0200
+
 pve-container (3.0-4) pve; urgency=medium
 
   * setup CT getty: ensure the getty.target is not masked and improve the logic
