@@ -1,3 +1,25 @@
+pve-container (2.0-40) unstable; urgency=medium
+
+  * fix #576: Fix dangling files for Move Disk
+
+  * fix #1451: allow one to add mount options to CT mountpoints
+
+  * fix #2270: allow custom lxc options to be restored as root
+
+  * fix #576: Fix dangling files for Move Disk
+
+  * tests: avoid ipcc usage by mocking PVE::Cluster::get_config
+
+  * vzdump: always add (empty) firewall config and improve handling of
+    restoring it from archive
+
+  * add support for debian bullseye/sid
+
+  * setup CT getty: ensure the getty.target is not masked and improve
+    the logic which ensures that only the correct getty services are enabled
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 26 Jul 2019 09:08:53 +0200
+
 pve-container (2.0-39) unstable; urgency=medium
 
   * fix #2027: do not disable IPV6_AUTOCONF on centos
