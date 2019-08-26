@@ -774,9 +774,9 @@ __PACKAGE__->register_method ({
 
 	my $storecfg = PVE::Storage::config();
 	my $conf = PVE::LXC::Config->set_lock($vmid, 'fstrim');
-	PVE::LXC::mount_all($vmid, $storecfg, $conf);
 	eval {
 	    my $path = "";
+	    PVE::LXC::mount_all($vmid, $storecfg, $conf);
 	    PVE::LXC::Config->foreach_mountpoint($conf, sub {
 		my ($name, $mp) = @_;
 		$path = $mp->{mp};
@@ -784,6 +784,7 @@ __PACKAGE__->register_method ({
 		PVE::Tools::run_command($cmd);
 	    });
 	};
+	warn $@ if $@;
 
 	PVE::LXC::umount_all($vmid, $storecfg, $conf, 0);
 	PVE::LXC::Config->remove_lock($vmid, 'fstrim');
