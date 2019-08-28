@@ -1142,6 +1142,8 @@ sub umount_all {
     my $rootdir = "/var/lib/lxc/$vmid/rootfs";
     my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
 
+    my $res = 1;
+
     PVE::LXC::Config->foreach_mountpoint_reverse($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
@@ -1160,12 +1162,15 @@ sub umount_all {
 	};
 	if (my $err = $@) {
 	    if ($noerr) {
+		$res = 0;
 		warn $err;
 	    } else {
 		die $err;
 	    }
 	}
     });
+
+    return $res; # tell caller if (some) umounts failed for the noerr case
 }
 
 sub mount_all {
