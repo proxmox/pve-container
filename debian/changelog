@@ -1,3 +1,14 @@
+pve-container (3.0-7) pve; urgency=medium
+
+  * mountpoints: create parent dirs with correct owner
+
+  * setup: allow CentOS 5 and CentOS 8
+
+  * do not leave fstrim lock if initial mount-all-volumes procedure
+    fails
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 03 Sep 2019 07:21:18 +0200
+
 pve-container (3.0-5) pve; urgency=medium
 
   * vzdump: always add (empty) firewall config and improve handling of
