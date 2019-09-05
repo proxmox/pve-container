@@ -35,7 +35,7 @@ BEGIN {
 
 __PACKAGE__->register_method ({
     subclass => "PVE::API2::LXC::Config",
-    path => '{vmid}/config',			      
+    path => '{vmid}/config',
 });
 
 __PACKAGE__->register_method ({
