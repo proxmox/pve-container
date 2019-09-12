@@ -213,7 +213,7 @@ __PACKAGE__->register_method({
 	if ($restore) {
 	    # fixme: limit allowed parameters
 	}
-	
+
 	my $force = extract_param($param, 'force');
 
 	if (!($same_container_exists && $restore && $force)) {
@@ -258,9 +258,9 @@ __PACKAGE__->register_method({
 
 	my $archive;
 	if ($ostemplate eq '-') {
-	    die "pipe requires cli environment\n" 
-		if $rpcenv->{type} ne 'cli'; 
-	    die "pipe can only be used with restore tasks\n" 
+	    die "pipe requires cli environment\n"
+		if $rpcenv->{type} ne 'cli';
+	    die "pipe can only be used with restore tasks\n"
 		if !$restore;
 	    $archive = '-';
 	    die "restore from pipe requires rootfs parameter\n" if !defined($param->{rootfs});
@@ -694,7 +694,7 @@ __PACKAGE__->register_method({
 	};
 
 	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
-	
+
 	return $rpcenv->fork_worker('vzdestroy', $vmid, $authuser, $realcmd);
     }});
 
