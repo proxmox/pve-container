@@ -1659,6 +1659,9 @@ __PACKAGE__->register_method({
 	    PVE::Storage::activate_volumes($storage_cfg, [$volid]);
 
 	    my $size = PVE::Storage::volume_size_info($storage_cfg, $volid, 5);
+
+	    die "Size of volume $volid couldn't be determined\n" if (!defined($size));
+
 	    $newsize += $size if $ext;
 	    $newsize = int($newsize);
 
