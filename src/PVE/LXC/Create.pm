@@ -176,18 +176,14 @@ sub restore_configuration {
 	    # storage supports creating a template there
 	    next if $key =~ /^template$/;
 
-	    if ($key eq 'lxc') {
+	    if ($key eq 'lxc' && $restricted) {
 		my $lxc_list = $oldconf->{'lxc'};
-		if ($restricted) {
-		    warn "skipping custom lxc options, restore manually as root:\n";
-		    warn "--------------------------------\n";
-		    foreach my $lxc_opt (@$lxc_list) {
-			warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
-		    }
-		    warn "--------------------------------\n";
-		} else {
-		    @{$conf->{$key}} = (@$lxc_list, @{$conf->{$key}});
+		warn "skipping custom lxc options, restore manually as root:\n";
+		warn "--------------------------------\n";
+		foreach my $lxc_opt (@$lxc_list) {
+		    warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
 		}
+		warn "--------------------------------\n";
 		next;
 	    }
 
