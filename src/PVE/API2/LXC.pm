@@ -353,11 +353,11 @@ __PACKAGE__->register_method({
 			my $orig_conf;
 			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
 			$was_template = delete $orig_conf->{template};
-			# When we're root call 'restore_configuration' with ristricted=0,
+			# When we're root call 'restore_configuration' with restricted=0,
 			# causing it to restore the raw lxc entries, among which there may be
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
 			# of the container match up with the restored configuration afterwards:
-			$conf->{lxc} = [grep { $_->[0] eq 'lxc.idmap' } @{$orig_conf->{lxc}}];
+			$conf->{lxc} = $orig_conf->{lxc};
 		    }
 		}
 		if ($storage_only_mode) {
