@@ -861,16 +861,7 @@ our $cmddef = {
 
     delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 
-    listsnapshot => [ "PVE::API2::LXC::Snapshot", 'list', ['vmid'], { node => $nodename },
-		      sub {
-			  my $res = shift;
-			  foreach my $e (@$res) {
-			      my $headline = $e->{description} || 'no-description';
-			      $headline =~ s/\n.*//sg;
-			      my $parent = $e->{parent} // 'no-parent';
-			      printf("%-20s %-20s %s\n", $e->{name}, $parent, $headline);
-			  }
-		      }],
+    listsnapshot => [ "PVE::API2::LXC::Snapshot", 'list', ['vmid'], { node => $nodename }, \&PVE::GuestHelpers::print_snapshot_tree ],
 
     rollback => [ "PVE::API2::LXC::Snapshot", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
 
