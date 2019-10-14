@@ -7,6 +7,7 @@ use POSIX;
 use Fcntl;
 use File::Copy 'copy';
 
+use PVE::GuestHelpers;
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
 use PVE::CpuSet;
@@ -821,6 +822,8 @@ our $cmddef = {
 			}
 		    }
 		}],
+
+    pending => [ "PVE::API2::LXC", "vm_pending", ['vmid'], { node => $nodename }, \&PVE::GuestHelpers::format_pending ],
     set => [ 'PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
 
     resize => [ "PVE::API2::LXC", 'resize_vm', ['vmid', 'disk', 'size'], { node => $nodename } ],
