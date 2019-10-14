@@ -1281,7 +1281,7 @@ sub classify_mountpoint {
     return 'volume';
 }
 
-my $is_volume_in_use = sub {
+my $__is_volume_in_use = sub {
     my ($class, $config, $volid) = @_;
     my $used = 0;
 
@@ -1299,16 +1299,16 @@ sub is_volume_in_use_by_snapshots {
 
     if (my $snapshots = $config->{snapshots}) {
 	foreach my $snap (keys %$snapshots) {
-	    return 1 if $is_volume_in_use->($class, $snapshots->{$snap}, $volid);
+	    return 1 if $__is_volume_in_use->($class, $snapshots->{$snap}, $volid);
 	}
     }
 
     return 0;
-};
+}
 
 sub is_volume_in_use {
     my ($class, $config, $volid, $include_snapshots) = @_;
-    return 1 if $is_volume_in_use->($class, $config, $volid);
+    return 1 if $__is_volume_in_use->($class, $config, $volid);
     return 1 if $include_snapshots && $class->is_volume_in_use_by_snapshots($config, $volid);
     return 0;
 }
