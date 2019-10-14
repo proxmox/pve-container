@@ -1932,6 +1932,13 @@ sub userns_command {
 sub vm_start {
     my ($vmid, $conf, $skiplock) = @_;
 
+    # apply pending changes while starting
+    if (scalar(keys %{$conf->{pending}})) {
+	my $storecfg = PVE::Storage::config();
+	PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storecfg);
+	$conf = PVE::LXC::Config->load_config($vmid); # update/reload
+    }
+
     update_lxc_config($vmid, $conf);
 
     my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
