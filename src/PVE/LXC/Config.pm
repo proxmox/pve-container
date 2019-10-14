@@ -892,268 +892,74 @@ sub write_pct_config {
 }
 
 sub update_pct_config {
-    my ($class, $vmid, $conf, $running, $param, $delete) = @_;
+    my ($class, $vmid, $conf, $running, $param, $delete, $revert) = @_;
 
-    my @nohotplug;
+    my $storage_cfg = PVE::Storage::config();
 
-    my $new_disks = 0;
-    my @deleted_volumes;
-
-    my $rootdir;
-    if ($running) {
-	my $pid = PVE::LXC::find_lxc_pid($vmid);
-	$rootdir = "/proc/$pid/root";
+    foreach my $opt (@$revert) {
+	delete $conf->{pending}->{$opt};
+	$class->remove_from_pending_delete($conf, $opt); # also remove from deletion queue
     }
 
-    my $hotplug_error = sub {
-	if ($running) {
-	    push @nohotplug, @_;
-	    return 1;
-	} else {
-	    return 0;
-	}
-    };
+    # write updates to pending section
+    my $modified = {}; # record modified options
 
-    if (defined($delete)) {
-	foreach my $opt (@$delete) {
-	    if (!exists($conf->{$opt})) {
-		# silently ignore
-		next;
-	    }
-
-	    if ($opt eq 'memory' || $opt eq 'rootfs') {
-		die "unable to delete required option '$opt'\n";
-	    } elsif ($opt eq 'hostname') {
-		delete $conf->{$opt};
-	    } elsif ($opt eq 'swap') {
-		delete $conf->{$opt};
-		PVE::LXC::write_cgroup_value("memory", $vmid,
-					     "memory.memsw.limit_in_bytes", -1);
-	    } elsif ($opt eq 'description' || $opt eq 'onboot' || $opt eq 'startup' || $opt eq 'hookscript') {
-		delete $conf->{$opt};
-	    } elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' ||
-		     $opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
-		next if $hotplug_error->($opt);
-		delete $conf->{$opt};
-	    } elsif ($opt eq 'cores') {
-		delete $conf->{$opt}; # rest is handled by pvestatd
-	    } elsif ($opt eq 'cpulimit') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
-		delete $conf->{$opt};
-	    } elsif ($opt eq 'cpuunits') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $confdesc->{cpuunits}->{default});
-		delete $conf->{$opt};
-	    } elsif ($opt =~ m/^net(\d)$/) {
-		delete $conf->{$opt};
-		next if !$running;
-		my $netid = $1;
-		PVE::Network::veth_delete("veth${vmid}i$netid");
-	    } elsif ($opt eq 'protection') {
-		delete $conf->{$opt};
-	    } elsif ($opt =~ m/^unused(\d+)$/) {
-		next if $hotplug_error->($opt);
-		PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid drive '$opt'");
-		push @deleted_volumes, $conf->{$opt};
-		delete $conf->{$opt};
-	    } elsif ($opt =~ m/^mp(\d+)$/) {
-		next if $hotplug_error->($opt);
-		PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid drive '$opt'");
-		my $mp = PVE::LXC::Config->parse_ct_mountpoint($conf->{$opt});
-		delete $conf->{$opt};
-		if ($mp->{type} eq 'volume') {
-		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
-		}
-	    } elsif ($opt eq 'unprivileged') {
-		die "unable to delete read-only option: '$opt'\n";
-	    } elsif ($opt eq 'features') {
-		next if $hotplug_error->($opt);
-		delete $conf->{$opt};
-	    } else {
-		die "implement me (delete: $opt)"
-	    }
-	    PVE::LXC::Config->write_config($vmid, $conf) if $running;
+    foreach my $opt (@$delete) {
+	if (!defined($conf->{$opt}) && !defined($conf->{pending}->{$opt})) {
+	    warn "cannot delete '$opt' - not set in current configuration!\n";
+	    next;
 	}
+	$modified->{$opt} = 1;
+	if ($opt eq 'memory' || $opt eq 'rootfs' || $opt eq 'ostype') {
+	    die "unable to delete required option '$opt'\n";
+	} elsif ($opt =~ m/^unused(\d+)$/) {
+	    $class->check_protection($conf, "can't remove CT $vmid drive '$opt'");
+	} elsif ($opt =~ m/^mp(\d+)$/) {
+	    $class->check_protection($conf, "can't remove CT $vmid drive '$opt'");
+	} elsif ($opt eq 'unprivileged') {
+	    die "unable to delete read-only option: '$opt'\n";
+	}
+	$class->add_to_pending_delete($conf, $opt);
     }
 
-    # There's no separate swap size to configure, there's memory and "total"
-    # memory (iow. memory+swap). This means we have to change them together.
-    my $wanted_memory = PVE::Tools::extract_param($param, 'memory');
-    my $wanted_swap =  PVE::Tools::extract_param($param, 'swap');
-    if (defined($wanted_memory) || defined($wanted_swap)) {
-
-	my $old_memory = ($conf->{memory} || 512);
-	my $old_swap = ($conf->{swap} || 0);
-
-	$wanted_memory //= $old_memory;
-	$wanted_swap //= $old_swap;
-
-	my $total = $wanted_memory + $wanted_swap;
-	if ($running) {
-	    my $old_total = $old_memory + $old_swap;
-	    if ($total > $old_total) {
-		PVE::LXC::write_cgroup_value("memory", $vmid,
-					     "memory.memsw.limit_in_bytes",
-					     int($total*1024*1024));
-		PVE::LXC::write_cgroup_value("memory", $vmid,
-					     "memory.limit_in_bytes",
-					     int($wanted_memory*1024*1024));
-	    } else {
-		PVE::LXC::write_cgroup_value("memory", $vmid,
-					     "memory.limit_in_bytes",
-					     int($wanted_memory*1024*1024));
-		PVE::LXC::write_cgroup_value("memory", $vmid,
-					     "memory.memsw.limit_in_bytes",
-					     int($total*1024*1024));
-	    }
-	}
-	$conf->{memory} = $wanted_memory;
-	$conf->{swap} = $wanted_swap;
-
-	PVE::LXC::Config->write_config($vmid, $conf) if $running;
-    }
-
-    my $storecfg = PVE::Storage::config();
-
-    my $used_volids = {};
     my $check_content_type = sub {
 	my ($mp) = @_;
 	my $sid = PVE::Storage::parse_volume_id($mp->{volume});
-	my $storage_config = PVE::Storage::storage_config($storecfg, $sid);
+	my $storage_config = PVE::Storage::storage_config($storage_cfg, $sid);
 	die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
 	    if !$storage_config->{content}->{rootdir};
     };
 
-    my $rescan_volume = sub {
-	my ($mp) = @_;
-	eval {
-	    $mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
-		if !defined($mp->{size});
-	};
-	warn "Could not rescan volume size - $@\n" if $@;
-    };
-
-    foreach my $opt (keys %$param) {
+    foreach my $opt (keys %$param) { # add/change
+	$modified->{$opt} = 1;
 	my $value = $param->{$opt};
-	my $check_protection_msg = "can't update CT $vmid drive '$opt'";
-	if ($opt eq 'hostname' || $opt eq 'arch') {
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'onboot') {
-	    $conf->{$opt} = $value ? 1 : 0;
-	} elsif ($opt eq 'startup') {
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'tty' || $opt eq 'console' || $opt eq 'cmode') {
-	    next if $hotplug_error->($opt);
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'nameserver') {
-	    next if $hotplug_error->($opt);
-	    my $list = PVE::LXC::verify_nameserver_list($value);
-	    $conf->{$opt} = $list;
-	} elsif ($opt eq 'searchdomain') {
-	    next if $hotplug_error->($opt);
-	    my $list = PVE::LXC::verify_searchdomain_list($value);
-	    $conf->{$opt} = $list;
-	} elsif ($opt eq 'cores') {
-	    $conf->{$opt} = $value;# rest is handled by pvestatd
-	} elsif ($opt eq 'cpulimit') {
-	    if ($value == 0) {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
-	    } else {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", int(100000*$value));
-	    }
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'cpuunits') {
-	    $conf->{$opt} = $value;
-	    PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
-	} elsif ($opt eq 'description') {
-	    $conf->{$opt} = $value;
-	} elsif ($opt =~ m/^net(\d+)$/) {
-	    my $netid = $1;
-	    my $net = PVE::LXC::Config->parse_lxc_network($value);
-	    if (!$running) {
-		$conf->{$opt} = PVE::LXC::Config->print_lxc_network($net);
-	    } else {
-		PVE::LXC::update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
-	    }
-	} elsif ($opt eq 'protection') {
-	    $conf->{$opt} = $value ? 1 : 0;
-	} elsif ($opt =~ m/^mp(\d+)$/) {
-	    next if $hotplug_error->($opt);
-	    PVE::LXC::Config->check_protection($conf, $check_protection_msg);
-	    my $old = $conf->{$opt};
-	    my $mp = PVE::LXC::Config->parse_ct_mountpoint($value);
-	    if ($mp->{type} eq 'volume') {
-		&$check_content_type($mp);
-		$used_volids->{$mp->{volume}} = 1;
-		&$rescan_volume($mp);
-		$conf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp);
-	    } else {
-		$conf->{$opt} = $value;
-	    }
-	    if (defined($old)) {
-		my $mp = PVE::LXC::Config->parse_ct_mountpoint($old);
-		if ($mp->{type} eq 'volume') {
-		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
-		}
-	    }
-	    $new_disks = 1;
-	} elsif ($opt eq 'rootfs') {
-	    next if $hotplug_error->($opt);
-	    PVE::LXC::Config->check_protection($conf, $check_protection_msg);
-	    my $old = $conf->{$opt};
-	    my $mp = PVE::LXC::Config->parse_ct_rootfs($value);
-	    if ($mp->{type} eq 'volume') {
-		&$check_content_type($mp);
-		$used_volids->{$mp->{volume}} = 1;
-		&$rescan_volume($mp);
-		$conf->{$opt} = PVE::LXC::Config->print_ct_mountpoint($mp, 1);
-	    } else {
-		$conf->{$opt} = $value;
-	    }
-	    if (defined($old)) {
-		my $mp = PVE::LXC::Config->parse_ct_rootfs($old);
-		if ($mp->{type} eq 'volume') {
-		    PVE::LXC::Config->add_unused_volume($conf, $mp->{volume});
-		}
-	    }
-	    $new_disks = 1;
-	} elsif ($opt eq 'unprivileged') {
-	    die "unable to modify read-only option: '$opt'\n";
-	} elsif ($opt eq 'ostype') {
-	    next if $hotplug_error->($opt);
-	    $conf->{$opt} = $value;
-	} elsif ($opt eq 'features') {
-	    next if $hotplug_error->($opt);
-	    $conf->{$opt} = $value;
+	if ($opt =~ m/^mp(\d+)$/ || $opt eq 'rootfs') {
+	    $class->check_protection($conf, "can't update CT $vmid drive '$opt'");
+	    my $mp = $opt eq 'rootfs' ? $class->parse_ct_rootfs($value) : $class->parse_ct_mountpoint($value);
+	    $check_content_type->($mp);
 	} elsif ($opt eq 'hookscript') {
 	    PVE::GuestHelpers::check_hookscript($value);
-	    $conf->{$opt} = $value;
-	} else {
-	    die "implement me: $opt";
+	} elsif ($opt eq 'nameserver') {
+	    $value = PVE::LXC::verify_nameserver_list($value);
+	} elsif ($opt eq 'searchdomain') {
+	    $value = PVE::LXC::verify_searchdomain_list($value);
+	} elsif ($opt eq 'unprivileged') {
+	    die "unable to modify read-only option: '$opt'\n";
 	}
-
-	PVE::LXC::Config->write_config($vmid, $conf) if $running;
+	$conf->{pending}->{$opt} = $value;
+	$class->remove_from_pending_delete($conf, $opt);
     }
 
-    # Apply deletions and creations of new volumes
-    if (@deleted_volumes) {
-	my $storage_cfg = PVE::Storage::config();
-	foreach my $volume (@deleted_volumes) {
-	    next if $used_volids->{$volume}; # could have been re-added, too
-	    # also check for references in snapshots
-	    next if $class->is_volume_in_use($conf, $volume, 1);
-	    PVE::LXC::delete_mountpoint_volume($storage_cfg, $vmid, $volume);
-	}
+    my $changes = $class->cleanup_pending($conf);
+
+    my $errors = {};
+    if ($running) {
+	$class->vmconfig_hotplug_pending($vmid, $conf, $storage_cfg, $modified, $errors);
+    } else {
+	$class->vmconfig_apply_pending($vmid, $conf, $storage_cfg, $modified, $errors);
     }
 
-    if ($new_disks) {
-	my $storage_cfg = PVE::Storage::config();
-	PVE::LXC::create_disks($storage_cfg, $vmid, $conf, $conf);
-    }
-
-    # This should be the last thing we do here
-    if ($running && scalar(@nohotplug)) {
-	die "unable to modify " . join(',', @nohotplug) . " while container is running\n";
-    }
+    return $errors;
 }
 
 sub check_type {

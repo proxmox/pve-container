@@ -112,6 +112,11 @@ __PACKAGE__->register_method({
 		    description => "A list of settings you want to delete.",
 		    optional => 1,
 		},
+		revert => {
+		    type => 'string', format => 'pve-configid-list',
+		    description => "Revert a pending change.",
+		    optional => 1,
+		},
 		digest => {
 		    type => 'string',
 		    description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
@@ -136,21 +141,34 @@ __PACKAGE__->register_method({
 
 	my $delete_str = extract_param($param, 'delete');
 	my @delete = PVE::Tools::split_list($delete_str);
+	my $revert_str = extract_param($param, 'revert');
+	my @revert = PVE::Tools::split_list($revert_str);
 
 	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, {}, [@delete]);
+	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, {}, [@revert]);
+
+	foreach my $opt (@revert) {
+	    raise_param_exc({ revert => "unknown option '$opt'" })
+		if !PVE::LXC::Config->option_exists($opt);
+
+	    raise_param_exc({ revert => "you can't use '-$opt' and '-revert $opt' at the same time" })
+		if defined($param->{$opt});
+	}
 
 	foreach my $opt (@delete) {
+	    raise_param_exc({ delete => "unknown option '$opt'" })
+		if !PVE::LXC::Config->option_exists($opt);
+
 	    raise_param_exc({ delete => "you can't use '-$opt' and -delete $opt' at the same time" })
 		if defined($param->{$opt});
 
-	    if (!PVE::LXC::Config->option_exists($opt)) {
-		raise_param_exc({ delete => "unknown option '$opt'" });
-	    }
+	    raise_param_exc({ delete => "you can't use '-delete $opt' and '-revert $opt' at the same time" })
+		if grep(/^$opt$/, @revert);
 	}
 
 	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $param, []);
 
-	my $storage_cfg = cfs_read_file("storage.cfg");
+	my $storage_cfg = PVE::Storage::config();
 
 	my $repl_conf = PVE::ReplicationConfig->new();
 	my $is_replicated = $repl_conf->check_for_existing_jobs($vmid, 1);
@@ -185,10 +203,11 @@ __PACKAGE__->register_method({
 
 	    my $running = PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete);
+	    my $errors = PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete, \@revert);
+	    $conf = PVE::LXC::Config->load_config($vmid);
 
-	    PVE::LXC::Config->write_config($vmid, $conf);
 	    PVE::LXC::update_lxc_config($vmid, $conf);
+	    raise_param_exc($errors) if scalar(keys %$errors);
 	};
 
 	PVE::LXC::Config->lock_config($vmid, $code);
