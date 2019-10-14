@@ -751,6 +751,7 @@ sub parse_pct_config {
     my $res = {
 	digest => Digest::SHA::sha1_hex($raw),
 	snapshots => {},
+	pending => {},
     };
 
     $filename =~ m|/lxc/(\d+).conf$|
@@ -766,7 +767,13 @@ sub parse_pct_config {
     foreach my $line (@lines) {
 	next if $line =~ m/^\s*$/;
 
-	if ($line =~ m/^\[([a-z][a-z0-9_\-]+)\]\s*$/i) {
+	if ($line =~ m/^\[pve:pending\]\s*$/i) {
+	    $section = 'pending';
+	    $conf->{description} = $descr if $descr;
+	    $descr = '';
+	    $conf = $res->{$section} = {};
+	    next;
+	} elsif ($line =~ m/^\[([a-z][a-z0-9_\-]+)\]\s*$/i) {
 	    $section = $1;
 	    $conf->{description} = $descr if $descr;
 	    $descr = '';
@@ -794,6 +801,13 @@ sub parse_pct_config {
 	    $descr .= PVE::Tools::decode_text($2);
 	} elsif ($line =~ m/snapstate:\s*(prepare|delete)\s*$/) {
 	    $conf->{snapstate} = $1;
+	} elsif ($line =~ m/^delete:\s*(.*\S)\s*$/) {
+	    my $value = $1;
+	    if ($section eq 'pending') {
+		$conf->{delete} = $value;
+	    } else {
+		warn "vm $vmid - property 'delete' is only allowed in [pve:pending]\n";
+	    }
 	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(\S.*)\s*$/) {
 	    my $key = $1;
 	    my $value = $2;
@@ -839,7 +853,7 @@ sub write_pct_config {
 	# add description as comment to top of file
 	my $descr = $conf->{description} || '';
 	foreach my $cl (split(/\n/, $descr)) {
-	    $raw .= '#' .  PVE::Tools::encode_text($cl) . "\n";
+	    $raw .= '#' . PVE::Tools::encode_text($cl) . "\n";
 	}
 
 	foreach my $key (sort keys %$conf) {
@@ -863,6 +877,11 @@ sub write_pct_config {
     };
 
     my $raw = &$generate_raw_config($conf);
+
+    if (scalar(keys %{$conf->{pending}})){
+	$raw .= "\n[pve:pending]\n";
+	$raw .= &$generate_raw_config($conf->{pending});
+    }
 
     foreach my $snapname (sort keys %{$conf->{snapshots}}) {
 	$raw .= "\n[$snapname]\n";
