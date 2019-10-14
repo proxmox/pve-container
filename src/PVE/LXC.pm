@@ -1630,7 +1630,7 @@ sub alloc_disk {
 
 our $NEW_DISK_RE = qr/^([^:\s]+):(\d+(\.\d+)?)$/;
 sub create_disks {
-    my ($storecfg, $vmid, $settings, $conf) = @_;
+    my ($storecfg, $vmid, $settings, $conf, $pending) = @_;
 
     my $vollist = [];
 
@@ -1657,10 +1657,14 @@ sub create_disks {
 		push @$vollist, $volid;
 		$mountpoint->{volume} = $volid;
 		$mountpoint->{size} = $size_kb * 1024;
-		$conf->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+		if ($pending) {
+		    $conf->{pending}->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+		} else {
+		    $conf->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+		}
 	    } else {
-                # use specified/existing volid/dir/device
-                $conf->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
+		# use specified/existing volid/dir/device
+		$conf->{$ms} = PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
 	    }
 	});
 
@@ -1674,7 +1678,7 @@ sub create_disks {
     # free allocated images on error
     if (my $err = $@) {
 	destroy_disks($storecfg, $vollist);
-        die $err;
+	die $err;
     }
     return $vollist;
 }

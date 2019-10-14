@@ -1291,6 +1291,217 @@ sub option_exists {
 }
 # END JSON config code
 
+my $LXC_FASTPLUG_OPTIONS= {
+    'description' => 1,
+    'onboot' => 1,
+    'startup' => 1,
+    'protection' => 1,
+    'hostname' => 1,
+    'hookscript' => 1,
+    'cores' => 1,
+    'tags' => 1,
+};
+
+sub vmconfig_hotplug_pending {
+    my ($class, $vmid, $conf, $storecfg, $selection, $errors) = @_;
+
+    my $pid = PVE::LXC::find_lxc_pid($vmid);
+    my $rootdir = "/proc/$pid/root";
+
+    my $add_hotplug_error = sub {
+	my ($opt, $msg) = @_;
+	$errors->{$opt} = "unable to hotplug $opt: $msg";
+    };
+
+    my $changes;
+    foreach my $opt (keys %{$conf->{pending}}) { # add/change
+	next if $selection && !$selection->{$opt};
+	if ($LXC_FASTPLUG_OPTIONS->{$opt}) {
+	    $conf->{$opt} = delete $conf->{pending}->{$opt};
+	    $changes = 1;
+	}
+    }
+
+    if ($changes) {
+	$class->write_config($vmid, $conf);
+    }
+
+    # There's no separate swap size to configure, there's memory and "total"
+    # memory (iow. memory+swap). This means we have to change them together.
+    my $hotplug_memory_done;
+    my $hotplug_memory = sub {
+	my ($wanted_memory, $wanted_swap) = @_;
+	my $old_memory = ($conf->{memory} || $confdesc->{memory}->{default});
+	my $old_swap = ($conf->{swap} || $confdesc->{swap}->{default});
+
+	$wanted_memory //= $old_memory;
+	$wanted_swap //= $old_swap;
+
+	my $total = $wanted_memory + $wanted_swap;
+	my $old_total = $old_memory + $old_swap;
+
+	if ($total > $old_total) {
+	    PVE::LXC::write_cgroup_value("memory", $vmid,
+					 "memory.memsw.limit_in_bytes",
+					 int($total*1024*1024));
+	    PVE::LXC::write_cgroup_value("memory", $vmid,
+					 "memory.limit_in_bytes",
+					 int($wanted_memory*1024*1024));
+	} else {
+	    PVE::LXC::write_cgroup_value("memory", $vmid,
+					 "memory.limit_in_bytes",
+					 int($wanted_memory*1024*1024));
+	    PVE::LXC::write_cgroup_value("memory", $vmid,
+					 "memory.memsw.limit_in_bytes",
+					 int($total*1024*1024));
+	}
+	$hotplug_memory_done = 1;
+    };
+
+    my $pending_delete_hash = $class->parse_pending_delete($conf->{pending}->{delete});
+    # FIXME: $force deletion is not implemented for CTs
+    while (my ($opt, undef) = each %$pending_delete_hash) {
+	next if $selection && !$selection->{$opt};
+	eval {
+	    if ($LXC_FASTPLUG_OPTIONS->{$opt}) {
+		# pass
+	    } elsif ($opt =~ m/^unused(\d+)$/) {
+		PVE::LXC::delete_mountpoint_volume($storecfg, $vmid, $conf->{$opt})
+		    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+	    } elsif ($opt eq 'swap') {
+		$hotplug_memory->(undef, 0);
+	    } elsif ($opt eq 'cpulimit') {
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_period_us", -1);
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
+	    } elsif ($opt eq 'cpuunits') {
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shared", $confdesc->{cpuunits}->{default});
+	    } elsif ($opt =~ m/^net(\d)$/) {
+		my $netid = $1;
+		PVE::Network::veth_delete("veth${vmid}i$netid");
+	    } else {
+		die "skip\n"; # skip non-hotpluggable opts
+	    }
+	};
+	if (my $err = $@) {
+	    $add_hotplug_error->($opt, $err) if $err ne "skip\n";
+	} else {
+	    delete $conf->{$opt};
+	    $class->remove_from_pending_delete($conf, $opt);
+	}
+    }
+
+    foreach my $opt (keys %{$conf->{pending}}) {
+	next if $opt eq 'delete'; # just to be sure
+	next if $selection && !$selection->{$opt};
+	my $value = $conf->{pending}->{$opt};
+	eval {
+	    if ($opt eq 'cpulimit') {
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_period_us", 100000);
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", int(100000*$value));
+	    } elsif ($opt eq 'cpuunits') {
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
+	    } elsif ($opt =~ m/^net(\d+)$/) {
+		my $netid = $1;
+		my $net = $class->parse_lxc_network($value);
+		PVE::LXC::update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
+	    } elsif ($opt eq 'memory' || $opt eq 'swap') {
+		if (!$hotplug_memory_done) { # don't call twice if both opts are passed
+		    $hotplug_memory->($conf->{pending}->{memory}, $conf->{pending}->{swap});
+		}
+	    } else {
+		die "skip\n"; # skip non-hotpluggable
+	    }
+	};
+	if (my $err = $@) {
+	    $add_hotplug_error->($opt, $err) if $err ne "skip\n";
+	} else {
+	    $conf->{$opt} = $value;
+	    delete $conf->{pending}->{$opt};
+	}
+    }
+
+    $class->write_config($vmid, $conf);
+}
+
+sub vmconfig_apply_pending {
+    my ($class, $vmid, $conf, $storecfg, $selection, $errors) = @_;
+
+    my $add_apply_error = sub {
+	my ($opt, $msg) = @_;
+	my $err_msg = "unable to apply pending change $opt : $msg";
+	$errors->{$opt} = $err_msg;
+	warn $err_msg;
+    };
+
+    my $rescan_volume = sub {
+	my ($mp) = @_;
+	eval {
+	    $mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
+		if !defined($mp->{size});
+	};
+	warn "Could not rescan volume size - $@\n" if $@;
+    };
+
+    my $pending_delete_hash = $class->parse_pending_delete($conf->{pending}->{delete});
+    # FIXME: $force deletion is not implemented for CTs
+    while (my ($opt, undef) = each %$pending_delete_hash) {
+	next if $selection && !$selection->{$opt};
+	$class->cleanup_pending($conf);
+	eval {
+	    if ($opt =~ m/^mp(\d+)$/) {
+		my $mp = $class->parse_ct_mountpoint($conf->{$opt});
+		if ($mp->{type} eq 'volume') {
+		    $class->add_unused_volume($conf, $mp->{volume})
+			if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+		}
+	    } elsif ($opt =~ m/^unused(\d+)$/) {
+		PVE::LXC::delete_mountpoint_volume($storecfg, $vmid, $conf->{$opt})
+		    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+	    }
+	};
+	if (my $err = $@) {
+	    $add_apply_error->($opt, $err);
+	} else {
+	    delete $conf->{$opt};
+	    $class->remove_from_pending_delete($conf, $opt);
+	}
+    }
+
+    foreach my $opt (keys %{$conf->{pending}}) { # add/change
+	next if $opt eq 'delete'; # just to be sure
+	next if $selection && !$selection->{$opt};
+	eval {
+	    if ($opt =~ m/^mp(\d+)$/) {
+		my $mp = $class->parse_ct_mountpoint($conf->{pending}->{$opt});
+		my $old = $conf->{$opt};
+		if ($mp->{type} eq 'volume') {
+		    if ($mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
+			PVE::LXC::create_disks($storecfg, $vmid, { $opt => $conf->{pending}->{$opt} }, $conf, 1);
+		    } else {
+			$rescan_volume->($mp);
+			$conf->{pending}->{$opt} = $class->print_ct_mountpoint($mp);
+		    }
+		}
+		if (defined($old)) {
+		    my $mp = $class->parse_ct_mountpoint($old);
+		    if ($mp->{type} eq 'volume') {
+			$class->add_unused_volume($conf, $mp->{volume})
+			    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+		    }
+		}
+	    }
+	};
+	if (my $err = $@) {
+	    $add_apply_error->($opt, $err);
+	} else {
+	    $class->cleanup_pending($conf);
+	    $conf->{$opt} = delete $conf->{pending}->{$opt};
+	}
+    }
+
+    $class->write_config($vmid, $conf);
+}
+
 sub classify_mountpoint {
     my ($class, $vol) = @_;
     if ($vol =~ m!^/!) {
