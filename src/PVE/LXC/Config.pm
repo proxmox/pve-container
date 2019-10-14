@@ -1326,9 +1326,10 @@ sub is_volume_in_use_by_snapshots {
 }
 
 sub is_volume_in_use {
-    my ($class, $config, $volid, $include_snapshots) = @_;
+    my ($class, $config, $volid, $include_snapshots, $include_pending) = @_;
     return 1 if $__is_volume_in_use->($class, $config, $volid);
     return 1 if $include_snapshots && $class->is_volume_in_use_by_snapshots($config, $volid);
+    return 1 if $include_pending && $__is_volume_in_use->($class, $config->{pending}, $volid);
     return 0;
 }
 
