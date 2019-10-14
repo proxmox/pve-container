@@ -515,6 +515,7 @@ __PACKAGE__->register_method({
 
 	my $res = [
 	    { subdir => 'config' },
+	    { subdir => 'pending' },
 	    { subdir => 'status' },
 	    { subdir => 'vncproxy' },
 	    { subdir => 'termproxy' },
@@ -1868,5 +1869,60 @@ __PACKAGE__->register_method({
 	}
 	return $task;
   }});
+
+__PACKAGE__->register_method({
+    name => 'vm_pending',
+    path => '{vmid}/pending',
+    method => 'GET',
+    proxyto => 'node',
+    description => 'Get container configuration, including pending changes.',
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => {
+	type => "array",
+	items => {
+	    type => "object",
+	    properties => {
+		key => {
+		    description => 'Configuration option name.',
+		    type => 'string',
+		},
+		value => {
+		    description => 'Current value.',
+		    type => 'string',
+		    optional => 1,
+		},
+		pending => {
+		    description => 'Pending value.',
+		    type => 'string',
+		    optional => 1,
+		},
+		delete => {
+		    description => "Indicates a pending delete request if present and not 0.",
+		    type => 'integer',
+		    minimum => 0,
+		    maximum => 2,
+		    optional => 1,
+		},
+	    },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $conf = PVE::LXC::Config->load_config($param->{vmid});
+
+	my $pending_delete_hash = PVE::LXC::Config->parse_pending_delete($conf->{pending}->{delete});
+
+	return PVE::GuestHelpers::conf_table_with_pending($conf, $pending_delete_hash);
+    }});
 
 1;
