@@ -34,6 +34,12 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    current => {
+		description => "Get current values (instead of pending values).",
+		optional => 1,
+		default => 0,
+		type => 'boolean',
+	    },
 	    snapshot => get_standard_option('pve-snapshot-name', {
 		description => "Fetch config values from given snapshot.",
 		optional => 1,
@@ -62,18 +68,16 @@ __PACKAGE__->register_method({
     code => sub {
 	my ($param) = @_;
 
-	my $conf = PVE::LXC::Config->load_config($param->{vmid});
+	raise_param_exc({ snapshot => "cannot use 'snapshot' parameter with 'current'",
+	                  current => "cannot use 'snapshot' parameter with 'current'"})
+	    if ($param->{snapshot} && $param->{current});
 
-	if (my $snapname = $param->{snapshot}) {
-	    my $snapshot = $conf->{snapshots}->{$snapname};
-	    die "snapshot '$snapname' does not exist\n" if !defined($snapshot);
-
-	    # we need the digest of the file
-	    $snapshot->{digest} = $conf->{digest};
-	    $conf = $snapshot;
+	my $conf;
+	if ($param->{snapshot}) {
+	    $conf = PVE::LXC::Config->load_snapshot_config($param->{vmid}, $param->{snapshot});
+	} else {
+	    $conf = PVE::LXC::Config->load_current_config($param->{vmid}, $param->{current});
 	}
-
-	delete $conf->{snapshots};
 
 	return $conf;
     }});
