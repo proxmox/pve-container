@@ -18,6 +18,7 @@ use PVE::LXC;
 use PVE::LXC::Create;
 use PVE::LXC::Migrate;
 use PVE::GuestHelpers;
+use PVE::VZDump::Plugin;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
@@ -637,6 +638,11 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
+	    purge => {
+		type => 'boolean',
+		description => "Remove vmid from backup cron jobs.",
+		optional => 1,
+	    },
 	},
     },
     returns => {
@@ -657,9 +663,11 @@ __PACKAGE__->register_method({
 	die "unable to remove CT $vmid - used in HA resources\n"
 	    if PVE::HA::Config::vm_is_ha_managed($vmid);
 
-	# do not allow destroy if there are replication jobs
-	my $repl_conf = PVE::ReplicationConfig->new();
-	$repl_conf->check_for_existing_jobs($vmid);
+	if (!$param->{purge}) {
+	    # do not allow destroy if there are replication jobs without purge
+	    my $repl_conf = PVE::ReplicationConfig->new();
+	    $repl_conf->check_for_existing_jobs($vmid);
+	}
 
 	my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
 
@@ -676,6 +684,10 @@ __PACKAGE__->register_method({
 
 	    PVE::AccessControl::remove_vm_access($vmid);
 	    PVE::Firewall::remove_vmfw_conf($vmid);
+	    if ($param->{purge}) {
+		PVE::ReplicationConfig::remove_vmid_jobs($vmid);
+		PVE::VZDump::Plugin::remove_vmid_from_backup_jobs($vmid);
+	    }
 
 	    # only now remove the zombie config, else we can have reuse race
 	    PVE::LXC::Config->destroy_config($vmid);
