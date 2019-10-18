@@ -1922,7 +1922,7 @@ __PACKAGE__->register_method({
 
 	my $pending_delete_hash = PVE::LXC::Config->parse_pending_delete($conf->{pending}->{delete});
 
-	return PVE::GuestHelpers::conf_table_with_pending($conf, $pending_delete_hash);
+	return PVE::GuestHelpers::config_with_pending_array($conf, $pending_delete_hash);
     }});
 
 1;
