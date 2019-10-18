@@ -671,9 +671,13 @@ __PACKAGE__->register_method({
 
 	    die $running_error_msg if PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf);
+	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf, { lock => 'destroyed' });
+
 	    PVE::AccessControl::remove_vm_access($vmid);
 	    PVE::Firewall::remove_vmfw_conf($vmid);
+
+	    # only now remove the zombie config, else we can have reuse race
+	    PVE::LXC::Config->destroy_config($vmid);
 	};
 
 	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };

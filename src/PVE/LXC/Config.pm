@@ -329,7 +329,7 @@ my $confdesc = {
 	optional => 1,
 	type => 'string',
 	description => "Lock/unlock the VM.",
-	enum => [qw(backup create disk fstrim migrate mounted rollback snapshot snapshot-delete)],
+	enum => [qw(backup create destroyed disk fstrim migrate mounted rollback snapshot snapshot-delete)],
     },
     onboot => {
 	optional => 1,
