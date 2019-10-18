@@ -52,13 +52,6 @@ sub config_list {
     return $res;
 }
 
-sub destroy_config {
-    my ($vmid) = @_;
-
-    my $config_fn = PVE::LXC::Config->config_file($vmid, $nodename);
-    unlink $config_fn or die "failed to remove config file: $!\n";
-}
-
 # container status helpers
 
 sub list_active_containers {
@@ -755,7 +748,7 @@ sub destroy_lxc_container {
     if (defined $replacement_conf) {
 	PVE::LXC::Config->write_config($vmid, $replacement_conf);
     } else {
-	destroy_config($vmid);
+	PVE::LXC::Config->destroy_config($vmid);
     }
 
     #my $cmd = ['lxc-destroy', '-n', $vmid ];

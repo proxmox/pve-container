@@ -449,7 +449,7 @@ __PACKAGE__->register_method({
 	    };
 	    if (my $err = $@) {
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
-		eval { PVE::LXC::destroy_config($vmid) };
+		eval { PVE::LXC::Config->destroy_config($vmid) };
 		warn $@ if $@;
 		die "$emsg $err";
 	    }
