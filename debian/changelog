@@ -1,3 +1,23 @@
+pve-container (3.0-8) pve; urgency=medium
+
+  * fix issue where TTYs aren't correctly set after restore
+
+  * ensure that lxc.* entries are restored only once
+
+  * add Ubuntu 19.10 Eoan as supported
+
+  * fix #2412: ct destroy: only delete config after deleted from pools and
+    Firewall
+
+  * implement basic pending changes for running containers
+
+  * fix #1291: add purge option for destroy vm api call, allows one to remove
+    any reference of this CT from backup and replication jobs.
+
+  * add check to resize disk if current size could not be determined
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 18 Oct 2019 22:04:12 +0200
+
 pve-container (3.0-7) pve; urgency=medium
 
   * mountpoints: create parent dirs with correct owner
