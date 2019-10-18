@@ -731,7 +731,12 @@ sub delete_mountpoint_volume {
     return if PVE::LXC::Config->classify_mountpoint($volume) ne 'volume';
 
     my ($vtype, $name, $owner) = PVE::Storage::parse_volname($storage_cfg, $volume);
-    PVE::Storage::vdisk_free($storage_cfg, $volume) if $vmid == $owner;
+
+    if ($vmid == $owner) {
+	PVE::Storage::vdisk_free($storage_cfg, $volume);
+    } else {
+	warn "ignore deletion of '$volume', CT $vmid isn't the owner!\n";
+    }
 }
 
 sub destroy_lxc_container {
