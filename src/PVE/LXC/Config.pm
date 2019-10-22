@@ -1166,7 +1166,7 @@ sub vmconfig_hotplug_pending {
 
     my $pending_delete_hash = $class->parse_pending_delete($conf->{pending}->{delete});
     # FIXME: $force deletion is not implemented for CTs
-    while (my ($opt, undef) = each %$pending_delete_hash) {
+    foreach my $opt (keys %$pending_delete_hash) {
 	next if $selection && !$selection->{$opt};
 	eval {
 	    if ($LXC_FASTPLUG_OPTIONS->{$opt}) {
@@ -1250,7 +1250,7 @@ sub vmconfig_apply_pending {
 
     my $pending_delete_hash = $class->parse_pending_delete($conf->{pending}->{delete});
     # FIXME: $force deletion is not implemented for CTs
-    while (my ($opt, undef) = each %$pending_delete_hash) {
+    foreach my $opt (keys %$pending_delete_hash) {
 	next if $selection && !$selection->{$opt};
 	$class->cleanup_pending($conf);
 	eval {
