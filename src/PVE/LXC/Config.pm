@@ -930,7 +930,7 @@ sub update_pct_config {
 	    if !$storage_config->{content}->{rootdir};
     };
 
-    foreach my $opt (keys %$param) { # add/change
+    foreach my $opt (sort keys %$param) { # add/change
 	$modified->{$opt} = 1;
 	my $value = $param->{$opt};
 	if ($opt =~ m/^mp(\d+)$/ || $opt eq 'rootfs') {
@@ -1121,7 +1121,7 @@ sub vmconfig_hotplug_pending {
     };
 
     my $changes;
-    foreach my $opt (keys %{$conf->{pending}}) { # add/change
+    foreach my $opt (sort keys %{$conf->{pending}}) { # add/change
 	next if $selection && !$selection->{$opt};
 	if ($LXC_FASTPLUG_OPTIONS->{$opt}) {
 	    $conf->{$opt} = delete $conf->{pending}->{$opt};
@@ -1197,7 +1197,7 @@ sub vmconfig_hotplug_pending {
 	}
     }
 
-    foreach my $opt (keys %{$conf->{pending}}) {
+    foreach my $opt (sort keys %{$conf->{pending}}) {
 	next if $opt eq 'delete'; # just to be sure
 	next if $selection && !$selection->{$opt};
 	my $value = $conf->{pending}->{$opt};
@@ -1274,7 +1274,7 @@ sub vmconfig_apply_pending {
 	}
     }
 
-    foreach my $opt (keys %{$conf->{pending}}) { # add/change
+    foreach my $opt (sort keys %{$conf->{pending}}) { # add/change
 	next if $opt eq 'delete'; # just to be sure
 	next if $selection && !$selection->{$opt};
 	eval {
