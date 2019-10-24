@@ -1106,6 +1106,7 @@ my $LXC_FASTPLUG_OPTIONS= {
     'hookscript' => 1,
     'cores' => 1,
     'tags' => 1,
+    'lock' => 1,
 };
 
 sub vmconfig_hotplug_pending {
