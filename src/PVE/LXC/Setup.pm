@@ -293,6 +293,15 @@ sub pre_start_hook {
 
     my $host_arch = PVE::Tools::get_host_arch();
 
+    # containers use different architecture names
+    if ($host_arch eq 'x86_64') {
+	$host_arch = 'amd64';
+    } elsif ($host_arch eq 'aarch64') {
+	$host_arch = 'arm64';
+    } else {
+	die "unsupported host architecture '$host_arch'\n";
+    }
+
     my $container_arch = $self->{conf}->{arch};
 
     $container_arch = 'amd64' if $container_arch eq 'i386'; # always use 64 bit version
