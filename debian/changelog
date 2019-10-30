@@ -1,4 +1,6 @@
-pve-container (3.0-9) pve; urgency=medium
+pve-container (3.0-10) pve; urgency=medium
+
+  * support Fedora 31 as Container distribution
 
   * minor adaptions of pending changed related code
 
