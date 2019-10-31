@@ -474,6 +474,11 @@ my $confdesc = {
 	format => 'pve-volume-id',
 	description => 'Script that will be exectued during various steps in the containers lifetime.',
     },
+    tags => {
+	type => 'string', format => 'pve-tag-list',
+	description => 'Tags of the Container. This is only meta information.',
+	optional => 1,
+    },
 };
 
 my $valid_lxc_conf_keys = {

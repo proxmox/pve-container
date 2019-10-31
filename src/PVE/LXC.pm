@@ -160,6 +160,11 @@ our $vmstatus_return_properties = {
 	description => "The current config lock, if any.",
 	type => 'string',
 	optional => 1,
+    },
+    tags => {
+	description => "The current configured tags, if any.",
+	type => 'string',
+	optional => 1,
     }
 };
 
@@ -199,6 +204,7 @@ sub vmstatus {
 	$d->{cpus} = $cpucount if !$d->{cpus};
 
 	$d->{lock} = $conf->{lock} || '';
+	$d->{tags} = $conf->{tags} if defined($conf->{tags});
 
 	if ($d->{pid}) {
 	    my $res = get_container_disk_usage($vmid, $d->{pid});
