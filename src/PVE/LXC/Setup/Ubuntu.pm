@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '19.10' => 1, # eoan
     '19.04' => 1, # disco
     '18.10' => 1, # cosmic
     '18.04' => 1, # bionic
