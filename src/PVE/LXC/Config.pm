@@ -520,6 +520,7 @@ my $valid_lxc_conf_keys = {
     'lxc.hook.post-stop' => 1,
     'lxc.hook.clone' => 1,
     'lxc.hook.destroy' => 1,
+    'lxc.hook.version' => 1,
     'lxc.log.level' => 1,
     'lxc.log.file' => 1,
     'lxc.start.auto' => 1,
