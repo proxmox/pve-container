@@ -1,114 +1,60 @@
 #!/usr/bin/perl
 
-package lxc_pve_poststop_hook;
-
 use strict;
 use warnings;
-
-exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use POSIX;
 use File::Path;
 
-use PVE::SafeSyslog;
-use PVE::Tools;
-use PVE::Cluster;
-use PVE::INotify;
-use PVE::RPCEnvironment;
-use PVE::JSONSchema qw(get_standard_option);
-use PVE::CLIHandler;
-use PVE::Storage;
-use PVE::Storage::Plugin;
-use PVE::LXC;
 use PVE::GuestHelpers;
+use PVE::LXC::Config;
+use PVE::LXC::Tools;
+use PVE::LXC;
+use PVE::Network;
+use PVE::Storage;
+use PVE::Tools;
 
-use base qw(PVE::CLIHandler);
+PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
+    my ($vmid, $vars, undef, undef) = @_;
 
-__PACKAGE__->register_method ({
-    name => 'lxc-pve-poststop-hook',
-    path => 'lxc-pve-poststop-hook',
-    method => 'GET',
-    description => "vm_stop_cleanup.",
-    parameters => {
-    	additionalProperties => 0,
-	properties => {
-	    name => {
-		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>.conf (else it is just a NOP).",
-		type => 'string',
-		pattern => '\S+',
-		maxLength => 64,
-	    }
-	},
-    },
-    returns => { type => 'null' },
+    return undef if ! -f PVE::LXC::Config->config_file($vmid);
 
-    code => sub {
-	my ($param) = @_;
+    my $conf = PVE::LXC::Config->load_config($vmid);
 
-	return undef if $param->{name} !~ m/^\d+$/;
+    my $storage_cfg = PVE::Storage::config();
 
-	my $vmid = $param->{name};
+    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 
-	return undef if ! -f PVE::LXC::Config->config_file($vmid);
-	
-	my $conf = PVE::LXC::Config->load_config($vmid);
+    PVE::Tools::run_command(['umount', '--recursive', $vars->{ROOTFS_PATH}]);
 
-	my $storage_cfg = PVE::Storage::config();
+    # Because netlink is not a reliable protocol it can happen that lxc's
+    # link-deletion messages get lost (or end up being too early?)
+    for my $k (keys %$conf) {
+	next if $k !~ /^net(\d+)/;
+	my $ind = $1;
+	my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+	next if $net->{type} ne 'veth';
+	# veth_delete tests with '-d /sys/class/net/$name' before running the command
+	PVE::Network::veth_delete("veth${vmid}i$ind");
+    }
 
-        PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
+    my $target = $vars->{TARGET};
+    if ($target && $target eq 'reboot') {
+	# In order to make sure hot-plugged config changes aren't reverted
+	# to what the monitor initially loaded we need to stop the container
+	# and restart it.
+	# Update the config and queue a restart of the pve-container@$vmid
+	# task, note that we must not block because we're part of the
+	# service cgroup systemd waits for to die before issuing the new
+	# lxc-start command.
+	PVE::LXC::update_lxc_config($vmid, $conf);
+	# Tell the post-stop hook we want to be restarted.
+	open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
+	    or die "failed to create reboot trigger file: $!\n";
+	close($fh);
+	# cause lxc to stop instead of rebooting
+	exit(1);
+    }
 
-	my $rootfs = $ENV{LXC_ROOTFS_PATH};
-	die "Missing container root directory!\n" if !$rootfs;
-	PVE::Tools::run_command(['umount', '--recursive', $rootfs]);
-
-	# Because netlink is not a reliable protocol it can happen that lxc's
-	# link-deletion messages get lost (or end up being too early?)
-	for my $k (keys %$conf) {
-	    next if $k !~ /^net(\d+)/;
-	    my $ind = $1;
-	    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	    next if $net->{type} ne 'veth';
-	    # veth_delete tests with '-d /sys/class/net/$name' before running the command
-	    PVE::Network::veth_delete("veth${vmid}i$ind");
-	}
-
-	my $target = $ENV{LXC_TARGET};
-	if ($target && $target eq 'reboot') {
-	    # In order to make sure hot-plugged config changes aren't reverted
-	    # to what the monitor initially loaded we need to stop the container
-	    # and restart it.
-	    # Update the config and queue a restart of the pve-container@$vmid
-	    # task, note that we must not block because we're part of the
-	    # service cgroup systemd waits for to die before issuing the new
-	    # lxc-start command.
-	    PVE::LXC::update_lxc_config($vmid, $conf);
-	    # Tell the post-stop hook we want to be restarted.
-	    open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
-		or die "failed to create reboot trigger file: $!\n";
-	    close($fh);
-	    # cause lxc to stop instead of rebooting
-	    exit(1);
-	}
-
-	PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-stop');
-
-	return undef;
-    }});
-
-
-push @ARGV, 'help' if !scalar(@ARGV);
-
-my $param = {};
-
-if ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'post-stop')) {
-    $param->{name} = $ENV{'LXC_NAME'};
-    die "got wrong name" if $param->{name} ne $ARGV[0];
-
-    @ARGV = ();
-} else {
-    @ARGV = ('help');
-}
-
-our $cmddef = [ __PACKAGE__, 'lxc-pve-poststop-hook', [], $param];
-
-__PACKAGE__->run_cli_handler();
+    PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-stop');
+});

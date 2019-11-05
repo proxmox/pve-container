@@ -5,136 +5,79 @@ package lxc_pve_prestart_hook;
 use strict;
 use warnings;
 
-exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
-
 use POSIX;
 use File::Path;
 use Fcntl ':mode';
 
-use PVE::SafeSyslog;
-use PVE::Tools;
 use PVE::Cluster;
-use PVE::INotify;
-use PVE::RPCEnvironment;
-use PVE::JSONSchema qw(get_standard_option);
-use PVE::CLIHandler;
-use PVE::Storage;
-use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::LXC::Setup;
+use PVE::LXC::Tools;
+use PVE::LXC;
+use PVE::Storage;
+use PVE::Tools;
 
-use base qw(PVE::CLIHandler);
+PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
+    my ($vmid, $vars, undef, undef) = @_;
 
-__PACKAGE__->register_method ({
-    name => 'lxc-pve-prestart-hook',
-    path => 'lxc-pve-prestart-hook',
-    method => 'GET',
-    description => "Create a new container root directory.",
-    parameters => {
-    	additionalProperties => 0,
-	properties => {
-	    name => {
-		description => "The container name. This hook is only active for containers using numeric IDs, where configuration is stored on /etc/pve/lxc/<name>.conf (else it is just a NOP).",
-		type => 'string',
-		pattern => '\S+',
-		maxLength => 64,
-	    },
-	    path => {
-		description => "The path to the container configuration directory (LXC internal argument - do not pass manually!).",
-		type => 'string',
-	    },
-	    rootfs => {
-		description => "The path to the container's rootfs (LXC internal argument - do not pass manually!)",
-		type => 'string',
-	    },
-	},
-    },
-    returns => { type => 'null' },
+    my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
+    my $skiplock = 1 if -e $skiplock_flag_fn;
+    unlink $skiplock_flag_fn if $skiplock;
 
-    code => sub {
-	my ($param) = @_;
+    PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
 
-	return undef if $param->{name} !~ m/^\d+$/;
+    return undef if ! -f PVE::LXC::Config->config_file($vmid);
 
-	my $vmid = $param->{name};
-	my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
-	my $skiplock = 1 if -e $skiplock_flag_fn;
-	unlink $skiplock_flag_fn if $skiplock;
+    my $conf = PVE::LXC::Config->load_config($vmid);
+    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+	PVE::LXC::Config->check_lock($conf);
+    }
 
-	PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
+    my $storage_cfg = PVE::Storage::config();
 
-	return undef if ! -f PVE::LXC::Config->config_file($vmid);
+    my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+    my $loopdevlist = PVE::LXC::Config->get_vm_volumes($conf, 'rootfs');
 
-	my $conf = PVE::LXC::Config->load_config($vmid);
-	if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
-	    PVE::LXC::Config->check_lock($conf);
+    PVE::Storage::activate_volumes($storage_cfg, $vollist);
+
+    my $rootdir = $vars->{ROOTFS_PATH};
+
+    # Delete any leftover reboot-trigger file
+    unlink("/var/lib/lxc/$vmid/reboot");
+
+    my $devlist_file = "/var/lib/lxc/$vmid/devices";
+    unlink $devlist_file;
+    my $devices = [];
+
+    my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+
+    my $setup_mountpoint = sub {
+	my ($ms, $mountpoint) = @_;
+
+	#return if $ms eq 'rootfs';
+	my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
+	push @$devices, $dev if $dev && $mountpoint->{quota};
+    };
+
+    # Unmount first when the user mounted the container with "pct mount".
+    eval {
+	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
+    };
+
+    PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
+
+    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
+    $lxc_setup->pre_start_hook();
+
+    if (@$devices) {
+	my $devlist = '';
+	foreach my $dev (@$devices) {
+	    my ($mode, $rdev) = (stat($dev))[2,6];
+	    next if !$mode || !S_ISBLK($mode) || !$rdev;
+	    my $major = PVE::Tools::dev_t_major($rdev);
+	    my $minor = PVE::Tools::dev_t_minor($rdev);
+	    $devlist .= "b:$major:$minor:$dev\n";
 	}
-
-	my $storage_cfg = PVE::Storage::config();
-
-	my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
-	my $loopdevlist = PVE::LXC::Config->get_vm_volumes($conf, 'rootfs');
-
-	PVE::Storage::activate_volumes($storage_cfg, $vollist);
-
-	my $rootdir = $param->{rootfs};
-
-	# Delete any leftover reboot-trigger file
-	unlink("/var/lib/lxc/$vmid/reboot");
-
-	my $devlist_file = "/var/lib/lxc/$vmid/devices";
-	unlink $devlist_file;
-	my $devices = [];
-
-	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
-
-	my $setup_mountpoint = sub {
-	    my ($ms, $mountpoint) = @_;
-
-	    #return if $ms eq 'rootfs';
-	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
-	    push @$devices, $dev if $dev && $mountpoint->{quota};
-	};
-
-	# Unmount first when the user mounted the container with "pct mount".
-	eval {
-	    PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
-	};
-
-	PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
-
-	my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
-	$lxc_setup->pre_start_hook();
-
-	if (@$devices) {
-	    my $devlist = '';
-	    foreach my $dev (@$devices) {
-		my ($mode, $rdev) = (stat($dev))[2,6];
-		next if !$mode || !S_ISBLK($mode) || !$rdev;
-		my $major = PVE::Tools::dev_t_major($rdev);
-		my $minor = PVE::Tools::dev_t_minor($rdev);
-		$devlist .= "b:$major:$minor:$dev\n";
-	    }
-	    PVE::Tools::file_set_contents($devlist_file, $devlist);
-	}
-	return undef;
-    }});
-
-
-push @ARGV, 'help' if !scalar(@ARGV);
-
-my $param = {};
-
-if ((scalar(@ARGV) == 3) && ($ARGV[1] eq 'lxc') && ($ARGV[2] eq 'pre-start')) {
-    $param->{name} = $ENV{'LXC_NAME'};
-    die "got wrong name" if $param->{name} ne $ARGV[0];
-
-    $param->{path} = $ENV{'LXC_CONFIG_FILE'};
-    $param->{rootfs} = $ENV{'LXC_ROOTFS_PATH'};
-    @ARGV = ();
-} else {
-    @ARGV = ('help');
-}
-
-our $cmddef = [ __PACKAGE__, 'lxc-pve-prestart-hook', [], $param];
-
-__PACKAGE__->run_cli_handler();
+	PVE::Tools::file_set_contents($devlist_file, $devlist);
+    }
+});
