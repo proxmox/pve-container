@@ -79,4 +79,55 @@ sub lxc_hook($$&) {
     $code->($ct_name, $common_vars, $namespaces, $args);
 }
 
+sub for_current_devices($&) {
+    my ($vmid, $code) = @_;
+
+    my $devlist_file = "/var/lib/lxc/$vmid/devices";
+    my $fd;
+
+    if (! open $fd, '<', $devlist_file) {
+	exit 0 if $!{ENOENT}; # If the list is empty the file might not exist.
+	die "failed to open device list: $!\n";
+    }
+
+    while (defined(my $line = <$fd>)) {
+	if ($line !~ m@^(b):(\d+):(\d+):/dev/(\S+)\s*$@) {
+	    warn "invalid .pve-devices entry: $line\n";
+	    next;
+	}
+
+	my ($type, $major, $minor, $dev) = ($1, $2, $3, $4);
+
+	# Don't break out of $root/dev/
+	if ($dev =~ /\.\./) {
+	    warn "skipping illegal device node entry: $dev\n";
+	    next;
+	}
+
+	# Never expose /dev/loop-control
+	if ($major == 10 && $minor == 237) {
+	    warn "skipping illegal device entry (loop-control) for: $dev\n";
+	    next;
+	}
+
+	$code->($type, $major, $minor, $dev);
+    }
+    close $fd;
+}
+
+sub cgroup_do_write($$) {
+    my ($path, $value) = @_;
+    my $fd;
+    if (!open($fd, '>', $path)) {
+	warn "failed to open cgroup file $path: $!\n";
+	return 0;
+    }
+    if (!defined syswrite($fd, $value)) {
+	warn "failed to write value $value to cgroup file $path: $!\n";
+	return 0;
+    }
+    close($fd);
+    return 1;
+}
+
 1;
