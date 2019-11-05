@@ -14,70 +14,31 @@ PVE::LXC::Tools::lxc_hook('autodev', 'lxc', sub {
 
     my $root = $vars->{ROOTFS_MOUNT};
 
-    my $devlist_file = "/var/lib/lxc/$vmid/devices";
-    my $fd;
+    PVE::LXC::Tools::for_current_devices($vmid, sub {
+	my ($type, $major, $minor, $dev) = @_;
 
-    if (! open $fd, '<', $devlist_file) {
-        exit 0 if $!{ENOENT}; # If the list is empty the file might not exist.
-        die "failed to open device list: $!\n";
-    }
+	my $rel_devpath = "/dev/$dev";
+	my $rel_dir = dirname($rel_devpath);
+	File::Path::mkpath("$root/$rel_dir");
 
-    sub cgroup_do_write($$) {
-        my ($path, $value) = @_;
-        my $fd;
-        if (!open($fd, '>', $path)) {
-            warn "failed to open cgroup file $path: $!\n";
-            return 0;
-        }
-        if (!defined syswrite($fd, $value)) {
-            warn "failed to write value $value to cgroup file $path: $!\n";
-            return 0;
-        }
-        close($fd);
-        return 1;
-    }
+	PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
+				 $type, $major, $minor]);
 
-    while (defined(my $line = <$fd>)) {
-        if ($line !~ m@^(b):(\d+):(\d+):/dev/(\S+)\s*$@) {
-            warn "invalid .pve-devices entry: $line\n";
-        }
-        my ($type, $major, $minor, $dev) = ($1, $2, $3, $4);
+	if ($dev =~ /^dm-\d+$/) {
+	    File::Path::mkpath("$root/dev/mapper");
+	    my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
+	    chomp $mapped_name;
+	    symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
+	}
 
-        # Don't break out of $root/dev/
-        if ($dev =~ /\.\./) {
-            warn "skipping illegal device node entry: $dev\n";
-            next;
-        }
-
-        # Never expose /dev/loop-control
-        if ($major == 10 && $minor == 237) {
-            warn "skipping illegal device entry (loop-control) for: $dev\n";
-            next;
-        }
-
-        my $rel_devpath = "/dev/$dev";
-        my $rel_dir = dirname($rel_devpath);
-        File::Path::mkpath("$root/$rel_dir");
-
-        PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
-                                 $type, $major, $minor]);
-
-        if ($dev =~ /^dm-\d+$/) {
-            File::Path::mkpath("$root/dev/mapper");
-            my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
-            chomp $mapped_name;
-            symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
-        }
-
-        my $cgbase = "/sys/fs/cgroup/devices/lxc/$vmid";
-        my $limitpath = "$cgbase/devices.allow";
-        my $nspath = "$cgbase/ns/devices.allow";
-        if (!cgroup_do_write($limitpath, "$type $major:$minor rwm")) {
-            warn "failed to allow access to device $dev ($major:$minor)\n";
-        }
-        if (!cgroup_do_write($nspath, "$type $major:$minor rwm")) {
-            warn "failed to allow access to device $dev ($major:$minor) inside the namespace\n";
-        }
-    }
-    close $fd;
+	my $cgbase = "/sys/fs/cgroup/devices/lxc/$vmid";
+	my $limitpath = "$cgbase/devices.allow";
+	my $nspath = "$cgbase/ns/devices.allow";
+	if (!PVE::LXC::Tools::cgroup_do_write($limitpath, "$type $major:$minor rwm")) {
+	    warn "failed to allow access to device $dev ($major:$minor)\n";
+	}
+	if (!PVE::LXC::Tools::cgroup_do_write($nspath, "$type $major:$minor rwm")) {
+	    warn "failed to allow access to device $dev ($major:$minor) inside the namespace\n";
+	}
+    });
 });
