@@ -1211,6 +1211,7 @@ sub vmconfig_hotplug_pending {
 	    } elsif ($opt =~ m/^net(\d+)$/) {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($value);
+		$value = $class->print_lxc_network($net);
 		PVE::LXC::update_net($vmid, $conf, $opt, $net, $netid, $rootdir);
 	    } elsif ($opt eq 'memory' || $opt eq 'swap') {
 		if (!$hotplug_memory_done) { # don't call twice if both opts are passed
@@ -1297,6 +1298,10 @@ sub vmconfig_apply_pending {
 			    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
 		    }
 		}
+	    } elsif ($opt =~ m/^net(\d+)$/) {
+		my $netid = $1;
+		my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
+		$conf->{pending}->{$opt} = $class->print_lxc_network($net);
 	    }
 	};
 	if (my $err = $@) {
