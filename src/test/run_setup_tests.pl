@@ -10,6 +10,7 @@ use PVE::Tools qw(run_command);
 use lib qw(..);
 
 use PVE::LXC;
+use PVE::LXC::Config;
 use PVE::LXC::Setup;
 
 sub test_file {
