@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+
+use Test::MockModule;
+
 use PVE::Tools qw(run_command);
 
 use lib qw(..);
@@ -99,6 +102,21 @@ sub run_test {
     
     print "TEST $testdir => OK\n";
 }
+
+my $cluster_module = Test::MockModule->new("PVE::Cluster");
+$cluster_module->mock(
+    cfs_read_file => sub {
+	my ($filename) = @_;
+	return {} if $filename eq 'datacenter.cfg';
+	die "illegal access to pmxcfs in test!\n";
+    },
+    cfs_write_file => sub {
+	die "illegal access to pmxcfs in test!\n";
+    },
+    cfs_lock_file => sub {
+	die "illegal access to pmxcfs in test!\n";
+    },
+);
 
 if (scalar(@ARGV)) {
 
