@@ -937,7 +937,7 @@ sub update_pct_config {
 	if ($opt =~ m/^mp(\d+)$/ || $opt eq 'rootfs') {
 	    $class->check_protection($conf, "can't update CT $vmid drive '$opt'");
 	    my $mp = $opt eq 'rootfs' ? $class->parse_ct_rootfs($value) : $class->parse_ct_mountpoint($value);
-	    $check_content_type->($mp);
+	    $check_content_type->($mp) if ($mp->{type} eq 'volume');
 	} elsif ($opt eq 'hookscript') {
 	    PVE::GuestHelpers::check_hookscript($value);
 	} elsif ($opt eq 'nameserver') {
