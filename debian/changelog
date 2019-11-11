@@ -1,3 +1,21 @@
+pve-container (3.0-11) pve; urgency=medium
+
+  * add PVE::LXC::Tools
+
+  * change hooks to use new helper
+
+  * config: whitelist lxc.hook.version
+
+  * fix #2453: actually reflect random MAC address selection in config
+
+  * fix #2456 setting bind-mount through API/CLI is broken
+
+  * improve test reliability in absence of running pmxcfs
+
+  * follow refactoring in pve-cluster
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 18 Nov 2019 12:08:15 +0100
+
 pve-container (3.0-10) pve; urgency=medium
 
   * support Fedora 31 as Container distribution
