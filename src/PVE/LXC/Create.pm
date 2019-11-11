@@ -7,6 +7,7 @@ use File::Path;
 use Fcntl;
 
 use PVE::Storage;
+use PVE::DataCenterConfig;
 use PVE::LXC;
 use PVE::LXC::Setup;
 use PVE::VZDump::ConvertOVZ;
