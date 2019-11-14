@@ -1,3 +1,17 @@
+pve-container (2.0-41) unstable; urgency=medium
+
+  * add support for CentOS 8, CentOS 5, Ubuntu 19.10 and Fedora 31
+
+  * fix issue where ttys aren't correctly set after restore
+
+  * ensure lxc.* entries are always restored only once
+
+  * pct fstrim: don't leave fstrim lock if mount_all fails
+
+  * mountpoints: create parent dirs with correct owner for unvpriviledged CTs
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 14 Nov 2019 18:30:31 +0100
+
 pve-container (2.0-40) unstable; urgency=medium
 
   * fix #576: Fix dangling files for Move Disk
