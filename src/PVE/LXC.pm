@@ -755,9 +755,6 @@ sub destroy_lxc_container {
     } else {
 	PVE::LXC::Config->destroy_config($vmid);
     }
-
-    #my $cmd = ['lxc-destroy', '-n', $vmid ];
-    #PVE::Tools::run_command($cmd);
 }
 
 sub vm_stop_cleanup {
