@@ -243,7 +243,7 @@ __PACKAGE__->register_method({
 
 		print "Requesting HA stop for CT $vmid\n";
 
-		my $cmd = ['ha-manager', 'set',  "ct:$vmid", '--state', 'stopped'];
+		my $cmd = ['ha-manager', 'crm-command', 'stop', "ct:$vmid", '0'];
 		PVE::Tools::run_command($cmd);
 	    };
 
@@ -325,7 +325,7 @@ __PACKAGE__->register_method({
 
 		print "Requesting HA stop for CT $vmid\n";
 
-		my $cmd = ['ha-manager', 'set',  "ct:$vmid", '--state', 'stopped'];
+		my $cmd = ['ha-manager', 'crm-command', 'stop',  "ct:$vmid", "$timeout"];
 		PVE::Tools::run_command($cmd);
 	    };
 
