@@ -759,13 +759,12 @@ sub destroy_lxc_container {
 
 sub vm_stop_cleanup {
     my ($storage_cfg, $vmid, $conf, $keepActive) = @_;
-    
-    eval {
-	if (!$keepActive) {
 
-            my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
-	    PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
-	}
+    return if $keepActive;
+
+    eval {
+	my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+	PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
     };
     warn $@ if $@; # avoid errors - just warn
 }
