@@ -1044,6 +1044,19 @@ my $enter_namespace = sub {
     close $fd;
 };
 
+my $get_container_namespace = sub {
+    my ($vmid, $pid, $kind) = @_;
+
+    my $pidfd;
+    if (!defined($pid)) {
+	# Pin the pid while we're grabbing its stuff from /proc
+	($pid, $pidfd) = open_lxc_pid($vmid)
+	    or die "failed to open pidfd of container $vmid\'s init process\n";
+    }
+
+    return $open_namespace->($vmid, $pid, $kind);
+};
+
 my $do_syncfs = sub {
     my ($vmid, $pid, $socket) = @_;
 
