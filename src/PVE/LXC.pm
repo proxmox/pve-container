@@ -1425,6 +1425,25 @@ sub mountpoint_stage {
     return wantarray ? ($path, $loop, $dev, $fd) : $fd;
 }
 
+sub mountpoint_insert_staged {
+    my ($mount_fd, $rootdir_fd, $mp_dir, $opt, $rootuid, $rootgid) = @_;
+
+    if (!defined($rootdir_fd)) {
+	sysopen($rootdir_fd, '.', O_PATH | O_DIRECTORY)
+	    or die "failed to open '.': $!\n";
+    }
+
+    my $dest_fd = walk_tree_nofollow_fd('/', $rootdir_fd, $mp_dir, 1, $rootuid, $rootgid);
+
+    PVE::Tools::move_mount(
+	fileno($mount_fd),
+	'',
+	fileno($dest_fd),
+	'',
+	&MOVE_MOUNT_F_EMPTY_PATH | &MOVE_MOUNT_T_EMPTY_PATH,
+    ) or die "failed to move '$opt' into container hierarchy: $!\n";
+}
+
 # Use $stage_mount, $rootdir is treated as a temporary path to "stage" the file system. The user
 #   can then open a file descriptor to it which can be used with the `move_mount` syscall.
 #   Note that if the kernel does not support the new mount API, this will not perform any action
