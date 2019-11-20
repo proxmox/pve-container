@@ -1262,13 +1262,21 @@ sub run_with_loopdev {
 sub walk_tree_nofollow($$$;$$) {
     my ($start, $subdir, $mkdir, $rootuid, $rootgid) = @_;
 
-    # splitdir() returns '' for empty components including the leading /
-    my @comps = grep { length($_)>0 } File::Spec->splitdir($subdir);
-
     sysopen(my $fd, $start, O_PATH | O_DIRECTORY)
 	or die "failed to open start directory $start: $!\n";
 
-    my $dir = $start;
+    return walk_tree_nofollow_fd($start, $fd, $subdir, $mkdir, $rootuid, $rootgid);
+}
+
+
+sub walk_tree_nofollow_fd($$$$;$$) {
+    my ($start_dirname, $start_fd, $subdir, $mkdir, $rootuid, $rootgid) = @_;
+
+    # splitdir() returns '' for empty components including the leading /
+    my @comps = grep { length($_)>0 } File::Spec->splitdir($subdir);
+
+    my $fd = $start_fd;
+    my $dir = $start_dirname;
     my $last_component = undef;
     my $second = $fd;
     foreach my $component (@comps) {
@@ -1294,14 +1302,14 @@ sub walk_tree_nofollow($$$;$$) {
 		if defined($rootuid) && defined($rootgid);
 	}
 
-	close $second if defined($last_component);
+	close $second if defined($last_component) && $second != $start_fd;
 	$last_component = $component;
 	$second = $fd;
 	$fd = $next;
     }
 
     return ($fd, defined($last_component) && $second, $last_component) if wantarray;
-    close $second if defined($last_component);
+    close $second if defined($last_component) && $second != $start_fd;
     return $fd;
 }
 
