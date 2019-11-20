@@ -10,7 +10,7 @@ use Socket;
 use File::Path;
 use File::Spec;
 use Cwd qw();
-use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
+use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
 use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
 use IO::Socket::UNIX;
 
@@ -1653,8 +1653,10 @@ sub mountpoint_hotplug($$$) {
 
     my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
 
-    # We do the rest in a fork with an unshared mount namespace, since we're now going to 'stage'
-    # the mountpoint, then grab it, then move into the container's namespace, then mount it.
+    # We do the rest in a fork with an unshared mount namespace, because:
+    #  -) change our papparmor profile to that of /usr/bin/lxc-start
+    #  -) we're now going to 'stage' # the mountpoint, then grab it, then move into the
+    #     container's namespace, then mount it.
 
     PVE::Tools::run_fork(sub {
 	# Pin the container pid longer, we also need to get its monitor/parent:
@@ -1667,6 +1669,13 @@ sub mountpoint_hotplug($$$) {
 	my $ct_mnt_ns = $get_container_namespace->($vmid, $ct_pid, 'mnt');
 	my $monitor_mnt_ns = $get_container_namespace->($vmid, $monitor_pid, 'mnt');
 
+	# Grab a file descriptor to our apparmor label file so we can change into the 'lxc-start'
+	# profile to lower our privileges to the same level we have in the start hook:
+	sysopen(my $aa_fd, "/proc/self/attr/current", O_WRONLY)
+	    or die "failed to open '/proc/self/attr/current' for writing: $!\n";
+	# But switch namespaces first, to make sure the namespace switches aren't blocked by
+	# apparmor.
+
 	# Change into the monitor's mount namespace. We "pin" the mount into the monitor's
 	# namespace for it to remain active there since the container will be able to unmount
 	# hotplugged mount points and thereby potentially free up loop devices, which is a security
@@ -1676,6 +1685,16 @@ sub mountpoint_hotplug($$$) {
 	    or die "failed to change root directory within the monitor's mount namespace: $!\n";
 
 	my $dir = get_staging_mount_path($opt);
+
+	# Now switch our apparmor profile before mounting:
+	my $data = 'changeprofile /usr/bin/lxc-start';
+	if (syswrite($aa_fd, $data, length($data)) != length($data)) {
+	    die "failed to change apparmor profile: $!\n";
+	}
+	# Check errors on close as well:
+	close($aa_fd)
+	    or die "failed to change apparmor profile (close() failed): $!\n";
+
 	my $mount_fd = mountpoint_stage($mp, $dir, $storage_cfg, undef, $rootuid, $rootgid);
 
 	PVE::Tools::setns(fileno($ct_mnt_ns), PVE::Tools::CLONE_NEWNS);
