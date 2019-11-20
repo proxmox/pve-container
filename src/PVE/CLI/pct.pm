@@ -836,7 +836,8 @@ our $cmddef = {
     resume => [ 'PVE::API2::LXC::Status', 'vm_resume', ['vmid'], { node => $nodename }, $upid_exit],
     shutdown => [ 'PVE::API2::LXC::Status', 'vm_shutdown', ['vmid'], { node => $nodename }, $upid_exit],
     stop => [ 'PVE::API2::LXC::Status', 'vm_stop', ['vmid'], { node => $nodename }, $upid_exit],
-    
+    reboot => [ 'PVE::API2::LXC::Status', 'vm_reboot', ['vmid'], { node => $nodename }, $upid_exit],
+
     clone => [ "PVE::API2::LXC", 'clone_vm', ['vmid', 'newid'], { node => $nodename }, $upid_exit ],
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
     move_volume => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage'], { node => $nodename }, $upid_exit ],

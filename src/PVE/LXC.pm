@@ -2220,6 +2220,19 @@ sub vm_stop {
     die "container did not stop\n";
 }
 
+sub vm_reboot {
+    my ($vmid, $timeout, $skiplock) = @_;
+
+    PVE::LXC::Config->lock_config($vmid, sub {
+	return if !check_running($vmid);
+
+	vm_stop($vmid, 0, $timeout, 1); # kill if timeout exceeds
+
+	my $conf = PVE::LXC::Config->load_config($vmid);
+	vm_start($vmid, $conf);
+    });
+}
+
 sub run_unshared {
     my ($code) = @_;
 

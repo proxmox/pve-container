@@ -65,6 +65,7 @@ __PACKAGE__->register_method({
 	    { subdir => 'start' },
 	    { subdir => 'stop' },
 	    { subdir => 'shutdown' },
+	    { subdir => 'reboot' },
 	    { subdir => 'migrate' },
 	];
 
@@ -444,5 +445,56 @@ __PACKAGE__->register_method({
 
 	return $upid;
     }});
+
+__PACKAGE__->register_method({
+    name => 'vm_reboot',
+    path => 'reboot',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Reboot the container by shutting it down, and starting it again. Applies pending changes.",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid',
+					{ completion => \&PVE::LXC::complete_ctid_running }),
+	    timeout => {
+		description => "Wait maximal timeout seconds for the shutdown.",
+		type => 'integer',
+		minimum => 0,
+		optional => 1,
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+	my $vmid = extract_param($param, 'vmid');
+
+	die "VM $vmid not running\n" if !PVE::LXC::check_running($vmid);
+
+	my $realcmd = sub {
+	    my $upid = shift;
+
+	    syslog('info', "requesting reboot of CT $vmid: $upid\n");
+	    PVE::LXC::vm_reboot($vmid, $param->{timeout});
+	    return;
+	};
+
+	return $rpcenv->fork_worker('vzreboot', $vmid, $authuser, $realcmd);
+    }});
+
+
 
 1;
