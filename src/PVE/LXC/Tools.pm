@@ -2,6 +2,8 @@
 
 package PVE::LXC::Tools;
 
+use Errno qw(ENOSYS);
+
 use PVE::SafeSyslog;
 
 # LXC introduced an `lxc.hook.version` property which allows hooks to be executed in different
@@ -128,6 +130,22 @@ sub cgroup_do_write($$) {
     }
     close($fd);
     return 1;
+}
+
+# Check whether the kernel supports the new mount api. This is used in the pre-start hook and in
+# the hotplugging code.
+my $cached_can_use_new_mount_api = undef;
+sub can_use_new_mount_api() {
+    if (!defined($cached_can_use_new_mount_api)) {
+	if (PVE::Tools::move_mount(-1, 0, -1, 0, 0)) {
+	    # This should not be possible...
+	    die "kernel behaved unexpectedly: move_mount(-1, NULL, -1, NULL) did not fail!\n";
+	}
+	# On older kernels the syscall doesn't exist and we get ENOSYS. (For newer kernels this call
+	# will fail with EFAULT instead, since we pass in a NULL pointer as file system name.)
+	$cached_can_use_new_mount_api = ($! != ENOSYS);
+    }
+    return $cached_can_use_new_mount_api;
 }
 
 1;
