@@ -11,7 +11,7 @@ use File::Path;
 use File::Spec;
 use Cwd qw();
 use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS);
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
 use IO::Socket::UNIX;
 
 use PVE::Exception qw(raise_perm_exc);
@@ -1646,6 +1646,34 @@ sub __mountpoint_mount {
     }
     
     die "unsupported storage";
+}
+
+# Create a directory in the mountpoint staging tempfs.
+sub get_staging_mount_path($) {
+    my ($opt) = @_;
+
+    my $target = get_staging_tempfs() . "/$opt";
+    if (!mkdir($target) && $! != EEXIST) {
+	die "failed to create directory $target: $!\n";
+    }
+
+    return $target;
+}
+
+# Mount /run/pve/mountpoints as tmpfs
+sub get_staging_tempfs() {
+    # We choose a path in /var/lib/lxc/ here because the lxc-start apparmor profile restricts most
+    # mounts to that.
+    my $target = '/var/lib/lxc/.pve-staged-mounts';
+    if (!mkdir($target)) {
+	return $target if $! == EEXIST;
+	die "failed to create directory $target: $!\n";
+    }
+
+    PVE::Tools::mount("none", $target, 'tmpfs', 0, "size=8k,mode=755")
+	or die "failed to mount $target as tmpfs: $!\n";
+
+    return $target;
 }
 
 sub mkfs {
