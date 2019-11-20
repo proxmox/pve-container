@@ -1243,15 +1243,6 @@ sub vmconfig_apply_pending {
 	warn $err_msg;
     };
 
-    my $rescan_volume = sub {
-	my ($mp) = @_;
-	eval {
-	    $mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
-		if !defined($mp->{size});
-	};
-	warn "Could not rescan volume size - $@\n" if $@;
-    };
-
     my $pending_delete_hash = $class->parse_pending_delete($conf->{pending}->{delete});
     # FIXME: $force deletion is not implemented for CTs
     foreach my $opt (sort keys %$pending_delete_hash) {
@@ -1282,23 +1273,7 @@ sub vmconfig_apply_pending {
 	next if $selection && !$selection->{$opt};
 	eval {
 	    if ($opt =~ m/^mp(\d+)$/) {
-		my $mp = $class->parse_ct_mountpoint($conf->{pending}->{$opt});
-		my $old = $conf->{$opt};
-		if ($mp->{type} eq 'volume') {
-		    if ($mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
-			PVE::LXC::create_disks($storecfg, $vmid, { $opt => $conf->{pending}->{$opt} }, $conf, 1);
-		    } else {
-			$rescan_volume->($mp);
-			$conf->{pending}->{$opt} = $class->print_ct_mountpoint($mp);
-		    }
-		}
-		if (defined($old)) {
-		    my $mp = $class->parse_ct_mountpoint($old);
-		    if ($mp->{type} eq 'volume') {
-			$class->add_unused_volume($conf, $mp->{volume})
-			    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
-		    }
-		}
+		$class->apply_pending_mountpoint($vmid, $conf, $opt, $storecfg, 0);
 	    } elsif ($opt =~ m/^net(\d+)$/) {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
@@ -1314,6 +1289,44 @@ sub vmconfig_apply_pending {
     }
 
     $class->write_config($vmid, $conf);
+}
+
+my $rescan_volume = sub {
+    my ($storecfg, $mp) = @_;
+    eval {
+	$mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
+	    if !defined($mp->{size});
+    };
+    warn "Could not rescan volume size - $@\n" if $@;
+};
+
+sub apply_pending_mountpoint {
+    my ($class, $vmid, $conf, $opt, $storecfg, $running) = @_;
+
+    my $mp = $class->parse_ct_mountpoint($conf->{pending}->{$opt});
+    my $old = $conf->{$opt};
+    if ($mp->{type} eq 'volume') {
+	if ($mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
+	    my $vollist = PVE::LXC::create_disks(
+		$storecfg,
+		$vmid,
+		{ $opt => $conf->{pending}->{$opt} },
+		$conf,
+		1,
+	    );
+	} else {
+	    $rescan_volume->($storecfg, $mp);
+	    $conf->{pending}->{$opt} = $class->print_ct_mountpoint($mp);
+	}
+    }
+
+    if (defined($old)) {
+	my $mp = $class->parse_ct_mountpoint($old);
+	if ($mp->{type} eq 'volume') {
+	    $class->add_unused_volume($conf, $mp->{volume})
+		if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+	}
+    }
 }
 
 sub classify_mountpoint {
