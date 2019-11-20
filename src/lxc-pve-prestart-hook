@@ -5,9 +5,9 @@ package lxc_pve_prestart_hook;
 use strict;
 use warnings;
 
-use POSIX;
+use Fcntl qw(O_DIRECTORY :mode);
 use File::Path;
-use Fcntl ':mode';
+use POSIX;
 
 use PVE::Cluster;
 use PVE::LXC::Config;
@@ -15,7 +15,8 @@ use PVE::LXC::Setup;
 use PVE::LXC::Tools;
 use PVE::LXC;
 use PVE::Storage;
-use PVE::Tools;
+use PVE::Syscall qw(:fsmount);
+use PVE::Tools qw(AT_FDCWD O_PATH);
 
 PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     my ($vmid, $vars, undef, undef) = @_;
@@ -51,18 +52,73 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 
     my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
 
-    my $setup_mountpoint = sub {
-	my ($ms, $mountpoint) = @_;
-
-	#return if $ms eq 'rootfs';
-	my (undef, undef, $dev) = PVE::LXC::mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
-	push @$devices, $dev if $dev && $mountpoint->{quota};
-    };
-
     # Unmount first when the user mounted the container with "pct mount".
     eval {
 	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
     };
+
+    my $setup_mountpoint;
+    if (!PVE::LXC::Tools::can_use_new_mount_api()) {
+	# Legacy mode for old kernels:
+	$setup_mountpoint = sub {
+	    my ($opt, $mountpoint) = @_;
+
+	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount(
+		$mountpoint,
+		$rootdir,
+		$storage_cfg,
+		undef,
+		$rootuid,
+		$rootgid,
+	    );
+	    push @$devices, $dev if $dev && $mountpoint->{quota};
+	};
+    } else {
+	# With newer kernels we stage mount points and then use move_mount().
+	my $rootdir_fd = undef;
+	$setup_mountpoint = sub {
+	    my ($opt, $mountpoint) = @_;
+
+	    my $dir = PVE::LXC::get_staging_mount_path($opt);
+	    my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
+		$mountpoint,
+		$dir,
+		$storage_cfg,
+		undef,
+		$rootuid,
+		$rootgid,
+	    );
+
+	    my $ddir;
+	    if ($rootdir_fd) {
+		# Mount relative to the rootdir fd.
+		$ddir = './' . $mountpoint->{mp};
+	    } else {
+		# Assert that 'rootfs' is the first one:
+		die "foreach_mount() error\n" if $opt ne 'rootfs';
+
+		# Mount the rootfs absolutely (rootdir_fd=undef uses AT_FDCWD).
+		# $rootdir is not controlled by the container, so this is fine.
+		$ddir = $rootdir;
+	    }
+
+	    PVE::LXC::mountpoint_insert_staged(
+		$mount_fd,
+		$rootdir_fd,
+		$ddir,
+		$opt,
+		$rootuid,
+		$rootgid,
+	    );
+
+	    # From now on we mount inside our rootfs:
+	    if (!$rootdir_fd) {
+		$rootdir_fd = $mount_fd;
+	    }
+
+	    push @$devices, $dev if $dev && $mountpoint->{quota};
+	};
+    }
 
     PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
 
