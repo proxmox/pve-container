@@ -388,6 +388,44 @@ sub find_lxc_pid {
     return $pid;
 }
 
+sub open_pid_fd($) {
+    my ($pid) = @_;
+    sysopen(my $fd, "/proc/$pid", O_RDONLY | O_DIRECTORY)
+	or die "failed to open /proc/$pid pid fd\n";
+    return $fd;
+}
+
+sub open_lxc_pid {
+    my ($vmid) = @_;
+
+    # Find the pid and open:
+    my $pid = find_lxc_pid($vmid);
+    my $fd = open_pid_fd($pid);
+
+    # Verify:
+    my $pid2 = find_lxc_pid($vmid);
+
+    return () if $pid != $pid2;
+    return ($pid, $fd);
+}
+
+sub open_ppid {
+    my ($pid) = @_;
+
+    # Find the parent pid via proc and open it:
+    my $stat = PVE::ProcFSTools::read_proc_pid_stat($pid);
+    my $ppid = $stat->{ppid} // die "failed to get parent pid\n";
+
+    my $fd = open_pid_fd($ppid);
+
+    # Verify:
+    $stat = PVE::ProcFSTools::read_proc_pid_stat($pid);
+    my $ppid2 = $stat->{ppid} // die "failed to get parent pid for verification\n";
+
+    return () if $ppid != $ppid2;
+    return ($ppid, $fd);
+}
+
 # Note: we cannot use Net:IP, because that only allows strict
 # CIDR networks
 sub parse_ipv4_cidr {
