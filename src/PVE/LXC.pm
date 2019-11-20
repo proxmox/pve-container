@@ -11,7 +11,7 @@ use File::Path;
 use File::Spec;
 use Cwd qw();
 use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED);
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS);
 use IO::Socket::UNIX;
 
 use PVE::Exception qw(raise_perm_exc);
@@ -19,14 +19,15 @@ use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
-use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH);
+use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH AT_FDCWD);
 use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
-use PVE::Syscall;
+use PVE::Syscall qw(:fsmount);
 use PVE::LXC::Config;
 use PVE::GuestHelpers;
+use PVE::LXC::Tools;
 
 use Time::HiRes qw (gettimeofday);
 
@@ -1404,6 +1405,37 @@ sub __mount_prepare_rootdir {
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid) = @_;
+    return __mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid, undef);
+}
+
+sub mountpoint_stage {
+    my ($mountpoint, $stage_dir, $storage_cfg, $snapname, $rootuid, $rootgid) = @_;
+    my ($path, $loop, $dev) =
+	__mountpoint_mount($mountpoint, $stage_dir, $storage_cfg, $snapname, $rootuid, $rootgid, 1);
+
+    if (!defined($path)) {
+	return undef if $! == ENOSYS;
+	die "failed to mount subvolume: $!\n";
+    }
+
+    my $err;
+    my $fd = PVE::Tools::open_tree(&AT_FDCWD, $stage_dir, &OPEN_TREE_CLOEXEC | &OPEN_TREE_CLONE)
+	or die "open_tree() on mount point failed: $!\n";
+
+    return wantarray ? ($path, $loop, $dev, $fd) : $fd;
+}
+
+# Use $stage_mount, $rootdir is treated as a temporary path to "stage" the file system. The user
+#   can then open a file descriptor to it which can be used with the `move_mount` syscall.
+#   Note that if the kernel does not support the new mount API, this will not perform any action
+#   and return `undef` with $! = ENOSYS.
+sub __mountpoint_mount {
+    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid, $stage_mount) = @_;
+
+    if (defined($stage_mount) && !PVE::LXC::Tools::can_use_new_mount_api()) {
+	$! = ENOSYS;
+	return undef;
+    }
 
     my $volid = $mountpoint->{volume};
     my $mount = $mountpoint->{mp};
@@ -1421,6 +1453,10 @@ sub mountpoint_mount {
     if (defined($rootdir)) {
 	($rootdir, $mount_path, $mpfd, $parentfd, $last_dir) =
 	    __mount_prepare_rootdir($rootdir, $mount, $rootuid, $rootgid);
+    }
+
+    if (defined($stage_mount)) {
+	$mount_path = $rootdir;
     }
     
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
