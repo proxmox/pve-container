@@ -1029,12 +1029,18 @@ sub update_ipconfig {
 
 }
 
+my $open_namespace = sub {
+    my ($vmid, $pid, $kind) = @_;
+    sysopen my $fd, "/proc/$pid/ns/$kind", O_RDONLY
+	or die "failed to open $kind namespace of container $vmid: $!\n";
+    return $fd;
+};
+
 my $enter_namespace = sub {
-    my ($vmid, $pid, $which, $type) = @_;
-    sysopen my $fd, "/proc/$pid/ns/$which", O_RDONLY
-	or die "failed to open $which namespace of container $vmid: $!\n";
+    my ($vmid, $pid, $kind, $type) = @_;
+    my $fd = $open_namespace->($vmid, $pid, $kind);
     PVE::Tools::setns(fileno($fd), $type)
-	or die "failed to enter $which namespace of container $vmid: $!\n";
+	or die "failed to enter $kind namespace of container $vmid: $!\n";
     close $fd;
 };
 
