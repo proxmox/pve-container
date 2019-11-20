@@ -1,3 +1,14 @@
+pve-container (3.0-12) pve; urgency=medium
+
+  * implement CT mountpoint hotplugging, for host running 5.3 or newer Linux
+    kernel
+
+  * implement container reboot over API and CLI
+
+  * add 'tags' config option for adding meta information to CT
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 20 Nov 2019 19:27:34 +0100
+
 pve-container (3.0-11) pve; urgency=medium
 
   * add PVE::LXC::Tools
