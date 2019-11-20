@@ -1648,6 +1648,44 @@ sub __mountpoint_mount {
     die "unsupported storage";
 }
 
+sub mountpoint_hotplug($$$) {
+    my ($vmid, $conf, $opt, $mp, $storage_cfg) = @_;
+
+    my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+
+    # We do the rest in a fork with an unshared mount namespace, since we're now going to 'stage'
+    # the mountpoint, then grab it, then move into the container's namespace, then mount it.
+
+    PVE::Tools::run_fork(sub {
+	# Pin the container pid longer, we also need to get its monitor/parent:
+	my ($ct_pid, $ct_pidfd) = open_lxc_pid($vmid)
+	    or die "failed to open pidfd of container $vmid\'s init process\n";
+
+	my ($monitor_pid, $monitor_pidfd) = open_ppid($ct_pid)
+	    or die "failed to open pidfd of container $vmid\'s monitor process\n";
+
+	my $ct_mnt_ns = $get_container_namespace->($vmid, $ct_pid, 'mnt');
+	my $monitor_mnt_ns = $get_container_namespace->($vmid, $monitor_pid, 'mnt');
+
+	# Change into the monitor's mount namespace. We "pin" the mount into the monitor's
+	# namespace for it to remain active there since the container will be able to unmount
+	# hotplugged mount points and thereby potentially free up loop devices, which is a security
+	# concern.
+	PVE::Tools::setns(fileno($monitor_mnt_ns), PVE::Tools::CLONE_NEWNS);
+	chdir('/')
+	    or die "failed to change root directory within the monitor's mount namespace: $!\n";
+
+	my $dir = get_staging_mount_path($opt);
+	my $mount_fd = mountpoint_stage($mp, $dir, $storage_cfg, undef, $rootuid, $rootgid);
+
+	PVE::Tools::setns(fileno($ct_mnt_ns), PVE::Tools::CLONE_NEWNS);
+	chdir('/')
+	    or die "failed to change root directory within the container's mount namespace: $!\n";
+
+	mountpoint_insert_staged($mount_fd, undef, $mp->{mp}, $opt, $rootuid, $rootgid);
+    });
+}
+
 # Create a directory in the mountpoint staging tempfs.
 sub get_staging_mount_path($) {
     my ($opt) = @_;
