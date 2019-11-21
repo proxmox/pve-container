@@ -30,18 +30,11 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     return undef if ! -f PVE::LXC::Config->config_file($vmid);
 
     my $conf = PVE::LXC::Config->load_config($vmid);
-    my $storage_cfg = PVE::Storage::config();
-
-    # apply pending changes if present
-    if ($conf->{pending}) {
-	PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
-	$conf = PVE::LXC::Config->load_config($vmid); # just to be sure
-    }
-
     if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
 	PVE::LXC::Config->check_lock($conf);
     }
 
+    my $storage_cfg = PVE::Storage::config();
 
     my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
     my $loopdevlist = PVE::LXC::Config->get_vm_volumes($conf, 'rootfs');
