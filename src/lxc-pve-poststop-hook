@@ -38,6 +38,14 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 	PVE::Network::veth_delete("veth${vmid}i$ind");
     }
 
+    my $config_updated = 0;
+    if ($conf->{pending}) {
+	PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
+	PVE::LXC::update_lxc_config($vmid, $conf);
+	$config_updated = 1;
+    }
+
+
     my $target = $vars->{TARGET};
     if ($target && $target eq 'reboot') {
 	# In order to make sure hot-plugged config changes aren't reverted
@@ -47,7 +55,7 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 	# task, note that we must not block because we're part of the
 	# service cgroup systemd waits for to die before issuing the new
 	# lxc-start command.
-	PVE::LXC::update_lxc_config($vmid, $conf);
+	PVE::LXC::update_lxc_config($vmid, $conf) if !$config_updated;
 	# Tell the post-stop hook we want to be restarted.
 	open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
 	    or die "failed to create reboot trigger file: $!\n";
