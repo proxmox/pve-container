@@ -1,3 +1,10 @@
+pve-container (3.0-13) pve; urgency=medium
+
+  * move applying pending changes from pre-start to post-stop, as we can
+    regenerate the LXC config safely there.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 22 Nov 2019 09:52:53 +0100
+
 pve-container (3.0-12) pve; urgency=medium
 
   * implement CT mountpoint hotplugging, for host running 5.3 or newer Linux
