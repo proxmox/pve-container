@@ -40,7 +40,8 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 
     my $config_updated = 0;
     if ($conf->{pending}) {
-	PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
+	eval { PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg) };
+	warn "$@" if $@;
 	PVE::LXC::update_lxc_config($vmid, $conf);
 	$config_updated = 1;
     }
