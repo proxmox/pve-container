@@ -1,3 +1,9 @@
+pve-container (3.0-14) pve; urgency=medium
+
+  * fix bindmounting with staged mount points
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 26 Nov 2019 18:27:41 +0100
+
 pve-container (3.0-13) pve; urgency=medium
 
   * move applying pending changes from pre-start to post-stop, as we can
