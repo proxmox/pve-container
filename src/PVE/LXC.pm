@@ -1519,8 +1519,12 @@ sub __mountpoint_mount {
 	return undef;
     }
 
+    # When staging mount points we always mount to $rootdir directly (iow. as if `mp=/`).
+    # This is required since __mount_prepare_rootdir() will return handles to the parent directory
+    # which we use in __bindmount_verify()!
+    my $mount = $stage_mount ? '/': $mountpoint->{mp};
+
     my $volid = $mountpoint->{volume};
-    my $mount = $mountpoint->{mp};
     my $type = $mountpoint->{type};
     my $quota = !$snapname && !$mountpoint->{ro} && $mountpoint->{quota};
     my $mounted_dev;
