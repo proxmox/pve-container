@@ -1307,8 +1307,7 @@ sub vmconfig_apply_pending {
 my $rescan_volume = sub {
     my ($storecfg, $mp) = @_;
     eval {
-	$mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5)
-	    if !defined($mp->{size});
+	$mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5);
     };
     warn "Could not rescan volume size - $@\n" if $@;
 };
