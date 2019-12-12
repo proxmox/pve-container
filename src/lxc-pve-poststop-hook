@@ -23,9 +23,9 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 
     my $storage_cfg = PVE::Storage::config();
 
-    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
-
     PVE::Tools::run_command(['umount', '--recursive', $vars->{ROOTFS_PATH}]);
+
+    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 
     # Because netlink is not a reliable protocol it can happen that lxc's
     # link-deletion messages get lost (or end up being too early?)
