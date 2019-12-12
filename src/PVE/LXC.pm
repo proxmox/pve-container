@@ -1481,6 +1481,9 @@ sub mountpoint_stage {
 	die "failed to mount subvolume: $!\n";
     }
 
+    # We clone the mount point and leave it there in order to keep them connected to eg. loop
+    # devices in case we're hotplugging (which would allow contaienrs to unmount the new mount
+    # point).
     my $err;
     my $fd = PVE::Tools::open_tree(&AT_FDCWD, $stage_dir, &OPEN_TREE_CLOEXEC | &OPEN_TREE_CLONE)
 	or die "open_tree() on mount point failed: $!\n";
