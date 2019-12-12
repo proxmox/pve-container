@@ -3,8 +3,9 @@
 use strict;
 use warnings;
 
-use POSIX;
 use File::Path;
+use IO::Dir;
+use POSIX;
 
 use PVE::GuestHelpers;
 use PVE::LXC::Config;
@@ -23,7 +24,17 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 
     my $storage_cfg = PVE::Storage::config();
 
-    PVE::Tools::run_command(['umount', '--recursive', $vars->{ROOTFS_PATH}]);
+    PVE::Tools::run_command(['umount', '--recursive', '--', $vars->{ROOTFS_PATH}]);
+    my $staging_dir = PVE::LXC::get_staging_tempfs();
+    if (my $dh = IO::Dir->new($staging_dir)) {
+	while (defined(my $dir = $dh->read)) {
+	    next if $dir eq '.' || $dir eq '..';
+	    eval {
+		PVE::Tools::run_command(['umount', '--', "$staging_dir/$dir"]);
+	    };
+	    warn $@ if $@;
+	}
+    }
 
     PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 
