@@ -1,3 +1,15 @@
+pve-container (3.0-16) pve; urgency=medium
+
+  * replace the deprecated DHCP=none with DHCP=no in .network units on systemd
+    based containers
+
+  * fix an issue where when debugging container startup running them directly
+    via `lxc-start` instead of `pct start`, the prestart hook would mount
+    containers relative to the current working directory instead of where
+    they're supposed to be mounted
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 02 Jan 2020 09:37:08 +0100
+
 pve-container (3.0-15) pve; urgency=medium
 
   * fix #2512: post-stop: unmount stage mps before cleanup
