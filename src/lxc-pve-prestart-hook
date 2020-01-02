@@ -89,23 +89,26 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 		$rootgid,
 	    );
 
-	    my $ddir;
+	    my ($dest_dir, $dest_base_fd);
 	    if ($rootdir_fd) {
 		# Mount relative to the rootdir fd.
-		$ddir = './' . $mountpoint->{mp};
+		$dest_base_fd = $rootdir_fd;
+		$dest_dir = './' . $mountpoint->{mp};
 	    } else {
 		# Assert that 'rootfs' is the first one:
 		die "foreach_mount() error\n" if $opt ne 'rootfs';
 
-		# Mount the rootfs absolutely (rootdir_fd=undef uses AT_FDCWD).
+		# Mount the rootfs absolutely.
 		# $rootdir is not controlled by the container, so this is fine.
-		$ddir = $rootdir;
+		sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
+		    or die "failed to open '.': $!\n";
+		$dest_dir = $rootdir;
 	    }
 
 	    PVE::LXC::mountpoint_insert_staged(
 		$mount_fd,
-		$rootdir_fd,
-		$ddir,
+		$dest_base_fd,
+		$dest_dir,
 		$opt,
 		$rootuid,
 		$rootgid,
