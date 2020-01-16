@@ -197,7 +197,7 @@ sub vmstatus {
 
 	$unprivileged->{$vmid} = $conf->{unprivileged};
 
-	$d->{name} = $conf->{'hostname'} || "CT$vmid";
+	$d->{name} = $conf->{'hostname'} || "CT $vmid";
 	$d->{name} =~ s/[\s]//g;
 
 	$d->{cpus} = $conf->{cores} || $conf->{cpulimit};
