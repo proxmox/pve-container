@@ -56,7 +56,7 @@ my $rsync_vm = sub {
 
 sub new {
     my ($class, $vzdump) = @_;
-    
+
     PVE::VZDump::check_bin('lxc-stop');
     PVE::VZDump::check_bin('lxc-start');
     PVE::VZDump::check_bin('lxc-freeze');
@@ -66,7 +66,7 @@ sub new {
 
     $self->{vzdump} = $vzdump;
     $self->{storecfg} = PVE::Storage::config();
-    
+
     $self->{vmlist} = PVE::LXC::config_list();
 
     return $self;
@@ -80,8 +80,8 @@ sub vm_status {
     my ($self, $vmid) = @_;
 
     my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
-   
-    return wantarray ? ($running, $running ? 'running' : 'stopped') : $running; 
+
+    return wantarray ? ($running, $running ? 'running' : 'stopped') : $running;
 }
 
 my $check_mountpoint_empty = sub {
@@ -116,7 +116,6 @@ sub prepare {
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
     $task->{rootuid} = $rootuid;
     $task->{rootgid} = $rootgid;
-
 
     my $volids = $task->{volids} = [];
     PVE::LXC::Config->foreach_mountpoint($conf, sub {
@@ -207,7 +206,7 @@ sub snapshot {
 	$self->lock_vm($vmid);
     });
     $task->{cleanup}->{remove_snapshot} = 1;
-    
+
     # reload config
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::Config->load_config($vmid);
     die "unable to read vzdump snapshot config - internal error"
@@ -340,7 +339,7 @@ sub archive {
                @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
                '--one-file-system', '--warning=no-file-ignored'];
 
-    # note: --remove-files does not work because we do not 
+    # note: --remove-files does not work because we do not
     # backup all files (filters). tar complains:
     # Cannot rmdir: Directory not empty
     # we disable this optimization for now
