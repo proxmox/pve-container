@@ -247,7 +247,7 @@ __PACKAGE__->register_method ({
 		die "unable to run fsck for '$volid' (format == $format)\n"
 		    if $format ne 'raw';
 
-		$path = PVE::Storage::path($storage_cfg, $volid);
+		$path = PVE::Storage::map_volume($storage_cfg, $volid);
 
 	    } else {
 		if (($volid =~ m|^/.+|) && (-b $volid)) {
@@ -264,6 +264,7 @@ __PACKAGE__->register_method ({
 		die "cannot run fsck on active container\n";
 
 	    PVE::Tools::run_command($command);
+	    PVE::Storage::unmap_volume($storage_cfg, $volid) if $storage_id;
 	};
 
 	PVE::LXC::Config->lock_config($vmid, $do_fsck);
