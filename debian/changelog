@@ -1,3 +1,9 @@
+pve-container (3.0-18) pve; urgency=medium
+
+  * undo the display change from 3.0-17 for now
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 20 Jan 2020 09:29:23 +0100
+
 pve-container (3.0-17) pve; urgency=medium
 
   * enable centos 8.1 containers
