@@ -235,6 +235,9 @@ __PACKAGE__->register_method ({
 	    my $mount_point = $device eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$device}) :
 		PVE::LXC::Config->parse_ct_mountpoint($conf->{$device});
 
+	    die "cannot run fsck when container is running\n"
+		if PVE::LXC::check_running($vmid);
+
 	    my $volid = $mount_point->{volume};
 
 	    my $path;
@@ -259,11 +262,8 @@ __PACKAGE__->register_method ({
 	    }
 
 	    push(@$command, $path);
-
-	    PVE::LXC::check_running($vmid) &&
-		die "cannot run fsck on active container\n";
-
 	    PVE::Tools::run_command($command);
+
 	    PVE::Storage::unmap_volume($storage_cfg, $volid) if $storage_id;
 	};
 
