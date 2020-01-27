@@ -1,3 +1,15 @@
+pve-container (3.0-19) pve; urgency=medium
+
+  * fix fsck command for ceph RBD backed volumes, map and unmap them
+
+  * fix #2560: adapt some sysctl values for high CT counts
+
+  * fix #2568: hotplug: fix typo for 'cpu.shares'
+
+  * setup: allow all Centos 8.x stable versions
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 27 Jan 2020 18:53:00 +0100
+
 pve-container (3.0-18) pve; urgency=medium
 
   * undo the display change from 3.0-17 for now
