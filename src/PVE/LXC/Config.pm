@@ -1188,7 +1188,7 @@ sub vmconfig_hotplug_pending {
 		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_period_us", -1);
 		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
 	    } elsif ($opt eq 'cpuunits') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shared", $confdesc->{cpuunits}->{default});
+		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $confdesc->{cpuunits}->{default});
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
