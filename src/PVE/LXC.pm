@@ -472,7 +472,7 @@ sub get_cgroup_subsystems {
 #
 # This returns a configuration snippet added to the raw lxc config.
 sub make_seccomp_config {
-    my ($conf, $conf_dir, $unprivileged, $features) = @_;
+    my ($conf, $vmid, $conf_dir, $unprivileged, $features) = @_;
     # User-configured profile has precedence, note that the user's entry would
     # be written 'after' this line anyway...
     if (PVE::LXC::Config->has_lxc_entry($conf, 'lxc.seccomp.profile')) {
@@ -516,6 +516,7 @@ sub make_seccomp_config {
 	}
 
 	$raw_conf .= "lxc.seccomp.notify.proxy = unix:/run/pve/lxc-syscalld.sock\n";
+	$raw_conf .= "lxc.seccomp.notify.cookie = $vmid\n";
 
 	$rules->{mknod} = [
 	    # condition: (mode & S_IFMT) == S_IFCHR
@@ -649,7 +650,7 @@ sub update_lxc_config {
 
     my $features = PVE::LXC::Config->parse_features($conf->{features});
 
-    $raw .= make_seccomp_config($conf, $dir, $unprivileged, $features);
+    $raw .= make_seccomp_config($conf, $vmid, $dir, $unprivileged, $features);
     $raw .= make_apparmor_config($conf, $unprivileged, $features);
     if ($features->{fuse}) {
 	$raw .= "lxc.apparmor.raw = mount fstype=fuse,\n";
