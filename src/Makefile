@@ -73,7 +73,6 @@ pve-userns.seccomp: /usr/share/lxc/config/common.seccomp
 	cp $< $@
 	echo 'keyctl errno 38' >> $@
 
-
 .PHONY: test
 test:
 	make -C test test

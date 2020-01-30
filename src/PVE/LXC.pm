@@ -19,7 +19,10 @@ use PVE::Storage;
 use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
-use PVE::Tools qw($IPV6RE $IPV4RE dir_glob_foreach lock_file lock_file_full O_PATH AT_FDCWD);
+use PVE::Tools qw(
+    dir_glob_foreach file_get_contents file_set_contents lock_file
+    lock_file_full AT_FDCWD O_PATH $IPV4RE $IPV6RE
+);
 use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
@@ -461,21 +464,22 @@ sub get_cgroup_subsystems {
 	return wantarray ? ($v1, $v2) : $v1;
 }
 
-# Currently we do not need to create seccomp profile 'files' as the only
-# choice our configuration actually allows is "with or without keyctl()",
-# so we distinguish between using lxc's "default" seccomp profile and our
-# added pve-userns.seccomp file.
+# With seccomp trap to userspace we now have the ability to optionally forward
+# certain syscalls to the "host" to handle (via our pve-lxc-syscalld daemon).
 #
-# This returns a configuration line added to the raw lxc config.
+# This means that there are cases where we need to create an extra seccomp
+# profile for the container to load.
+#
+# This returns a configuration snippet added to the raw lxc config.
 sub make_seccomp_config {
-    my ($conf, $unprivileged, $features) = @_;
+    my ($conf, $conf_dir, $unprivileged, $features) = @_;
     # User-configured profile has precedence, note that the user's entry would
     # be written 'after' this line anyway...
     if (PVE::LXC::Config->has_lxc_entry($conf, 'lxc.seccomp.profile')) {
 	# Warn the user if this conflicts with a feature:
-	if ($features->{keyctl}) {
-	    warn "explicitly configured lxc.seccomp.profile overrides the following settings: features:keyctl\n";
-	}
+	my $warn = join(', ', grep { $features->{$_} } qw(keyctl mknod));
+	warn "explicitly configured lxc.seccomp.profile overrides the following settings: $warn\n"
+	    if length($warn) > 0;
 	return '';
     }
 
@@ -485,14 +489,66 @@ sub make_seccomp_config {
     # well)
     return '' if !$unprivileged;
 
+    my $rules = {
+	keyctl => ['errno 38'],
+    };
+
+    my $raw_conf = '';
+
     # Unprivileged containers will get keyctl() disabled by default as a
     # workaround for systemd-networkd behavior. But we have an option to
     # explicitly enable it:
-    return '' if $features->{keyctl};
+    if ($features->{keyctl}) {
+	delete $rules->{keyctl};
+    }
 
-    # Finally we're in an unprivileged container without `keyctl` set
-    # explicitly. We have a file prepared for this:
-    return "lxc.seccomp.profile = $LXC_CONFIG_PATH/pve-userns.seccomp\n";
+    # By default, unprivileged containers cannot use `mknod` at all.
+    # Since lxc 3.2, we can use seccomp's trap to userspace feature for this,
+    # but for now this is experimental, so it has to be enabled via a feature
+    # flag.
+    # Note that we only handle block and char devices (like lxd), the rest we
+    # leave up to the kernel. We may in the future remove this if seccomp gets
+    # a way to tell the kernel to "continue" a syscall.
+    if ($features->{mknod}) {
+	$raw_conf .= "lxc.seccomp.notify.proxy = unix:/run/pve/lxc-syscalld.sock\n";
+
+	$rules->{mknod} = [
+	    # condition: (mode & S_IFMT) == S_IFCHR
+	    'notify [1,8192,SCMP_CMP_MASKED_EQ,61440]',
+	    # condition: (mode & S_IFMT) == S_IFBLK
+	    'notify [1,24576,SCMP_CMP_MASKED_EQ,61440]',
+	];
+	$rules->{mknodat} = [
+	    # condition: (mode & S_IFMT) == S_IFCHR
+	    'notify [2,8192,SCMP_CMP_MASKED_EQ,61440]',
+	    # condition: (mode & S_IFMT) == S_IFBLK
+	    'notify [2,24576,SCMP_CMP_MASKED_EQ,61440]',
+	];
+    }
+
+    # Now build the custom seccomp rule text...
+    my $extra_rules = join("\n", map {
+	my $syscall = $_;
+	map { "$syscall $_" } $rules->{$syscall}->@*
+    } sort keys %$rules) . "\n";
+
+    return $raw_conf if $extra_rules eq "\n";
+
+    # We still have the "most common" config readily available, so don't write
+    # out that one:
+    if ($raw_conf eq '' && $extra_rules eq "keyctl errno 38\n") {
+	# we have no extra $raw_conf and use the same we had in pve 6.1:
+	return "lxc.seccomp.profile = $LXC_CONFIG_PATH/pve-userns.seccomp\n";
+    }
+
+    # Write the rule file to the container's config path:
+    my $rule_file = "$conf_dir/rules.seccomp";
+    my $rule_data = file_get_contents("$LXC_CONFIG_PATH/common.seccomp")
+	. $extra_rules;
+    file_set_contents($rule_file, $rule_data);
+    $raw_conf .= "lxc.seccomp.profile = $rule_file\n";
+
+    return $raw_conf;
 }
 
 # Since lxc-3.0.2 we can have lxc generate a profile for the container
@@ -588,7 +644,7 @@ sub update_lxc_config {
 
     my $features = PVE::LXC::Config->parse_features($conf->{features});
 
-    $raw .= make_seccomp_config($conf, $unprivileged, $features);
+    $raw .= make_seccomp_config($conf, $dir, $unprivileged, $features);
     $raw .= make_apparmor_config($conf, $unprivileged, $features);
     if ($features->{fuse}) {
 	$raw .= "lxc.apparmor.raw = mount fstype=fuse,\n";

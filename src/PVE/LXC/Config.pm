@@ -323,6 +323,14 @@ my $features_desc = {
 	description => "Allow using 'fuse' file systems in a container."
 	    ." Note that interactions between fuse and the freezer cgroup can potentially cause I/O deadlocks.",
     },
+    mknod => {
+	optional => 1,
+	type => 'boolean',
+	default => 0,
+	description => "Allow unprivileged containers to use mknod() to add certain device nodes."
+	    ." This requires a kernel with seccomp trap to user space support (5.3 or newer)."
+	    ." This is experimental.",
+    },
 };
 
 my $confdesc = {
