@@ -20,7 +20,7 @@ Priority: optional
 Architecture: all
 Depends: file,
          libpve-cluster-perl,
-         libpve-common-perl (>= 6.0-8),
+         libpve-common-perl (>= 6.0-12),
          libpve-guest-common-perl (>= 3.0-2),
          libpve-storage-perl (>= 5.0-31),
          lxc-pve,

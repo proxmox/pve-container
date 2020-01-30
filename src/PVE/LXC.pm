@@ -510,6 +510,11 @@ sub make_seccomp_config {
     # leave up to the kernel. We may in the future remove this if seccomp gets
     # a way to tell the kernel to "continue" a syscall.
     if ($features->{mknod}) {
+	my ($ok, $kernel) = PVE::ProcFSTools::check_kernel_release(5, 3);
+	if (!$ok) {
+	    die "'mknod' feature requested, but kernel too old (found $kernel, required >= 5.3)\n";
+	}
+
 	$raw_conf .= "lxc.seccomp.notify.proxy = unix:/run/pve/lxc-syscalld.sock\n";
 
 	$rules->{mknod} = [
