@@ -1268,7 +1268,6 @@ sub vmconfig_apply_pending {
     # FIXME: $force deletion is not implemented for CTs
     foreach my $opt (sort keys %$pending_delete_hash) {
 	next if $selection && !$selection->{$opt};
-	$class->cleanup_pending($conf);
 	eval {
 	    if ($opt =~ m/^mp(\d+)$/) {
 		my $mp = $class->parse_ct_mountpoint($conf->{$opt});
@@ -1289,6 +1288,8 @@ sub vmconfig_apply_pending {
 	}
     }
 
+    $class->cleanup_pending($conf);
+
     foreach my $opt (sort keys %{$conf->{pending}}) { # add/change
 	next if $opt eq 'delete'; # just to be sure
 	next if $selection && !$selection->{$opt};
@@ -1304,7 +1305,6 @@ sub vmconfig_apply_pending {
 	if (my $err = $@) {
 	    $add_apply_error->($opt, $err);
 	} else {
-	    $class->cleanup_pending($conf);
 	    $conf->{$opt} = delete $conf->{pending}->{$opt};
 	}
     }
