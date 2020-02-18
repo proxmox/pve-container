@@ -1647,19 +1647,17 @@ sub __mountpoint_mount {
 
 	if ($format eq 'subvol') {
 	    if ($mount_path) {
-		if ($snapname) {
+		my (undef, $name) = PVE::Storage::parse_volname($storage_cfg, $volid);
+		if (defined($snapname)) {
+		    $name .= "\@$snapname";
 		    if ($scfg->{type} eq 'zfspool') {
-			my $path_arg = $path;
-			$path_arg =~ s!^/+!!;
-			PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, '-t', 'zfs', $path_arg, $mount_path]);
+			PVE::Tools::run_command(['mount', '-o', 'ro', @extra_opts, '-t', 'zfs', "$scfg->{pool}/$name", $mount_path]);
 		    } else {
 			die "cannot mount subvol snapshots for storage type '$scfg->{type}'\n";
 		    }
 		} else {
 		    if (defined($acl) && $scfg->{type} eq 'zfspool') {
 			my $acltype = ($acl ? 'acltype=posixacl' : 'acltype=noacl');
-			my (undef, $name) = PVE::Storage::parse_volname($storage_cfg, $volid);
-			$name .= "\@$snapname" if defined($snapname);
 			PVE::Tools::run_command(['zfs', 'set', $acltype, "$scfg->{pool}/$name"]);
 		    }
 		    bindmount($path, $parentfd, $last_dir//$rootdir, $mount_path, $readonly, @extra_opts);
