@@ -310,6 +310,7 @@ sub archive {
     if ($task->{mode} eq 'stop') {
 	my $rootdir = $default_mount_point;
 	my $storage_cfg = $self->{storecfg};
+	PVE::Storage::activate_volumes($storage_cfg, $task->{volids});
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
 	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{rootuid}, $task->{rootgid});
