@@ -2,15 +2,17 @@ package PVE::VZDump::LXC;
 
 use strict;
 use warnings;
-use File::Path;
+
 use File::Basename;
-use PVE::INotify;
+use File::Path;
+
 use PVE::Cluster qw(cfs_read_file);
-use PVE::Storage;
-use PVE::VZDump;
-use PVE::LXC;
+use PVE::INotify;
 use PVE::LXC::Config;
+use PVE::LXC;
+use PVE::Storage;
 use PVE::Tools;
+use PVE::VZDump;
 
 use base qw (PVE::VZDump::Plugin);
 
@@ -307,9 +309,11 @@ sub archive {
     my @sources;
 
     if ($task->{mode} eq 'stop') {
-	my $rootdir = $default_mount_point;
 	my $storage_cfg = $self->{storecfg};
+
 	PVE::Storage::activate_volumes($storage_cfg, $task->{volids});
+
+	my $rootdir = $default_mount_point;
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
 	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{rootuid}, $task->{rootgid});
