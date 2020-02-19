@@ -29,7 +29,7 @@ use PVE::AccessControl;
 use PVE::ProcFSTools;
 use PVE::Syscall qw(:fsmount);
 use PVE::LXC::Config;
-use PVE::GuestHelpers;
+use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne typesafe_ne);
 use PVE::LXC::Tools;
 
 use Time::HiRes qw (gettimeofday);
@@ -876,26 +876,6 @@ sub vm_stop_cleanup {
     warn $@ if $@; # avoid errors - just warn
 }
 
-my $safe_num_ne = sub {
-    my ($a, $b) = @_;
-
-    return 0 if !defined($a) && !defined($b);
-    return 1 if !defined($a);
-    return 1 if !defined($b);
-
-    return $a != $b;
-};
-
-my $safe_string_ne = sub {
-    my ($a, $b) = @_;
-
-    return 0 if !defined($a) && !defined($b);
-    return 1 if !defined($a);
-    return 1 if !defined($b);
-
-    return $a ne $b;
-};
-
 sub update_net {
     my ($vmid, $conf, $opt, $newnet, $netid, $rootdir) = @_;
 
@@ -910,8 +890,8 @@ sub update_net {
     if (my $oldnetcfg = $conf->{$opt}) {
 	my $oldnet = PVE::LXC::Config->parse_lxc_network($oldnetcfg);
 
-	if (&$safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr}) ||
-	    &$safe_string_ne($oldnet->{name}, $newnet->{name})) {
+	if (safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr}) ||
+	    safe_string_ne($oldnet->{name}, $newnet->{name})) {
 
 	    PVE::Network::veth_delete($veth);
 	    delete $conf->{$opt};
@@ -920,9 +900,9 @@ sub update_net {
 	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
 	} else {
-	    if (&$safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
-		&$safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
-		&$safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
+	    if (safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
+		safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
+		safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
 
 		if ($oldnet->{bridge}) {
 		    PVE::Network::tap_unplug($veth);
@@ -938,7 +918,7 @@ sub update_net {
 		foreach (qw(bridge tag firewall rate)) {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
-	    } elsif (&$safe_string_ne($oldnet->{rate}, $newnet->{rate})) {
+	    } elsif (safe_string_ne($oldnet->{rate}, $newnet->{rate})) {
 		# Rate can be applied on its own but any change above needs to
 		# include the rate in tap_plug since OVS resets everything.
 		PVE::Network::tap_rate_limit($veth, $newnet->{rate});
@@ -1008,8 +988,8 @@ sub update_ipconfig {
 	my $oldip = $optdata->{$ip};
 	my $oldgw = $optdata->{$gw};
 
-	my $change_ip = &$safe_string_ne($oldip, $newip);
-	my $change_gw = &$safe_string_ne($oldgw, $newgw);
+	my $change_ip = safe_string_ne($oldip, $newip);
+	my $change_gw = safe_string_ne($oldgw, $newgw);
 
 	return if !$change_ip && !$change_gw;
 
