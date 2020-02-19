@@ -162,7 +162,6 @@ sub prepare {
 	my $rootdir = $default_mount_point;
 	mkpath $rootdir;
 	&$check_mountpoint_empty($rootdir);
-	PVE::Storage::activate_volumes($storage_cfg, $volids);
     } elsif ($mode eq 'suspend') {
 	my $pid = PVE::LXC::find_lxc_pid($vmid);
 	foreach my $disk (@$disks) {
