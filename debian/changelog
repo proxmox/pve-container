@@ -1,3 +1,17 @@
+pve-container (3.0-20) pve; urgency=medium
+
+  * add mknod feature flag
+
+  * set lxc.seccomp.notify.cookie to the vmid
+
+  * llow reading snapshot config for VM.Audit
+
+  * fix #2598: activate volumes before mounting in stop mode backup
+
+  * apply pending: do cleanup pending between, not during, change/delete loop
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 20 Feb 2020 13:59:00 +0100
+
 pve-container (3.0-19) pve; urgency=medium
 
   * fix fsck command for ceph RBD backed volumes, map and unmap them
