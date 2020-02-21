@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '20.04' => 1, # focal LTS
     '19.10' => 1, # eoan
     '19.04' => 1, # disco
     '18.10' => 1, # cosmic
