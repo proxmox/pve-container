@@ -268,7 +268,7 @@ __PACKAGE__->register_method({
 	    die "restore from pipe requires rootfs parameter\n" if !defined($param->{rootfs});
 	} else {
 	    PVE::Storage::check_volume_access($rpcenv, $authuser, $storage_cfg, $vmid, $ostemplate);
-	    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $ostemplate);
+	    $archive = $ostemplate;
 	}
 
 	my %used_storages;
@@ -354,7 +354,7 @@ __PACKAGE__->register_method({
 		    die "can't overwrite running container\n" if PVE::LXC::check_running($vmid);
 		    if ($is_root && $archive ne '-') {
 			my $orig_conf;
-			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($storage_cfg, $archive);
 			$was_template = delete $orig_conf->{template};
 			# When we're root call 'restore_configuration' with restricted=0,
 			# causing it to restore the raw lxc entries, among which there may be
@@ -366,7 +366,7 @@ __PACKAGE__->register_method({
 		if ($storage_only_mode) {
 		    if ($restore) {
 			if (!defined($orig_mp_param)) {
-			    (undef, $orig_mp_param) = PVE::LXC::Create::recover_config($archive);
+			    (undef, $orig_mp_param) = PVE::LXC::Create::recover_config($storage_cfg, $archive);
 			}
 			$mp_param = $orig_mp_param;
 			die "rootfs configuration could not be recovered, please check and specify manually!\n"
@@ -414,10 +414,10 @@ __PACKAGE__->register_method({
 		eval {
 		    my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
 		    $bwlimit = PVE::Storage::get_bandwidth_limit('restore', [keys %used_storages], $bwlimit);
-		    PVE::LXC::Create::restore_archive($archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
+		    PVE::LXC::Create::restore_archive($storage_cfg, $archive, $rootdir, $conf, $ignore_unpack_errors, $bwlimit);
 
 		    if ($restore) {
-			PVE::LXC::Create::restore_configuration($vmid, $rootdir, $conf, !$is_root, $unique, $skip_fw_config_restore);
+			PVE::LXC::Create::restore_configuration($vmid, $storage_cfg, $archive, $rootdir, $conf, !$is_root, $unique, $skip_fw_config_restore);
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 			$lxc_setup->template_fixup($conf);
 		    } else {

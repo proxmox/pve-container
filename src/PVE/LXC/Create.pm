@@ -6,6 +6,7 @@ use File::Basename;
 use File::Path;
 use Fcntl;
 
+use PVE::Storage::PBSPlugin;
 use PVE::Storage;
 use PVE::DataCenterConfig;
 use PVE::LXC;
@@ -64,6 +65,49 @@ sub detect_architecture {
 }
 
 sub restore_archive {
+    my ($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive, 1);
+    if (defined($storeid)) {
+	my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $storeid);
+	if ($scfg->{type} eq 'pbs') {
+	    return restore_proxmox_backup_archive($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit);
+	}
+    }
+
+    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $archive) if $archive ne '-';
+    restore_tar_archive($archive, $rootdir, $conf, $no_unpack_error, $bwlimit);
+}
+
+sub restore_proxmox_backup_archive {
+    my ($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive);
+    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+
+    my ($vtype, $name, undef, undef, undef, undef, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $archive);
+
+    die "got unexpected vtype '$vtype'\n" if $vtype ne 'backup';
+
+    die "got unexpected backup format '$format'\n" if $format ne 'pbs-ct';
+
+    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my $userns_cmd = PVE::LXC::userns_command($id_map);
+
+    my $cmd = "restore";
+    my $param = [$name, "root.pxar", $rootdir, '--allow-existing-dirs'];
+
+    PVE::Storage::PBSPlugin::run_raw_client_cmd(
+	$scfg, $storeid, $cmd, $param, userns_cmd => $userns_cmd);
+
+    # if arch is set, we do not try to autodetect it
+    return if defined($conf->{arch});
+
+    $conf->{arch} = detect_architecture($rootdir);
+}
+
+sub restore_tar_archive {
     my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
 
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
@@ -128,6 +172,55 @@ sub restore_archive {
 }
 
 sub recover_config {
+    my ($storage_cfg, $volid) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+    if (defined($storeid)) {
+	my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $storeid);
+	if ($scfg->{type} eq 'pbs') {
+	    return recover_config_from_proxmox_backup($storage_cfg, $volid);
+	}
+    }
+
+    my $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $volid);
+    recover_config_from_tar($archive);
+}
+
+sub recover_config_from_proxmox_backup {
+    my ($storage_cfg, $volid) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid);
+    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+
+    my ($vtype, $name, undef, undef, undef, undef, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $volid);
+
+    die "got unexpected vtype '$vtype'\n" if $vtype ne 'backup';
+
+    die "got unexpected backup format '$format'\n" if $format ne 'pbs-ct';
+
+    my $cmd = "restore";
+    my $param = [$name, "pct.conf", "-"];
+
+    my $raw = '';
+    my $outfunc = sub { my $line = shift; $raw .= "$line\n"; };
+    PVE::Storage::PBSPlugin::run_raw_client_cmd(
+	$scfg,  $storeid, $cmd, $param, outfunc => $outfunc);
+
+    my $conf = PVE::LXC::Config::parse_pct_config("/lxc/0.conf" , $raw);
+
+    delete $conf->{snapshots};
+
+    my $mp_param = {};
+    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	my ($ms, $mountpoint) = @_;
+	$mp_param->{$ms} = $conf->{$ms};
+    });
+
+    return wantarray ? ($conf, $mp_param) : $conf;
+}
+
+sub recover_config_from_tar {
     my ($archive) = @_;
 
     my ($raw, $conf_file) = PVE::Storage::extract_vzdump_config_tar($archive, qr!(\./etc/vzdump/(pct|vps)\.conf)$!);
@@ -158,6 +251,87 @@ sub recover_config {
 }
 
 sub restore_configuration {
+    my ($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive);
+    if (defined($storeid)) {
+	my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+	if ($scfg->{type} eq 'pbs') {
+	    return restore_configuration_from_proxmox_backup($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw);
+	}
+    }
+    restore_configuration_from_etc_vzdump($vmid, $rootdir, $conf, $restricted, $unique, $skip_fw);
+}
+
+sub restore_configuration_from_proxmox_backup {
+    my ($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive);
+    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+
+    my ($vtype, $name, undef, undef, undef, undef, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $archive);
+
+    my $oldconf = recover_config_from_proxmox_backup($storage_cfg, $archive);
+
+    sanitize_and_merge_config($conf, $oldconf, $restricted, $unique);
+
+    my $cmd = "files";
+
+    my $list = PVE::Storage::PBSPlugin::run_client_cmd($scfg, $storeid, "files", [$name]);
+    my $has_fw_conf = grep { $_ eq 'fw.conf' } @$list;
+
+    if ($has_fw_conf) {
+	my $pve_firewall_dir = '/etc/pve/firewall';
+	my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
+	if ($skip_fw) {
+	    warn "ignoring firewall config from backup archive's 'fw.conf', lacking API permission to modify firewall.\n";
+	    warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
+		if -e $pct_fwcfg_target;
+	} else {
+	    mkdir $pve_firewall_dir; # make sure the directory exists
+
+	    my $cmd = "restore";
+	    my $param = [$name, "fw.conf", $pct_fwcfg_target];
+	    PVE::Storage::PBSPlugin::run_raw_client_cmd($scfg, $storeid, $cmd, $param);
+	}
+    }
+}
+
+sub sanitize_and_merge_config {
+    my ($conf, $oldconf, $restricted, $unique) = @_;
+
+    foreach my $key (keys %$oldconf) {
+	next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
+	next if $key =~ /^mp\d+$/; # don't recover mountpoints
+	next if $key =~ /^unused\d+$/; # don't recover unused disks
+	# we know if it was a template in the restore API call and check if the target
+	# storage supports creating a template there
+	next if $key =~ /^template$/;
+
+	if ($key eq 'lxc' && $restricted) {
+	    my $lxc_list = $oldconf->{'lxc'};
+	    warn "skipping custom lxc options, restore manually as root:\n";
+	    warn "--------------------------------\n";
+	    foreach my $lxc_opt (@$lxc_list) {
+		warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
+	    }
+	    warn "--------------------------------\n";
+	    next;
+	}
+
+	if ($unique && $key =~ /^net\d+$/) {
+	    my $net = PVE::LXC::Config->parse_lxc_network($oldconf->{$key});
+	    my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
+	    $net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
+	    $conf->{$key} = PVE::LXC::Config->print_lxc_network($net);
+	    next;
+	}
+	$conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
+    }
+}
+
+sub restore_configuration_from_etc_vzdump {
     my ($vmid, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
 
     # restore: try to extract configuration from archive
@@ -169,34 +343,8 @@ sub restore_configuration {
 	my $raw = PVE::Tools::file_get_contents($pct_cfg_fn);
 	my $oldconf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $raw);
 
-	foreach my $key (keys %$oldconf) {
-	    next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
-	    next if $key =~ /^mp\d+$/; # don't recover mountpoints
-	    next if $key =~ /^unused\d+$/; # don't recover unused disks
-	    # we know if it was a template in the restore API call and check if the target
-	    # storage supports creating a template there
-	    next if $key =~ /^template$/;
+	sanitize_and_merge_config($conf, $oldconf, $restricted, $unique);
 
-	    if ($key eq 'lxc' && $restricted) {
-		my $lxc_list = $oldconf->{'lxc'};
-		warn "skipping custom lxc options, restore manually as root:\n";
-		warn "--------------------------------\n";
-		foreach my $lxc_opt (@$lxc_list) {
-		    warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
-		}
-		warn "--------------------------------\n";
-		next;
-	    }
-
-	    if ($unique && $key =~ /^net\d+$/) {
-		my $net = PVE::LXC::Config->parse_lxc_network($oldconf->{$key});
-		my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
-		$net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
-		$conf->{$key} = PVE::LXC::Config->print_lxc_network($net);
-		next;
-	    }
-	    $conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
-	}
 	unlink($pct_cfg_fn);
 
 	# note: this file is possibly from the container itself in backups

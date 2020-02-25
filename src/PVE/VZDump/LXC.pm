@@ -134,6 +134,7 @@ sub prepare {
 	    return;
 	}
 
+	$data->{name} = $name;
 	push @$disks, $data;
 	push @$volids, $volid
 	    if $type eq 'volume';
@@ -280,9 +281,7 @@ sub resume_vm {
 sub assemble {
     my ($self, $task, $vmid) = @_;
 
-    my $tmpdir = $task->{tmpdir};
-
-    mkpath "$tmpdir/etc/vzdump/";
+    my $opts = $self->{vzdump}->{opts};
 
     my $conf = PVE::LXC::Config->load_config($vmid);
     delete $conf->{lock};
@@ -290,16 +289,28 @@ sub assemble {
     delete $conf->{parent};
     delete $conf->{pending};
 
+    my $tmpdir = $task->{tmpdir};
+
+    mkpath "$tmpdir/etc/vzdump/";
+
     PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf));
 
     my $firewall ="/etc/pve/firewall/$vmid.fw";
     my $fwconftmp = "$tmpdir/etc/vzdump/pct.fw";
-    if (-e  $firewall) {
-	PVE::Tools::file_copy($firewall, $fwconftmp);
+
+    if ($opts->{scfg}->{type} eq 'pbs') {
+	# fixme: do not store pct.conf and fw.conf into $tmpdir
+	if (-e  $firewall) {
+	    PVE::Tools::file_copy($firewall, $fwconftmp);
+	}
     } else {
-	PVE::Tools::file_set_contents($fwconftmp, '');
+	if (-e  $firewall) {
+	    PVE::Tools::file_copy($firewall, $fwconftmp);
+	} else {
+	    PVE::Tools::file_set_contents($fwconftmp, '');
+	}
+	$task->{fw} = 1;
     }
-    $task->{fw} = 1;
 }
 
 sub archive {
@@ -339,40 +350,73 @@ sub archive {
     my $tmpdir = $task->{tmpdir};
 
     my $userns_cmd = $task->{userns_cmd};
-    my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
-               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
-               '--one-file-system', '--warning=no-file-ignored'];
 
-    # note: --remove-files does not work because we do not
-    # backup all files (filters). tar complains:
-    # Cannot rmdir: Directory not empty
-    # we disable this optimization for now
-    #if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
-    #       push @$tar, "--remove-files"; # try to save space
-    #}
+    if ($opts->{scfg}->{type} eq 'pbs') {
 
-    # The directory parameter can give an alternative directory as source.
-    # the second parameter gives the structure in the tar.
-    push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
-    push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
-    push @$tar, "--directory=$snapdir";
-    push @$tar, '--no-anchored', '--exclude=lost+found' if $userns_cmd;
-    push @$tar, '--anchored';
-    push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
+	my $rootdir = $default_mount_point;
+	my $param = [];
 
-    push @$tar, @sources;
+	push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
 
-    my $cmd = [ $tar ];
+	my $fw_conf = "$tmpdir/etc/vzdump/pct.fw";
+	if (-f $fw_conf) {
+	    push @$param, "fw.conf:$fw_conf";
+	}
 
-    my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
-    push @$cmd, [ 'cstream', '-t', $bwl ] if $opts->{bwlimit};
-    push @$cmd, [ split(/\s+/, $comp) ] if $comp;
+	push @$param, "root.pxar:$rootdir";
 
-    if ($opts->{stdout}) {
-	$self->cmd($cmd, output => ">&" . fileno($opts->{stdout}));
+	foreach my $disk (@$disks) {
+	    push @$param, '--include-dev', $disk->{dir};
+	}
+
+	push @$param, '--skip-lost-and-found' if $userns_cmd;
+
+	push @$param, '--backup-type', 'ct';
+	push @$param, '--backup-id', $vmid;
+	push @$param, '--backup-time', $task->{backup_time};
+
+	my $logfunc = sub { my $line = shift; $self->loginfo($line); };
+	PVE::Storage::PBSPlugin::run_raw_client_cmd(
+	    $opts->{scfg}, $opts->{storage}, 'backup', $param,
+	    logfunc => $logfunc, userns_cmd => $userns_cmd);
+
     } else {
-	push @{$cmd->[-1]}, \(">" . PVE::Tools::shellquote($filename));
-       $self->cmd($cmd);
+
+	my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
+		   @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
+		   '--one-file-system', '--warning=no-file-ignored'];
+
+	# note: --remove-files does not work because we do not
+	# backup all files (filters). tar complains:
+	# Cannot rmdir: Directory not empty
+	# we disable this optimization for now
+	#if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
+	#       push @$tar, "--remove-files"; # try to save space
+	#}
+
+	# The directory parameter can give an alternative directory as source.
+	# the second parameter gives the structure in the tar.
+	push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
+	push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
+	push @$tar, "--directory=$snapdir";
+	push @$tar, '--no-anchored', '--exclude=lost+found' if $userns_cmd;
+	push @$tar, '--anchored';
+	push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
+
+	push @$tar, @sources;
+
+	my $cmd = [ $tar ];
+
+	my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
+	push @$cmd, [ 'cstream', '-t', $bwl ] if $opts->{bwlimit};
+	push @$cmd, [ split(/\s+/, $comp) ] if $comp;
+
+	if ($opts->{stdout}) {
+	    $self->cmd($cmd, output => ">&" . fileno($opts->{stdout}));
+	} else {
+	    push @{$cmd->[-1]}, \(">" . PVE::Tools::shellquote($filename));
+	    $self->cmd($cmd);
+        }
     }
 }
 
