@@ -284,7 +284,7 @@ sub phase1 {
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
 	my $with_snapshots = $volhash->{$volid}->{snapshots};
-	my $bwlimit = PVE::Storage::get_bandwidth_limit('migrate', [$sid], $opts->{bwlimit});
+	my $bwlimit = PVE::Storage::get_bandwidth_limit('migration', [$sid], $opts->{bwlimit});
 	# JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
 	$bwlimit = $bwlimit * 1024 if defined($bwlimit);
 
