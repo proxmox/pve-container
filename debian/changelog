@@ -1,3 +1,13 @@
+pve-container (3.0-21) pve; urgency=medium
+
+  * fix #2611: use correct operation in get_bandwidth_limit for migration limit
+
+  * setup/ubuntu: add upcoming 20.04 focal release
+
+  * vzdump: add support for proxmox backup server
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 03 Mar 2020 12:00:48 +0100
+
 pve-container (3.0-20) pve; urgency=medium
 
   * add mknod feature flag
