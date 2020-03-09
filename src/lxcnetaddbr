@@ -9,6 +9,11 @@ use PVE::LXC;
 use PVE::Tools qw(run_command);
 use PVE::Network;
 use PVE::ProcFSTools;
+my $have_sdn;
+eval {
+    require PVE::Network::SDN::Zones;
+    $have_sdn = 1;
+};
 
 die "got unexpected argument count\n" if scalar(@ARGV) != 5;
 
@@ -47,6 +52,10 @@ die "missing bridge configuration" if !$bridge;
 
 if (-d "/sys/class/net/$iface") {
 
+    if($have_sdn) {
+       ($bridge, undef) = PVE::Network::SDN::Zones::get_bridge_vlan($bridge);
+    } 
+
     my $bridgemtu = PVE::Tools::file_read_firstline("/sys/class/net/$bridge/mtu");
     die "bridge '$bridge' does not exist\n" if !$bridgemtu;
     #avoid insecure dependency;
@@ -54,7 +63,12 @@ if (-d "/sys/class/net/$iface") {
 
     PVE::Tools::run_command("/sbin/ip link set dev $iface up mtu $bridgemtu");
     PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
-    PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+
+    if($have_sdn) {
+	PVE::Network::SDN::Zones::tap_plug($iface, $net->{bridge}, $tag, $firewall, $trunks, $rate);
+    } else {
+	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+    }
 }
 
 exit 0;

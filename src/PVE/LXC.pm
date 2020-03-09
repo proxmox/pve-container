@@ -33,6 +33,11 @@ use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::LXC::Tools;
 
 use Time::HiRes qw (gettimeofday);
+my $have_sdn;
+eval {
+    require PVE::Network::SDN::Zones;
+    $have_sdn = 1;
+};
 
 my $LXC_CONFIG_PATH = '/usr/share/lxc/config';
 
@@ -913,7 +918,12 @@ sub update_net {
 		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
-		PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		if($have_sdn) {
+		    PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		} else {
+		    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		}
+
 		# This includes the rate:
 		foreach (qw(bridge tag firewall rate)) {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
@@ -941,8 +951,13 @@ sub hotplug_net {
     my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
-    PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+    if($have_sdn) {
+	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
+	PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+    } else {
+	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
+	PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+    }
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
