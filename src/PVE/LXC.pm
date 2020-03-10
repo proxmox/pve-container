@@ -29,7 +29,7 @@ use PVE::AccessControl;
 use PVE::ProcFSTools;
 use PVE::Syscall qw(:fsmount);
 use PVE::LXC::Config;
-use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne typesafe_ne);
+use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::LXC::Tools;
 
 use Time::HiRes qw (gettimeofday);
