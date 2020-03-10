@@ -9,6 +9,7 @@ use PVE::LXC;
 use PVE::Tools qw(run_command);
 use PVE::Network;
 use PVE::ProcFSTools;
+
 my $have_sdn;
 eval {
     require PVE::Network::SDN::Zones;
@@ -23,7 +24,7 @@ die "got unexpected argument ($arg2 != net)\n" if $arg2 ne 'net';
 die "got unexpected argument ($arg3 != up)\n" if $arg3 ne 'up';
 
 die "got unexpected argument ($type != veth)\n" if $type ne 'veth';
-    
+
 die "got unexpected environment" if $vmid ne $ENV{LXC_NAME};
 
 die "missing vmid parameter\n" if !$vmid;
@@ -41,7 +42,7 @@ die "unable to find network definition for interface '$iface'\n"
     if !defined($netconf);
 
 my $net = PVE::LXC::Config->parse_lxc_network($netconf);
-    
+
 my $tag = $net->{tag};
 my $firewall = $net->{firewall};
 my $bridge = $net->{bridge};
@@ -52,9 +53,9 @@ die "missing bridge configuration" if !$bridge;
 
 if (-d "/sys/class/net/$iface") {
 
-    if($have_sdn) {
+    if ($have_sdn) {
        ($bridge, undef) = PVE::Network::SDN::Zones::get_bridge_vlan($bridge);
-    } 
+    }
 
     my $bridgemtu = PVE::Tools::file_read_firstline("/sys/class/net/$bridge/mtu");
     die "bridge '$bridge' does not exist\n" if !$bridgemtu;
@@ -64,7 +65,7 @@ if (-d "/sys/class/net/$iface") {
     PVE::Tools::run_command("/sbin/ip link set dev $iface up mtu $bridgemtu");
     PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
 
-    if($have_sdn) {
+    if ($have_sdn) {
 	PVE::Network::SDN::Zones::tap_plug($iface, $net->{bridge}, $tag, $firewall, $trunks, $rate);
     } else {
 	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);

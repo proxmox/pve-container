@@ -918,7 +918,7 @@ sub update_net {
 		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
-		if($have_sdn) {
+		if ($have_sdn) {
 		    PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
 		} else {
 		    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
@@ -951,7 +951,7 @@ sub hotplug_net {
     my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
-    if($have_sdn) {
+    if ($have_sdn) {
 	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
 	PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
     } else {
