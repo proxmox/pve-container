@@ -662,10 +662,12 @@ __PACKAGE__->register_method({
 	my $storage_cfg = cfs_read_file("storage.cfg");
 	PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid");
 
-	die "unable to remove CT $vmid - used in HA resources\n"
-	    if PVE::HA::Config::vm_is_ha_managed($vmid);
+	my $ha_managed = PVE::HA::Config::service_is_configured("ct:$vmid");
 
 	if (!$param->{purge}) {
+	    die "unable to remove CT $vmid - used in HA resources and purge parameter not set.\n"
+		if $ha_managed;
+
 	    # do not allow destroy if there are replication jobs without purge
 	    my $repl_conf = PVE::ReplicationConfig->new();
 	    $repl_conf->check_for_existing_jobs($vmid);
@@ -687,8 +689,14 @@ __PACKAGE__->register_method({
 	    PVE::AccessControl::remove_vm_access($vmid);
 	    PVE::Firewall::remove_vmfw_conf($vmid);
 	    if ($param->{purge}) {
+	        print "purging CT $vmid from related configurations..\n";
 		PVE::ReplicationConfig::remove_vmid_jobs($vmid);
 		PVE::VZDump::Plugin::remove_vmid_from_backup_jobs($vmid);
+
+		if ($ha_managed) {
+		    PVE::HA::Config::delete_service_from_config("ct:$vmid");
+		    print "NOTE: removed CT $vmid from HA resource configuration.\n";
+		}
 	    }
 
 	    # only now remove the zombie config, else we can have reuse race
