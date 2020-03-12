@@ -41,6 +41,7 @@ my $autodetect_type = sub {
     if (my $id = $os_release->{ID}) {
 	return $id if $plugins->{$id};
 	return $plugin_alias->{$id} if $plugin_alias->{$id};
+	warn "unknown ID '$id' in /etc/os-release file, trying fallback detection\n";
     }
 
     # fallback compatibility checks
