@@ -1,3 +1,15 @@
+pve-container (3.0-22) pve; urgency=medium
+
+  * Fix mounting ZFS snapshots whose dataset is not mounted below '/'
+
+  * fix #2580: api/delete: drop CT from HA resources if purge is set
+
+  * setup: warn on unknown os-release ID
+
+  * allow restoring non-volume backups again
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 16 Mar 2020 09:09:45 +0100
+
 pve-container (3.0-21) pve; urgency=medium
 
   * fix #2611: use correct operation in get_bandwidth_limit for migration limit
