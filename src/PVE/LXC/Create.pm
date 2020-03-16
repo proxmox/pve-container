@@ -253,7 +253,7 @@ sub recover_config_from_tar {
 sub restore_configuration {
     my ($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
 
-    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive);
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive, 1);
     if (defined($storeid)) {
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
 	if ($scfg->{type} eq 'pbs') {
