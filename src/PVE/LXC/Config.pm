@@ -331,6 +331,13 @@ my $features_desc = {
 	    ." This requires a kernel with seccomp trap to user space support (5.3 or newer)."
 	    ." This is experimental.",
     },
+    force_rw_sys => {
+	optional => 1,
+	type => 'boolean',
+	default => 0,
+	description => "Mount /sys in unprivileged containers as `rw` instead of `mixed`."
+	    ." This can break networking under newer (>= v245) systemd-network use."
+    },
 };
 
 my $confdesc = {

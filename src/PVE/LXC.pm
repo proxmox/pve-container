@@ -662,6 +662,12 @@ sub update_lxc_config {
 	$raw .= "lxc.mount.entry = /dev/fuse dev/fuse none bind,create=file 0 0\n";
     }
 
+    if ($unprivileged && !$features->{force_rw_sys}) {
+	# unpriv. CT default to sys:rw, but that doesn't always plays well with
+	# systemd, e.g., systemd-networkd https://systemd.io/CONTAINER_INTERFACE/
+	$raw .= "lxc.mount.auto = sys:mixed\n";
+    }
+
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
     # cannot be exposed to the container with r/w access (cgroup perms).
     # When this is enabled mounts will still remain in the monitor's namespace
