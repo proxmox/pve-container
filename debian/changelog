@@ -1,3 +1,10 @@
+pve-container (3.0-23) pve; urgency=medium
+
+  * lxc_config: mount /sys as mixed for unprivileged by default to avoid
+    issues with recent systemd versions running inside the container
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 19 Mar 2020 19:02:48 +0100
+
 pve-container (3.0-22) pve; urgency=medium
 
   * Fix mounting ZFS snapshots whose dataset is not mounted below '/'
