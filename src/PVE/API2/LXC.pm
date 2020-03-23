@@ -440,13 +440,8 @@ __PACKAGE__->register_method({
 		# If the template flag was set, we try to convert again to template after restore
 		if ($was_template) {
 		    print STDERR "Convert restored container to template...\n";
-		    if (my $err = check_storage_supports_templates($conf)) {
-			warn $err;
-			warn "Leave restored backup as container instead of converting to template.\n"
-		    } else {
-			PVE::LXC::template_create($vmid, $conf);
-			$conf->{template} = 1;
-		    }
+		    PVE::LXC::template_create($vmid, $conf);
+		    $conf->{template} = 1;
 		}
 		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
@@ -467,22 +462,6 @@ __PACKAGE__->register_method({
 
 	return $rpcenv->fork_worker($workername, $vmid, $authuser, $realcmd);
     }});
-
-sub check_storage_supports_templates {
-    my ($conf) = @_;
-
-    my $scfg = PVE::Storage::config();
-    eval {
-	PVE::LXC::Config->foreach_mountpoint($conf, sub {
-	    my ($ms, $mp) = @_;
-
-	    my ($sid) = PVE::Storage::parse_volume_id($mp->{volume}, 0);
-	    die "Warning: Directory storage '$sid' does not support container templates!\n"
-		if $scfg->{ids}->{$sid}->{path};
-	});
-    };
-    return $@
-}
 
 __PACKAGE__->register_method({
     name => 'vmdiridx',
@@ -1237,10 +1216,6 @@ __PACKAGE__->register_method({
 
 	    die "you can't convert a CT to template if the CT is running\n"
 		if PVE::LXC::check_running($vmid);
-
-	    if (my $err = check_storage_supports_templates($conf)) {
-		die $err;
-	    }
 
 	    my $realcmd = sub {
 		PVE::LXC::template_create($vmid, $conf);
