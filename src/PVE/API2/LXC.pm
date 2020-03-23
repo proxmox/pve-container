@@ -1440,7 +1440,7 @@ __PACKAGE__->register_method({
 			    } else {
 				# not full means clone instead of copy
 				die "Linked clone feature for '$volid' is not available\n"
-				    if !PVE::Storage::volume_has_feature($storecfg, 'clone', $volid, $snapname, $running);
+				    if !PVE::Storage::volume_has_feature($storecfg, 'clone', $volid, $snapname, $running, {'valid_target_formats' => ['raw', 'subvol']});
 			    }
 
 			    $mountpoints->{$opt} = $mp;

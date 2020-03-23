@@ -62,6 +62,11 @@ sub has_feature {
     my ($class, $feature, $conf, $storecfg, $snapname, $running, $backup_only) = @_;
     my $err;
 
+    my $opts;
+    if ($feature eq 'copy' || $feature eq 'clone') {
+	$opts = {'valid_target_formats' => ['raw', 'subvol']};
+    }
+
     $class->foreach_mountpoint($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
@@ -71,7 +76,7 @@ sub has_feature {
 	$err = 1
 	    if !PVE::Storage::volume_has_feature($storecfg, $feature,
 						 $mountpoint->{volume},
-						 $snapname, $running);
+						 $snapname, $running, $opts);
     });
 
     return $err ? 0 : 1;
