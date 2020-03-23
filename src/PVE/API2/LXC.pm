@@ -1818,7 +1818,13 @@ __PACKAGE__->register_method({
 		    my $source_storage = PVE::Storage::parse_volume_id($old_volid);
 		    my $movelimit = PVE::Storage::get_bandwidth_limit('move', [$source_storage, $storage], $bwlimit);
 		    $new_volid = PVE::LXC::copy_volume($mpdata, $vmid, $storage, $storage_cfg, $conf, undef, $movelimit);
-		    $mpdata->{volume} = $new_volid;
+		    if (PVE::LXC::Config->is_template($conf)) {
+			PVE::Storage::activate_volumes($storage_cfg, [ $new_volid ]);
+			my $template_volid = PVE::Storage::vdisk_create_base($storage_cfg, $new_volid);
+			$mpdata->{volume} = $template_volid;
+		    } else {
+			$mpdata->{volume} = $new_volid;
+		    }
 
 		    PVE::LXC::Config->lock_config($vmid, sub {
 			my $digest = $conf->{digest};
