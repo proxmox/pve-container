@@ -1858,7 +1858,14 @@ __PACKAGE__->register_method({
 			PVE::Storage::deactivate_volumes($storage_cfg, [ $old_volid ]);
 			PVE::Storage::vdisk_free($storage_cfg, $old_volid);
 		    };
-		    warn $@ if $@;
+		    if (my $err = $@) {
+			warn $err;
+			PVE::LXC::Config->lock_config($vmid, sub {
+			    my $conf = PVE::LXC::Config->load_config($vmid);
+			    PVE::LXC::Config->add_unused_volume($conf, $old_volid);
+			    PVE::LXC::Config->write_config($vmid, $conf);
+			});
+		    }
 		}
 	    };
 	    my $err = $@;
