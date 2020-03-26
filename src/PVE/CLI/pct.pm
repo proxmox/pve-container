@@ -210,7 +210,7 @@ __PACKAGE__->register_method ({
 		optional => 1,
 		type => 'string',
 		description => "A volume on which to run the filesystem check",
-		enum => [PVE::LXC::Config->mountpoint_names()],
+		enum => [PVE::LXC::Config->valid_volume_keys()],
 	    },
 	},
     },

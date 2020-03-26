@@ -186,7 +186,7 @@ sub __snapshot_rollback_get_unused {
 
     my $unused = [];
 
-    $class->__snapshot_foreach_volume($conf, sub {
+    $class->foreach_volume($conf, sub {
 	my ($vs, $volume) = @_;
 
 	return if $volume->{type} ne 'volume';
@@ -194,7 +194,7 @@ sub __snapshot_rollback_get_unused {
 	my $found = 0;
 	my $volid = $volume->{volume};
 
-	$class->__snapshot_foreach_volume($snap, sub {
+	$class->foreach_volume($snap, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    return if $found;
@@ -208,12 +208,6 @@ sub __snapshot_rollback_get_unused {
     });
 
     return $unused;
-}
-
-sub __snapshot_foreach_volume {
-    my ($class, $conf, $func) = @_;
-
-    $class->foreach_mountpoint($conf, $func);
 }
 
 # END implemented abstract methods from PVE::AbstractConfig
@@ -1088,6 +1082,30 @@ sub print_ct_mountpoint {
     return PVE::JSONSchema::print_property_string($info, $mp_desc, $skip);
 }
 
+sub parse_volume {
+    my ($class, $key, $volume_string, $noerr) = @_;
+
+    if ($key eq 'rootfs') {
+	return $class->parse_ct_rootfs($volume_string, $noerr);
+    } elsif ($key =~ m/^mp\d+$/ || $key =~ m/^unused\d+$/) {
+	return $class->parse_ct_mountpoint($volume_string, $noerr);
+    }
+
+    die "parse_volume - unknown type: $key\n";
+}
+
+sub print_volume {
+    my ($class, $key, $volume) = @_;
+
+    return $class->print_ct_mountpoint($volume, $key eq 'rootfs');
+}
+
+sub volid_key {
+    my ($class) = @_;
+
+    return 'volume';
+}
+
 sub print_lxc_network {
     my ($class, $net) = @_;
     return PVE::JSONSchema::print_property_string($net, $netconf_desc);
@@ -1455,7 +1473,7 @@ sub get_cmode {
     return $conf->{cmode} // $confdesc->{cmode}->{default};
 }
 
-sub mountpoint_names {
+sub valid_volume_keys {
     my ($class, $reverse) = @_;
 
     my @names = ('rootfs');
@@ -1470,7 +1488,7 @@ sub mountpoint_names {
 sub foreach_mountpoint_full {
     my ($class, $conf, $reverse, $func, @param) = @_;
 
-    my $mps = [ grep { defined($conf->{$_}) } $class->mountpoint_names($reverse) ];
+    my $mps = [ grep { defined($conf->{$_}) } $class->valid_volume_keys($reverse) ];
     foreach my $key (@$mps) {
 	my $value = $conf->{$key};
 	my $mountpoint = $key eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);

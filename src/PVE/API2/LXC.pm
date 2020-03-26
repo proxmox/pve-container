@@ -1570,7 +1570,7 @@ __PACKAGE__->register_method({
 	    disk => {
 		type => 'string',
 		description => "The disk you want to resize.",
-		enum => [PVE::LXC::Config->mountpoint_names()],
+		enum => [PVE::LXC::Config->valid_volume_keys()],
 	    },
 	    size => {
 		type => 'string',
@@ -1732,7 +1732,7 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	    volume => {
 		type => 'string',
-		enum => [ PVE::LXC::Config->mountpoint_names() ],
+		enum => [ PVE::LXC::Config->valid_volume_keys() ],
 		description => "Volume which will be moved.",
 	    },
 	    storage => get_standard_option('pve-storage-id', {
