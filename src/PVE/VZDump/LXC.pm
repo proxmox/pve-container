@@ -135,6 +135,11 @@ sub prepare {
 	}
 
 	$data->{name} = $name;
+
+	# immutable raw base images need RO mount
+	if ($conf->{template} && !defined($data->{ro})) {
+	    $data->{ro} = 1;
+	}
 	push @$disks, $data;
 	push @$volids, $volid
 	    if $type eq 'volume';
