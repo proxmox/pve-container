@@ -1,3 +1,19 @@
+pve-container (3.0-24) pve; urgency=medium
+
+  * For clone+copy features, make sure a valid format for the target is supported
+
+  * Rely on template_create to check whether creating a template is possible
+
+  * fix #1904: convert to base image when moving a volume of a template
+
+  * move_volume: if deleting old volume fails, add it as unused
+
+  * VZDump: mark template disks as ro
+
+  * Implement volume-related helpers and use new foreach_volume
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 30 Mar 2020 09:35:57 +0200
+
 pve-container (3.0-23) pve; urgency=medium
 
   * lxc_config: mount /sys as mixed for unprivileged by default to avoid
