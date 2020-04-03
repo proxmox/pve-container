@@ -31,6 +31,7 @@ use PVE::Syscall qw(:fsmount);
 use PVE::LXC::Config;
 use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::LXC::Tools;
+use PVE::LXC::CGroup;
 
 use Time::HiRes qw (gettimeofday);
 my $have_sdn;
@@ -258,6 +259,8 @@ sub vmstatus {
 
 	my $unpriv = $unprivileged->{$vmid};
 
+	my $cgroups = PVE::LXC::CGroup->new($vmid);
+
 	if (-d '/sys/fs/cgroup/memory') {
 	    my $memory_stat = read_cgroup_list('memory', $vmid, $unpriv, 'memory.stat');
 	    my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, $unpriv, 'memory.usage_in_bytes');
@@ -269,15 +272,9 @@ sub vmstatus {
 	    $d->{swap} = 0;
 	}
 
-	if (-d '/sys/fs/cgroup/blkio') {
-	    my $blkio_bytes = read_cgroup_value('blkio', $vmid, 0, 'blkio.throttle.io_service_bytes', 1); # don't check if unpriv
-	    my @bytes = split(/\n/, $blkio_bytes);
-	    foreach my $byte (@bytes) {
-		if (my ($key, $value) = $byte =~ /(Read|Write)\s+(\d+)/) {
-		    $d->{diskread} += $2 if $key eq 'Read';
-		    $d->{diskwrite} += $2 if $key eq 'Write';
-		}
-	    }
+	if (defined(my $blkio = $cgroups->get_io_stats())) {
+	    $d->{diskread} = $blkio->{diskread};
+	    $d->{diskwrite} = $blkio->{diskwrite};
 	} else {
 	    $d->{diskread} = 0;
 	    $d->{diskwrite} = 0;
