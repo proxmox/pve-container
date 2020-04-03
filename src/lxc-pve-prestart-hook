@@ -34,6 +34,8 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	PVE::LXC::Config->check_lock($conf);
     }
 
+    cleanup_cgroups($vmid);
+
     my $storage_cfg = PVE::Storage::config();
 
     my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
@@ -140,3 +142,50 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	PVE::Tools::file_set_contents($devlist_file, $devlist);
     }
 });
+
+# Leftover cgroups prevent lxc from starting without any useful information
+# showing up in the journal, it is also often unable to properly clean them up
+# at shutdown, so we do this here.
+sub cleanup_cgroups($) {
+    my ($vmid) = @_;
+
+    if (PVE::LXC::CGroup::cgroup_mode() == 2) {
+	rmdir_recursive("/sys/fs/cgroup/lxc/$vmid");
+	rmdir_recursive("/sys/fs/cgroup/lxc.monitor/$vmid");
+    } else {
+	my ($v1, $v2) = PVE::LXC::get_cgroup_subsystems();
+
+	my @controllers_cgv1 = keys %$v1;
+	foreach my $controller (@controllers_cgv1) {
+	    $controller =~ s/^name=//; # `name=systemd` is mounted just as `systemd`
+	    my $cgpath = "/sys/fs/cgroup/$controller/lxc/$vmid";
+	    rmdir_recursive($cgpath);
+	}
+
+	if ($v2) {
+	    rmdir_recursive("/sys/fs/cgroup/unified/lxc/$vmid");
+	    rmdir_recursive("/sys/fs/cgroup/unified/lxc.monitor/$vmid");
+	}
+    }
+}
+
+# FIXME: This is an ugly version without openat() because perl has no equivalent
+# of fdopendir() so we cannot readdir from an openat() opened handle.
+sub rmdir_recursive {
+    my ($path) = @_;
+
+    my $dh;
+    if (!opendir($dh, $path)) {
+	return if $!{ENOENT};
+	die "failed to open directory '$path': $!\n";
+    }
+
+    while (defined(my $entry = readdir($dh))) {
+	next if $entry eq '.' || $entry eq '..';
+	my $next = "$path/$entry";
+	next if ! -d $next;
+	rmdir_recursive($next);
+    }
+
+    rmdir($path) or die "failed to remove directory '$path': $!\n";
+}
