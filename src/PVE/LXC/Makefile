@@ -1,4 +1,6 @@
 SOURCES= \
+	CGroup.pm \
+	Command.pm \
 	Config.pm \
 	Create.pm \
 	Migrate.pm \
