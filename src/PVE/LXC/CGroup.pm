@@ -12,6 +12,8 @@ package PVE::LXC::CGroup;
 use strict;
 use warnings;
 
+use POSIX qw();
+
 use PVE::Tools qw(
     file_get_contents
     file_read_firstline
@@ -149,9 +151,26 @@ my sub parse_nested_keyed_file($) {
 	    }
 	}
     }
+    return $res;
 }
 
-# Get I/O stats for a container.
+# Parse a 'Flat keyed' file:
+#
+# See kernel documentation `admin-guide/cgroup-v2.rst` 4.1.
+my sub parse_flat_keyed_file($) {
+    my ($data) = @_;
+    my $res = {};
+    foreach my $line (split(/\n/, $data)) {
+	if (my ($key, $value) = ($line =~ /^(\S+)\s+(.*)$/)) {
+	    $res->{$key} = $value;
+	} else {
+	    warn "bad 'key value' pair in flat keyed file\n";
+	}
+    }
+    return $res;
+}
+
+# Parse out 'diskread' and 'diskwrite' values from I/O stats for this container.
 sub get_io_stats {
     my ($self) = @_;
 
@@ -190,6 +209,46 @@ sub get_io_stats {
 	}
     } else {
 	# container not running
+	return undef;
+    }
+
+    return $res;
+}
+
+# Read utime and stime for this container from the cpuacct cgroup.
+# Values are in milliseconds!
+sub get_cpu_stat {
+    my ($self) = @_;
+
+    my $res = {
+	utime => 0,
+	stime => 0,
+    };
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('cpu'))) {
+	    my $data = eval { file_get_contents("$path/cpu.stat") };
+
+	    # or no io controller available:
+	    return undef if !defined($data);
+
+	    $data = parse_flat_keyed_file($data);
+	    $res->{utime} = int($data->{user_usec} / 1000);
+	    $res->{stime} = int($data->{system_usec} / 1000);
+	} else {
+	    # memory controller not enabled or container not running
+	    return undef;
+	}
+    } elsif (defined(my $path = $self->get_path('cpuacct'))) {
+	# cgroupv1 environment:
+	my $clock_ticks = POSIX::sysconf(&POSIX::_SC_CLK_TCK);
+	my $clk_to_usec = 1000 / $clock_ticks;
+
+	my $data = parse_flat_keyed_file(file_get_contents("$path/cpuacct.stat"));
+	$res->{utime} = int($data->{user} * $clk_to_usec);
+	$res->{stime} = int($data->{system} * $clk_to_usec);
+    } else {
+	# container most likely isn't running
 	return undef;
     }
 
