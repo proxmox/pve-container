@@ -1206,10 +1206,9 @@ sub vmconfig_hotplug_pending {
 	    } elsif ($opt eq 'swap') {
 		$hotplug_memory->(undef, 0);
 	    } elsif ($opt eq 'cpulimit') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_period_us", -1);
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", -1);
+		$cgroup->change_cpu_quota(-1, 100000);
 	    } elsif ($opt eq 'cpuunits') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $confdesc->{cpuunits}->{default});
+		$cgroup->change_cpu_shares(undef, $confdesc->{cpuunits}->{default});
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
@@ -1231,10 +1230,10 @@ sub vmconfig_hotplug_pending {
 	my $value = $conf->{pending}->{$opt};
 	eval {
 	    if ($opt eq 'cpulimit') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_period_us", 100000);
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.cfs_quota_us", int(100000*$value));
+		my $quota = 100000 * $value;
+		$cgroup->change_cpu_quota(int(100000 * $value), 100000);
 	    } elsif ($opt eq 'cpuunits') {
-		PVE::LXC::write_cgroup_value("cpu", $vmid, "cpu.shares", $value);
+		$cgroup->change_cpu_shares($value, $confdesc->{cpuunits}->{default});
 	    } elsif ($opt =~ m/^net(\d+)$/) {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($value);
