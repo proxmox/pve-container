@@ -107,23 +107,6 @@ sub get_container_disk_usage {
 
 my $last_proc_vmid_stat;
 
-my $parse_cpuacct_stat = sub {
-    my ($vmid, $unprivileged) = @_;
-
-    my $raw = read_cgroup_value('cpuacct', $vmid, $unprivileged, 'cpuacct.stat', 1);
-
-    my $stat = {};
-
-    if ($raw =~ m/^user (\d+)\nsystem (\d+)\n/) {
-
-	$stat->{utime} = $1;
-	$stat->{stime} = $2;
-
-    }
-
-    return $stat;
-};
-
 our $vmstatus_return_properties = {
     vmid => get_standard_option('pve-vmid'),
     status => {
@@ -323,33 +306,6 @@ sub vmstatus {
     }
 
     return $list;
-}
-
-sub read_cgroup_list($$$$) {
-    my ($group, $vmid, $unprivileged, $name) = @_;
-
-    my $content = read_cgroup_value($group, $vmid, $unprivileged, $name, 1);
-
-    return { split(/\s+/, $content) };
-}
-
-sub read_cgroup_value($$$$$) {
-    my ($group, $vmid, $unprivileged, $name, $full) = @_;
-
-    my $nsdir = $unprivileged ? '' : 'ns/';
-    my $path = "/sys/fs/cgroup/$group/lxc/$vmid/${nsdir}$name";
-
-    return PVE::Tools::file_get_contents($path) if $full;
-
-    return PVE::Tools::file_read_firstline($path);
-}
-
-sub write_cgroup_value {
-   my ($group, $vmid, $name, $value) = @_;
-
-   my $path = "/sys/fs/cgroup/$group/lxc/$vmid/$name";
-   PVE::ProcFSTools::write_proc_entry($path, $value) if -e $path;
-
 }
 
 sub find_lxc_console_pids {
