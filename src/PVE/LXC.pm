@@ -261,12 +261,9 @@ sub vmstatus {
 
 	my $cgroups = PVE::LXC::CGroup->new($vmid);
 
-	if (-d '/sys/fs/cgroup/memory') {
-	    my $memory_stat = read_cgroup_list('memory', $vmid, $unpriv, 'memory.stat');
-	    my $mem_usage_in_bytes = read_cgroup_value('memory', $vmid, $unpriv, 'memory.usage_in_bytes');
-
-	    $d->{mem} = $mem_usage_in_bytes - $memory_stat->{total_cache};
-	    $d->{swap} = read_cgroup_value('memory', $vmid, $unpriv, 'memory.memsw.usage_in_bytes') - $mem_usage_in_bytes;
+	if (defined(my $mem = $cgroups->get_memory_stat())) {
+	    $d->{mem} = $mem->{mem};
+	    $d->{swap} = $mem->{swap};
 	} else {
 	    $d->{mem} = 0;
 	    $d->{swap} = 0;
