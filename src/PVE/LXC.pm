@@ -584,6 +584,22 @@ sub update_lxc_config {
 
     my $raw = '';
 
+    if ($lxc_major >= 4) {
+	# Explicitly don't use relative directories, which is the default, but
+	# note that we do this mostly because they are only applied for *some*
+	# cgroups. Our pve-container@.service now starts lxc-start with `-F`,
+	# so we also don't need to worry about the new monitor cgroup to
+	# confuse systemd.
+	$raw .= "lxc.cgroup.relative = 0\n";
+
+	# To make things easier, let's keep our previous cgroup layout and
+	# simply move the monitor outside:
+	$raw .= "lxc.cgroup.dir.monitor = lxc.monitor/$vmid\n";
+	# cgroup namespace separation for stronger limits:
+	$raw .= "lxc.cgroup.dir.payload = lxc/$vmid\n";
+	$raw .= "lxc.cgroup.dir.namespace = ns\n";
+    }
+
     die "missing 'arch' - internal error" if !$conf->{arch};
     $raw .= "lxc.arch = $conf->{arch}\n";
 
