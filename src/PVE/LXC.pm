@@ -737,28 +737,30 @@ sub update_lxc_config {
 	$raw .= "lxc.net.$ind.mtu = $d->{mtu}\n" if defined($d->{mtu});
     }
 
-    if ($cgv1->{cpuset}) {
-	my $had_cpuset = 0;
-	if (my $lxcconf = $conf->{lxc}) {
-	    foreach my $entry (@$lxcconf) {
-		my ($k, $v) = @$entry;
-		$had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus';
-		$raw .= "$k = $v\n";
-	    }
+    my $had_cpuset = 0;
+    if (my $lxcconf = $conf->{lxc}) {
+	foreach my $entry (@$lxcconf) {
+	    my ($k, $v) = @$entry;
+	    $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus';
+	    $raw .= "$k = $v\n";
 	}
+    }
 
-	my $cores = $conf->{cores};
-	if (!$had_cpuset && $cores) {
-	    my $cpuset = eval { PVE::CpuSet->new_from_cgroup('lxc', 'effective_cpus') };
-	    $cpuset = PVE::CpuSet->new_from_cgroup('', 'effective_cpus') if !$cpuset;
-	    my @members = $cpuset->members();
-	    while (scalar(@members) > $cores) {
-		my $randidx = int(rand(scalar(@members)));
-		$cpuset->delete($members[$randidx]);
-		splice(@members, $randidx, 1); # keep track of the changes
-	    }
-	    $raw .= "lxc.cgroup.cpuset.cpus = ".$cpuset->short_string()."\n";
+    my $cpuset;
+    my $cpuset_cgroup = eval { PVE::LXC::CGroup::cpuset_controller_path() };
+    if (defined($cpuset_cgroup)) {
+	$cpuset = eval { PVE::CpuSet->new_from_path("$cpuset_cgroup/lxc", 1) }
+	    || PVE::CpuSet->new_from_path($cpuset_cgroup, 1);
+    }
+    my $cores = $conf->{cores};
+    if (!$had_cpuset && $cores && $cpuset) {
+	my @members = $cpuset->members();
+	while (scalar(@members) > $cores) {
+	    my $randidx = int(rand(scalar(@members)));
+	    $cpuset->delete($members[$randidx]);
+	    splice(@members, $randidx, 1); # keep track of the changes
 	}
+	$raw .= "lxc.cgroup.cpuset.cpus = ".$cpuset->short_string()."\n";
     }
 
     File::Path::mkpath("$dir/rootfs");
