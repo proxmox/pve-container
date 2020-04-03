@@ -343,4 +343,70 @@ sub change_memory_limit {
     die "trying to change memory cgroup values: container not running\n";
 }
 
+# Change the cpu quota for a container.
+#
+# Dies on error (including a not-running or currently-shutting-down guest).
+sub change_cpu_quota {
+    my ($self, $quota, $period) = @_;
+
+    die "quota without period not allowed\n" if !defined($period) && defined($quota);
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('cpu'))) {
+	    # cgroupv2 environment, an undefined (unlimited) quota is defined as "max"
+	    # in this interface:
+	    $quota //= 'max'; # unlimited
+	    if (defined($quota)) {
+		PVE::ProcFSTools::write_proc_entry("$path/cpu.max", "$quota $period");
+	    } else {
+		# we're allowed to only write the quota:
+		PVE::ProcFSTools::write_proc_entry("$path/cpu.max", 'max');
+	    }
+	    return 1;
+	}
+    } elsif (defined(my $path = $self->get_path('cpu'))) {
+	$quota //= -1; # unlimited
+	$period //= -1;
+	PVE::ProcFSTools::write_proc_entry("$path/cpu.cfs_period_us", $period);
+	PVE::ProcFSTools::write_proc_entry("$path/cpu.cfs_quota_us", $quota);
+	return 1;
+    }
+
+    die "trying to change cpu quota cgroup values: container not running\n";
+}
+
+# Change the cpu "shares" for a container.
+#
+# In cgroupv1 we used a value in `[0..500000]` with a default of 1024.
+#
+# In cgroupv2 we do not have "shares", we have "weights" in the range
+# of `[1..10000]` with a default of 100.
+#
+# Since the default values don't match when scaling linearly, we use the
+# values we get as-is and simply error for values >10000 in cgroupv2.
+#
+# It is left to the user to figure this out for now.
+#
+# Dies on error (including a not-running or currently-shutting-down guest).
+sub change_cpu_shares {
+    my ($self, $shares, $cgroupv1_default) = @_;
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('cpu'))) {
+	    # the cgroupv2 documentation defines the default to 100
+	    $shares //= 100;
+	    die "cpu weight (shares) must be in range [1, 10000]\n" if $shares < 1 || $shares > 10000;
+	    PVE::ProcFSTools::write_proc_entry("$path/cpu.weight", $shares);
+	    return 1;
+	}
+    } elsif (defined(my $path = $self->get_path('cpu'))) {
+	$shares //= 100;
+	PVE::ProcFSTools::write_proc_entry("$path/cpu.shares", $shares // $cgroupv1_default);
+	return 1;
+    }
+
+    # container most likely isn't running
+    die "trying to change cpu shares/weight cgroup values: container not running\n";
+}
+
 1;
