@@ -1,19 +1,22 @@
-# based on lxc@.service, but without any dependencies because
+# based on lxc@.service, but without an install section because
 # starting and stopping should be initiated by PVE code, not
 # systemd.
 [Unit]
 Description=PVE LXC Container: %i
 DefaultDependencies=No
+After=lxc.service
+Wants=lxc.service
 Documentation=man:lxc-start man:lxc man:pct
 
 [Service]
-Type=forking
+Type=simple
 Delegate=yes
 KillMode=mixed
 TimeoutStopSec=120s
-ExecStart=/usr/bin/lxc-start -n %i
+ExecStart=/usr/bin/lxc-start -F -n %i
 ExecStop=/usr/share/lxc/pve-container-stop-wrapper %i
 # Environment=BOOTUP=serial
 # Environment=CONSOLETYPE=serial
-StandardOutput=syslog
-StandardError=syslog
+# Prevent container init from putting all its output into the journal
+StandardOutput=null
+StandardError=null
