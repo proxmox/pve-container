@@ -1178,35 +1178,18 @@ sub vmconfig_hotplug_pending {
 	$class->write_config($vmid, $conf);
     }
 
+    my $cgroup = PVE::LXC::CGroup->new($vmid);
+
     # There's no separate swap size to configure, there's memory and "total"
     # memory (iow. memory+swap). This means we have to change them together.
     my $hotplug_memory_done;
     my $hotplug_memory = sub {
 	my ($wanted_memory, $wanted_swap) = @_;
-	my $old_memory = ($conf->{memory} || $confdesc->{memory}->{default});
-	my $old_swap = ($conf->{swap} || $confdesc->{swap}->{default});
 
-	$wanted_memory //= $old_memory;
-	$wanted_swap //= $old_swap;
+	$wanted_memory = int($wanted_memory * 1024 * 1024) if defined($wanted_memory);
+	$wanted_swap = int($wanted_swap * 1024 * 1024) if defined($wanted_swap);
+	$cgroup->change_memory_limit($wanted_memory, $wanted_swap);
 
-	my $total = $wanted_memory + $wanted_swap;
-	my $old_total = $old_memory + $old_swap;
-
-	if ($total > $old_total) {
-	    PVE::LXC::write_cgroup_value("memory", $vmid,
-					 "memory.memsw.limit_in_bytes",
-					 int($total*1024*1024));
-	    PVE::LXC::write_cgroup_value("memory", $vmid,
-					 "memory.limit_in_bytes",
-					 int($wanted_memory*1024*1024));
-	} else {
-	    PVE::LXC::write_cgroup_value("memory", $vmid,
-					 "memory.limit_in_bytes",
-					 int($wanted_memory*1024*1024));
-	    PVE::LXC::write_cgroup_value("memory", $vmid,
-					 "memory.memsw.limit_in_bytes",
-					 int($total*1024*1024));
-	}
 	$hotplug_memory_done = 1;
     };
 
