@@ -280,30 +280,27 @@ sub vmstatus {
 	    $d->{diskwrite} = 0;
 	}
 
-	if (-d '/sys/fs/cgroup/cpuacct') {
-	    my $pstat = $parse_cpuacct_stat->($vmid, $unpriv);
-
-	    my $used = $pstat->{utime} + $pstat->{stime};
+	if (defined(my $cpu = $cgroups->get_cpu_stat())) {
+	    # Total time (in milliseconds) used up by the cpu.
+	    my $used_ms = $cpu->{utime} + $cpu->{stime};
 
 	    my $old = $last_proc_vmid_stat->{$vmid};
 	    if (!$old) {
 		$last_proc_vmid_stat->{$vmid} = {
 		    time => $cdtime,
-		    used => $used,
+		    used => $used_ms,
 		    cpu => 0,
 		};
 		next;
 	    }
 
-	    my $dtime = ($cdtime -  $old->{time}) * $cpucount * $cpuinfo->{user_hz};
-
-	    if ($dtime > 1000) {
-		my $dutime = $used -  $old->{used};
-
-		$d->{cpu} = (($dutime/$dtime)* $cpucount) / $d->{cpus};
+	    my $delta_ms = ($cdtime - $old->{time}) * $cpucount * 1000.0;
+	    if ($delta_ms > 1000.0) {
+		my $delta_used_ms = $used_ms - $old->{used};
+		$d->{cpu} = (($delta_used_ms / $delta_ms) * $cpucount) / $d->{cpus};
 		$last_proc_vmid_stat->{$vmid} = {
 		    time => $cdtime,
-		    used => $used,
+		    used => $used_ms,
 		    cpu => $d->{cpu},
 		};
 	    } else {
