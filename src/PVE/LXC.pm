@@ -580,6 +580,8 @@ sub update_lxc_config {
 	return;
     }
 
+    my ($lxc_major, $lxc_minor) = get_lxc_version();
+
     my $raw = '';
 
     die "missing 'arch' - internal error" if !$conf->{arch};
@@ -682,6 +684,11 @@ sub update_lxc_config {
 	$raw .= "lxc.net.$ind.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
 	$raw .= "lxc.net.$ind.name = $d->{name}\n" if defined($d->{name});
 	$raw .= "lxc.net.$ind.mtu = $d->{mtu}\n" if defined($d->{mtu});
+
+	# Starting with lxc 4.0, we do not patch lxc to execute our up-scripts.
+	if ($lxc_major >= 4) {
+	    $raw .= "lxc.net.$ind.script.up = /usr/share/lxc/lxcnetaddbr\n";
+	}
     }
 
     my $had_cpuset = 0;
