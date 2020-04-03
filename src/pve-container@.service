@@ -8,6 +8,7 @@ Documentation=man:lxc-start man:lxc man:pct
 
 [Service]
 Type=forking
+Delegate=yes
 KillMode=mixed
 TimeoutStopSec=120s
 ExecStart=/usr/bin/lxc-start -n %i
