@@ -255,4 +255,46 @@ sub get_cpu_stat {
     return $res;
 }
 
+# Parse some memory data from `memory.stat`
+sub get_memory_stat {
+    my ($self) = @_;
+
+    my $res = {
+	mem => 0,
+	swap => 0,
+    };
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('memory'))) {
+	    my $mem = file_get_contents("$path/memory.current");
+	    my $swap = file_get_contents("$path/memory.swap.current");
+
+	    chomp ($mem, $swap);
+
+	    # FIXME: For the cgv1 equivalent of `total_cache` we may need to sum up
+	    # the values in `memory.stat`...
+
+	    $res->{mem} = $mem;
+	    $res->{swap} = $swap;
+	} else {
+	    # memory controller not enabled or container not running
+	    return undef;
+	}
+    } elsif (defined(my $path = $self->get_path('memory'))) {
+	# cgroupv1 environment:
+	my $stat = parse_flat_keyed_file(file_get_contents("$path/memory.stat"));
+	my $mem = file_get_contents("$path/memory.usage_in_bytes");
+	my $memsw = file_get_contents("$path/memory.memsw.usage_in_bytes");
+	chomp ($mem, $memsw);
+
+	$res->{mem} = $mem - $stat->{total_cache};
+	$res->{swap} = $memsw - $mem;
+    } else {
+	# container most likely isn't running
+	return undef;
+    }
+
+    return $res;
+}
+
 1;
