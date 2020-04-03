@@ -2346,4 +2346,20 @@ sub copy_volume {
     return $new_volid;
 }
 
+sub get_lxc_version() {
+    my $version;
+    PVE::Tools::run_command([qw(lxc-start --version)], outfunc => sub {
+	my ($line) = @_;
+	# We only parse out major & minor version numbers.
+	if ($line =~ /^(\d+)\.(\d+)(?:\D.*)?$/) {
+	    $version = [$1, $2];
+	}
+    });
+
+    die "failed to get lxc version\n" if !defined($version);
+
+    # return as a list:
+    return $version->@*;
+}
+
 1;
