@@ -14,6 +14,7 @@ use warnings;
 
 use POSIX qw();
 
+use PVE::ProcFSTools;
 use PVE::Tools qw(
     file_get_contents
     file_read_firstline
@@ -295,6 +296,51 @@ sub get_memory_stat {
     }
 
     return $res;
+}
+
+# Change the memory limit for this container.
+#
+# Dies on error (including a not-running or currently-shutting-down guest).
+sub change_memory_limit {
+    my ($self, $mem_bytes, $swap_bytes) = @_;
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('memory'))) {
+	    PVE::ProcFSTools::write_proc_entry("$path/memory.swap.max", $swap_bytes)
+		if defined($swap_bytes);
+	    PVE::ProcFSTools::write_proc_entry("$path/memory.max", $mem_bytes)
+		if defined($mem_bytes);
+	    return 1;
+	}
+    } elsif (defined(my $path = $self->get_path('memory'))) {
+	# With cgroupv1 we cannot control memory and swap limits separately.
+	# This also means that since the two values aren't independent, we need to handle
+	# growing and shrinking separately.
+	my $path_mem = "$path/memory.limit_in_bytes";
+	my $path_memsw = "$path/memory.memsw.limit_in_bytes";
+
+	my $old_mem_bytes = file_get_contents($path_mem);
+	my $old_memsw_bytes = file_get_contents($path_memsw);
+	chomp($old_mem_bytes, $old_memsw_bytes);
+
+	$mem_bytes //= $old_mem_bytes;
+	my $memsw_bytes = defined($swap_bytes) ? ($mem_bytes + $swap_bytes) : $old_memsw_bytes;
+
+	if ($memsw_bytes > $old_memsw_bytes) {
+	    # Growing the limit means growing the combined limit first, then pulling the
+	    # memory limitup.
+	    PVE::ProcFSTools::write_proc_entry($path_memsw, $memsw_bytes);
+	    PVE::ProcFSTools::write_proc_entry($path_mem, $mem_bytes);
+	} else {
+	    # Shrinking means we first need to shrink the mem-only memsw cannot be
+	    # shrunk below it.
+	    PVE::ProcFSTools::write_proc_entry($path_mem, $mem_bytes);
+	    PVE::ProcFSTools::write_proc_entry($path_memsw, $memsw_bytes);
+	}
+	return 1;
+    }
+
+    die "trying to change memory cgroup values: container not running\n";
 }
 
 1;
