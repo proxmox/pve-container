@@ -20,6 +20,7 @@ use PVE::API2::LXC;
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
+use PVE::LXC::CGroup;
 
 use base qw(PVE::CLIHandler);
 
@@ -701,12 +702,6 @@ __PACKAGE__->register_method ({
     code => sub {
 	my ($param) = @_;
 
-	my $cgv1 = PVE::LXC::get_cgroup_subsystems();
-	if (!$cgv1->{cpuset}) {
-	    print "cpuset cgroup not available\n";
-	    return undef;
-	}
-
 	my $ctlist = PVE::LXC::config_list();
 
 	my $len = 0;
@@ -714,13 +709,22 @@ __PACKAGE__->register_method ({
 	my $res = {};
 
 	foreach my $vmid (sort keys %$ctlist) {
-	    next if ! -d "/sys/fs/cgroup/cpuset/lxc/$vmid";
+	    my $cgroup = PVE::LXC::CGroup->new($vmid);
 
-	    my $cpuset = eval { PVE::CpuSet->new_from_cgroup("lxc/$vmid"); };
+	    my ($cpuset, $path);
+	    if (defined($path = $cgroup->get_path('cpuset'))) {
+		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
+	    } elsif (defined($path = $cgroup->get_path())) {
+		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
+	    } else {
+		# Container not running.
+		next;
+	    }
 	    if (my $err = $@) {
 		warn $err;
 		next;
 	    }
+
 	    my @cpuset_members = $cpuset->members();
 
 	    my $line = ': ';
