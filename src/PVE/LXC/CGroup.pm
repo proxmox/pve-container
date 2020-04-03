@@ -12,6 +12,11 @@ package PVE::LXC::CGroup;
 use strict;
 use warnings;
 
+use PVE::Tools qw(
+    file_get_contents
+    file_read_firstline
+);
+
 use PVE::LXC::Command;
 
 # We don't want to do a command socket round trip for every cgroup read/write,
@@ -123,6 +128,72 @@ sub get_path {
     return "/sys/fs/cgroup/$path" if cgroup_mode() == 2;
     return "/sys/fs/cgroup/unified/$path" if !defined($controller);
     return "/sys/fs/cgroup/$controller/$path";
+}
+
+# Parse a 'Nested keyed' file:
+#
+# See kernel documentation `admin-guide/cgroup-v2.rst` 4.1.
+my sub parse_nested_keyed_file($) {
+    my ($data) = @_;
+    my $res = {};
+    foreach my $line (split(/\n/, $data)) {
+	my ($key, @values) = split(/\s+/, $line);
+
+	my $d = ($res->{$key} = {});
+
+	foreach my $value (@values) {
+	    if (my ($key, $value) = ($value =~ /^([^=]+)=(.*)$/)) {
+		$d->{$key} = $value;
+	    } else {
+		warn "bad key=value pair in nested keyed file\n";
+	    }
+	}
+    }
+}
+
+# Get I/O stats for a container.
+sub get_io_stats {
+    my ($self) = @_;
+
+    my $res = {
+	diskread => 0,
+	diskwrite => 0,
+    };
+
+    if (cgroup_mode() == 2) {
+	if (defined(my $path = $self->get_path('io'))) {
+	    # cgroupv2 environment, io controller enabled
+	    my $io_stat = file_get_contents("$path/io.stat");
+
+	    my $data = parse_nested_keyed_file($io_stat);
+	    foreach my $dev (keys %$data) {
+		my $dev = $data->{$dev};
+		if (my $b = $dev->{rbytes}) {
+		    $res->{diskread} += $b;
+		}
+		if (my $b = $dev->{wbytes}) {
+		    $res->{diskread} += $b;
+		}
+	    }
+	} else {
+	    # io controller not enabled or container not running
+	    return undef;
+	}
+    } elsif (defined(my $path = $self->get_path('blkio'))) {
+	# cgroupv1 environment:
+	my $io = file_get_contents("$path/blkio.throttle.io_service_bytes_recursive");
+	foreach my $line (split(/\n/, $io)) {
+	    if (my ($type, $bytes) = ($line =~ /^\d+:\d+\s+(Read|Write)\s+(\d+)$/)) {
+		$res->{diskread} += $bytes if $type eq 'Read';
+		$res->{diskwrite} += $bytes if $type eq 'Write';
+	    }
+	}
+    } else {
+	# container not running
+	return undef;
+    }
+
+    return $res;
 }
 
 1;
