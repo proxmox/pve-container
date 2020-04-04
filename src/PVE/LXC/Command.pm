@@ -88,7 +88,7 @@ my sub _do_send($$) {
 	if $sent != length($data);
 }
 
-# Send a complete packet:
+# Receive a complete packet:
 my sub _do_recv($\$$) {
     my ($sock, $scalar, $len) = @_;
     my $got = recv($sock, $$scalar, $len, 0)

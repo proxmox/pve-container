@@ -4,7 +4,7 @@
 # container (via the command socket), reading and writing cgroup values, and
 # handling cgroup v1 & v2 differences.
 #
-# Note that the long term plan is to have resource manage functions intead of
+# Note that the long term plan is to have resource manage functions instead of
 # dealing with cgroup files on the outside.
 
 package PVE::LXC::CGroup;
@@ -127,7 +127,7 @@ sub get_path {
     my $path = get_subdir($self, $controller)
 	or return undef;
 
-    # The main mount point we currenlty assume to be in a standard location.
+    # The main mount point we currently assume to be in a standard location.
     return "/sys/fs/cgroup/$path" if cgroup_mode() == 2;
     return "/sys/fs/cgroup/unified/$path" if !defined($controller);
     return "/sys/fs/cgroup/$controller/$path";
