@@ -173,24 +173,4 @@ sub get_cgroup_path($;$$) {
     return unpack('Z*', $data);
 }
 
-# Retrieve the cgroup path for a running container.
-# If $limiting is set, get the payload path without the namespace subdirectory,
-# otherwise return the full namespaced path.
-#
-# Returns undef if the container is not running, dies on errors.
-sub get_limiting_cgroup_path($;$) {
-    my ($vmid, $subsystem) = @_;
-
-    # subsystem name must be a zero-terminated C string.
-    my ($res, $data) = simple_command(
-	$vmid,
-	LXC_CMD_GET_LIMITING_CGROUP,
-	pack('Z*', $subsystem),
-    );
-    return undef if !defined $res;
-
-    # data is a zero-terminated string:
-    return unpack('Z*', $data);
-}
-
 1;
