@@ -128,7 +128,7 @@ sub raw_command_transaction($$;$) {
 
     $data //= '';
 
-    my $req = _lxc_cmd_req(LXC_CMD_GET_CGROUP, length($data));
+    my $req = _lxc_cmd_req($cmd, length($data));
     _do_send($socket, $req);
     if (length($data) > 0) {
 	_do_send($socket, $data);
