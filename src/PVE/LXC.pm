@@ -596,8 +596,8 @@ sub update_lxc_config {
 	# simply move the monitor outside:
 	$raw .= "lxc.cgroup.dir.monitor = lxc.monitor/$vmid\n";
 	# cgroup namespace separation for stronger limits:
-	$raw .= "lxc.cgroup.dir.payload = lxc/$vmid\n";
-	$raw .= "lxc.cgroup.dir.namespace = ns\n";
+	$raw .= "lxc.cgroup.dir.container = lxc/$vmid\n";
+	$raw .= "lxc.cgroup.dir.container.inner = ns\n";
     }
 
     die "missing 'arch' - internal error" if !$conf->{arch};
