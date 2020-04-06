@@ -1,3 +1,12 @@
+pve-container (3.1-1) pve; urgency=medium
+
+  * rework cgroup handling for initial cgroupv2 support
+
+  * add required configuration changes for lxc-4.0 with now-upstream container
+    cgroup isolation
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 06 Apr 2020 14:14:50 +0200
+
 pve-container (3.0-24) pve; urgency=medium
 
   * For clone+copy features, make sure a valid format for the target is supported
