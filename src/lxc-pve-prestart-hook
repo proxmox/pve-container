@@ -158,8 +158,8 @@ sub cleanup_cgroups($) {
 	my @controllers_cgv1 = keys %$v1;
 	foreach my $controller (@controllers_cgv1) {
 	    $controller =~ s/^name=//; # `name=systemd` is mounted just as `systemd`
-	    my $cgpath = "/sys/fs/cgroup/$controller/lxc/$vmid";
-	    rmdir_recursive($cgpath);
+	    rmdir_recursive("/sys/fs/cgroup/$controller/lxc/$vmid");
+	    rmdir_recursive("/sys/fs/cgroup/$controller/lxc.monitor/$vmid");
 	}
 
 	if ($v2) {
