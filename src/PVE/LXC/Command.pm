@@ -165,7 +165,7 @@ sub get_cgroup_path($;$$) {
     my ($res, $data) = simple_command(
 	$vmid,
 	$limiting ? LXC_CMD_GET_LIMITING_CGROUP : LXC_CMD_GET_CGROUP,
-	pack('Z*', $subsystem),
+	defined($subsystem) && pack('Z*', $subsystem),
     );
     return undef if !defined $res;
 
