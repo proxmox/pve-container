@@ -1033,7 +1033,7 @@ sub json_config_properties {
     return $prop;
 }
 
-sub __parse_ct_mountpoint_full {
+my $parse_ct_mountpoint_full = sub {
     my ($class, $desc, $data, $noerr) = @_;
 
     $data //= '';
@@ -1070,11 +1070,11 @@ sub parse_volume {
     my ($class, $key, $volume_string, $noerr) = @_;
 
     if ($key eq 'rootfs') {
-	my $res =  $class->__parse_ct_mountpoint_full($rootfs_desc, $volume_string, $noerr);
+	my $res =  $parse_ct_mountpoint_full->($class, $rootfs_desc, $volume_string, $noerr);
 	$res->{mp} = '/' if defined($res);
 	return $res;
     } elsif ($key =~ m/^mp\d+$/ || $key =~ m/^unused\d+$/) {
-	return $class->__parse_ct_mountpoint_full($mp_desc, $volume_string, $noerr);
+	return $parse_ct_mountpoint_full->($class, $mp_desc, $volume_string, $noerr);
     }
 
     die "parse_volume - unknown type: $key\n";
