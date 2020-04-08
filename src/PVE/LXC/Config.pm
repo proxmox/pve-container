@@ -129,7 +129,7 @@ sub __snapshot_delete_remove_drive {
 	die "implement me - saving vmstate\n";
     } else {
 	my $value = $snap->{$remove_drive};
-	my $mountpoint = $remove_drive eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);
+	my $mountpoint = $class->parse_volume($remove_drive, $value, 1);
 	delete $snap->{$remove_drive};
 
 	$class->add_unused_volume($snap, $mountpoint->{volume})
@@ -956,7 +956,7 @@ sub update_pct_config {
 	my $value = $param->{$opt};
 	if ($opt =~ m/^mp(\d+)$/ || $opt eq 'rootfs') {
 	    $class->check_protection($conf, "can't update CT $vmid drive '$opt'");
-	    my $mp = $opt eq 'rootfs' ? $class->parse_ct_rootfs($value) : $class->parse_ct_mountpoint($value);
+	    my $mp = $class->parse_volume($opt, $value);
 	    $check_content_type->($mp) if ($mp->{type} eq 'volume');
 	} elsif ($opt eq 'hookscript') {
 	    PVE::GuestHelpers::check_hookscript($value);
@@ -1059,22 +1059,6 @@ sub __parse_ct_mountpoint_full {
     return $res;
 };
 
-sub parse_ct_rootfs {
-    my ($class, $data, $noerr) = @_;
-
-    my $res =  $class->__parse_ct_mountpoint_full($rootfs_desc, $data, $noerr);
-
-    $res->{mp} = '/' if defined($res);
-
-    return $res;
-}
-
-sub parse_ct_mountpoint {
-    my ($class, $data, $noerr) = @_;
-
-    return $class->__parse_ct_mountpoint_full($mp_desc, $data, $noerr);
-}
-
 sub print_ct_mountpoint {
     my ($class, $info, $nomp) = @_;
     my $skip = [ 'type' ];
@@ -1086,9 +1070,11 @@ sub parse_volume {
     my ($class, $key, $volume_string, $noerr) = @_;
 
     if ($key eq 'rootfs') {
-	return $class->parse_ct_rootfs($volume_string, $noerr);
+	my $res =  $class->__parse_ct_mountpoint_full($rootfs_desc, $volume_string, $noerr);
+	$res->{mp} = '/' if defined($res);
+	return $res;
     } elsif ($key =~ m/^mp\d+$/ || $key =~ m/^unused\d+$/) {
-	return $class->parse_ct_mountpoint($volume_string, $noerr);
+	return $class->__parse_ct_mountpoint_full($mp_desc, $volume_string, $noerr);
     }
 
     die "parse_volume - unknown type: $key\n";
@@ -1282,7 +1268,7 @@ sub vmconfig_apply_pending {
 	next if $selection && !$selection->{$opt};
 	eval {
 	    if ($opt =~ m/^mp(\d+)$/) {
-		my $mp = $class->parse_ct_mountpoint($conf->{$opt});
+		my $mp = $class->parse_volume($opt, $conf->{$opt});
 		if ($mp->{type} eq 'volume') {
 		    $class->add_unused_volume($conf, $mp->{volume})
 			if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
@@ -1335,7 +1321,7 @@ my $rescan_volume = sub {
 sub apply_pending_mountpoint {
     my ($class, $vmid, $conf, $opt, $storecfg, $running) = @_;
 
-    my $mp = $class->parse_ct_mountpoint($conf->{pending}->{$opt});
+    my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
     my $old = $conf->{$opt};
     if ($mp->{type} eq 'volume') {
 	if ($mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
@@ -1349,7 +1335,7 @@ sub apply_pending_mountpoint {
 	    );
 	    if ($running) {
 		# Re-parse mount point:
-		my $mp = $class->parse_ct_mountpoint($conf->{pending}->{$opt});
+		my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
 		eval {
 		    PVE::LXC::mountpoint_hotplug($vmid, $conf, $opt, $mp, $storecfg);
 		};
@@ -1374,7 +1360,7 @@ sub apply_pending_mountpoint {
     }
 
     if (defined($old)) {
-	my $mp = $class->parse_ct_mountpoint($old);
+	my $mp = $class->parse_volume($opt, $old);
 	if ($mp->{type} eq 'volume') {
 	    $class->add_unused_volume($conf, $mp->{volume})
 		if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);

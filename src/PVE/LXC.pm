@@ -206,7 +206,7 @@ sub vmstatus {
 	    $d->{disk} = 0;
 	    # use 4GB by default ??
 	    if (my $rootfs = $conf->{rootfs}) {
-		my $rootinfo = PVE::LXC::Config->parse_ct_rootfs($rootfs);
+		my $rootinfo = PVE::LXC::Config->parse_volume('rootfs', $rootfs);
 		$d->{maxdisk} = $rootinfo->{size} || (4*1024*1024*1024);
 	    } else {
 		$d->{maxdisk} = 4*1024*1024*1024;
@@ -687,7 +687,7 @@ sub update_lxc_config {
     die "missing 'rootfs' configuration\n"
 	if !defined($conf->{rootfs});
 
-    my $mountpoint = PVE::LXC::Config->parse_ct_rootfs($conf->{rootfs});
+    my $mountpoint = PVE::LXC::Config->parse_volume('rootfs', $conf->{rootfs});
 
     $raw .= "lxc.rootfs.path = $dir/rootfs\n";
 
@@ -1199,8 +1199,7 @@ sub check_ct_modify_config_perm {
 	} elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
 	    return if $delete;
-	    my $data = $opt eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($newconf->{$opt})
-					: PVE::LXC::Config->parse_ct_mountpoint($newconf->{$opt});
+	    my $data = PVE::LXC::Config->parse_volume($opt, $newconf->{$opt});
 	    raise_perm_exc("mount point type $data->{type} is only allowed for root\@pam")
 		if $data->{type} ne 'volume';
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {

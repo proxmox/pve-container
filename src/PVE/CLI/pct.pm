@@ -233,8 +233,7 @@ __PACKAGE__->register_method ({
 
 	    defined($conf->{$device}) || die "cannot run command on non-existing mount point $device\n";
 
-	    my $mount_point = $device eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$device}) :
-		PVE::LXC::Config->parse_ct_mountpoint($conf->{$device});
+	    my $mount_point = PVE::LXC::Config->parse_volume($device, $conf->{$device});
 
 	    die "cannot run fsck when container is running\n"
 		if PVE::LXC::check_running($vmid);

@@ -1391,9 +1391,7 @@ __PACKAGE__->register_method({
 		    my $value = $src_conf->{$opt};
 
 		    if (($opt eq 'rootfs') || ($opt =~ m/^mp\d+$/)) {
-			my $mp = $opt eq 'rootfs' ?
-			    PVE::LXC::Config->parse_ct_rootfs($value) :
-			    PVE::LXC::Config->parse_ct_mountpoint($value);
+			my $mp = PVE::LXC::Config->parse_volume($opt, $value);
 
 			if ($mp->{type} eq 'volume') {
 			    my $volid = $mp->{volume};
@@ -1623,8 +1621,7 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $disk = $param->{disk};
-	    my $mp = $disk eq 'rootfs' ? PVE::LXC::Config->parse_ct_rootfs($conf->{$disk}) :
-		PVE::LXC::Config->parse_ct_mountpoint($conf->{$disk});
+	    my $mp = PVE::LXC::Config->parse_volume($disk, $conf->{$disk});
 
 	    my $volid = $mp->{volume};
 
@@ -1786,13 +1783,7 @@ __PACKAGE__->register_method({
 
 	    die "cannot move volumes of a running container\n" if PVE::LXC::check_running($vmid);
 
-	    if ($mpkey eq 'rootfs') {
-		$mpdata = PVE::LXC::Config->parse_ct_rootfs($conf->{$mpkey});
-	    } elsif ($mpkey =~ m/mp\d+/) {
-		$mpdata = PVE::LXC::Config->parse_ct_mountpoint($conf->{$mpkey});
-	    } else {
-		die "Can't parse $mpkey\n";
-	    }
+	    PVE::LXC::Config->parse_volume($mpkey, $conf->{$mpkey});
 	    $old_volid = $mpdata->{volume};
 
 	    die "you can't move a volume with snapshots and delete the source\n"
