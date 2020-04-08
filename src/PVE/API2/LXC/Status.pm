@@ -182,7 +182,7 @@ __PACKAGE__->register_method({
 		}
 
 		if ($conf->{unprivileged}) {
-		    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+		    PVE::LXC::Config->foreach_volume($conf, sub {
 			my ($ms, $mountpoint) = @_;
 			die "Quotas are not supported by unprivileged containers.\n" if $mountpoint->{quota};
 		    });

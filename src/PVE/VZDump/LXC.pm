@@ -120,7 +120,7 @@ sub prepare {
     $task->{rootgid} = $rootgid;
 
     my $volids = $task->{volids} = [];
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($name, $data) = @_;
 	my $volid = $data->{volume};
 	my $mount = $data->{mp};

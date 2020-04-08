@@ -832,7 +832,7 @@ sub delete_mountpoint_volume {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf, $replacement_conf) = @_;
 
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
     });
@@ -1163,7 +1163,7 @@ sub template_create {
 
     my $storecfg = PVE::Storage::config();
 
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -1172,7 +1172,7 @@ sub template_create {
 	    if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
     });
 
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -1237,7 +1237,7 @@ sub umount_all {
 
     my $res = 1;
 
-    PVE::LXC::Config->foreach_mountpoint_reverse($conf, sub {
+    PVE::LXC::Config->foreach_volume_full($conf, {'reverse' => 1}, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -1278,7 +1278,7 @@ sub mount_all {
     my (undef, $rootuid, $rootgid) = parse_id_maps($conf);
 
     eval {
-	PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	PVE::LXC::Config->foreach_volume($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    $mountpoint->{ro} = 0 if $ignore_ro;
@@ -1885,7 +1885,7 @@ sub create_disks {
 	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
 	my $chown_vollist = [];
 
-	PVE::LXC::Config->foreach_mountpoint($settings, sub {
+	PVE::LXC::Config->foreach_volume($settings, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
@@ -1949,7 +1949,7 @@ sub update_disksize {
 	}
     };
 
-    PVE::LXC::Config->foreach_mountpoint($conf, $update_mp);
+    PVE::LXC::Config->foreach_volume($conf, $update_mp);
 
     return $changes;
 }

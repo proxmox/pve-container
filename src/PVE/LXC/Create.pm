@@ -212,7 +212,7 @@ sub recover_config_from_proxmox_backup {
     delete $conf->{snapshots};
 
     my $mp_param = {};
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 	$mp_param->{$ms} = $conf->{$ms};
     });
@@ -233,7 +233,7 @@ sub recover_config_from_tar {
 
 	delete $conf->{snapshots};
 
-	PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	PVE::LXC::Config->foreach_volume($conf, sub {
 	    my ($ms, $mountpoint) = @_;
 	    $mp_param->{$ms} = $conf->{$ms};
 	});

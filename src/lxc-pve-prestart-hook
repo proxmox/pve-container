@@ -125,7 +125,7 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	};
     }
 
-    PVE::LXC::Config->foreach_mountpoint($conf, $setup_mountpoint);
+    PVE::LXC::Config->foreach_volume($conf, $setup_mountpoint);
 
     my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
     $lxc_setup->pre_start_hook();

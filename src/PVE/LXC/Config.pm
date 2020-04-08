@@ -67,7 +67,7 @@ sub has_feature {
 	$opts = {'valid_target_formats' => ['raw', 'subvol']};
     }
 
-    $class->foreach_mountpoint($conf, sub {
+    $class->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $err; # skip further test
@@ -1395,7 +1395,7 @@ my $__is_volume_in_use = sub {
     my ($class, $config, $volid) = @_;
     my $used = 0;
 
-    $class->foreach_mountpoint($config, sub {
+    $class->foreach_volume($config, sub {
 	my ($ms, $mountpoint) = @_;
 	return if $used;
 	$used = $mountpoint->{type} eq 'volume' && $mountpoint->{volume} eq $volid;
@@ -1467,37 +1467,12 @@ sub valid_volume_keys {
     return $reverse ? reverse @names : @names;
 }
 
-sub foreach_mountpoint_full {
-    my ($class, $conf, $reverse, $func, @param) = @_;
-
-    my $mps = [ grep { defined($conf->{$_}) } $class->valid_volume_keys($reverse) ];
-    foreach my $key (@$mps) {
-	my $value = $conf->{$key};
-	my $mountpoint = $key eq 'rootfs' ? $class->parse_ct_rootfs($value, 1) : $class->parse_ct_mountpoint($value, 1);
-	next if !defined($mountpoint);
-
-	&$func($key, $mountpoint, @param);
-    }
-}
-
-sub foreach_mountpoint {
-    my ($class, $conf, $func, @param) = @_;
-
-    $class->foreach_mountpoint_full($conf, 0, $func, @param);
-}
-
-sub foreach_mountpoint_reverse {
-    my ($class, $conf, $func, @param) = @_;
-
-    $class->foreach_mountpoint_full($conf, 1, $func, @param);
-}
-
 sub get_vm_volumes {
     my ($class, $conf, $excludes) = @_;
 
     my $vollist = [];
 
-    $class->foreach_mountpoint($conf, sub {
+    $class->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	return if $excludes && $ms eq $excludes;
@@ -1555,14 +1530,14 @@ sub get_replicatable_volumes {
 	$volhash->{$volid} = 1;
     };
 
-    $class->foreach_mountpoint($conf, sub {
+    $class->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 	$test_volid->($mountpoint->{volume}, $mountpoint);
     });
 
     foreach my $snapname (keys %{$conf->{snapshots}}) {
 	my $snap = $conf->{snapshots}->{$snapname};
-	$class->foreach_mountpoint($snap, sub {
+	$class->foreach_volume($snap, sub {
 	    my ($ms, $mountpoint) = @_;
 	    $test_volid->($mountpoint->{volume}, $mountpoint);
         });

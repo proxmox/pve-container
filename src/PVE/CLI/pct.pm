@@ -379,7 +379,7 @@ __PACKAGE__->register_method({
 	    my @len = map { length($_) } @{$list[0]};
 
 	    eval {
-		PVE::LXC::Config->foreach_mountpoint($conf, sub {
+		PVE::LXC::Config->foreach_volume($conf, sub {
 		    my ($name, $mp) = @_;
 		    my $path = $mp->{mp};
 
@@ -783,7 +783,7 @@ __PACKAGE__->register_method ({
 	eval {
 	    my $path = "";
 	    PVE::LXC::mount_all($vmid, $storecfg, $conf);
-	    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+	    PVE::LXC::Config->foreach_volume($conf, sub {
 		my ($name, $mp) = @_;
 		$path = $mp->{mp};
 		my $cmd = ["fstrim", "-v", "$rootdir$path"];

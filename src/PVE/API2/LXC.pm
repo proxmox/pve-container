@@ -316,7 +316,7 @@ __PACKAGE__->register_method({
 
 	# check storage access, activate storage
 	my $delayed_mp_param = {};
-	PVE::LXC::Config->foreach_mountpoint($mp_param, sub {
+	PVE::LXC::Config->foreach_volume($mp_param, sub {
 	    my ($ms, $mountpoint) = @_;
 
 	    my $volid = $mountpoint->{volume};
@@ -371,7 +371,7 @@ __PACKAGE__->register_method({
 			$mp_param = $orig_mp_param;
 			die "rootfs configuration could not be recovered, please check and specify manually!\n"
 			    if !defined($mp_param->{rootfs});
-			PVE::LXC::Config->foreach_mountpoint($mp_param, sub {
+			PVE::LXC::Config->foreach_volume($mp_param, sub {
 			    my ($ms, $mountpoint) = @_;
 			    my $type = $mountpoint->{type};
 			    if ($type eq 'volume') {

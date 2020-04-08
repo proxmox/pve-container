@@ -47,7 +47,7 @@ sub prepare {
     my $force = $self->{opts}->{force} // 0;
     my $need_activate = [];
 
-    PVE::LXC::Config->foreach_mountpoint($conf, sub {
+    PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -217,11 +217,11 @@ sub phase1 {
     foreach my $snapname (keys %{$conf->{snapshots}}) {
 	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
 	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
-	PVE::LXC::Config->foreach_mountpoint($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
+	PVE::LXC::Config->foreach_volume($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
     }
 
     # finally all currently used volumes
-    PVE::LXC::Config->foreach_mountpoint($conf, $test_mp);
+    PVE::LXC::Config->foreach_volume($conf, $test_mp);
 
 
     # additional checks for local storage

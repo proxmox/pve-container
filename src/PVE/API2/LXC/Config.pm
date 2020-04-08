@@ -173,7 +173,7 @@ __PACKAGE__->register_method({
 	my $repl_conf = PVE::ReplicationConfig->new();
 	my $is_replicated = $repl_conf->check_for_existing_jobs($vmid, 1);
 	if ($is_replicated) {
-	    PVE::LXC::Config->foreach_mountpoint_full($param, 0, sub {
+	    PVE::LXC::Config->foreach_volume($param, sub {
 		my ($opt, $mountpoint) = @_;
 		my $volid = $mountpoint->{volume};
 		return if !$volid || !($mountpoint->{replicate}//1);
