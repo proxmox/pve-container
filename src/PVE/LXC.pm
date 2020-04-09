@@ -401,19 +401,9 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
+# Deprecated. Use `PVE::LXC::CGroup::get_cgroup_controllers()` instead.
 sub get_cgroup_subsystems {
-	my $v1 = {};
-	my $v2 = 0;
-	my $data = PVE::Tools::file_get_contents('/proc/self/cgroup');
-	while ($data =~ /^\d+:([^:\n]*):.*$/gm) {
-		my $type = $1;
-		if (length($type)) {
-			$v1->{$_} = 1 foreach split(/,/, $type);
-		} else {
-			$v2 = 1;
-		}
-	}
-	return wantarray ? ($v1, $v2) : $v1;
+    PVE::LXC::CGroup::get_v1_controllers();
 }
 
 # With seccomp trap to userspace we now have the ability to optionally forward

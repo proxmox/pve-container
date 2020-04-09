@@ -36,28 +36,53 @@ sub new {
     return bless $self, $class;
 }
 
-my $CPUSET_BASE = undef;
-# Find the cpuset cgroup controller.
+# Get the v1 controller list.
 #
-# This is a function, not a method!
-sub cpuset_controller_path() {
-    if (!defined($CPUSET_BASE)) {
-	my $CPUSET_PATHS = [
-	    # legacy cpuset cgroup:
-	    ['/sys/fs/cgroup/cpuset',  'cpuset.effective_cpus'],
-	    # pure cgroupv2 environment:
-	    ['/sys/fs/cgroup',         'cpuset.cpus.effective'],
-	    # hybrid, with cpuset moved to cgroupv2
-	    ['/sys/fs/cgroup/unified', 'cpuset.cpus.effective'],
-	];
+# Returns a set (hash mapping names to `1`) of cgroupv1 controllers, and an
+# optional boolean whether a unified (cgroupv2) hierarchy exists.
+#
+# Deprecated: Use `get_cgroup_controllers()` instead.
+sub get_v1_controllers {
+    my $v1 = {};
+    my $v2 = 0;
+    my $data = PVE::Tools::file_get_contents('/proc/self/cgroup');
+    while ($data =~ /^\d+:([^:\n]*):.*$/gm) {
+	my $type = $1;
+	if (length($type)) {
+	    $v1->{$_} = 1 foreach split(/,/, $type);
+	} else {
+	    $v2 = 1;
+	}
+    }
+    return wantarray ? ($v1, $v2) : $v1;
+}
 
-	my ($result) = grep { -f "$_->[0]/$_->[1]" } @$CPUSET_PATHS;
-	die "failed to find cpuset controller\n" if !defined($result);
+# Get the set v2 controller list from the `cgroup.controllers` file.
+my sub get_v2_controllers {
+    my $v2 = eval { file_get_contents('/sys/fs/cgroup/cgroup.controllers') }
+	|| eval { file_get_contents('/sys/fs/cgroup/unified/cgroup.controllers') };
+    return undef if !defined $v2;
 
-	$CPUSET_BASE = $result->[0];
+    # It's a simple space separated list:
+    return { map { $_ => 1 } split(/\s+/, $v2) };
+}
+
+my $CGROUP_CONTROLLERS = undef;
+# Get a list of controllers enabled in each cgroup subsystem.
+#
+# This is a more complete version of `PVE::LXC::get_cgroup_subsystems`.
+#
+# Returns 2 sets (hashes mapping controller names to `1`), one for each cgroup
+# version.
+sub get_cgroup_controllers() {
+    if (!defined($CGROUP_CONTROLLERS)) {
+	my ($v1, undef) = get_v1_controllers();
+	my $v2 = get_v2_controllers();
+
+	$CGROUP_CONTROLLERS = [$v1, $v2];
     }
 
-    return $CPUSET_BASE;
+    return $CGROUP_CONTROLLERS->@*;
 }
 
 my $CGROUP_MODE = undef;
@@ -66,10 +91,13 @@ my $CGROUP_MODE = undef;
 # Returns 1 if cgroupv1 controllers exist (hybrid or legacy mode), and 2 in a
 # cgroupv2-only environment.
 #
+# NOTE: To fully support a hybrid layout it is better to use functions like
+# `cpuset_controller_path`.
+#
 # This is a function, not a method!
 sub cgroup_mode() {
     if (!defined($CGROUP_MODE)) {
-	my ($v1, $v2) = PVE::LXC::get_cgroup_subsystems();
+	my ($v1, $v2) = get_cgroup_controllers();
 	if (keys %$v1) {
 	    # hybrid or legacy mode
 	    $CGROUP_MODE = 1;
@@ -80,6 +108,49 @@ sub cgroup_mode() {
 
     die "unknown cgroup mode\n" if !defined($CGROUP_MODE);
     return $CGROUP_MODE;
+}
+
+# Find a cgroup controller and return its path and version.
+#
+# LXC initializes the unified hierarchy first, so if a controller is
+# available via both we favor cgroupv2 here as well.
+#
+# Returns nothing if the controller is not available.
+sub find_cgroup_controller($) {
+    my ($controller) = @_;
+
+    my ($v1, $v2) = get_cgroup_controllers();
+
+    if (!defined($controller) || $v2->{$controller}) {
+	my $path;
+	if (cgroup_mode() == 2) {
+	    $path = '/sys/fs/cgroup';
+	} else {
+	    $path = '/sys/fs/cgroup/unified';
+	}
+	return wantarray ? ($path, 2) : $path;
+    }
+
+    if (defined($controller) && $v1->{$controller}) {
+	my $path = "/sys/fs/cgroup/$controller";
+	return wantarray ? ($path, 1) : $path;
+    }
+
+    return;
+}
+
+my $CG_PATH_CPUSET = undef;
+my $CG_VER_CPUSET = undef;
+# Find the cpuset cgroup controller.
+#
+# This is a function, not a method!
+sub cpuset_controller_path() {
+    if (!defined($CG_PATH_CPUSET)) {
+	($CG_PATH_CPUSET, $CG_VER_CPUSET) = find_cgroup_controller('cpuset')
+	    or die "failed to find cpuset controller\n";
+    }
+
+    return wantarray ? ($CG_PATH_CPUSET, $CG_VER_CPUSET) : $CG_PATH_CPUSET;
 }
 
 # Get a subdirectory (without the cgroup mount point) for a controller.
@@ -118,19 +189,37 @@ my sub get_subdir {
     return $path;
 }
 
-# Get a path for a controller.
+# Get path and version for a controller.
 #
 # `$controller` may be `undef`, see get_subdir above for details.
+#
+# Returns either just the path, or the path and cgroup version as a tuple.
 sub get_path {
     my ($self, $controller) = @_;
+
+    # Find the controller before querying the lxc monitor via a socket:
+    my ($cgpath, $ver) = find_cgroup_controller($controller)
+	or return undef;
 
     my $path = get_subdir($self, $controller)
 	or return undef;
 
-    # The main mount point we currently assume to be in a standard location.
-    return "/sys/fs/cgroup/$path" if cgroup_mode() == 2;
-    return "/sys/fs/cgroup/unified/$path" if !defined($controller);
-    return "/sys/fs/cgroup/$controller/$path";
+    $path = "$cgpath/$path";
+    return wantarray ? ($path, $ver) : $path;
+}
+
+# Convenience method to get the path info if the first existing controller.
+#
+# Returns the same as `get_path`.
+sub get_any_path {
+    my ($self, @controllers) = @_;
+
+    my ($path, $ver);
+    for my $c (@controllers) {
+	($path, $ver) = $self->get_path($c);
+	last if defined $path;
+    }
+    return wantarray ? ($path, $ver) : $path;
 }
 
 # Parse a 'Nested keyed' file:
