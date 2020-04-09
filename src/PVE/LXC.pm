@@ -711,7 +711,7 @@ sub update_lxc_config {
     if (my $lxcconf = $conf->{lxc}) {
 	foreach my $entry (@$lxcconf) {
 	    my ($k, $v) = @$entry;
-	    $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus';
+	    $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus' || $k eq 'lxc.cgroup2.cpuset.cpus';
 	    $raw .= "$k = $v\n";
 	}
     }
