@@ -606,7 +606,7 @@ sub is_valid_lxc_conf_key {
     }
     my $validity = $valid_lxc_conf_keys->{$key};
     return $validity if defined($validity);
-    return 1 if $key =~ /^lxc\.cgroup\./  # allow all cgroup values
+    return 1 if $key =~ /^lxc\.cgroup2?\./  # allow all cgroup values
              || $key =~ /^lxc\.prlimit\./ # allow all prlimits
              || $key =~ /^lxc\.net\./;    # allow custom network definitions
     return 0;
