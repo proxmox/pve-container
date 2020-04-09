@@ -707,7 +707,7 @@ sub update_lxc_config {
     }
 
     my $cpuset;
-    my $cpuset_cgroup = eval { PVE::LXC::CGroup::cpuset_controller_path() };
+    my ($cpuset_cgroup, $cpuset_version) = eval { PVE::LXC::CGroup::cpuset_controller_path() };
     if (defined($cpuset_cgroup)) {
 	$cpuset = eval { PVE::CpuSet->new_from_path("$cpuset_cgroup/lxc", 1) }
 	    || PVE::CpuSet->new_from_path($cpuset_cgroup, 1);
@@ -720,7 +720,8 @@ sub update_lxc_config {
 	    $cpuset->delete($members[$randidx]);
 	    splice(@members, $randidx, 1); # keep track of the changes
 	}
-	$raw .= "lxc.cgroup.cpuset.cpus = ".$cpuset->short_string()."\n";
+	my $ver = $cpuset_version == 1 ? '' : '2';
+	$raw .= "lxc.cgroup$ver.cpuset.cpus = ".$cpuset->short_string()."\n";
     }
 
     File::Path::mkpath("$dir/rootfs");
