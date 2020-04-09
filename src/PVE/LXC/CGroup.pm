@@ -269,26 +269,28 @@ sub get_io_stats {
 	diskwrite => 0,
     };
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('io'))) {
-	    # cgroupv2 environment, io controller enabled
-	    my $io_stat = file_get_contents("$path/io.stat");
+    # With cgroupv1 we have a 'blkio' controller, with cgroupv2 it's just 'io':
+    my ($path, $ver) = $self->get_any_path('io', 'blkio');
+    if (!defined($path)) {
+	# container not running
+	return undef;
+    } elsif ($ver == 2) {
+	# cgroupv2 environment, io controller enabled
+	my $io_stat = file_get_contents("$path/io.stat");
 
-	    my $data = parse_nested_keyed_file($io_stat);
-	    foreach my $dev (keys %$data) {
-		my $dev = $data->{$dev};
-		if (my $b = $dev->{rbytes}) {
-		    $res->{diskread} += $b;
-		}
-		if (my $b = $dev->{wbytes}) {
-		    $res->{diskread} += $b;
-		}
+	my $data = parse_nested_keyed_file($io_stat);
+	foreach my $dev (keys %$data) {
+	    my $dev = $data->{$dev};
+	    if (my $b = $dev->{rbytes}) {
+		$res->{diskread} += $b;
 	    }
-	} else {
-	    # io controller not enabled or container not running
-	    return undef;
+	    if (my $b = $dev->{wbytes}) {
+		$res->{diskread} += $b;
+	    }
 	}
-    } elsif (defined(my $path = $self->get_path('blkio'))) {
+
+	return $res;
+    } elsif ($ver == 1) {
 	# cgroupv1 environment:
 	my $io = file_get_contents("$path/blkio.throttle.io_service_bytes_recursive");
 	foreach my $line (split(/\n/, $io)) {
@@ -297,12 +299,14 @@ sub get_io_stats {
 		$res->{diskwrite} += $bytes if $type eq 'Write';
 	    }
 	}
+
+	return $res;
     } else {
-	# container not running
-	return undef;
+	die "bad cgroup version: $ver\n";
     }
 
-    return $res;
+    # container not running
+    return undef;
 }
 
 # Read utime and stime for this container from the cpuacct cgroup.
@@ -315,21 +319,20 @@ sub get_cpu_stat {
 	stime => 0,
     };
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('cpu'))) {
-	    my $data = eval { file_get_contents("$path/cpu.stat") };
+    my ($path, $ver) = $self->get_any_path('cpuacct', 'cpu');
+    if (!defined($path)) {
+	# container not running
+	return undef;
+    } elsif ($ver == 2) {
+	my $data = eval { file_get_contents("$path/cpu.stat") };
 
-	    # or no io controller available:
-	    return undef if !defined($data);
+	# or no io controller available:
+	return undef if !defined($data);
 
-	    $data = parse_flat_keyed_file($data);
-	    $res->{utime} = int($data->{user_usec} / 1000);
-	    $res->{stime} = int($data->{system_usec} / 1000);
-	} else {
-	    # memory controller not enabled or container not running
-	    return undef;
-	}
-    } elsif (defined(my $path = $self->get_path('cpuacct'))) {
+	$data = parse_flat_keyed_file($data);
+	$res->{utime} = int($data->{user_usec} / 1000);
+	$res->{stime} = int($data->{system_usec} / 1000);
+    } elsif ($ver == 1) {
 	# cgroupv1 environment:
 	my $clock_ticks = POSIX::sysconf(&POSIX::_SC_CLK_TCK);
 	my $clk_to_usec = 1000 / $clock_ticks;
@@ -338,8 +341,7 @@ sub get_cpu_stat {
 	$res->{utime} = int($data->{user} * $clk_to_usec);
 	$res->{stime} = int($data->{system} * $clk_to_usec);
     } else {
-	# container most likely isn't running
-	return undef;
+	die "bad cgroup version: $ver\n";
     }
 
     return $res;
@@ -354,23 +356,22 @@ sub get_memory_stat {
 	swap => 0,
     };
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('memory'))) {
-	    my $mem = file_get_contents("$path/memory.current");
-	    my $swap = file_get_contents("$path/memory.swap.current");
+    my ($path, $ver) = $self->get_path('memory');
+    if (!defined($path)) {
+	# container most likely isn't running
+	return undef;
+    } elsif ($ver == 2) {
+	my $mem = file_get_contents("$path/memory.current");
+	my $swap = file_get_contents("$path/memory.swap.current");
 
-	    chomp ($mem, $swap);
+	chomp ($mem, $swap);
 
-	    # FIXME: For the cgv1 equivalent of `total_cache` we may need to sum up
-	    # the values in `memory.stat`...
+	# FIXME: For the cgv1 equivalent of `total_cache` we may need to sum up
+	# the values in `memory.stat`...
 
-	    $res->{mem} = $mem;
-	    $res->{swap} = $swap;
-	} else {
-	    # memory controller not enabled or container not running
-	    return undef;
-	}
-    } elsif (defined(my $path = $self->get_path('memory'))) {
+	$res->{mem} = $mem;
+	$res->{swap} = $swap;
+    } elsif ($ver == 1) {
 	# cgroupv1 environment:
 	my $stat = parse_flat_keyed_file(file_get_contents("$path/memory.stat"));
 	my $mem = file_get_contents("$path/memory.usage_in_bytes");
@@ -380,8 +381,7 @@ sub get_memory_stat {
 	$res->{mem} = $mem - $stat->{total_cache};
 	$res->{swap} = $memsw - $mem;
     } else {
-	# container most likely isn't running
-	return undef;
+	die "bad cgroup version: $ver\n";
     }
 
     return $res;
@@ -393,15 +393,15 @@ sub get_memory_stat {
 sub change_memory_limit {
     my ($self, $mem_bytes, $swap_bytes) = @_;
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('memory'))) {
-	    PVE::ProcFSTools::write_proc_entry("$path/memory.swap.max", $swap_bytes)
-		if defined($swap_bytes);
-	    PVE::ProcFSTools::write_proc_entry("$path/memory.max", $mem_bytes)
-		if defined($mem_bytes);
-	    return 1;
-	}
-    } elsif (defined(my $path = $self->get_path('memory'))) {
+    my ($path, $ver) = $self->get_path('memory');
+    if (!defined($path)) {
+	die "trying to change memory cgroup values: container not running\n";
+    } elsif ($ver == 2) {
+	PVE::ProcFSTools::write_proc_entry("$path/memory.swap.max", $swap_bytes)
+	    if defined($swap_bytes);
+	PVE::ProcFSTools::write_proc_entry("$path/memory.max", $mem_bytes)
+	    if defined($mem_bytes);
+    } elsif ($ver == 1) {
 	# With cgroupv1 we cannot control memory and swap limits separately.
 	# This also means that since the two values aren't independent, we need to handle
 	# growing and shrinking separately.
@@ -426,10 +426,12 @@ sub change_memory_limit {
 	    PVE::ProcFSTools::write_proc_entry($path_mem, $mem_bytes);
 	    PVE::ProcFSTools::write_proc_entry($path_memsw, $memsw_bytes);
 	}
-	return 1;
+    } else {
+	die "bad cgroup version: $ver\n";
     }
 
-    die "trying to change memory cgroup values: container not running\n";
+    # return a truth value
+    return 1;
 }
 
 # Change the cpu quota for a container.
@@ -440,28 +442,30 @@ sub change_cpu_quota {
 
     die "quota without period not allowed\n" if !defined($period) && defined($quota);
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('cpu'))) {
-	    # cgroupv2 environment, an undefined (unlimited) quota is defined as "max"
-	    # in this interface:
-	    $quota //= 'max'; # unlimited
-	    if (defined($quota)) {
-		PVE::ProcFSTools::write_proc_entry("$path/cpu.max", "$quota $period");
-	    } else {
-		# we're allowed to only write the quota:
-		PVE::ProcFSTools::write_proc_entry("$path/cpu.max", 'max');
-	    }
-	    return 1;
+    my ($path, $ver) = $self->get_path('memory');
+    if (!defined($path)) {
+	die "trying to change cpu quota cgroup values: container not running\n";
+    } elsif ($ver == 2) {
+	# cgroupv2 environment, an undefined (unlimited) quota is defined as "max"
+	# in this interface:
+	$quota //= 'max'; # unlimited
+	if (defined($quota)) {
+	    PVE::ProcFSTools::write_proc_entry("$path/cpu.max", "$quota $period");
+	} else {
+	    # we're allowed to only write the quota:
+	    PVE::ProcFSTools::write_proc_entry("$path/cpu.max", 'max');
 	}
-    } elsif (defined(my $path = $self->get_path('cpu'))) {
+    } elsif ($ver == 1) {
 	$quota //= -1; # unlimited
 	$period //= -1;
 	PVE::ProcFSTools::write_proc_entry("$path/cpu.cfs_period_us", $period);
 	PVE::ProcFSTools::write_proc_entry("$path/cpu.cfs_quota_us", $quota);
-	return 1;
+    } else {
+	die "bad cgroup version: $ver\n";
     }
 
-    die "trying to change cpu quota cgroup values: container not running\n";
+    # return a truth value
+    return 1;
 }
 
 # Change the cpu "shares" for a container.
@@ -480,22 +484,23 @@ sub change_cpu_quota {
 sub change_cpu_shares {
     my ($self, $shares, $cgroupv1_default) = @_;
 
-    if (cgroup_mode() == 2) {
-	if (defined(my $path = $self->get_path('cpu'))) {
-	    # the cgroupv2 documentation defines the default to 100
-	    $shares //= 100;
-	    die "cpu weight (shares) must be in range [1, 10000]\n" if $shares < 1 || $shares > 10000;
-	    PVE::ProcFSTools::write_proc_entry("$path/cpu.weight", $shares);
-	    return 1;
-	}
+    my ($path, $ver) = $self->get_path('memory');
+    if (!defined($path)) {
+	die "trying to change cpu shares/weight cgroup values: container not running\n";
+    } elsif ($ver == 2) {
+	# the cgroupv2 documentation defines the default to 100
+	$shares //= 100;
+	die "cpu weight (shares) must be in range [1, 10000]\n" if $shares < 1 || $shares > 10000;
+	PVE::ProcFSTools::write_proc_entry("$path/cpu.weight", $shares);
     } elsif (defined(my $path = $self->get_path('cpu'))) {
 	$shares //= 100;
 	PVE::ProcFSTools::write_proc_entry("$path/cpu.shares", $shares // $cgroupv1_default);
-	return 1;
+    } else {
+	die "bad cgroup version: $ver\n";
     }
 
-    # container most likely isn't running
-    die "trying to change cpu shares/weight cgroup values: container not running\n";
+    # return a truth value
+    return 1;
 }
 
 1;
