@@ -1,3 +1,13 @@
+pve-container (3.1-2) pve; urgency=medium
+
+  * Use foreach_volume instead of foreach_mountpoint-variants
+
+  * Use parse_volume instead of parse_ct-variants
+
+  * Use new storage_migrate interface
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 9 Apr 2020 08:50:54 +0200
+
 pve-container (3.1-1) pve; urgency=medium
 
   * rework cgroup handling for initial cgroupv2 support
