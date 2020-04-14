@@ -745,10 +745,14 @@ my $mp_desc = {
 };
 PVE::JSONSchema::register_format('pve-ct-mountpoint', $mp_desc);
 
-my $unuseddesc = {
-    optional => 1,
-    type => 'string', format => 'pve-volume-id',
-    description => "Reference to unused volumes. This is used internally, and should not be modified manually.",
+my $unused_desc = {
+    volume => {
+	type => 'string',
+	default_key => 1,
+	format => 'pve-volume-id',
+	format_description => 'volume',
+	description => 'The volume that is not used currently.',
+    }
 };
 
 for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
@@ -760,8 +764,12 @@ for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
     };
 }
 
-for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
-    $confdesc->{"unused$i"} = $unuseddesc;
+for (my $i = 0; $i < $MAX_UNUSED_DISKS; $i++) {
+    $confdesc->{"unused$i"} = {
+	optional => 1,
+	type => 'string', format => $unused_desc,
+	description => "Reference to unused volumes. This is used internally, and should not be modified manually.",
+    }
 }
 
 sub parse_pct_config {
@@ -1073,8 +1081,10 @@ sub parse_volume {
 	my $res =  $parse_ct_mountpoint_full->($class, $rootfs_desc, $volume_string, $noerr);
 	$res->{mp} = '/' if defined($res);
 	return $res;
-    } elsif ($key =~ m/^mp\d+$/ || $key =~ m/^unused\d+$/) {
+    } elsif ($key =~ m/^mp\d+$/) {
 	return $parse_ct_mountpoint_full->($class, $mp_desc, $volume_string, $noerr);
+    } elsif ($key =~ m/^unused\d+$/) {
+	return $parse_ct_mountpoint_full->($class, $unused_desc, $volume_string, $noerr);
     }
 
     die "parse_volume - unknown type: $key\n";
