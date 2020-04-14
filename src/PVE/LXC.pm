@@ -832,7 +832,7 @@ sub delete_mountpoint_volume {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf, $replacement_conf) = @_;
 
-    PVE::LXC::Config->foreach_volume($conf, sub {
+    PVE::LXC::Config->foreach_volume_full($conf, {include_unused => 1}, sub {
 	my ($ms, $mountpoint) = @_;
 	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
     });
