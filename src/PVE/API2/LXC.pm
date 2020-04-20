@@ -1783,7 +1783,7 @@ __PACKAGE__->register_method({
 
 	    die "cannot move volumes of a running container\n" if PVE::LXC::check_running($vmid);
 
-	    PVE::LXC::Config->parse_volume($mpkey, $conf->{$mpkey});
+	    $mpdata = PVE::LXC::Config->parse_volume($mpkey, $conf->{$mpkey});
 	    $old_volid = $mpdata->{volume};
 
 	    die "you can't move a volume with snapshots and delete the source\n"
