@@ -46,7 +46,7 @@ stop on runlevel [S016]
 
 respawn
 instance \$TTY
-exec /sbin/mingetty \$TTY
+exec /sbin/mingetty --nohangup \$TTY
 usage 'tty TTY=/dev/ttyX  - where X is console id'
 __EOD__
     
@@ -88,8 +88,13 @@ sub template_fixup {
 	$self->ct_make_path('/etc/init');
 
 	my $filename = "/etc/init/tty.conf";
-	$self->ct_file_set_contents($filename, $tty_conf)
-	    if ! $self->ct_file_exists($filename);
+	if ($self->ct_file_exists($filename)) {
+	    my $data = $self->ct_file_get_contents($filename);
+	    $data =~ s|^(exec /sbin/mingetty)(?!.*--nohangup) (.*)$|$1 --nohangup $2|gm;
+	    $self->ct_file_set_contents($filename, $data);
+	} else {
+	    $self->ct_file_set_contents($filename, $tty_conf);
+	}
 
 	$filename = "/etc/init/start-ttys.conf";
 	$self->ct_file_set_contents($filename, $start_ttys_conf)

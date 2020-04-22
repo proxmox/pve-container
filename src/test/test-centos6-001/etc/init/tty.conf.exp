@@ -9,5 +9,5 @@ stop on runlevel [S016]
 
 respawn
 instance $TTY
-exec /sbin/mingetty $TTY
+exec /sbin/mingetty --nohangup $TTY
 usage 'tty TTY=/dev/ttyX  - where X is console id'
