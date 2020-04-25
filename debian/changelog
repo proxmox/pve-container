@@ -1,3 +1,11 @@
+pve-container (2.0-42) unstable; urgency=medium
+
+  * support new Ubuntu 20.04 Focal Fossa release
+
+  * support all further point releases of CentOS 8
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 25 Apr 2020 16:29:44 +0200
+
 pve-container (2.0-41) unstable; urgency=medium
 
   * add support for CentOS 8, CentOS 5, Ubuntu 19.10 and Fedora 31
