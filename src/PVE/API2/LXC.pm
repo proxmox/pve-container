@@ -621,7 +621,10 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
 	    purge => {
 		type => 'boolean',
-		description => "Remove vmid from backup cron jobs.",
+		description => "Remove container from all related configurations."
+		    ." For example, backup jobs, replication jobs or HA."
+		    ." Related ACLs and Firewall entries will *always* be removed.",
+		default => 0,
 		optional => 1,
 	    },
 	},
