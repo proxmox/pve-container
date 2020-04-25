@@ -831,9 +831,10 @@ our $cmddef = {
     set => [ 'PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
 
     resize => [ "PVE::API2::LXC", 'resize_vm', ['vmid', 'disk', 'size'], { node => $nodename } ],
-    
+
     create => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit ],
     restore => [ 'PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename, restore => 1 }, $upid_exit ],
+    destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], { node => $nodename }, $upid_exit ],
 
     start => [ 'PVE::API2::LXC::Status', 'vm_start', ['vmid'], { node => $nodename }, $upid_exit],
     suspend => [ 'PVE::API2::LXC::Status', 'vm_suspend', ['vmid'], { node => $nodename }, $upid_exit],
@@ -845,7 +846,13 @@ our $cmddef = {
     clone => [ "PVE::API2::LXC", 'clone_vm', ['vmid', 'newid'], { node => $nodename }, $upid_exit ],
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
     move_volume => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage'], { node => $nodename }, $upid_exit ],
-    
+
+    snapshot => [ "PVE::API2::LXC::Snapshot", 'snapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
+    delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
+    listsnapshot => [ "PVE::API2::LXC::Snapshot", 'list', ['vmid'], { node => $nodename }, \&PVE::GuestHelpers::print_snapshot_tree ],
+    rollback => [ "PVE::API2::LXC::Snapshot", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
+    template => [ "PVE::API2::LXC", 'template', ['vmid'], { node => $nodename }],
+
     status => [ __PACKAGE__, 'status', ['vmid']],
     console => [ __PACKAGE__, 'console', ['vmid']],
     enter => [ __PACKAGE__, 'enter', ['vmid']],
@@ -860,25 +867,8 @@ our $cmddef = {
 
     df => [ __PACKAGE__, 'df', ['vmid']],
     rescan  => [ __PACKAGE__, 'rescan', []],
-
-    destroy => [ 'PVE::API2::LXC', 'destroy_vm', ['vmid'], 
-		 { node => $nodename }, $upid_exit ],
-
-    snapshot => [ "PVE::API2::LXC::Snapshot", 'snapshot', ['vmid', 'snapname'],
-		  { node => $nodename } , $upid_exit ],
-
-    delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
-
-    listsnapshot => [ "PVE::API2::LXC::Snapshot", 'list', ['vmid'], { node => $nodename }, \&PVE::GuestHelpers::print_snapshot_tree ],
-
-    rollback => [ "PVE::API2::LXC::Snapshot", 'rollback', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
-
-    template => [ "PVE::API2::LXC", 'template', ['vmid'], { node => $nodename }],
-
     cpusets => [ __PACKAGE__, 'cpusets', []],
-
     fstrim => [ __PACKAGE__, 'fstrim', ['vmid']],
-
 };
 
 
