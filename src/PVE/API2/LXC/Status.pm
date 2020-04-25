@@ -224,11 +224,8 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
 	my $authuser = $rpcenv->get_user();
-
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
 
 	my $skiplock = extract_param($param, 'skiplock');

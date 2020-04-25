@@ -619,6 +619,12 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
+	    force => {
+		type => 'boolean',
+		description => "Force destroy, even if running.",
+		default => 0,
+		optional => 1,
+	    },
 	    purge => {
 		type => 'boolean',
 		description => "Remove container from all related configurations."
@@ -656,15 +662,22 @@ __PACKAGE__->register_method({
 	}
 
 	my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
-
-	die $running_error_msg if PVE::LXC::check_running($vmid); # check early
+	die $running_error_msg if !$param->{force} && PVE::LXC::check_running($vmid); # check early
 
 	my $code = sub {
 	    # reload config after lock
 	    $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($conf);
 
-	    die $running_error_msg if PVE::LXC::check_running($vmid);
+	    if (PVE::LXC::check_running($vmid)) {
+		die $running_error_msg if !$param->{force};
+		warn "forced to stop CT $vmid before destroying!\n";
+		if (!$ha_managed) {
+		    PVE::LXC::vm_stop($vmid, 1);
+		} else {
+		    run_command(['ha-manager', 'crm-command', 'stop',  "ct:$vmid", '120']);
+		}
+	    }
 
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf, { lock => 'destroyed' });
 
