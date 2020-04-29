@@ -1,3 +1,18 @@
+pve-container (3.1-3) pve; urgency=medium
+
+  * add 'force' to destroy-vm to allow destroying running containers
+
+  * whitelist lxc.cgroup2.* raw keys
+
+  * consider lxc.cgroup2.cpuset.cpus as an explicit cpuset to not try to
+    override it with a cgroupv1 entry
+
+  * support cpuset cgroupv2 controller for writing lxc configs
+
+  * improve cgroup controller version discovery
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 29 Apr 2020 11:22:13 +0200
+
 pve-container (3.1-2) pve; urgency=medium
 
   * Use foreach_volume instead of foreach_mountpoint-variants
