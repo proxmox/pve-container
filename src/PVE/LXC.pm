@@ -20,8 +20,8 @@ use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw(
-    dir_glob_foreach file_get_contents file_set_contents lock_file
-    lock_file_full AT_FDCWD O_PATH $IPV4RE $IPV6RE
+    dir_glob_foreach file_get_contents file_set_contents
+    AT_FDCWD O_PATH $IPV4RE $IPV6RE
 );
 use PVE::CpuSet;
 use PVE::Network;
