@@ -1161,17 +1161,11 @@ sub vmconfig_hotplug_pending {
 	$errors->{$opt} = "unable to hotplug $opt: $msg";
     };
 
-    my $changes;
     foreach my $opt (sort keys %{$conf->{pending}}) { # add/change
 	next if $selection && !$selection->{$opt};
 	if ($LXC_FASTPLUG_OPTIONS->{$opt}) {
 	    $conf->{$opt} = delete $conf->{pending}->{$opt};
-	    $changes = 1;
 	}
-    }
-
-    if ($changes) {
-	$class->write_config($vmid, $conf);
     }
 
     my $cgroup = PVE::LXC::CGroup->new($vmid);
@@ -1258,8 +1252,6 @@ sub vmconfig_hotplug_pending {
 	    delete $conf->{pending}->{$opt};
 	}
     }
-
-    $class->write_config($vmid, $conf);
 }
 
 sub vmconfig_apply_pending {
@@ -1316,8 +1308,6 @@ sub vmconfig_apply_pending {
 	    $conf->{$opt} = delete $conf->{pending}->{$opt};
 	}
     }
-
-    $class->write_config($vmid, $conf);
 }
 
 my $rescan_volume = sub {

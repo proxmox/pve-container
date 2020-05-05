@@ -204,6 +204,7 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $errors = PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete, \@revert);
+	    PVE::LXC::Config->write_config($vmid, $conf);
 	    $conf = PVE::LXC::Config->load_config($vmid);
 
 	    PVE::LXC::update_lxc_config($vmid, $conf);

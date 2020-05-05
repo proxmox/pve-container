@@ -2173,6 +2173,7 @@ sub vm_start {
     if (scalar(keys %{$conf->{pending}})) {
 	my $storecfg = PVE::Storage::config();
 	PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storecfg);
+	PVE::LXC::Config->write_config($vmid, $conf);
 	$conf = PVE::LXC::Config->load_config($vmid); # update/reload
     }
 
