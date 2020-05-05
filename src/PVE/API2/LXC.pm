@@ -646,20 +646,28 @@ __PACKAGE__->register_method({
 	my $vmid = $param->{vmid};
 
 	# test if container exists
+
 	my $conf = PVE::LXC::Config->load_config($vmid);
-	my $storage_cfg = cfs_read_file("storage.cfg");
-	PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid");
+	my $early_checks = sub {
+	    my ($conf) = @_;
+	    PVE::LXC::Config->check_protection($conf, "can't remove CT $vmid");
+	    PVE::LXC::Config->check_lock($conf);
 
-	my $ha_managed = PVE::HA::Config::service_is_configured("ct:$vmid");
+	    my $ha_managed = PVE::HA::Config::service_is_configured("ct:$vmid");
 
-	if (!$param->{purge}) {
-	    die "unable to remove CT $vmid - used in HA resources and purge parameter not set.\n"
-		if $ha_managed;
+	    if (!$param->{purge}) {
+		die "unable to remove CT $vmid - used in HA resources and purge parameter not set.\n"
+		    if $ha_managed;
 
-	    # do not allow destroy if there are replication jobs without purge
-	    my $repl_conf = PVE::ReplicationConfig->new();
-	    $repl_conf->check_for_existing_jobs($vmid);
-	}
+		# do not allow destroy if there are replication jobs without purge
+		my $repl_conf = PVE::ReplicationConfig->new();
+		$repl_conf->check_for_existing_jobs($vmid);
+	    }
+
+	    return $ha_managed;
+	};
+
+	$early_checks->($conf);
 
 	my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
 	die $running_error_msg if !$param->{force} && PVE::LXC::check_running($vmid); # check early
@@ -667,7 +675,7 @@ __PACKAGE__->register_method({
 	my $code = sub {
 	    # reload config after lock
 	    $conf = PVE::LXC::Config->load_config($vmid);
-	    PVE::LXC::Config->check_lock($conf);
+	    my $ha_managed = $early_checks->($conf);
 
 	    if (PVE::LXC::check_running($vmid)) {
 		die $running_error_msg if !$param->{force};
@@ -679,6 +687,7 @@ __PACKAGE__->register_method({
 		}
 	    }
 
+	    my $storage_cfg = cfs_read_file("storage.cfg");
 	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf, { lock => 'destroyed' });
 
 	    PVE::AccessControl::remove_vm_access($vmid);
