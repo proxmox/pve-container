@@ -303,7 +303,7 @@ sub assemble {
     my $firewall ="/etc/pve/firewall/$vmid.fw";
     my $fwconftmp = "$tmpdir/etc/vzdump/pct.fw";
 
-    if ($opts->{scfg}->{type} eq 'pbs') {
+    if ($self->{vzdump}->{opts}->{pbs}) {
 	# fixme: do not store pct.conf and fw.conf into $tmpdir
 	if (-e  $firewall) {
 	    PVE::Tools::file_copy($firewall, $fwconftmp);
@@ -356,7 +356,7 @@ sub archive {
 
     my $userns_cmd = $task->{userns_cmd};
 
-    if ($opts->{scfg}->{type} eq 'pbs') {
+    if ($self->{vzdump}->{opts}->{pbs}) {
 
 	my $rootdir = $default_mount_point;
 	my $param = [];
