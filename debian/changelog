@@ -1,11 +1,12 @@
-pve-container (3.1-4) pve; urgency=medium
+pve-container (3.1-5) pve; urgency=medium
 
-  * Fix: #2124 add zstd
+  * fix: #2124 add zstd
 
   * create_vm: avoid premature write_config caused by update_pct_config
 
   * api/destroy: repeat early checks after locking
 
+  * vzdump: use new pbs option
 
  -- Proxmox Support Team <support@proxmox.com>  Tue, 5 May 2020 11:23:42 +0200
 
