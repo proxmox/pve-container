@@ -1,3 +1,10 @@
+pve-container (3.1-6) pve; urgency=medium
+
+  * avoid using LXC CLI tools for CT freeze/unfreeze and improve support for
+    both cgroups v1 and v2 freezer
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 15 May 2020 16:21:19 +0200
+
 pve-container (3.1-5) pve; urgency=medium
 
   * fix: #2124 add zstd
