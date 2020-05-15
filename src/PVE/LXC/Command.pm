@@ -16,6 +16,8 @@ use base 'Exporter';
 
 use constant {
     LXC_CMD_GET_CGROUP => 6,
+    LXC_CMD_FREEZE => 15,
+    LXC_CMD_UNFREEZE => 16,
     LXC_CMD_GET_LIMITING_CGROUP => 19,
 };
 
@@ -171,6 +173,26 @@ sub get_cgroup_path($;$$) {
 
     # data is a zero-terminated string:
     return unpack('Z*', $data);
+}
+
+# Send a freeze a container. This only makes sense on a pure cgroupv2 host.
+sub freeze($$) {
+    my ($vmid, $timeout) = @_;
+
+    my ($res, undef) =
+	simple_command($vmid, LXC_CMD_FREEZE, pack('l!', $timeout));
+
+    return $res;
+}
+
+# Send an unfreeze a container. This only makes sense on a pure cgroupv2 host.
+sub unfreeze($$) {
+    my ($vmid, $timeout) = @_;
+
+    my ($res, undef) =
+	simple_command($vmid, LXC_CMD_UNFREEZE, pack('l!', $timeout));
+
+    return $res;
 }
 
 1;
