@@ -61,8 +61,6 @@ sub new {
 
     PVE::VZDump::check_bin('lxc-stop');
     PVE::VZDump::check_bin('lxc-start');
-    PVE::VZDump::check_bin('lxc-freeze');
-    PVE::VZDump::check_bin('lxc-unfreeze');
 
     my $self = bless {};
 
@@ -274,13 +272,13 @@ sub start_vm {
 sub suspend_vm {
     my ($self, $task, $vmid) = @_;
 
-    $self->cmd ("lxc-freeze -n $vmid");
+    PVE::LXC::freeze_thaw($vmid, 1);
 }
 
 sub resume_vm {
     my ($self, $task, $vmid) = @_;
 
-    $self->cmd ("lxc-unfreeze -n $vmid");
+    PVE::LXC::freeze_thaw($vmid, 0);
 }
 
 sub assemble {

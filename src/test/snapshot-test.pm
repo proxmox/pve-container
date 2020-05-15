@@ -122,15 +122,17 @@ sub mocked_vm_stop {
     }
 }
 
+sub mocked_freeze_thaw {
+    my ($vmid, $freeze) = @_;
+    return () if $freeze_possible;
+    die "lxc-[un]freeze disabled\n";
+}
+
 sub mocked_run_command {
     my ($cmd, %param) = @_;
     my $cmdstring;
     if (my $ref = ref($cmd)) {
 	$cmdstring = PVE::Tools::cmd2string($cmd);
-	if ($cmdstring =~ m/.*\/lxc-(un)?freeze.*/) {
-	    return 1 if $freeze_possible;
-	    die "lxc-[un]freeze disabled\n";
-	}
 	if ($cmdstring =~ m/.*\/lxc-stop.*--kill.*/) {
 	    mocked_vm_stop();
 	}
@@ -280,6 +282,7 @@ my $lxc_module = new Test::MockModule('PVE::LXC');
 $lxc_module->mock('sync_container_namespace', sub { return; });
 $lxc_module->mock('check_running', \&mocked_check_running);
 $lxc_module->mock('vm_stop', \&mocked_vm_stop);
+$lxc_module->mock('freeze_thaw', \&mocked_freeze_thaw);
 
 my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
 $lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });
