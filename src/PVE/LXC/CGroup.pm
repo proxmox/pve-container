@@ -202,13 +202,13 @@ my sub get_subdir {
 #
 # Returns either just the path, or the path and cgroup version as a tuple.
 sub get_path {
-    my ($self, $controller) = @_;
+    my ($self, $controller, $limiting) = @_;
 
     # Find the controller before querying the lxc monitor via a socket:
     my ($cgpath, $ver) = find_cgroup_controller($controller)
 	or return undef;
 
-    my $path = get_subdir($self, $controller)
+    my $path = get_subdir($self, $controller, $limiting)
 	or return undef;
 
     $path = "$cgpath/$path";
@@ -219,11 +219,11 @@ sub get_path {
 #
 # Returns the same as `get_path`.
 sub get_any_path {
-    my ($self, @controllers) = @_;
+    my ($self, $limiting, @controllers) = @_;
 
     my ($path, $ver);
     for my $c (@controllers) {
-	($path, $ver) = $self->get_path($c);
+	($path, $ver) = $self->get_path($c, $limiting);
 	last if defined $path;
     }
     return wantarray ? ($path, $ver) : $path;
@@ -277,7 +277,7 @@ sub get_io_stats {
     };
 
     # With cgroupv1 we have a 'blkio' controller, with cgroupv2 it's just 'io':
-    my ($path, $ver) = $self->get_any_path('io', 'blkio');
+    my ($path, $ver) = $self->get_any_path(1, 'io', 'blkio');
     if (!defined($path)) {
 	# container not running
 	return undef;
@@ -326,7 +326,7 @@ sub get_cpu_stat {
 	stime => 0,
     };
 
-    my ($path, $ver) = $self->get_any_path('cpuacct', 'cpu');
+    my ($path, $ver) = $self->get_any_path(1, 'cpuacct', 'cpu');
     if (!defined($path)) {
 	# container not running
 	return undef;
@@ -363,7 +363,7 @@ sub get_memory_stat {
 	swap => 0,
     };
 
-    my ($path, $ver) = $self->get_path('memory');
+    my ($path, $ver) = $self->get_path('memory', 1);
     if (!defined($path)) {
 	# container most likely isn't running
 	return undef;
@@ -400,7 +400,7 @@ sub get_memory_stat {
 sub change_memory_limit {
     my ($self, $mem_bytes, $swap_bytes) = @_;
 
-    my ($path, $ver) = $self->get_path('memory');
+    my ($path, $ver) = $self->get_path('memory', 1);
     if (!defined($path)) {
 	die "trying to change memory cgroup values: container not running\n";
     } elsif ($ver == 2) {
@@ -449,7 +449,7 @@ sub change_cpu_quota {
 
     die "quota without period not allowed\n" if !defined($period) && defined($quota);
 
-    my ($path, $ver) = $self->get_path('memory');
+    my ($path, $ver) = $self->get_path('cpu', 1);
     if (!defined($path)) {
 	die "trying to change cpu quota cgroup values: container not running\n";
     } elsif ($ver == 2) {
@@ -491,7 +491,7 @@ sub change_cpu_quota {
 sub change_cpu_shares {
     my ($self, $shares, $cgroupv1_default) = @_;
 
-    my ($path, $ver) = $self->get_path('memory');
+    my ($path, $ver) = $self->get_path('cpu', 1);
     if (!defined($path)) {
 	die "trying to change cpu shares/weight cgroup values: container not running\n";
     } elsif ($ver == 2) {
@@ -499,7 +499,7 @@ sub change_cpu_shares {
 	$shares //= 100;
 	die "cpu weight (shares) must be in range [1, 10000]\n" if $shares < 1 || $shares > 10000;
 	PVE::ProcFSTools::write_proc_entry("$path/cpu.weight", $shares);
-    } elsif (defined(my $path = $self->get_path('cpu'))) {
+    } elsif ($ver == 1) {
 	$shares //= 100;
 	PVE::ProcFSTools::write_proc_entry("$path/cpu.shares", $shares // $cgroupv1_default);
     } else {
