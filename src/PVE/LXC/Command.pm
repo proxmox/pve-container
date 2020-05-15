@@ -169,6 +169,17 @@ sub get_cgroup_path($;$$) {
 	$limiting ? LXC_CMD_GET_LIMITING_CGROUP : LXC_CMD_GET_CGROUP,
 	defined($subsystem) && pack('Z*', $subsystem),
     );
+    if (!defined($res) && defined($subsystem)) {
+	# If the container was started with an older lxc the above command
+	# failed as it does not have an LXC_CMD_GET_LIMITING_CGROUP command
+	# yet. Instead, we had this as an additional parameter in the subsystem
+	# name.
+	($res, $data) = simple_command(
+	    $vmid,
+	    LXC_CMD_GET_CGROUP,
+	    pack('Z*C', $subsystem, 1),
+	);
+    }
     return undef if !defined $res;
 
     # data is a zero-terminated string:
