@@ -2376,4 +2376,12 @@ sub get_lxc_version() {
     return $version->@*;
 }
 
+sub freeze_thaw($$) {
+    my ($vmid, $freeze) = @_;
+
+    my $cgroup = PVE::LXC::CGroup->new($vmid);
+
+    $cgroup->freeze_thaw($freeze);
+}
+
 1;
