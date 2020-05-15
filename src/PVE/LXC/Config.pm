@@ -103,10 +103,10 @@ sub __snapshot_freeze {
     my ($class, $vmid, $unfreeze) = @_;
 
     if ($unfreeze) {
-	eval { PVE::LXC::freeze_thaw($vmid, 0); };
+	eval { PVE::LXC::thaw($vmid); };
 	warn $@ if $@;
     } else {
-	PVE::LXC::freeze_thaw($vmid, 1);
+	PVE::LXC::freeze($vmid);
 	PVE::LXC::sync_container_namespace($vmid);
     }
 }

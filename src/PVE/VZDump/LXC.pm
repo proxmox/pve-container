@@ -272,13 +272,13 @@ sub start_vm {
 sub suspend_vm {
     my ($self, $task, $vmid) = @_;
 
-    PVE::LXC::freeze_thaw($vmid, 1);
+    PVE::LXC::freeze($vmid);
 }
 
 sub resume_vm {
     my ($self, $task, $vmid) = @_;
 
-    PVE::LXC::freeze_thaw($vmid, 0);
+    PVE::LXC::thaw($vmid);
 }
 
 sub assemble {

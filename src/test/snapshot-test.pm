@@ -122,10 +122,10 @@ sub mocked_vm_stop {
     }
 }
 
-sub mocked_freeze_thaw {
-    my ($vmid, $freeze) = @_;
+sub mocked_freeze{
+    my ($vmid) = @_;
     return () if $freeze_possible;
-    die "lxc-[un]freeze disabled\n";
+    die "freeze disabled\n";
 }
 
 sub mocked_run_command {
@@ -282,7 +282,8 @@ my $lxc_module = new Test::MockModule('PVE::LXC');
 $lxc_module->mock('sync_container_namespace', sub { return; });
 $lxc_module->mock('check_running', \&mocked_check_running);
 $lxc_module->mock('vm_stop', \&mocked_vm_stop);
-$lxc_module->mock('freeze_thaw', \&mocked_freeze_thaw);
+$lxc_module->mock('freeze', \&mocked_freeze);
+$lxc_module->mock('thaw', \&mocked_freeze); # re-use, as for now we don't care
 
 my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
 $lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });
@@ -412,7 +413,7 @@ testcase_create("201", "test", 0, "test comment", "volume snapshot disabled\n\n"
 
 printf("Expected error for snapshot_create with broken lxc-freeze\n");
 $freeze_possible = 0;
-testcase_create("202", "test", 0, "test comment", "lxc-[un]freeze disabled\n\n");
+testcase_create("202", "test", 0, "test comment", "freeze disabled\n\n");
 $freeze_possible = 1;
 
 printf("Expected error for snapshot_create when mp volume snapshot is not possible\n");
