@@ -12,6 +12,8 @@ package PVE::LXC::CGroup;
 use strict;
 use warnings;
 
+use IO::File;
+use IO::Select;
 use POSIX qw();
 
 use PVE::ProcFSTools;
@@ -508,6 +510,74 @@ sub change_cpu_shares {
 
     # return a truth value
     return 1;
+}
+
+my sub v1_freeze_thaw {
+    my ($self, $controller_path, $freeze) = @_;
+    my $path = get_subdir($self, 'freezer', 1)
+	or die "trying to freeze container: container not running\n";
+    $path = "$controller_path/$path/freezer.state";
+
+    my $data = $freeze ? 'FROZEN' : 'THAWED';
+    PVE::ProcFSTools::write_proc_entry($path, $data);
+
+    # Here we just poll the freezer.state once per second.
+    while (1) {
+	my $state = file_get_contents($path);
+	chomp $state;
+	last if $state eq $data;
+    }
+}
+
+my sub v2_freeze_thaw {
+    my ($self, $controller_path, $freeze) = @_;
+    my $path = get_subdir($self, undef, 1)
+	or die "trying to freeze container: container not running\n";
+    $path = "$controller_path/$path";
+
+    my $desired_state = $freeze ? 1 : 0;
+
+    # cgroupv2 supports poll events on cgroup.events which contains the frozen
+    # state.
+    my $fh = IO::File->new("$path/cgroup.events", 'r')
+	or die "failed to open $path/cgroup.events file: $!\n";
+    my $select = IO::Select->new();
+    $select->add($fh);
+
+    PVE::ProcFSTools::write_proc_entry("$path/cgroup.freeze", $desired_state);
+    while (1) {
+	my @handles = $select->can_read();
+	next if !@handles;
+	open(my $dup, '<&', $fh)
+	    or die "failed to reopen cgroup.events file: $!\n";
+	seek($dup, 0, 0)
+	    or die "failed to rewind cgroup.events file: $!\n";
+	my $data = do {
+	    local $/ = undef;
+	    <$dup>
+	};
+	$data = parse_flat_keyed_file($data);
+	last if $data->{frozen} == $desired_state;
+    }
+}
+
+# Freeze or unfreeze a container.
+#
+# This will freeze the container at its outer (limiting) cgroup path. We use
+# this instead of `lxc-freeze` as `lxc-freeze` from lxc4 will not be able to
+# fetch the cgroup path from contaienrs still running on lxc3.
+sub freeze_thaw {
+    my ($self, $freeze) = @_;
+
+    my $controller_path = find_cgroup_controller('freezer');
+    if (defined($controller_path)) {
+	return v1_freeze_thaw($self, $controller_path, $freeze);
+    } else {
+	# cgroupv2 always has a freezer, there can be both cgv1 and cgv2
+	# freezers, but we'll prefer v1 when it's available as that's what lxc
+	# does as well...
+	return v2_freeze_thaw($self, cgroupv2_base_path(), $freeze);
+    }
 }
 
 1;
