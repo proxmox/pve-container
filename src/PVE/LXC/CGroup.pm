@@ -546,18 +546,16 @@ my sub v2_freeze_thaw {
 
     PVE::ProcFSTools::write_proc_entry("$path/cgroup.freeze", $desired_state);
     while (1) {
-	my @handles = $select->can_read();
-	next if !@handles;
-	open(my $dup, '<&', $fh)
-	    or die "failed to reopen cgroup.events file: $!\n";
-	seek($dup, 0, 0)
-	    or die "failed to rewind cgroup.events file: $!\n";
 	my $data = do {
 	    local $/ = undef;
-	    <$dup>
+	    <$fh>
 	};
 	$data = parse_flat_keyed_file($data);
 	last if $data->{frozen} == $desired_state;
+	my @handles = $select->has_exception();
+	next if !@handles;
+	seek($fh, 0, 0)
+	    or die "failed to rewind cgroup.events file: $!\n";
     }
 }
 
