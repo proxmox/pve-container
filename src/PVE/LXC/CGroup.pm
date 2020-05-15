@@ -110,6 +110,18 @@ sub cgroup_mode() {
     return $CGROUP_MODE;
 }
 
+my $CGROUPV2_PATH = undef;
+sub cgroupv2_base_path() {
+    if (!defined($CGROUPV2_PATH)) {
+	if (cgroup_mode() == 2) {
+	    $CGROUPV2_PATH = '/sys/fs/cgroup';
+	} else {
+	    $CGROUPV2_PATH = '/sys/fs/cgroup/unified';
+	}
+    }
+    return $CGROUPV2_PATH;
+}
+
 # Find a cgroup controller and return its path and version.
 #
 # LXC initializes the unified hierarchy first, so if a controller is
@@ -122,12 +134,7 @@ sub find_cgroup_controller($) {
     my ($v1, $v2) = get_cgroup_controllers();
 
     if (!defined($controller) || $v2->{$controller}) {
-	my $path;
-	if (cgroup_mode() == 2) {
-	    $path = '/sys/fs/cgroup';
-	} else {
-	    $path = '/sys/fs/cgroup/unified';
-	}
+	my $path = cgroupv2_base_path();
 	return wantarray ? ($path, 2) : $path;
     }
 
