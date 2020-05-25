@@ -109,10 +109,9 @@ sub template_fixup {
 	my $data = $self->ct_file_get_contents($filename);
 	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
 	$self->ct_file_set_contents($filename, $data);
-	
-	# edit /etc/securetty (enable login on console)
-	$self->setup_securetty($conf);
     }
+    # edit /etc/securetty (enable login on console)
+    $self->setup_securetty($conf);
 }
 
 sub setup_init {
