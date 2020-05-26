@@ -110,7 +110,7 @@ sub template_fixup {
 	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
 	$self->ct_file_set_contents($filename, $data);
     }
-    # edit /etc/securetty (enable login on console)
+    # always call so root can login, if /etc/securetty doesn't exists it's a no-op
     $self->setup_securetty($conf);
 }
 
