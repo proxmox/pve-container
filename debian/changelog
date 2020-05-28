@@ -1,3 +1,10 @@
+pve-container (3.1-7) pve; urgency=medium
+
+  * fix #2655: setup securetty during template fixup also for centos version
+     7 and newer
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 28 May 2020 15:29:13 +0200
+
 pve-container (3.1-6) pve; urgency=medium
 
   * avoid using LXC CLI tools for CT freeze/unfreeze and improve support for
