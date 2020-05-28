@@ -70,8 +70,12 @@ my $autodetect_type = sub {
 	return "alpine";
     } elsif (-f  "$rootdir/etc/gentoo-release") {
 	return "gentoo";
+    } elsif (-f "$rootdir/etc/os-release") {
+	die "unable to detect OS distribution\n";
+    } else {
+	warn "/etc/os-release file not found and autodetection failed, falling back to 'unmanaged'\n";
+	return "unmanaged";
     }
-    die "unable to detect OS distribution\n";
 };
 
 sub new {
@@ -92,6 +96,11 @@ sub new {
 
 	warn "got unexpected ostype ($type != $expected_type)\n"
 	    if $type ne $expected_type;
+    }
+
+    if ($type eq 'unmanaged') {
+	$conf->{ostype} = $type;
+	return $self;
     }
 
     my $plugin_class = $plugins->{$type} ||
