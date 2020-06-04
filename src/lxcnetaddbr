@@ -53,10 +53,6 @@ die "missing bridge configuration" if !$bridge;
 
 if (-d "/sys/class/net/$iface") {
 
-    if ($have_sdn) {
-       ($bridge, undef) = PVE::Network::SDN::Zones::get_bridge_vlan($bridge);
-    }
-
     my $bridgemtu = PVE::Tools::file_read_firstline("/sys/class/net/$bridge/mtu");
     die "bridge '$bridge' does not exist\n" if !$bridgemtu;
     #avoid insecure dependency;
