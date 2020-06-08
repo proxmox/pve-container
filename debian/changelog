@@ -1,3 +1,12 @@
+pve-container (3.1-8) pve; urgency=medium
+
+  * lxc: fall back to unmanaged when no OS detected and no /etc/os-
+    release file found
+
+  * adapt network create hook to new pve-network version, if installed
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 08 Jun 2020 17:39:27 +0200
+
 pve-container (3.1-7) pve; urgency=medium
 
   * fix #2655: setup securetty during template fixup also for centos version
