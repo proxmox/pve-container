@@ -266,7 +266,8 @@ sub stop_vm {
 sub start_vm {
     my ($self, $task, $vmid) = @_;
 
-    $self->cmd(['systemctl', 'start', "pve-container\@$vmid"]);
+    my $conf = PVE::LXC::Config->load_config($vmid);
+    PVE::LXC::vm_start($vmid, $conf);
 }
 
 sub suspend_vm {
