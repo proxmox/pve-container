@@ -118,30 +118,37 @@ sub prepare {
     $task->{rootgid} = $rootgid;
 
     my $volids = $task->{volids} = [];
-    PVE::LXC::Config->foreach_volume($conf, sub {
-	my ($name, $data) = @_;
-	my $volid = $data->{volume};
-	my $mount = $data->{mp};
-	my $type = $data->{type};
 
-	return if !$volid || !$mount;
+    my $backup_volumes = PVE::LXC::Config->get_backup_volumes($conf);
 
-	if (!PVE::LXC::Config->mountpoint_backup_enabled($name, $data)) {
+    foreach my $current_volume (@{$backup_volumes}) {
+	my $name = $current_volume->{key};
+	my $included = $current_volume->{included};
+	my $volume_config = $current_volume->{volume_config};
+
+	my $volume = $volume_config->{volume};
+	my $mount = $volume_config->{mp};
+	my $type = $volume_config->{type};
+
+	next if !$volume || !$mount;
+
+	if (!$included) {
 	    push @$exclude_dirs, $mount;
 	    $self->loginfo("excluding $type mount point $name ('$mount') from backup");
-	    return;
+	    next;
 	}
 
-	$data->{name} = $name;
+	$volume_config->{name} = $name;
 
 	# immutable raw base images need RO mount
-	if ($conf->{template} && !defined($data->{ro})) {
-	    $data->{ro} = 1;
+	if ($conf->{template} && !defined($volume_config->{ro})) {
+	    $volume_config->{ro} = 1;
 	}
-	push @$disks, $data;
-	push @$volids, $volid
-	    if $type eq 'volume';
-    });
+
+	$self->loginfo("including mount point $name ('$mount') in backup");
+	push @$disks, $volume_config;
+	push @$volids, $volume if $included;
+    }
 
     if ($mode eq 'snapshot') {
 	if (!PVE::LXC::Config->has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {

@@ -1549,4 +1549,28 @@ sub get_replicatable_volumes {
     return $volhash;
 }
 
+sub get_backup_volumes {
+    my ($class, $conf) = @_;
+
+    my $return_volumes = [];
+
+    my $test_mountpoint = sub {
+	my ($key, $volume) = @_;
+
+	my ($included, $reason) = $class->mountpoint_backup_enabled($key, $volume);
+
+
+	push @$return_volumes, {
+	    key => $key,
+	    included => $included,
+	    reason => $reason,
+	    volume_config => $volume,
+	};
+    };
+
+    PVE::LXC::Config->foreach_volume($conf, $test_mountpoint);
+
+    return $return_volumes;
+}
+
 1;
