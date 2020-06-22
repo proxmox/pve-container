@@ -49,13 +49,23 @@ sub cfs_config_path {
 sub mountpoint_backup_enabled {
     my ($class, $mp_key, $mountpoint) = @_;
 
-    return 1 if $mp_key eq 'rootfs';
+    my $enabled;
+    my $reason;
 
-    return 0 if $mountpoint->{type} ne 'volume';
-
-    return 1 if $mountpoint->{backup};
-
-    return 0;
+    if ($mp_key eq 'rootfs') {
+	$enabled = 1;
+	$reason = 'rootfs';
+    } elsif ($mountpoint->{type} ne 'volume') {
+	$enabled = 0;
+	$reason = 'not a volume';
+    } elsif ($mountpoint->{backup}) {
+	$enabled = 1;
+	$reason = 'enabled';
+    } else {
+	$enabled = 0;
+	$reason = 'disabled';
+    }
+    return wantarray ? ($enabled, $reason) : $enabled;
 }
 
 sub has_feature {
