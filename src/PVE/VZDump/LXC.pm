@@ -134,7 +134,7 @@ sub prepare {
 	if (!$included) {
 	    my $type = $volume_config->{type};
 	    push @$exclude_dirs, $mount;
-	    $self->loginfo("excluding $type mount point $name ('$mount') from backup");
+	    $self->loginfo("excluding $type mount point $name ('$mount') from backup ($volume->{reason})");
 	    next;
 	}
 
