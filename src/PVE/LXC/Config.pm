@@ -1559,7 +1559,6 @@ sub get_backup_volumes {
 
 	my ($included, $reason) = $class->mountpoint_backup_enabled($key, $volume);
 
-
 	push @$return_volumes, {
 	    key => $key,
 	    included => $included,

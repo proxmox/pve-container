@@ -121,18 +121,18 @@ sub prepare {
 
     my $backup_volumes = PVE::LXC::Config->get_backup_volumes($conf);
 
-    foreach my $current_volume (@{$backup_volumes}) {
-	my $name = $current_volume->{key};
-	my $included = $current_volume->{included};
-	my $volume_config = $current_volume->{volume_config};
+    for my $volume (@{$backup_volumes}) {
+	my $name = $volume->{key};
+	my $included = $volume->{included};
+	my $volume_config = $volume->{volume_config};
 
-	my $volume = $volume_config->{volume};
+	my $volid = $volume_config->{volume};
 	my $mount = $volume_config->{mp};
-	my $type = $volume_config->{type};
 
-	next if !$volume || !$mount;
+	next if !$volid || !$mount;
 
 	if (!$included) {
+	    my $type = $volume_config->{type};
 	    push @$exclude_dirs, $mount;
 	    $self->loginfo("excluding $type mount point $name ('$mount') from backup");
 	    next;
@@ -147,7 +147,7 @@ sub prepare {
 
 	$self->loginfo("including mount point $name ('$mount') in backup");
 	push @$disks, $volume_config;
-	push @$volids, $volume if $included;
+	push @$volids, $volid if $included;
     }
 
     if ($mode eq 'snapshot') {
