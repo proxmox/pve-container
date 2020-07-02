@@ -1262,6 +1262,10 @@ sub vmconfig_hotplug_pending {
 		    die "skip\n";
 		}
 
+		if (exists($conf->{$opt})) {
+		    die "skip\n"; # don't try to hotplug over existing mp
+		}
+
 		$class->apply_pending_mountpoint($vmid, $conf, $opt, $storecfg, 1);
 		# apply_pending_mountpoint modifies the value if it creates a new disk
 		$value = $conf->{pending}->{$opt};
