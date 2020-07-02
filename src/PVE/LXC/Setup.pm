@@ -5,6 +5,8 @@ use warnings;
 use POSIX;
 use PVE::Tools;
 
+use Cwd 'abs_path';
+
 use PVE::LXC::Setup::Debian;
 use PVE::LXC::Setup::Ubuntu;
 use PVE::LXC::Setup::CentOS;
@@ -112,6 +114,7 @@ sub new {
 
     # Cache some host files we need access to:
     $plugin->{host_resolv_conf} = PVE::INotify::read_file('resolvconf');
+    $plugin->{host_localtime} = abs_path('/etc/localtime');
 
     # pass on user namespace information:
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
@@ -210,6 +213,16 @@ sub set_dns {
 
     my $code = sub {
 	$self->{plugin}->set_dns($self->{conf});
+    };
+    $self->protected_call($code);
+}
+
+sub set_timezone {
+    my ($self) = @_;
+
+    return if !$self->{plugin}; # unmanaged
+    my $code = sub {
+	$self->{plugin}->set_timezone($self->{conf});
     };
     $self->protected_call($code);
 }

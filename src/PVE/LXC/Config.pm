@@ -454,6 +454,11 @@ my $confdesc = {
 	type => 'string', format => 'address-list',
 	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
     },
+    timezone => {
+	optional => 1,
+	type => 'string', format => 'pve-ct-timezone',
+	description => "Time zone to use in the container. If option isn't set, then nothing will be done. Can be set to 'host' to match the host time zone, or an arbitrary time zone option from /usr/share/zoneinfo/zone.tab",
+    },
     rootfs => get_standard_option('pve-ct-rootfs'),
     parent => {
 	optional => 1,
@@ -714,6 +719,15 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
 	type => 'string', format => $netconf_desc,
 	description => "Specifies network interfaces for the container.",
     };
+}
+
+PVE::JSONSchema::register_format('pve-ct-timezone', \&verify_ct_timezone);
+sub verify_ct_timezone {
+    my ($timezone, $noerr) = @_;
+
+    return if $timezone eq 'host'; # using host settings
+
+    PVE::JSONSchema::pve_verify_timezone($timezone);
 }
 
 PVE::JSONSchema::register_format('pve-lxc-mp-string', \&verify_lxc_mp_string);

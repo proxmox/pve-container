@@ -3,6 +3,7 @@ package PVE::LXC::Setup::Base;
 use strict;
 use warnings;
 
+use Cwd 'abs_path';
 use File::stat;
 use Digest::SHA;
 use IO::File;
@@ -451,6 +452,30 @@ my $randomize_crontab = sub {
    }
 };
 
+sub set_timezone {
+    my ($self, $conf) = @_;
+
+    my $zoneinfo = $conf->{timezone};
+
+    return if !defined($zoneinfo);
+
+    my $tz_path = "/usr/share/zoneinfo/$zoneinfo";
+
+    if ($zoneinfo eq 'host') {
+	$tz_path = $self->{host_localtime};
+    }
+
+    return if abs_path('/etc/localtime') eq $tz_path;
+
+    if ($self->ct_file_exists($tz_path)) {
+	my $tmpfile = "localtime.$$.new.tmpfile";
+	$self->ct_symlink($tz_path, $tmpfile);
+	$self->ct_rename($tmpfile, "/etc/localtime");
+    } else {
+	warn "container does not have $tz_path, timezone can not be modified\n";
+    }
+}
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
@@ -458,6 +483,7 @@ sub pre_start_hook {
     $self->setup_network($conf);
     $self->set_hostname($conf);
     $self->set_dns($conf);
+    $self->set_timezone($conf);
 
     # fixme: what else ?
 }
@@ -466,16 +492,17 @@ sub post_create_hook {
     my ($self, $conf, $root_password, $ssh_keys) = @_;
 
     $self->template_fixup($conf);
-    
+
     &$randomize_crontab($self, $conf);
-    
+
     $self->set_user_password($conf, 'root', $root_password);
     $self->set_user_authorized_ssh_keys($conf, 'root', $ssh_keys) if $ssh_keys;
     $self->setup_init($conf);
     $self->setup_network($conf);
     $self->set_hostname($conf);
     $self->set_dns($conf);
-    
+    $self->set_timezone($conf);
+
     # fixme: what else ?
 }
 
