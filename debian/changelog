@@ -1,3 +1,9 @@
+pve-container (3.1-10) pve; urgency=medium
+
+  * improve snapshot mode backups with a Proxmox Backup Server as target
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 09 Jul 2020 18:12:11 +0200
+
 pve-container (3.1-9) pve; urgency=medium
 
   * fix #2778: use vm_start instead of systemctl to start/restart
