@@ -1,3 +1,14 @@
+pve-container (3.1-9) pve; urgency=medium
+
+  * fix #2778: use vm_start instead of systemctl to start/restart
+    container
+
+  * add helper to get reason for mounpoint backup exclusion
+
+  * fix #1423: add timezone config option
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 09 Jul 2020 13:55:45 +0200
+
 pve-container (3.1-8) pve; urgency=medium
 
   * lxc: fall back to unmanaged when no OS detected and no /etc/os-
