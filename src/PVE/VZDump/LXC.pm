@@ -364,7 +364,7 @@ sub archive {
 
     if ($self->{vzdump}->{opts}->{pbs}) {
 
-	my $rootdir = $default_mount_point;
+	my $rootdir = $snapdir;
 	my $param = [];
 
 	push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
@@ -376,8 +376,8 @@ sub archive {
 
 	push @$param, "root.pxar:$rootdir";
 
-	foreach my $disk (@$disks) {
-	    push @$param, '--include-dev', $disk->{dir};
+	foreach my $disk (@sources) {
+	    push @$param, '--include-dev', "$snapdir/$disk";
 	}
 
 	push @$param, '--skip-lost-and-found' if $userns_cmd;
