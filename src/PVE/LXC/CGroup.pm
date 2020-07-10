@@ -422,7 +422,8 @@ sub change_memory_limit {
 	chomp($old_mem_bytes, $old_memsw_bytes);
 
 	$mem_bytes //= $old_mem_bytes;
-	my $memsw_bytes = defined($swap_bytes) ? ($mem_bytes + $swap_bytes) : $old_memsw_bytes;
+	$swap_bytes //= $old_memsw_bytes - $old_mem_bytes;
+	my $memsw_bytes = $mem_bytes + $swap_bytes;
 
 	if ($memsw_bytes > $old_memsw_bytes) {
 	    # Growing the limit means growing the combined limit first, then pulling the
