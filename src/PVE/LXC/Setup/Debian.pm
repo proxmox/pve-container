@@ -157,6 +157,7 @@ sub setup_network {
 		    my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
 		    $net->{address} = $ipinfo->{address};
 		    $net->{netmask} = $ipinfo->{netmask};
+		    $net->{cidr} = $d->{ip};
 		    $cidr = $d->{ip};
 		}
 	    }
@@ -176,6 +177,7 @@ sub setup_network {
 		} else {
 		    $net->{address6} = $1;
 		    $net->{netmask6} = $2;
+		    $net->{cidr6} = $d->{ip6};
 		    $cidr = $d->{ip6};
 		}
 	    }
@@ -222,9 +224,12 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet static\n";
-		$interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
-		$interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
-
+		if ($conf->{ostype} eq "debian" && $self->{version} >= 10) {
+		    $interfaces .= "\taddress $net->{cidr}\n" if defined($net->{cidr});
+		} else {
+		    $interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
+		    $interfaces .= "\tnetmask $net->{netmask}\n" if defined($net->{netmask});
+		}
 		remove_gateway_scripts($section->{attr});
 		if (defined(my $gw = $net->{gateway})) {
 		    if ($net->{needsroute}) {
@@ -247,8 +252,12 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet6 $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet6 static\n";
-		$interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
-		$interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
+		if ($conf->{ostype} eq "debian" && $self->{version} >= 10) {
+		    $interfaces .= "\taddress $net->{cidr6}\n" if defined($net->{cidr6});
+		} else {
+		    $interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
+		    $interfaces .= "\tnetmask $net->{netmask6}\n" if defined($net->{netmask6});
+		}
 		remove_gateway_scripts($section->{attr});
 		if (defined(my $gw = $net->{gateway6})) {
 		    if ($net->{needsroute6}) {
