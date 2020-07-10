@@ -5,6 +5,7 @@ use warnings;
 
 use File::Basename;
 use File::Path;
+use POSIX qw(strftime);
 
 use PVE::Cluster qw(cfs_read_file);
 use PVE::INotify;
@@ -364,9 +365,7 @@ sub archive {
 
     if ($self->{vzdump}->{opts}->{pbs}) {
 
-	my $rootdir = $snapdir;
 	my $param = [];
-
 	push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
 
 	my $fw_conf = "$tmpdir/etc/vzdump/pct.fw";
@@ -374,6 +373,7 @@ sub archive {
 	    push @$param, "fw.conf:$fw_conf";
 	}
 
+	my $rootdir = $snapdir;
 	push @$param, "root.pxar:$rootdir";
 
 	foreach my $disk (@sources) {
@@ -386,10 +386,18 @@ sub archive {
 	push @$param, '--backup-id', $vmid;
 	push @$param, '--backup-time', $task->{backup_time};
 
-	my $logfunc = sub { my $line = shift; $self->loginfo($line); };
-	PVE::Storage::PBSPlugin::run_raw_client_cmd(
-	    $opts->{scfg}, $opts->{storage}, 'backup', $param,
+	my @storage = ($opts->{scfg}, $opts->{storage});
+
+	my $logfunc = sub { my $line = shift; $self->loginfo($line) };
+	PVE::Storage::PBSPlugin::run_raw_client_cmd(@storage, 'backup', $param,
 	    logfunc => $logfunc, userns_cmd => $userns_cmd);
+
+	# FIXME: move to a pve-common helper, storage has a similar one
+	my $time_iso8601 = strftime('%FT%TZ', gmtime($task->{backup_time}));
+	my $snapshot_id = "ct/$vmid/$time_iso8601";
+	my $res = eval { PVE::Storage::PBSPlugin::run_client_cmd(@storage, 'files', [$snapshot_id]) } // [];
+	$task->{size} = 0;
+	$task->{size} += $_->{size} for @$res;
 
     } else {
 
