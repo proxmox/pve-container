@@ -23,14 +23,14 @@ my $rsync_vm = sub {
     my ($self, $task, $to, $text, $first) = @_;
 
     my $disks = $task->{disks};
-    my $from = $disks->[0]->{dir} . '/';
+    my $from = $disks->[0]->{dir};
     $self->loginfo ("starting $text sync $from to $to");
 
     my $opts = $self->{vzdump}->{opts};
 
     my @xattr = $task->{no_xattrs} ? () : ('-X', '-A');
 
-    my $rsync = ['rsync', '--stats', @xattr, '--numeric-ids',
+    my $rsync = ['rsync', '--stats', '-h', @xattr, '--numeric-ids',
                  '-aH', '--delete', '--no-whole-file',
                  ($first ? '--sparse' : '--inplace'),
                  '--one-file-system', '--relative'];
@@ -38,7 +38,6 @@ my $rsync_vm = sub {
     push @$rsync, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
     push @$rsync, map { "--exclude=$_" } @{$task->{exclude_dirs}};
 
-    my $starttime = time();
     # See the rsync(1) manpage for --relative in conjunction with /./ in paths.
     # This is the only way to have exclude-dirs work together with the
     # --one-file-system option.
@@ -51,10 +50,18 @@ my $rsync_vm = sub {
     foreach my $disk (@$disks) {
 	push @$rsync, "$from/.$disk->{mp}";
     }
-    $self->cmd([@$rsync, $to]);
+
+    my $transferred = '';
+    my $logfunc = sub {
+	return if $_[0] !~ /^Total transferred file size: (.+)$/;
+	$transferred = $1;
+    };
+
+    my $starttime = time();
+    PVE::Tools::run_command([@$rsync, $to], logfunc => $logfunc);
     my $delay = time () - $starttime;
 
-    $self->loginfo ("$text sync finished ($delay seconds)");
+    $self->loginfo ("$text sync finished - transferred $transferred in ${delay}s");
 };
 
 sub new {
