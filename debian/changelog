@@ -1,3 +1,16 @@
+pve-container (3.1-11) pve; urgency=medium
+
+  * fix #2820: don't hotplug over existing mpX
+
+  * setup/debian: use CIDR for Debian Buster and newer
+
+  * vzdump: set heuristic task size information for Proxmox Backup Server
+    target storage
+
+  * cgroup: get old swap value when hotplugging only memory
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 13 Jul 2020 13:32:55 +0200
+
 pve-container (3.1-10) pve; urgency=medium
 
   * improve snapshot mode backups with a Proxmox Backup Server as target
