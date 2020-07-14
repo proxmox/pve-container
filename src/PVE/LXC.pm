@@ -2186,6 +2186,11 @@ sub vm_start {
 	close($fh);
     }
 
+    my $storage_cfg = PVE::Storage::config();
+    my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+
+    PVE::Storage::activate_volumes($storage_cfg, $vollist);
+
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-start', 1);

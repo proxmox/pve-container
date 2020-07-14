@@ -75,6 +75,12 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
 	open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
 	    or die "failed to create reboot trigger file: $!\n";
 	close($fh);
+
+	# activate all volumes of the container in case pending changes added
+	# a not yet activated volume
+	my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+	PVE::Storage::activate_volumes($storage_cfg, $vollist);
+
 	# cause lxc to stop instead of rebooting
 	exit(1);
     }

@@ -38,11 +38,6 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 
     my $storage_cfg = PVE::Storage::config();
 
-    my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
-    my $loopdevlist = PVE::LXC::Config->get_vm_volumes($conf, 'rootfs');
-
-    PVE::Storage::activate_volumes($storage_cfg, $vollist);
-
     my $rootdir = $vars->{ROOTFS_PATH};
 
     # Delete any leftover reboot-trigger file
