@@ -1,3 +1,10 @@
+pve-container (3.1-12) pve; urgency=medium
+
+  * backup: reduce verbosity of logging when syncing filesystems in snapshot
+    mode
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 24 Jul 2020 11:42:23 +0200
+
 pve-container (3.1-11) pve; urgency=medium
 
   * fix #2820: don't hotplug over existing mpX
