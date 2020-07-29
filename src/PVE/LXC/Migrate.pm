@@ -287,7 +287,7 @@ sub phase1 {
 	$bwlimit = $bwlimit * 1024 if defined($bwlimit);
 
 	my $storage_migrate_opts = {
-	    'bwlimit' => $bwlimit,
+	    'ratelimit_bps' => $bwlimit,
 	    'insecure' => $opts->{migration_type} eq 'insecure',
 	    'with_snapshots' => $volhash->{$volid}->{snapshots},
 	};
