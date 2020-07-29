@@ -292,7 +292,14 @@ sub phase1 {
 	    'with_snapshots' => $volhash->{$volid}->{snapshots},
 	};
 
-	PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info}, $sid, $storage_migrate_opts);
+	my $logfunc = sub { $self->log('info', $_[0]); };
+	eval {
+	    PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info},
+					  $sid, $storage_migrate_opts, $logfunc);
+	};
+	if (my $err = $@) {
+	    die "storage migration for '$volid' to storage '$sid' failed - $err\n";
+	}
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
