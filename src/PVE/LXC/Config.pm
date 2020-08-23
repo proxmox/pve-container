@@ -712,7 +712,7 @@ our $netconf_desc = {
 };
 PVE::JSONSchema::register_format('pve-lxc-network', $netconf_desc);
 
-my $MAX_LXC_NETWORKS = 10;
+my $MAX_LXC_NETWORKS = 32;
 for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
     $confdesc->{"net$i"} = {
 	optional => 1,
