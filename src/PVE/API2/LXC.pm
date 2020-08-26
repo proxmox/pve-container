@@ -1674,7 +1674,7 @@ __PACKAGE__->register_method({
 
 	    die "unable to shrink disk size\n" if $newsize < $size;
 
-	    return if $size == $newsize;
+	    die "disk is already at specified size\n" if $size == $newsize;
 
 	    PVE::Cluster::log_msg('info', $authuser, "update CT $vmid: resize --disk $disk --size $sizestr");
 	    my $realcmd = sub {
