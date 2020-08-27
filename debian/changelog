@@ -1,3 +1,18 @@
+pve-container (3.1-13) pve; urgency=medium
+
+  * do the activation of storage volumes outside of the containers mount
+    namespace to avoid issues when it's required to activate the underlying
+    storage
+
+  * fix passing the offline storage migration bandwidth limit
+
+  * fix #2790: volume resize: fix API behavior in the case where the disk
+    volume has already the exact size requested
+
+  * allow one to configure up to 32 network interfaces
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 27 Aug 2020 12:48:18 +0200
+
 pve-container (3.1-12) pve; urgency=medium
 
   * backup: reduce verbosity of logging when syncing filesystems in snapshot
