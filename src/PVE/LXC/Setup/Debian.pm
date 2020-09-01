@@ -23,6 +23,7 @@ sub new {
     $version = 9.1 if $version eq 'stretch/sid';
     $version = 10 if $version eq 'buster/sid';
     $version = 11 if $version eq 'bullseye/sid';
+    $version = 11 if $version eq 'kali-rolling';
 
     die "unable to parse version info '$version'\n"
 	if $version !~ m/^(\d+(\.\d+)?)(\.\d+)?/;
