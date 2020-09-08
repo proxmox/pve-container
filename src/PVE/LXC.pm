@@ -32,6 +32,7 @@ use PVE::LXC::Config;
 use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::LXC::Tools;
 use PVE::LXC::CGroup;
+use PVE::LXC::Monitor;
 
 use Time::HiRes qw (gettimeofday);
 my $have_sdn;
@@ -2191,10 +2192,47 @@ sub vm_start {
 
     PVE::Storage::activate_volumes($storage_cfg, $vollist);
 
+    my $monitor_socket = eval { PVE::LXC::Monitor::get_monitor_socket(); };
+    warn $@ if $@;
+
+    my $monitor_state_change = sub {
+	die "no monitor socket" if !defined($monitor_socket);
+
+	while (1) {
+	    my ($type, $name, $value) = PVE::LXC::Monitor::read_lxc_message($monitor_socket);
+
+	    die "monitor socket EOF" if !defined($type);
+
+	    next if $name ne "$vmid" || $type ne 'STATE';
+
+	    if ($value eq PVE::LXC::Monitor::STATE_STARTING) {
+		alarm(0); # don't timeout after seeing the starting state
+	    } elsif ($value eq PVE::LXC::Monitor::STATE_ABORTING ||
+		     $value eq PVE::LXC::Monitor::STATE_STOPPING ||
+		     $value eq PVE::LXC::Monitor::STATE_STOPPED) {
+		return 0;
+	    } elsif ($value eq PVE::LXC::Monitor::STATE_RUNNING) {
+		return 1;
+	    } else {
+		warn "unexpected message from monitor socket - " .
+		     "type: '$type' - value: '$value'\n";
+	    }
+	}
+    };
+
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-start', 1);
-    eval { PVE::Tools::run_command($cmd); };
+    eval {
+	PVE::Tools::run_command($cmd);
+
+	my $success = eval { PVE::Tools::run_with_timeout(10, $monitor_state_change); };
+	if (my $err = $@) {
+	    warn "problem with monitor socket: $err - continuing anyway\n";
+	} elsif (!$success) {
+	    die "startup for container '$vmid' failed\n";
+	}
+    };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;
 	die $err;
