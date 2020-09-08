@@ -4,6 +4,7 @@ SOURCES= \
 	Config.pm \
 	Create.pm \
 	Migrate.pm \
+	Monitor.pm \
 	Setup.pm \
 	Tools.pm
 
