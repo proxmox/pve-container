@@ -1,3 +1,13 @@
+pve-container (3.2-1) pve; urgency=medium
+
+  * improve feedback for failed Container startup
+
+  * allow one to enable debug level logging to the start task log
+
+  * setup: add kali-rolling as supported release
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 09 Sep 2020 21:21:15 +0200
+
 pve-container (3.1-13) pve; urgency=medium
 
   * do the activation of storage volumes outside of the containers mount
