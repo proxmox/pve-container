@@ -86,21 +86,24 @@ sub setup_network {
     # at least with the workaround the networking starts and if an ipv4 is
     # configured slaac for ipv6 works (unless accept_ra = 0 in the node)
 
-    my $netconf = {};
+    my $newconf = {};
     my $networks = {};
     foreach my $k (keys %$conf) {
+	my $value = $conf->{$k};
+	$newconf->{$k} = $value;
 	next if $k !~ m/^net(\d+)$/;
-	my $netstring = $conf->{$k};
+
+	my $netstring = $value;
 	# check for dhcp6:
 	my $d = PVE::LXC::Config->parse_lxc_network($netstring);
 	if (defined($d->{ip6}) && ($d->{ip6} eq 'dhcp' || $d->{ip6} eq 'auto')) {
 	    $d->{ip6} = 'manual';
 	    $netstring = PVE::LXC::Config->print_lxc_network($d);
 	}
-	$netconf->{$k} = $netstring;
+	$newconf->{$k} = $netstring;
     }
 
-    PVE::LXC::Setup::Debian::setup_network($self, $netconf);
+    PVE::LXC::Setup::Debian::setup_network($self, $newconf);
 }
 
 1;
