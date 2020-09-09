@@ -134,11 +134,6 @@ sub protected_call {
     # avoid recursion:
     return $sub->() if $self->{in_chroot};
 
-    my $rootdir = $self->{rootdir};
-    if (!-d "$rootdir/dev" && !mkdir("$rootdir/dev")) {
-	die "failed to create temporary /dev directory: $!\n";
-    }
-
     pipe(my $res_in, my $res_out) or die "pipe failed: $!\n";
 
     my $child = fork();
@@ -149,6 +144,7 @@ sub protected_call {
 	# avoid recursive forks
 	$self->{in_chroot} = 1;
 	eval {
+	    my $rootdir = $self->{rootdir};
 	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
 	    chdir('/') or die "failed to change to root directory\n";
 	    my $res = $sub->();
