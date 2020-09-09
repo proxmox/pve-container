@@ -508,6 +508,12 @@ my $confdesc = {
 	description => 'Tags of the Container. This is only meta information.',
 	optional => 1,
     },
+    debug => {
+	optional => 1,
+	type => 'boolean',
+	description => "Try to be more verbose. For now this only enables debug log-level on start.",
+	default => 0,
+    },
 };
 
 my $valid_lxc_conf_keys = {

@@ -2218,7 +2218,7 @@ my sub monitor_start($$) {
 }
 
 sub vm_start {
-    my ($vmid, $conf, $skiplock) = @_;
+    my ($vmid, $conf, $skiplock, $debug) = @_;
 
     # apply pending changes while starting
     if (scalar(keys %{$conf->{pending}})) {
@@ -2247,15 +2247,19 @@ sub vm_start {
 
     unlink "/run/pve/ct-$vmid.stderr"; # systemd does not truncate log files
 
-    my $base_unit = $conf->{debug} ? 'pve-container-debug' : 'pve-container';
+    my $is_debug = $debug || (!defined($debug) && $conf->{debug});
+    my $base_unit = $is_debug ? 'pve-container-debug' : 'pve-container';
 
-    my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
+    my $cmd = ['systemctl', 'start', "$base_unit\@$vmid"];
 
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-start', 1);
     eval {
 	PVE::Tools::run_command($cmd);
 
 	monitor_start($monitor_socket, $vmid) if defined($monitor_socket);
+
+	# if debug is requested, print the log it also when the start succeeded
+	print_ct_stderr_log($vmid) if $is_debug;
     };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;

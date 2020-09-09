@@ -130,6 +130,12 @@ __PACKAGE__->register_method({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_stopped }),
 	    skiplock => get_standard_option('skiplock'),
+	    debug => {
+		optional => 1,
+		type => 'boolean',
+		description => "If set, enables very verbose debug log-level on start.",
+		default => 0,
+	    },
 	},
     },
     returns => {
@@ -188,7 +194,7 @@ __PACKAGE__->register_method({
 		    });
 		}
 
-		PVE::LXC::vm_start($vmid, $conf, $skiplock);
+		PVE::LXC::vm_start($vmid, $conf, $skiplock, $param->{debug});
 	    };
 
 	    my $lockcmd = sub {

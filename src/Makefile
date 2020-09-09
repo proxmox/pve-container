@@ -38,8 +38,9 @@ check: test
 	make -C test
 
 .PHONY: install
-install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook	    \
-	    lxcnetaddbr pct.1 pct.conf.5 pct.bash-completion pct.zsh-completion pve-userns.seccomp
+install: pct lxc-pve.conf pct.1 pct.conf.5 pct.bash-completion pct.zsh-completion \
+    pve-userns.seccomp pve-container@.service pve-container-debug@.service \
+    lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-poststop-hook lxcnetaddbr
 	PVE_GENERATING_DOCS=1 perl -I. -T -e "use PVE::CLI::pct; PVE::CLI::pct->verify_api();"
 	install -d ${SBINDIR}
 	install -m 0755 pct ${SBINDIR}
@@ -48,6 +49,7 @@ install: pct lxc-pve.conf lxc-pve-prestart-hook lxc-pve-autodev-hook lxc-pve-pos
 	install -m 0755 pve-container-stop-wrapper ${LXC_SCRIPT_DIR}
 	install -d -m0755 ${SERVICEDIR}
 	install -m0644 pve-container@.service ${SERVICEDIR}/
+	install -m0644 pve-container-debug@.service ${SERVICEDIR}/
 	install -m0644 'system-pve\x2dcontainer.slice' ${SERVICEDIR}/
 	install -d ${LXC_HOOK_DIR}
 	install -m 0755 lxc-pve-prestart-hook ${LXC_HOOK_DIR}
