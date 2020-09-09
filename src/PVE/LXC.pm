@@ -2167,6 +2167,17 @@ sub userns_command {
     return [];
 }
 
+my sub print_ct_stderr_log {
+    my ($vmid) = @_;
+    my $log = eval { file_get_contents("/run/pve/ct-$vmid.stderr") };
+    return if !$log;
+
+    while ($log =~ /^\h*(lxc-start:?\s+$vmid:?\s*\S+\s*)?(.*?)\h*$/gm) {
+	my $line = $2;
+	print STDERR "$line\n";
+    }
+}
+
 my sub monitor_state_change($$) {
     my ($monitor_socket, $vmid) = @_;
     die "no monitor socket\n" if !defined($monitor_socket);
@@ -2201,6 +2212,7 @@ my sub monitor_start($$) {
     if (my $err = $@) {
 	warn "problem with monitor socket, but continuing anyway: $err\n";
     } elsif (!$success) {
+	print_ct_stderr_log($vmid);
 	die "startup for container '$vmid' failed\n";
     }
 }
@@ -2233,6 +2245,9 @@ sub vm_start {
     my $monitor_socket = eval { PVE::LXC::Monitor::get_monitor_socket() };
     warn $@ if $@;
 
+    unlink "/run/pve/ct-$vmid.stderr"; # systemd does not truncate log files
+
+    my $base_unit = $conf->{debug} ? 'pve-container-debug' : 'pve-container';
 
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 

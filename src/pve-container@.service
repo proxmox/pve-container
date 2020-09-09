@@ -19,4 +19,4 @@ ExecStop=/usr/share/lxc/pve-container-stop-wrapper %i
 # Environment=CONSOLETYPE=serial
 # Prevent container init from putting all its output into the journal
 StandardOutput=null
-StandardError=null
+StandardError=file:/run/pve/ct-%i.stderr
