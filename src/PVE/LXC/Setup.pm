@@ -96,8 +96,11 @@ sub new {
 	$type = &$autodetect_type($self, $rootdir, $os_release);
 	my $expected_type = $conf->{ostype} || $type;
 
-	warn "got unexpected ostype ($type != $expected_type)\n"
-	    if $type ne $expected_type;
+	if ($type ne $expected_type) {
+	    warn "WARNING: /etc not present in CT, is the rootfs mounted?\n"
+		if ! -e "$rootdir/etc";
+	    warn "got unexpected ostype ($type != $expected_type)\n"
+	}
     }
 
     if ($type eq 'unmanaged') {
