@@ -2167,6 +2167,44 @@ sub userns_command {
     return [];
 }
 
+my sub monitor_state_change($$) {
+    my ($monitor_socket, $vmid) = @_;
+    die "no monitor socket\n" if !defined($monitor_socket);
+
+    while (1) {
+	my ($type, $name, $value) = PVE::LXC::Monitor::read_lxc_message($monitor_socket);
+
+	die "monitor socket: got EOF\n" if !defined($type);
+
+	next if $name ne "$vmid" || $type ne 'STATE';
+
+	if ($value eq PVE::LXC::Monitor::STATE_STARTING) {
+	    alarm(0); # don't timeout after seeing the starting state
+	} elsif ($value eq PVE::LXC::Monitor::STATE_ABORTING ||
+		 $value eq PVE::LXC::Monitor::STATE_STOPPING ||
+		 $value eq PVE::LXC::Monitor::STATE_STOPPED) {
+	    return 0;
+	} elsif ($value eq PVE::LXC::Monitor::STATE_RUNNING) {
+	    return 1;
+	} else {
+	    warn "unexpected message from monitor socket - " .
+		 "type: '$type' - value: '$value'\n";
+	}
+    }
+}
+my sub monitor_start($$) {
+    my ($monitor_socket, $vmid) = @_;
+
+    my $success = eval {
+	PVE::Tools::run_with_timeout(10, \&monitor_state_change, $monitor_socket, $vmid)
+    };
+    if (my $err = $@) {
+	warn "problem with monitor socket, but continuing anyway: $err\n";
+    } elsif (!$success) {
+	die "startup for container '$vmid' failed\n";
+    }
+}
+
 sub vm_start {
     my ($vmid, $conf, $skiplock) = @_;
 
@@ -2192,33 +2230,9 @@ sub vm_start {
 
     PVE::Storage::activate_volumes($storage_cfg, $vollist);
 
-    my $monitor_socket = eval { PVE::LXC::Monitor::get_monitor_socket(); };
+    my $monitor_socket = eval { PVE::LXC::Monitor::get_monitor_socket() };
     warn $@ if $@;
 
-    my $monitor_state_change = sub {
-	die "no monitor socket" if !defined($monitor_socket);
-
-	while (1) {
-	    my ($type, $name, $value) = PVE::LXC::Monitor::read_lxc_message($monitor_socket);
-
-	    die "monitor socket EOF" if !defined($type);
-
-	    next if $name ne "$vmid" || $type ne 'STATE';
-
-	    if ($value eq PVE::LXC::Monitor::STATE_STARTING) {
-		alarm(0); # don't timeout after seeing the starting state
-	    } elsif ($value eq PVE::LXC::Monitor::STATE_ABORTING ||
-		     $value eq PVE::LXC::Monitor::STATE_STOPPING ||
-		     $value eq PVE::LXC::Monitor::STATE_STOPPED) {
-		return 0;
-	    } elsif ($value eq PVE::LXC::Monitor::STATE_RUNNING) {
-		return 1;
-	    } else {
-		warn "unexpected message from monitor socket - " .
-		     "type: '$type' - value: '$value'\n";
-	    }
-	}
-    };
 
     my $cmd = ['systemctl', 'start', "pve-container\@$vmid"];
 
@@ -2226,12 +2240,7 @@ sub vm_start {
     eval {
 	PVE::Tools::run_command($cmd);
 
-	my $success = eval { PVE::Tools::run_with_timeout(10, $monitor_state_change); };
-	if (my $err = $@) {
-	    warn "problem with monitor socket: $err - continuing anyway\n";
-	} elsif (!$success) {
-	    die "startup for container '$vmid' failed\n";
-	}
+	monitor_start($monitor_socket, $vmid) if defined($monitor_socket);
     };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;
