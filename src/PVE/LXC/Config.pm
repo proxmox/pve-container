@@ -401,14 +401,14 @@ my $confdesc = {
 	type => 'integer',
 	description => "The number of cores assigned to the container. A container can use all available cores by default.",
 	minimum => 1,
-	maximum => 128,
+	maximum => 8192,
     },
     cpulimit => {
 	optional => 1,
 	type => 'number',
 	description => "Limit of CPU usage.\n\nNOTE: If the computer has 2 CPUs, it has a total of '2' CPU time. Value '0' indicates no CPU limit.",
 	minimum => 0,
-	maximum => 128,
+	maximum => 8192,
 	default => 0,
     },
     cpuunits => {
