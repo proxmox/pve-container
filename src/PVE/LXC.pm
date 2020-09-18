@@ -1103,11 +1103,24 @@ my $do_syncfs = sub {
     my $mountdata = do { local $/ = undef; <$socket> };
     close $socket;
 
+    my %nosyncfs = (
+	cgroup => 1,
+	cgroup2 => 1,
+	devtmpfs => 1,
+	devpts => 1,
+	'fuse.lxcfs' => 1,
+	fusectl => 1,
+	mqueue => 1,
+	proc => 1,
+	sysfs => 1,
+	tmpfs => 1,
+    );
+
     # Now sync all mountpoints...
     my $mounts = PVE::ProcFSTools::parse_mounts($mountdata);
     foreach my $mp (@$mounts) {
 	my ($what, $dir, $fs) = @$mp;
-	next if $fs eq 'fuse.lxcfs';
+	next if $nosyncfs{$fs};
 	eval { PVE::Tools::sync_mountpoint($dir); };
 	warn $@ if $@;
     }
