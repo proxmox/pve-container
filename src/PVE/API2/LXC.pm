@@ -1465,6 +1465,7 @@ __PACKAGE__->register_method({
 		# Replace the 'disk' lock with a 'create' lock.
 		$newconf->{lock} = 'create';
 
+		delete $newconf->{snapshots};
 		delete $newconf->{pending};
 		delete $newconf->{template};
 		if ($param->{hostname}) {
