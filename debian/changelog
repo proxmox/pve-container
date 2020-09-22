@@ -1,3 +1,13 @@
+pve-container (3.2-2) pve; urgency=medium
+
+  * fix #2938: increase limit of max cores from 128 to 8192
+
+  * fix #3016: clone: do not copy snapshot config
+
+  * skip additional virtual filesystems when sycing a containers namespace
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 22 Sep 2020 10:54:10 +0200
+
 pve-container (3.2-1) pve; urgency=medium
 
   * improve feedback for failed Container startup
