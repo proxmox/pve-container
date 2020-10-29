@@ -767,6 +767,11 @@ __PACKAGE__->register_method ({
 	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    'ignore-mountpoints' => {
+		description => 'ignore mountpoints when doing an fstrim operation for a container.',
+		optional => 1,
+		type => 'boolean',
+	    },
 	},
     },
     returns => { type => 'null' },
@@ -785,6 +790,7 @@ __PACKAGE__->register_method ({
 	    PVE::LXC::Config->foreach_volume($conf, sub {
 		my ($name, $mp) = @_;
 		$path = $mp->{mp};
+		return if $param->{'ignore-mountpoints'} && $name =~ /^mp\d+/;
 		my $cmd = ["fstrim", "-v", "$rootdir$path"];
 		PVE::Tools::run_command($cmd);
 	    });
