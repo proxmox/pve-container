@@ -768,7 +768,7 @@ __PACKAGE__->register_method ({
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
 	    'ignore-mountpoints' => {
-		description => 'ignore mountpoints when doing an fstrim operation for a container.',
+		description => 'Skip all mountpoints, only do fstrim on the container root.',
 		optional => 1,
 		type => 'boolean',
 	    },
