@@ -33,6 +33,7 @@ use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::LXC::Tools;
 use PVE::LXC::CGroup;
 use PVE::LXC::Monitor;
+use PVE::CGroup;
 
 use Time::HiRes qw (gettimeofday);
 my $have_sdn;
@@ -402,9 +403,9 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
-# Deprecated. Use `PVE::LXC::CGroup::get_cgroup_controllers()` instead.
+# Deprecated. Use `PVE::CGroup::get_cgroup_controllers()` instead.
 sub get_cgroup_subsystems {
-    PVE::LXC::CGroup::get_v1_controllers();
+    PVE::CGroup::get_v1_controllers();
 }
 
 # With seccomp trap to userspace we now have the ability to optionally forward
@@ -708,7 +709,7 @@ sub update_lxc_config {
     }
 
     my $cpuset;
-    my ($cpuset_cgroup, $cpuset_version) = eval { PVE::LXC::CGroup::cpuset_controller_path() };
+    my ($cpuset_cgroup, $cpuset_version) = eval { PVE::CGroup::cpuset_controller_path() };
     if (defined($cpuset_cgroup)) {
 	$cpuset = eval { PVE::CpuSet->new_from_path("$cpuset_cgroup/lxc", 1) }
 	    || PVE::CpuSet->new_from_path($cpuset_cgroup, 1);

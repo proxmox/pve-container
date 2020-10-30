@@ -144,7 +144,7 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 sub cleanup_cgroups($) {
     my ($vmid) = @_;
 
-    if (PVE::LXC::CGroup::cgroup_mode() == 2) {
+    if (PVE::CGroup::cgroup_mode() == 2) {
 	rmdir_recursive("/sys/fs/cgroup/lxc/$vmid");
 	rmdir_recursive("/sys/fs/cgroup/lxc.monitor/$vmid");
     } else {
