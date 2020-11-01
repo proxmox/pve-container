@@ -460,7 +460,7 @@ sub cleanup {
     }
 
     if ($task->{cleanup}->{remove_snapshot}) {
-	$self->loginfo("remove vzdump snapshot");
+	$self->loginfo("cleanup temporary 'vzdump' snapshot");
 	PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
     }
 }
