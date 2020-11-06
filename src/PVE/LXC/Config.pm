@@ -13,6 +13,9 @@ use PVE::Tools;
 
 use base qw(PVE::AbstractConfig);
 
+use constant {FIFREEZE => 0xc0045877,
+              FITHAW   => 0xc0045878};
+
 my $nodename = PVE::INotify::nodename();
 my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
@@ -107,6 +110,22 @@ sub __snapshot_check_freeze_needed {
 
     my $ret = $class->__snapshot_check_running($vmid);
     return ($ret, $ret);
+}
+
+# implements similar functionality to fsfreeze(8)
+sub fsfreeze_mountpoint {
+    my ($path, $thaw) = @_;
+
+    my $op = $thaw ? 'thaw' : 'freeze';
+    my $ioctl = $thaw ? FITHAW : FIFREEZE;
+
+    sysopen my $fd, $path, O_RDONLY or die "failed to open $path: $!\n";
+    my $ioctl_err;
+    if (!ioctl($fd, $ioctl, 0)) {
+	$ioctl_err = "$!";
+    }
+    close($fd);
+    die "fs$op '$path' failed - $ioctl_err\n" if defined $ioctl_err;
 }
 
 sub __snapshot_freeze {
