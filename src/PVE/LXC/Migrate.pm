@@ -294,6 +294,11 @@ sub phase1 {
 	if (my $err = $@) {
 	    die "storage migration for '$volid' to storage '$sid' failed - $err\n";
 	}
+
+	eval { PVE::Storage::deactivate_volumes($self->{storecfg}, [$volid]); };
+	if (my $err = $@) {
+	    $self->log('warn', $err);
+	}
     }
 
     my $conffile = PVE::LXC::Config->config_file($vmid);
