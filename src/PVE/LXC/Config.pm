@@ -2,6 +2,7 @@ package PVE::LXC::Config;
 
 use strict;
 use warnings;
+use Fcntl qw(O_RDONLY);
 
 use PVE::AbstractConfig;
 use PVE::Cluster qw(cfs_register_file);
@@ -131,12 +132,39 @@ sub fsfreeze_mountpoint {
 sub __snapshot_freeze {
     my ($class, $vmid, $unfreeze) = @_;
 
+    my $conf = $class->load_config($vmid);
+    my $storagecfg = PVE::Storage::config();
+
+    my $freeze_mps = [];
+    $class->foreach_volume($conf, sub {
+	my ($ms, $mountpoint) = @_;
+
+	if (PVE::Storage::volume_snapshot_needs_fsfreeze($storagecfg, $mountpoint->{volume})) {
+	    push @$freeze_mps, $mountpoint->{mp};
+	}
+    });
+
+    my $freeze_mountpoints = sub {
+	my ($thaw) = @_;
+
+	return if scalar(@$freeze_mps) == 0;
+
+	my $pid = PVE::LXC::find_lxc_pid($vmid);
+
+	for my $mp (@$freeze_mps) {
+	    eval{ fsfreeze_mountpoint("/proc/${pid}/root/${mp}", $thaw); };
+	    warn $@ if $@;
+	}
+    };
+
     if ($unfreeze) {
 	eval { PVE::LXC::thaw($vmid); };
 	warn $@ if $@;
+	$freeze_mountpoints->(1);
     } else {
 	PVE::LXC::freeze($vmid);
 	PVE::LXC::sync_container_namespace($vmid);
+	$freeze_mountpoints->(0);
     }
 }
 

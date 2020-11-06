@@ -113,6 +113,15 @@ sub mocked_volume_rollback_is_possible {
     die "volume_rollback_is_possible failed\n";
 }
 
+sub mocked_volume_snapshot_needs_fsfreeze {
+    my ($storecfg, $volid) = @_;
+    die "Storage config not mocked! aborting\n"
+	if defined($storecfg);
+    die "volid undefined\n"
+	if !defined($volid);
+    return 0;
+}
+
 sub mocked_vm_stop {
     if ($kill_possible) {
 	$running = 0;
@@ -386,7 +395,8 @@ $storage_module->mock('volume_snapshot', \&mocked_volume_snapshot);
 $storage_module->mock('volume_snapshot_delete', \&mocked_volume_snapshot_delete);
 $storage_module->mock('volume_snapshot_rollback', \&mocked_volume_snapshot_rollback);
 $storage_module->mock('volume_rollback_is_possible', \&mocked_volume_rollback_is_possible);
-printf("\tconfig(), volume_snapshot(), volume_snapshot_delete(), volume_snapshot_rollback() and volume_rollback_is_possible() mocked\n");
+$storage_module->mock('volume_snapshot_needs_fsfreeze', \&mocked_volume_snapshot_needs_fsfreeze);
+printf("\tconfig(), volume_snapshot(), volume_snapshot_delete(), volume_snapshot_rollback(), volume_rollback_is_possible() and volume_snapshot_needs_fsfreeze() mocked\n");
 
 printf("\n");
 printf("Setting up Mocking for PVE::Tools\n");
