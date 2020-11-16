@@ -1,3 +1,18 @@
+pve-container (3.2-3) pve; urgency=medium
+
+  * improve numbering scheme detection for CentOS Stream releases
+
+  * pct fstrim: add 'ignore-mountpoints' parameter
+
+  * add support for Fedora 33
+
+  * add support for Ubuntu 20.10 Groovy Gorilla
+
+  * fix #2991, #2528: snapshot creation: fsfreeze mountpoints, if underlying FS
+    requires it
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 16 Nov 2020 16:41:00 +0100
+
 pve-container (3.2-2) pve; urgency=medium
 
   * fix #2938: increase limit of max cores from 128 to 8192
