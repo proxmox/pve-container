@@ -16,7 +16,7 @@ sub new {
     die "unable to read version info\n" if !defined($version);
 
     die "unsupported Devuan version '$version'\n"
-	if $version !~ /jessie|ascii/;
+	if $version !~ /jessie|ascii|beowulf/;
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
