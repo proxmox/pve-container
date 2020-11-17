@@ -14,9 +14,10 @@ sub new {
     my $version = PVE::Tools::file_read_firstline("$rootdir/etc/devuan_version");
 
     die "unable to read version info\n" if !defined($version);
+    $version = lc($version);
 
     die "unsupported Devuan version '$version'\n"
-	if $version !~ /jessie|ascii|beowulf/;
+	if $version !~ /jessie|ascii|beowulf|chimaera/;
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
