@@ -426,9 +426,23 @@ sub archive {
 	push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
 	push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
 	push @$tar, "--directory=$snapdir";
-	push @$tar, '--no-anchored', '--exclude=lost+found' if $userns_cmd;
+
+	my @findexcl_no_anchored = ();
+	my @findexcl_anchored = ();
+	foreach my $pattern (@{$findexcl}) {
+	    if ($pattern !~ m|^/|) {
+		push @findexcl_no_anchored, $pattern;
+	    } else {
+		push @findexcl_anchored, $pattern;
+	    }
+	}
+
+	push @$tar, '--no-anchored';
+	push @$tar, '--exclude=lost+found' if $userns_cmd;
+	push @$tar, map { "--exclude=$_" } @findexcl_no_anchored;
+
 	push @$tar, '--anchored';
-	push @$tar, map { "--exclude=.$_" } @{$findexcl};
+	push @$tar, map { "--exclude=.$_" } @findexcl_anchored;
 
 	push @$tar, @sources;
 
