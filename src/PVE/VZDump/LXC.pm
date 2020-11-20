@@ -389,6 +389,7 @@ sub archive {
 	}
 
 	push @$param, '--skip-lost-and-found' if $userns_cmd;
+	push @$param, map { "--exclude=$_" } @$findexcl;
 
 	push @$param, '--backup-type', 'ct';
 	push @$param, '--backup-id', $vmid;
