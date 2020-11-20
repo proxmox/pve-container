@@ -369,6 +369,7 @@ sub archive {
     my $tmpdir = $task->{tmpdir};
 
     my $userns_cmd = $task->{userns_cmd};
+    my $findexcl = $self->{vzdump}->{findexcl};
 
     if ($self->{vzdump}->{opts}->{pbs}) {
 
@@ -427,7 +428,7 @@ sub archive {
 	push @$tar, "--directory=$snapdir";
 	push @$tar, '--no-anchored', '--exclude=lost+found' if $userns_cmd;
 	push @$tar, '--anchored';
-	push @$tar, map { "--exclude=.$_" } @{$self->{vzdump}->{findexcl}};
+	push @$tar, map { "--exclude=.$_" } @{$findexcl};
 
 	push @$tar, @sources;
 
