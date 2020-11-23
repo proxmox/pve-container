@@ -139,6 +139,8 @@ sub __snapshot_freeze {
     $class->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
+	return if $mountpoint->{type} ne 'volume';
+
 	if (PVE::Storage::volume_snapshot_needs_fsfreeze($storagecfg, $mountpoint->{volume})) {
 	    push @$freeze_mps, $mountpoint->{mp};
 	}
