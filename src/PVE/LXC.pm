@@ -737,7 +737,7 @@ sub verify_nameserver_list {
 
     my @list = ();
     foreach my $server (PVE::Tools::split_list($nameserver_list)) {
-	PVE::JSONSchema::pve_verify_ip($server);
+	PVE::LXC::Config::verify_ip_with_ll_iface($server);
 	push @list, $server;
     }
 

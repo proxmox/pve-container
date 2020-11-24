@@ -341,6 +341,23 @@ PVE::JSONSchema::register_standard_option('pve-ct-rootfs', {
     optional => 1,
 });
 
+# IP address with optional interface suffix for link local ipv6 addresses
+PVE::JSONSchema::register_format('lxc-ip-with-ll-iface', \&verify_ip_with_ll_iface);
+sub verify_ip_with_ll_iface {
+    my ($addr, $noerr) = @_;
+
+    if (my ($addr, $iface) = ($addr =~ /^(fe80:[^%]+)%(.*)$/)) {
+	if (PVE::JSONSchema::pve_verify_ip($addr, 1)
+	    && PVE::JSONSchema::pve_verify_iface($iface, 1))
+	{
+	    return $addr;
+	}
+    }
+
+    return PVE::JSONSchema::pve_verify_ip($addr, $noerr);
+}
+
+
 my $features_desc = {
     mount => {
 	optional => 1,
@@ -500,7 +517,7 @@ my $confdesc = {
     },
     nameserver => {
 	optional => 1,
-	type => 'string', format => 'address-list',
+	type => 'string', format => 'lxc-ip-with-ll-iface-list',
 	description => "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
     },
     timezone => {
