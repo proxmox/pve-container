@@ -1,3 +1,19 @@
+pve-container (3.3-1) pve; urgency=medium
+
+  * d/rules: do not try to start or enable system-pve\x2dcontainer.slice on
+    update
+
+  * CGroups: re-use factored-out PVE::CGroup module as base
+
+  * deactivate volumes after storage migrate
+
+  * vzdump: allow relative exclude patterns for snapshot and stop mode, to make
+    the behavior consistent across all backup modes
+
+  * vzdump: pass along exclude patterns to proxmox-backup-client
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 25 Nov 2020 13:51:03 +0100
+
 pve-container (3.2-4) pve; urgency=medium
 
   * fix #3161: snapshot creation: only check volumes for fsfreeze
