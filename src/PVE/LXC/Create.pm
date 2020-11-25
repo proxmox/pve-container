@@ -173,22 +173,24 @@ sub restore_tar_archive {
 }
 
 sub recover_config {
-    my ($storage_cfg, $volid) = @_;
+    my ($storage_cfg, $volid, $vmid) = @_;
 
     my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid, 1);
     if (defined($storeid)) {
 	my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $storeid);
 	if ($scfg->{type} eq 'pbs') {
-	    return recover_config_from_proxmox_backup($storage_cfg, $volid);
+	    return recover_config_from_proxmox_backup($storage_cfg, $volid, $vmid);
 	}
     }
 
     my $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $volid);
-    recover_config_from_tar($archive);
+    recover_config_from_tar($archive, $vmid);
 }
 
 sub recover_config_from_proxmox_backup {
-    my ($storage_cfg, $volid) = @_;
+    my ($storage_cfg, $volid, $vmid) = @_;
+
+    $vmid //= 0;
 
     my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid);
     my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
@@ -208,7 +210,7 @@ sub recover_config_from_proxmox_backup {
     PVE::Storage::PBSPlugin::run_raw_client_cmd(
 	$scfg,  $storeid, $cmd, $param, outfunc => $outfunc);
 
-    my $conf = PVE::LXC::Config::parse_pct_config("/lxc/0.conf" , $raw);
+    my $conf = PVE::LXC::Config::parse_pct_config("/lxc/${vmid}.conf" , $raw);
 
     delete $conf->{snapshots};
 
@@ -222,15 +224,16 @@ sub recover_config_from_proxmox_backup {
 }
 
 sub recover_config_from_tar {
-    my ($archive) = @_;
+    my ($archive, $vmid) = @_;
 
     my ($raw, $conf_file) = PVE::Storage::extract_vzdump_config_tar($archive, qr!(\./etc/vzdump/(pct|vps)\.conf)$!);
     my $conf;
     my $mp_param = {};
+    $vmid //= 0;
 
     if ($conf_file =~ m/pct\.conf/) {
 
-	$conf = PVE::LXC::Config::parse_pct_config("/lxc/0.conf" , $raw);
+	$conf = PVE::LXC::Config::parse_pct_config("/lxc/${vmid}.conf" , $raw);
 
 	delete $conf->{snapshots};
 
@@ -273,7 +276,7 @@ sub restore_configuration_from_proxmox_backup {
     my ($vtype, $name, undef, undef, undef, undef, $format) =
 	PVE::Storage::parse_volname($storage_cfg, $archive);
 
-    my $oldconf = recover_config_from_proxmox_backup($storage_cfg, $archive);
+    my $oldconf = recover_config_from_proxmox_backup($storage_cfg, $archive, $vmid);
 
     sanitize_and_merge_config($conf, $oldconf, $restricted, $unique);
 
