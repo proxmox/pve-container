@@ -301,9 +301,6 @@ sub phase1 {
 	}
     }
 
-    my $conffile = PVE::LXC::Config->config_file($vmid);
-    my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
-
     if ($self->{running}) {
 	die "implement me";
     }
@@ -318,15 +315,10 @@ sub phase1 {
     my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
-   # transfer replication state before move config
+    # transfer replication state before moving config
     $self->transfer_replication_state() if $rep_volumes;
-
-    # move config
-    die "Failed to move config to node '$self->{node}' - rename failed: $!\n"
-	if !rename($conffile, $newconffile);
-
+    PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
     $self->{conf_migrated} = 1;
-
     $self->switch_replication_job_target() if $rep_volumes;
 }
 
