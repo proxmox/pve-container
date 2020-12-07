@@ -280,7 +280,7 @@ sub restore_configuration_from_proxmox_backup {
     my $cmd = "files";
 
     my $list = PVE::Storage::PBSPlugin::run_client_cmd($scfg, $storeid, "files", [$name]);
-    my $has_fw_conf = grep { $_ eq 'fw.conf' } @$list;
+    my $has_fw_conf = grep { $_->{filename} eq 'fw.conf.blob' } @$list;
 
     if ($has_fw_conf) {
 	my $pve_firewall_dir = '/etc/pve/firewall';
