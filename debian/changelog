@@ -1,3 +1,9 @@
+pve-container (3.3-2) pve; urgency=medium
+
+  * improve restoring PBS archive: avoid missing restore of firewall config
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 09 Dec 2020 12:49:29 +0100
+
 pve-container (3.3-1) pve; urgency=medium
 
   * d/rules: do not try to start or enable system-pve\x2dcontainer.slice on
