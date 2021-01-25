@@ -20,8 +20,14 @@ use PVE::SafeSyslog;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools qw(
-    dir_glob_foreach file_get_contents file_set_contents
-    AT_FDCWD O_PATH $IPV4RE $IPV6RE
+    run_command
+    dir_glob_foreach
+    file_get_contents
+    file_set_contents
+    AT_FDCWD
+    O_PATH
+    $IPV4RE
+    $IPV6RE
 );
 use PVE::CpuSet;
 use PVE::Network;
@@ -1787,7 +1793,7 @@ sub get_staging_tempfs() {
 sub mkfs {
     my ($dev, $rootuid, $rootgid) = @_;
 
-    PVE::Tools::run_command(['mkfs.ext4', '-O', 'mmp',
+    run_command(['mkfs.ext4', '-O', 'mmp',
 			     '-E', "root_owner=$rootuid:$rootgid",
 			     $dev]);
 }
@@ -2268,7 +2274,7 @@ sub vm_start {
 
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'pre-start', 1);
     eval {
-	PVE::Tools::run_command($cmd);
+	run_command($cmd);
 
 	monitor_start($monitor_socket, $vmid) if defined($monitor_socket);
 
@@ -2325,7 +2331,7 @@ sub vm_stop {
 	}
     }
 
-    eval { PVE::Tools::run_command($cmd, timeout => $shutdown_timeout) };
+    eval { run_command($cmd, timeout => $shutdown_timeout) };
     if (my $err = $@) {
 	warn $@ if $@;
     }
@@ -2356,7 +2362,7 @@ sub run_unshared {
 	# Unshare the mount namespace
 	die "failed to unshare mount namespace: $!\n"
 	    if !PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
-	PVE::Tools::run_command(['mount', '--make-rslave', '/']);
+	run_command(['mount', '--make-rslave', '/']);
 	return $code->();
     });
 }
@@ -2382,9 +2388,20 @@ my $copy_volume = sub {
 
 	$bwlimit //= 0;
 
-	PVE::Tools::run_command(['/usr/bin/rsync', '--stats', '-X', '-A', '--numeric-ids',
-				 '-aH', '--whole-file', '--sparse', '--one-file-system',
-				 "--bwlimit=$bwlimit", "$src/", $dest]);
+	run_command([
+	    'rsync',
+	    '--stats',
+	    '-X',
+	    '-A',
+	    '--numeric-ids',
+	    '-aH',
+	    '--whole-file',
+	    '--sparse',
+	    '--one-file-system',
+	    "--bwlimit=$bwlimit",
+	    "$src/",
+	    $dest
+	]);
     };
     my $err = $@;
 
@@ -2393,7 +2410,7 @@ my $copy_volume = sub {
     while ((system {"fuser"} "fuser",  "-s", $dest) == 0) {sleep 1};
 
     foreach my $mount (reverse @mounted) {
-	eval { PVE::Tools::run_command(['/bin/umount', $mount], errfunc => sub{})};
+	eval { run_command(['/bin/umount', $mount], errfunc => sub{})};
 	warn "Can't umount $mount\n" if $@;
     }
 
@@ -2447,7 +2464,7 @@ sub copy_volume {
 
 sub get_lxc_version() {
     my $version;
-    PVE::Tools::run_command([qw(lxc-start --version)], outfunc => sub {
+    run_command([qw(lxc-start --version)], outfunc => sub {
 	my ($line) = @_;
 	# We only parse out major & minor version numbers.
 	if ($line =~ /^(\d+)\.(\d+)(?:\D.*)?$/) {
