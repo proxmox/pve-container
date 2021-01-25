@@ -2507,12 +2507,20 @@ sub get_lxc_version() {
 
 sub freeze($) {
     my ($vmid) = @_;
-    PVE::LXC::CGroup->new($vmid)->freeze_thaw(1);
+    if (PVE::CGroup::cgroup_mode() == 2) {
+	PVE::LXC::Command::freeze($vmid, 30);
+    } else {
+	PVE::LXC::CGroup->new($vmid)->freeze_thaw(1);
+    }
 }
 
 sub thaw($) {
     my ($vmid) = @_;
-    PVE::LXC::CGroup->new($vmid)->freeze_thaw(0);
+    if (PVE::CGroup::cgroup_mode() == 2) {
+	PVE::LXC::Command::unfreeze($vmid, 30);
+    } else {
+	PVE::LXC::CGroup->new($vmid)->freeze_thaw(0);
+    }
 }
 
 1;
