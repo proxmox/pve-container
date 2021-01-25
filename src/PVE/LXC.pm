@@ -1793,9 +1793,27 @@ sub get_staging_tempfs() {
 sub mkfs {
     my ($dev, $rootuid, $rootgid) = @_;
 
-    run_command(['mkfs.ext4', '-O', 'mmp',
-			     '-E', "root_owner=$rootuid:$rootgid",
-			     $dev]);
+    run_command(
+	[
+	    'mkfs.ext4',
+	    '-O',
+	    'mmp',
+	    '-E',
+	    "root_owner=$rootuid:$rootgid",
+	    $dev,
+	],
+	outfunc => sub {
+	    my $line = shift;
+	    # a hack to print only the relevant stuff, i.e., the one which could help on repair
+	    if ($line =~ /^(Creating filesystem|Filesystem UUID|Superblock backups|\s+\d+, \d)/) {
+		print "$line\n";
+	    }
+	},
+	errfunc => sub {
+	    my $line = shift;
+	    print STDERR "$line\n" if $line && $line !~ /^mke2fs \d\.\d/;
+	}
+    );
 }
 
 sub format_disk {
