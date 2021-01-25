@@ -829,12 +829,21 @@ sub delete_mountpoint_volume {
 }
 
 sub destroy_lxc_container {
-    my ($storage_cfg, $vmid, $conf, $replacement_conf) = @_;
+    my ($storage_cfg, $vmid, $conf, $replacement_conf, $purge_unreferenced) = @_;
 
     PVE::LXC::Config->foreach_volume_full($conf, {include_unused => 1}, sub {
 	my ($ms, $mountpoint) = @_;
 	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
     });
+
+    if ($purge_unreferenced) { # also remove unreferenced disk
+	my $vmdisks = PVE::Storage::vdisk_list($storage_cfg, undef, $vmid);
+	PVE::Storage::foreach_volid($vmdisks, sub {
+	    my ($volid, $sid, $volname, $d) = @_;
+	    eval { PVE::Storage::vdisk_free($storage_cfg, $volid) };
+	    warn $@ if $@;
+	});
+    }
 
     rmdir "/var/lib/lxc/$vmid/rootfs";
     unlink "/var/lib/lxc/$vmid/config";

@@ -633,6 +633,12 @@ __PACKAGE__->register_method({
 		default => 0,
 		optional => 1,
 	    },
+	    'destroy-unreferenced-disks' => {
+		type => 'boolean',
+		description => "If set, destroy additionally all disks with the VMID from all"
+		    ." enabled storages which are not referenced in the config.",
+		optional => 1,
+	    },
 	},
     },
     returns => {
@@ -688,7 +694,13 @@ __PACKAGE__->register_method({
 	    }
 
 	    my $storage_cfg = cfs_read_file("storage.cfg");
-	    PVE::LXC::destroy_lxc_container($storage_cfg, $vmid, $conf, { lock => 'destroyed' });
+	    PVE::LXC::destroy_lxc_container(
+		$storage_cfg,
+		$vmid,
+		$conf,
+		{ lock => 'destroyed' },
+		$param->{'destroy-unreferenced-disks'},
+	    );
 
 	    PVE::AccessControl::remove_vm_access($vmid);
 	    PVE::Firewall::remove_vmfw_conf($vmid);
