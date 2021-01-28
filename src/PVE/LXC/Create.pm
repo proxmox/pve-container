@@ -294,6 +294,7 @@ sub restore_configuration_from_proxmox_backup {
 		if -e $pct_fwcfg_target;
 	} else {
 	    mkdir $pve_firewall_dir; # make sure the directory exists
+	    unlink $pct_fwcfg_target;
 
 	    my $cmd = "restore";
 	    my $param = [$name, "fw.conf", $pct_fwcfg_target];
