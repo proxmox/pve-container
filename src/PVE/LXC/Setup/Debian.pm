@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Base;
 
 use base qw(PVE::LXC::Setup::Base);
 
+
 sub new {
     my ($class, $conf, $rootdir) = @_;
 
@@ -24,6 +25,7 @@ sub new {
 	'stretch/sid' => 9.1,
 	'buster/sid' => 10,
 	'bullseye/sid' => 11,
+	'bookworm/sid' => 12,
 	'kali-rolling' => 11,
     };
     $version = $version_map->{$version} if exists($version_map->{$version});
@@ -34,7 +36,7 @@ sub new {
     $version = $1;
 
     die "unsupported debian version '$version'\n"
-	if !($version >= 4 && $version <= 11);
+	if !($version >= 4 && $version <= 12);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
