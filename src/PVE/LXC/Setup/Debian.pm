@@ -19,11 +19,14 @@ sub new {
 
     die "unable to read version info\n" if !defined($version);
 
-    # translate testing version names
-    $version = 9.1 if $version eq 'stretch/sid';
-    $version = 10 if $version eq 'buster/sid';
-    $version = 11 if $version eq 'bullseye/sid';
-    $version = 11 if $version eq 'kali-rolling';
+    # translate testing version and os-release incompat derivates names
+    my $version_map = {
+	'stretch/sid' => 9.1,
+	'buster/sid' => 10,
+	'bullseye/sid' => 11,
+	'kali-rolling' => 11,
+    };
+    $version = $version_map->{$version} if exists($version_map->{$version});
 
     die "unable to parse version info '$version'\n"
 	if $version !~ m/^(\d+(\.\d+)?)(\.\d+)?/;
