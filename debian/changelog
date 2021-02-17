@@ -1,3 +1,11 @@
+pve-container (3.3-4) pve; urgency=medium
+
+  * fix #3176: allow development Devuan versions, improve version detection
+
+  * fix restore of containers with 'devuan' as ostype
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 17 Feb 2021 08:59:25 +0100
+
 pve-container (3.3-3) pve; urgency=medium
 
   * make formatting image with ext4 less noisy
