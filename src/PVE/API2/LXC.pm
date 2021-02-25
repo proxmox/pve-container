@@ -362,6 +362,9 @@ __PACKAGE__->register_method({
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
 			# of the container match up with the restored configuration afterwards:
 			$conf->{lxc} = $orig_conf->{lxc} if $is_root;
+
+			$conf->{unprivileged} = $orig_conf->{unprivileged}
+			    if !defined($unprivileged) && defined($orig_conf->{unprivileged});
 		    }
 		}
 		if ($storage_only_mode) {
