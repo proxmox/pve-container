@@ -356,7 +356,9 @@ __PACKAGE__->register_method({
 			my $orig_conf;
 			print "recovering backed-up configuration from '$archive'\n";
 			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($storage_cfg, $archive, $vmid);
+
 			$was_template = delete $orig_conf->{template};
+
 			# When we're root call 'restore_configuration' with restricted=0,
 			# causing it to restore the raw lxc entries, among which there may be
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
