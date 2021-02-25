@@ -352,7 +352,7 @@ __PACKAGE__->register_method({
 		my $orig_mp_param; # only used if $restore
 		if ($restore) {
 		    die "can't overwrite running container\n" if PVE::LXC::check_running($vmid);
-		    if ($is_root && $archive ne '-') {
+		    if ($archive ne '-') {
 			my $orig_conf;
 			print "recovering backed-up configuration from '$archive'\n";
 			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($storage_cfg, $archive, $vmid);
@@ -361,7 +361,7 @@ __PACKAGE__->register_method({
 			# causing it to restore the raw lxc entries, among which there may be
 			# 'lxc.idmap' entries. We need to make sure that the extracted contents
 			# of the container match up with the restored configuration afterwards:
-			$conf->{lxc} = $orig_conf->{lxc};
+			$conf->{lxc} = $orig_conf->{lxc} if $is_root;
 		    }
 		}
 		if ($storage_only_mode) {
