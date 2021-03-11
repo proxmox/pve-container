@@ -933,7 +933,7 @@ sub parse_pct_config {
 	    } else {
 		warn "vm $vmid - property 'delete' is only allowed in [pve:pending]\n";
 	    }
-	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(\S.*)\s*$/) {
+	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(.+?)\s*$/) {
 	    my $key = $1;
 	    my $value = $2;
 	    eval { $value = PVE::LXC::Config->check_type($key, $value); };
