@@ -234,7 +234,7 @@ sub vmstatus {
 	$d->{diskread} = 0;
 	$d->{diskwrite} = 0;
 
-	$d->{template} = PVE::LXC::Config->is_template($conf);
+	$d->{template} = 1 if PVE::LXC::Config->is_template($conf);
 	$d->{lock} = $conf->{lock} if $conf->{lock};
     }
 
