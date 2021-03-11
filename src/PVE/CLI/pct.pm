@@ -810,7 +810,8 @@ our $cmddef = {
 	my $format = "%-10s %-10s %-12s %-20s\n";
 	printf($format, 'VMID', 'Status', 'Lock', 'Name');
 	foreach my $d (sort {$a->{vmid} <=> $b->{vmid} } @$res) {
-	    printf($format, $d->{vmid}, $d->{status}, $d->{lock}, $d->{name});
+	    my $lock = $d->{lock} || '';
+	    printf($format, $d->{vmid}, $d->{status}, $lock, $d->{name});
 	}
     }],
     config => [ "PVE::API2::LXC::Config", 'vm_config', ['vmid'], 

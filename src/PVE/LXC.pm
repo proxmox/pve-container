@@ -203,7 +203,6 @@ sub vmstatus {
 	$d->{cpus} = $conf->{cores} || $conf->{cpulimit};
 	$d->{cpus} = $cpucount if !$d->{cpus};
 
-	$d->{lock} = $conf->{lock} || '';
 	$d->{tags} = $conf->{tags} if defined($conf->{tags});
 
 	if ($d->{pid}) {
