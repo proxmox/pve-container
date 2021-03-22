@@ -836,7 +836,7 @@ sub destroy_lxc_container {
     });
 
     if ($purge_unreferenced) { # also remove unreferenced disk
-	my $vmdisks = PVE::Storage::vdisk_list($storage_cfg, undef, $vmid);
+	my $vmdisks = PVE::Storage::vdisk_list($storage_cfg, undef, $vmid, undef, 'rootdir');
 	PVE::Storage::foreach_volid($vmdisks, sub {
 	    my ($volid, $sid, $volname, $d) = @_;
 	    eval { PVE::Storage::vdisk_free($storage_cfg, $volid) };
@@ -2042,7 +2042,7 @@ sub update_unused {
 sub scan_volids {
     my ($cfg, $vmid) = @_;
 
-    my $info = PVE::Storage::vdisk_list($cfg, undef, $vmid);
+    my $info = PVE::Storage::vdisk_list($cfg, undef, $vmid, undef, 'rootdir');
 
     my $all_volumes = {};
     foreach my $storeid (keys %$info) {
@@ -2061,12 +2061,6 @@ sub rescan {
     my ($vmid, $nolock, $dryrun) = @_;
 
     my $cfg = PVE::Storage::config();
-
-    # FIXME: Remove once our RBD plugin can handle CT and VM on a single storage
-    # see: https://pve.proxmox.com/pipermail/pve-devel/2018-July/032900.html
-    foreach my $stor (keys %{$cfg->{ids}}) {
-	delete($cfg->{ids}->{$stor}) if !$cfg->{ids}->{$stor}->{content}->{rootdir};
-    }
 
     print "rescan volumes...\n";
     my $all_volumes = scan_volids($cfg, $vmid);
