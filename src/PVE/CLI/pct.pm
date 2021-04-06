@@ -422,14 +422,16 @@ sub create_file {
 	if ($user =~ /^\d+$/) {
 	    $uid = int($user);
 	} else {
-	    $uid = getpwnam($user) or die "failed to get uid for: $user\n"
+	    $uid = getpwnam($user);
+	    die "failed to get uid for: $user\n" if !defined($uid);
 	}
     }
     if (defined($group)) {
 	if ($group =~ /^\d+$/) {
 	    $gid = int($group);
 	} else {
-	    $gid = getgrnam($group) or die "failed to get gid for: $group\n"
+	    $gid = getgrnam($group);
+	    die "failed to get gid for: $group\n" if !defined($gid);
 	}
     }
 
