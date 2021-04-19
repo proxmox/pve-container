@@ -45,8 +45,8 @@ sub setup_network {
 
     my $version = $self->{version};
 
-    my $setup_sysconfig = ($version <= 24 || ($self->{version} <= 27 && $sysconfig_used));
-    my $setup_systemd = ($self->{version} >= 25);
+    my $setup_sysconfig = ($version <= 24 || ($version <= 27 && $sysconfig_used));
+    my $setup_systemd = ($version >= 25);
 
     $self->SUPER::setup_network($conf) if $setup_sysconfig;
     $self->SUPER::setup_systemd_networkd($conf) if $setup_systemd;
