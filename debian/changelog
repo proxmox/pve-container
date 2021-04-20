@@ -1,3 +1,16 @@
+pve-container (3.3-5) pve; urgency=medium
+
+  * backup: keep CT template status also for non-root restores
+
+  * fix #3313: restore: use unprivileged status from backup archive config as
+    default for restored CT
+
+  * pct push: do not mistakenly recognize the zero root UID/GID value as error
+
+  * setup: fedora: allow upcoming Fedora 34
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 20 Apr 2021 14:13:37 +0200
+
 pve-container (3.3-4) pve; urgency=medium
 
   * fix #3176: allow development Devuan versions, improve version detection
