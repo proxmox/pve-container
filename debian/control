@@ -2,17 +2,17 @@ Source: pve-container
 Section: perl
 Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
-Build-Depends: debhelper (>= 10~),
+Build-Depends: debhelper (>= 12~),
                libpve-cluster-perl,
                libpve-common-perl (>= 6.0-19),
                libpve-guest-common-perl (>= 3.0-6),
                libpve-storage-perl,
                libtest-mockmodule-perl,
-               lxc (>= 3.0.2) | lxc-pve (>= 3.0.1+pve1),
+               lxc-pve (>= 3.0.1+pve1) | lxc (>= 3.0.2),
                pve-cluster (>= 4.0-8),
                pve-doc-generator (>= 5.3-3),
                pve-firewall,
-Standards-Version: 4.3.0
+Standards-Version: 4.5.1
 
 Package: pve-container
 Section: perl
