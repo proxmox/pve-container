@@ -1,3 +1,9 @@
+pve-container (4.0-1) bullseye; urgency=medium
+
+  * re-build for Proxmox VE 7 / Debian Bullseye
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 13 May 2021 14:02:10 +0200
+
 pve-container (3.3-5) pve; urgency=medium
 
   * backup: keep CT template status also for non-root restores
