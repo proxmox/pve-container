@@ -1359,30 +1359,21 @@ __PACKAGE__->register_method({
 	my ($param) = @_;
 
 	my $rpcenv = PVE::RPCEnvironment::get();
-
-        my $authuser = $rpcenv->get_user();
+	my $authuser = $rpcenv->get_user();
 
 	my $node = extract_param($param, 'node');
-
 	my $vmid = extract_param($param, 'vmid');
-
 	my $newid = extract_param($param, 'newid');
-
 	my $pool = extract_param($param, 'pool');
-
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
 	}
-
 	my $snapname = extract_param($param, 'snapname');
-
 	my $storage = extract_param($param, 'storage');
-
 	my $target = extract_param($param, 'target');
-
         my $localnode = PVE::INotify::nodename();
 
-        undef $target if $target && ($target eq $localnode || $target eq 'localhost');
+	undef $target if $target && ($target eq $localnode || $target eq 'localhost');
 
 	PVE::Cluster::check_node_exists($target) if $target;
 
@@ -1424,7 +1415,6 @@ __PACKAGE__->register_method({
 		die "snapshot '$snapname' does not exist\n"
 		    if $snapname && !defined($src_conf->{snapshots}->{$snapname});
 
-
 		my $src_conf = $snapname ? $src_conf->{snapshots}->{$snapname} : $src_conf;
 
 		$conffile = PVE::LXC::Config->config_file($newid);
@@ -1432,7 +1422,7 @@ __PACKAGE__->register_method({
 		    if -f $conffile;
 
 		my $sharedvm = 1;
-		foreach my $opt (keys %$src_conf) {
+		for my $opt (sort keys %$src_conf) {
 		    next if $opt =~ m/^unused\d+$/;
 
 		    my $value = $src_conf->{$opt};
