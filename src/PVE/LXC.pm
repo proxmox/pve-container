@@ -1702,15 +1702,16 @@ sub __mountpoint_mount {
 		}
 	    };
 	    my $use_loopdev = 0;
-	    if ($scfg->{path}) {
-		$mounted_dev = run_with_loopdev($domount, $path, $readonly);
-		$use_loopdev = 1;
-	    } elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' ||
-		     $scfg->{type} eq 'rbd' || $scfg->{type} eq 'lvmthin') {
-		$mounted_dev = $path;
-		&$domount($path);
+	    if ($scfg->{content}->{rootdir}) {
+		if ($scfg->{path}) {
+		    $mounted_dev = run_with_loopdev($domount, $path, $readonly);
+		    $use_loopdev = 1;
+		} else {
+		    $mounted_dev = $path;
+		    &$domount($path);
+		}
 	    } else {
-		die "unsupported storage type '$scfg->{type}'\n";
+		die "storage '$storage' does not support containers\n";
 	    }
 	    return wantarray ? ($path, $use_loopdev, $mounted_dev) : $path;
 	} else {
@@ -1891,7 +1892,7 @@ sub alloc_disk {
 
     eval {
 	my $do_format = 0;
-	if ($scfg->{type} eq 'dir' || $scfg->{type} eq 'nfs' || $scfg->{type} eq 'cifs' ) {
+	if ($scfg->{content}->{rootdir} && $scfg->{path}) {
 	    if ($size_kb > 0) {
 		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw',
 						   undef, $size_kb);
@@ -1902,21 +1903,14 @@ sub alloc_disk {
 		$needs_chown = 1;
 	    }
 	} elsif ($scfg->{type} eq 'zfspool') {
-
 	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol',
 					       undef, $size_kb);
 	    $needs_chown = 1;
-	} elsif ($scfg->{type} eq 'drbd' || $scfg->{type} eq 'lvm' || $scfg->{type} eq 'lvmthin') {
-
-	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
-	    $do_format = 1;
-
-	} elsif ($scfg->{type} eq 'rbd') {
-
+	} elsif ($scfg->{content}->{rootdir}) {
 	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 	    $do_format = 1;
 	} else {
-	    die "unable to create containers on storage type '$scfg->{type}'\n";
+	    die "storage '$storage' does not support containers\n";
 	}
 	format_disk($storecfg, $volid, $rootuid, $rootgid) if $do_format;
     };
