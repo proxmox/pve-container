@@ -171,7 +171,7 @@ our $vmstatus_return_properties = {
 sub vmstatus {
     my ($opt_vmid) = @_;
 
-    my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc', vmid => $opt_vmid }} : config_list();
+    my $list = $opt_vmid ? { $opt_vmid => { type => 'lxc', vmid => int($opt_vmid) }} : config_list();
 
     my $active_hash = list_active_containers();
 
@@ -187,7 +187,7 @@ sub vmstatus {
     foreach my $vmid (keys %$list) {
 	my $d = $list->{$vmid};
 
-	eval { $d->{pid} = find_lxc_pid($vmid) if defined($active_hash->{$vmid}); };
+	eval { $d->{pid} = int(find_lxc_pid($vmid)) if defined($active_hash->{$vmid}); };
 	warn $@ if $@; # ignore errors (consider them stopped)
 
 	$d->{status} = $active_hash->{$vmid} ? 'running' : 'stopped';
@@ -207,8 +207,8 @@ sub vmstatus {
 
 	if ($d->{pid}) {
 	    my $res = get_container_disk_usage($vmid, $d->{pid});
-	    $d->{disk} = $res->{used};
-	    $d->{maxdisk} = $res->{total};
+	    $d->{disk} = int($res->{used});
+	    $d->{maxdisk} = int($res->{total});
 	} else {
 	    $d->{disk} = 0;
 	    # use 4GB by default ??
@@ -252,16 +252,16 @@ sub vmstatus {
 	my $cgroups = PVE::LXC::CGroup->new($vmid);
 
 	if (defined(my $mem = $cgroups->get_memory_stat())) {
-	    $d->{mem} = $mem->{mem};
-	    $d->{swap} = $mem->{swap};
+	    $d->{mem} = int($mem->{mem});
+	    $d->{swap} = int($mem->{swap});
 	} else {
 	    $d->{mem} = 0;
 	    $d->{swap} = 0;
 	}
 
 	if (defined(my $blkio = $cgroups->get_io_stats())) {
-	    $d->{diskread} = $blkio->{diskread};
-	    $d->{diskwrite} = $blkio->{diskwrite};
+	    $d->{diskread} = int($blkio->{diskread});
+	    $d->{diskwrite} = int($blkio->{diskwrite});
 	} else {
 	    $d->{diskread} = 0;
 	    $d->{diskwrite} = 0;
