@@ -44,20 +44,14 @@ sub prepare {
     }
     $self->{was_running} = $running;
 
-    my $force = $self->{opts}->{force} // 0;
-
     PVE::LXC::Config->foreach_volume($conf, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
 	my $type = $mountpoint->{type};
 
-	# skip dev/bind mps when forced / shared
+	# skip dev/bind mps when shared
 	if ($type ne 'volume') {
-	    if ($force) {
-		warn "-force is deprecated, please use the 'shared' property on individual non-volume mount points instead!\n";
-		return;
-	    }
 	    if ($mountpoint->{shared}) {
 		return;
 	    } else {

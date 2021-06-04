@@ -1076,12 +1076,6 @@ __PACKAGE__->register_method({
 		optional => 1,
 		default => 180,
 	    },
-	    force => {
-		type => 'boolean',
-		description => "Force migration despite local bind / device" .
-		    " mounts. NOTE: deprecated, use 'shared' property of mount point instead.",
-		optional => 1,
-	    },
 	    bwlimit => {
 		description => "Override I/O bandwidth limit (in KiB/s).",
 		optional => 1,
