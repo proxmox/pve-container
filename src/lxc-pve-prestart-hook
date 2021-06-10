@@ -9,6 +9,7 @@ use Fcntl qw(O_DIRECTORY :mode);
 use File::Path;
 use POSIX;
 
+use PVE::CGroup;
 use PVE::Cluster;
 use PVE::LXC::Config;
 use PVE::LXC::Setup;
@@ -148,7 +149,7 @@ sub cleanup_cgroups($) {
 	rmdir_recursive("/sys/fs/cgroup/lxc/$vmid");
 	rmdir_recursive("/sys/fs/cgroup/lxc.monitor/$vmid");
     } else {
-	my ($v1, $v2) = PVE::LXC::get_cgroup_subsystems();
+	my ($v1, $v2) = PVE::CGroup::get_cgroup_controllers();
 
 	my @controllers_cgv1 = keys %$v1;
 	foreach my $controller (@controllers_cgv1) {

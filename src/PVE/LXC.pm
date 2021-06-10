@@ -408,11 +408,6 @@ sub parse_ipv4_cidr {
     die "unable to parse ipv4 address/mask\n";
 }
 
-# Deprecated. Use `PVE::CGroup::get_cgroup_controllers()` instead.
-sub get_cgroup_subsystems {
-    PVE::CGroup::get_v1_controllers();
-}
-
 # With seccomp trap to userspace we now have the ability to optionally forward
 # certain syscalls to the "host" to handle (via our pve-lxc-syscalld daemon).
 #
@@ -637,7 +632,7 @@ sub update_lxc_config {
     # files while the container is running!
     $raw .= "lxc.monitor.unshare = 1\n";
 
-    my $cgv1 = get_cgroup_subsystems();
+    my ($cgv1, $cgv2) = PVE::CGroup::get_cgroup_controllers();
 
     # Should we read them from /etc/subuid?
     if ($unprivileged && !$custom_idmap) {
@@ -647,7 +642,11 @@ sub update_lxc_config {
 
     if (!PVE::LXC::Config->has_dev_console($conf)) {
 	$raw .= "lxc.console.path = none\n";
-	$raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n" if $cgv1->{devices};
+	if ($cgv1->{devices}) {
+	    $raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
+	} elsif (defined($cgv2)) {
+	    $raw .= "lxc.cgroup2.devices.deny = c 5:1 rwm\n";
+	}
     }
 
     my $ttycount = PVE::LXC::Config->get_tty_count($conf);
@@ -668,6 +667,15 @@ sub update_lxc_config {
 
 	my $lxcswap = int(($memory + $swap)*1024*1024);
 	$raw .= "lxc.cgroup.memory.memsw.limit_in_bytes = $lxcswap\n";
+    } elsif ($cgv2->{memory}) {
+	my $memory = $conf->{memory} || 512;
+	my $swap = $conf->{swap} // 0;
+
+	my $lxcmem = int($memory*1024*1024);
+	$raw .= "lxc.cgroup2.memory.max = $lxcmem\n";
+
+	my $lxcswap = int($swap*1024*1024);
+	$raw .= "lxc.cgroup2.memory.swap.max = $lxcswap\n";
     }
 
     if ($cgv1->{cpu}) {
@@ -679,6 +687,18 @@ sub update_lxc_config {
 
 	my $shares = $conf->{cpuunits} || 1024;
 	$raw .= "lxc.cgroup.cpu.shares = $shares\n";
+    } elsif ($cgv2->{cpu}) {
+	# See PVE::CGroup
+	if (my $cpulimit = $conf->{cpulimit}) {
+	    my $value = int(100000*$cpulimit);
+	    $raw .= "lxc.cgroup2.cpu.max = $value 100000\n";
+	}
+
+	if (defined(my $shares = $conf->{cpuunits})) {
+	    die "cpu weight (shares) must be in range [1, 10000]\n"
+		if $shares < 1 || $shares > 10000;
+	    $raw .= "lxc.cgroup2.cpu.weight = $shares\n";
+	}
     }
 
     die "missing 'rootfs' configuration\n"
