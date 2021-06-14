@@ -189,6 +189,8 @@ __PACKAGE__->register_method ({
 	if (!@{$param->{'extra-args'}}) {
 	    die "missing command";
 	}
+	die "Error: container '$param->{vmid}' not running!\n" if !PVE::LXC::check_running($param->{vmid});
+
 	exec('lxc-attach', '-n', $param->{vmid}, '--', @{$param->{'extra-args'}});
     }});
 
