@@ -158,10 +158,8 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{vmid};
 
-	# test if container exists on this node
-	PVE::LXC::Config->load_config($vmid);
-
-	die "Error: container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
+	PVE::LXC::Config->load_config($vmid); # test if container exists on this node
+	die "container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
 
 	exec('lxc-attach', '-n',  $vmid);
     }});
@@ -184,7 +182,7 @@ __PACKAGE__->register_method ({
 
 	my $vmid = $param->{vmid};
 	PVE::LXC::Config->load_config($vmid); # test if container exists on this node
-	die "Error: container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
+	die "container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
 
 	die "missing command" if !@{$param->{'extra-args'}};
 
