@@ -116,7 +116,7 @@ __PACKAGE__->register_method ({
     method => 'GET',
     description => "Launch a console for the specified container.",
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    escape => {
@@ -146,7 +146,7 @@ __PACKAGE__->register_method ({
     method => 'GET',
     description => "Launch a shell for the specified container.",
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	},
@@ -172,14 +172,13 @@ __PACKAGE__->register_method ({
     method => 'GET',
     description => "Launch a command inside the specified container.",
     parameters => {
-    	additionalProperties => 0,
+	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    'extra-args' => get_standard_option('extra-args'),
 	},
     },
     returns => { type => 'null' },
-
     code => sub {
 	my ($param) = @_;
 
@@ -219,8 +218,8 @@ __PACKAGE__->register_method ({
     },
     returns => { type => 'null' },
     code => sub {
-
 	my ($param) = @_;
+
 	my $vmid = $param->{'vmid'};
 	my $device = defined($param->{'device'}) ? $param->{'device'} : 'rootfs';
 
