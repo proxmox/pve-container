@@ -813,25 +813,22 @@ our $cmddef = {
 	    printf($format, $d->{vmid}, $d->{status}, $lock, $d->{name});
 	}
     }],
-    config => [ "PVE::API2::LXC::Config", 'vm_config', ['vmid'], 
-		{ node => $nodename }, sub {
-		    my $config = shift;
-		    foreach my $k (sort (keys %$config)) {
-			next if $k eq 'digest';
-			next if $k eq 'lxc';
-			my $v = $config->{$k};
-			if ($k eq 'description') {
-			    $v = PVE::Tools::encode_text($v);
-			}
-			print "$k: $v\n";
-		    }
-		    if (defined($config->{'lxc'})) {
-			my $lxc_list = $config->{'lxc'};
-			foreach my $lxc_opt (@$lxc_list) {
-			    print "$lxc_opt->[0]: $lxc_opt->[1]\n"
-			}
-		    }
-		}],
+    config => [ "PVE::API2::LXC::Config", 'vm_config', ['vmid'], { node => $nodename }, sub {
+	my $config = shift;
+	for my $k (sort (keys %$config)) {
+	    next if $k eq 'digest' || $k eq 'lxc';
+	    my $v = $config->{$k};
+	    if ($k eq 'description') {
+		$v = PVE::Tools::encode_text($v);
+	    }
+	    print "$k: $v\n";
+	}
+	if (defined(my $lxc_list = $config->{'lxc'})) {
+	    for my $lxc_opt (@$lxc_list) {
+		print "$lxc_opt->[0]: $lxc_opt->[1]\n"
+	    }
+	}
+    }],
 
     pending => [ "PVE::API2::LXC", "vm_pending", ['vmid'], { node => $nodename }, \&PVE::GuestHelpers::format_pending ],
     set => [ 'PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
