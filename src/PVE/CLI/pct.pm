@@ -3,24 +3,25 @@ package PVE::CLI::pct;
 use strict;
 use warnings;
 
-use POSIX;
 use Fcntl;
 use File::Copy 'copy';
+use POSIX;
 
+use PVE::CLIHandler;
+use PVE::Cluster;
+use PVE::CpuSet;
 use PVE::GuestHelpers;
+use PVE::INotify;
+use PVE::JSONSchema qw(get_standard_option);
+use PVE::LXC::CGroup;
+use PVE::RPCEnvironment;
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param);
-use PVE::CpuSet;
-use PVE::Cluster;
-use PVE::INotify;
-use PVE::RPCEnvironment;
-use PVE::JSONSchema qw(get_standard_option);
-use PVE::CLIHandler;
-use PVE::API2::LXC;
+
 use PVE::API2::LXC::Config;
-use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
-use PVE::LXC::CGroup;
+use PVE::API2::LXC::Status;
+use PVE::API2::LXC;
 
 use base qw(PVE::CLIHandler);
 
@@ -873,6 +874,5 @@ our $cmddef = {
     cpusets => [ __PACKAGE__, 'cpusets', []],
     fstrim => [ __PACKAGE__, 'fstrim', ['vmid']],
 };
-
 
 1;
