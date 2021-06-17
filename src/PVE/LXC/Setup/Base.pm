@@ -476,6 +476,30 @@ sub set_timezone {
     }
 }
 
+sub clear_machine_id {
+    my ($self, $conf, $clone) = @_;
+
+    my $uses_systemd = $self->ct_is_executable("/lib/systemd/systemd")
+	|| $self->ct_is_executable("/usr/lib/systemd/systemd");
+
+    my $dbus_machine_id_path = "/var/lib/dbus/machine-id";
+    my $machine_id_path = "/etc/machine-id";
+    if (
+	$self->ct_file_exists($dbus_machine_id_path)
+	&& !$self->ct_is_symlink($dbus_machine_id_path)
+	&& $uses_systemd
+    ) {
+        $self->ct_unlink($dbus_machine_id_path);
+    }
+
+    # don't remove file if container is being cloned
+    if ($clone) {
+	$self->ct_file_set_contents($machine_id_path, "\n");
+    } else {
+	$self->ct_unlink($machine_id_path);
+    }
+}
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
@@ -488,9 +512,16 @@ sub pre_start_hook {
     # fixme: what else ?
 }
 
+sub post_clone_hook {
+    my ($self, $conf) = @_;
+
+    $self->clear_machine_id($conf, 1);
+}
+
 sub post_create_hook {
     my ($self, $conf, $root_password, $ssh_keys) = @_;
 
+    $self->clear_machine_id($conf);
     $self->template_fixup($conf);
 
     &$randomize_crontab($self, $conf);

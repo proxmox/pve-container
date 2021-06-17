@@ -352,6 +352,18 @@ sub pre_start_hook {
     $self->protected_call($code);
 }
 
+sub post_clone_hook {
+    my ($self, $conf) = @_;
+
+    my $clone = 1;
+
+    my $code = sub {
+	$self->{plugin}->post_clone_hook($self->{conf}, $clone);
+    };
+    $self->protected_call($code);
+
+}
+
 sub post_create_hook {
     my ($self, $root_password, $ssh_keys) = @_;
 
