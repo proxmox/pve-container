@@ -1554,6 +1554,15 @@ __PACKAGE__->register_method({
 		}
 
 		PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
+
+		$newconf = PVE::LXC::Config->load_config($newid);
+		die "Lost 'create' config lock, aborting.\n"
+		    if !PVE::LXC::Config->has_lock($newconf, 'create');
+		my $rootdir = PVE::LXC::mount_all($newid, $storecfg, $newconf, 1);
+		my $lxc_setup = PVE::LXC::Setup->new($newconf, $rootdir);
+		$lxc_setup->post_clone_hook($newconf);
+		PVE::LXC::umount_all($newid, $storecfg, $newconf, 1);
+
 		PVE::LXC::Config->remove_lock($newid, 'create');
 
 		PVE::LXC::Config->lock_config($newid, sub {
