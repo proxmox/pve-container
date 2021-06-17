@@ -1451,7 +1451,7 @@ __PACKAGE__->register_method({
 
 			} else {
 			    # TODO: allow bind mounts?
-			    die "unable to clone mountpint '$opt' (type $mp->{type})\n";
+			    die "unable to clone mountpoint '$opt' (type $mp->{type})\n";
 			}
 		    } elsif ($opt =~ m/^net(\d+)$/) {
 			# always change MAC! address
