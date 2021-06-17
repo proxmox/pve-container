@@ -1394,6 +1394,9 @@ __PACKAGE__->register_method({
 	my $vollist = [];
 	my $running;
 
+	PVE::LXC::Config->create_and_lock_config($newid, 0);
+	$conffile = PVE::LXC::Config->config_file($newid);
+
 	PVE::LXC::Config->lock_config($vmid, sub {
 	    my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
 
@@ -1410,10 +1413,6 @@ __PACKAGE__->register_method({
 		    if $snapname && !defined($src_conf->{snapshots}->{$snapname});
 
 		my $src_conf = $snapname ? $src_conf->{snapshots}->{$snapname} : $src_conf;
-
-		$conffile = PVE::LXC::Config->config_file($newid);
-		die "unable to create CT $newid: config file already exists\n"
-		    if -f $conffile;
 
 		my $sharedvm = 1;
 		for my $opt (sort keys %$src_conf) {
@@ -1482,11 +1481,23 @@ __PACKAGE__->register_method({
 		    $newconf->{description} = $param->{description};
 		}
 
-		# create empty/temp config - this fails if CT already exists on other node
-		PVE::LXC::Config->write_config($newid, $newconf);
+		PVE::LXC::Config->lock_config($newid, sub {
+		    # read empty config, lock needs to be still here
+		    my $conf = PVE::LXC::Config->load_config($newid);
+		    die "Lost 'create' config lock, aborting.\n"
+			if !PVE::LXC::Config->has_lock($conf, 'create');
+		    # write the actual new config now to disk
+		    PVE::LXC::Config->write_config($newid, $newconf);
+		});
 	    };
 	    if (my $err = $@) {
 		eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
+		PVE::LXC::Config->lock_config($newid, sub {
+		    my $conf = PVE::LXC::Config->load_config($newid);
+		    die "Lost 'create' config lock, aborting.\n"
+			if !PVE::LXC::Config->has_lock($conf, 'create');
+		    unlink($conffile);
+		});
 		warn $@ if $@;
 		die $err;
 	    }
@@ -1545,18 +1556,19 @@ __PACKAGE__->register_method({
 		PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
 		PVE::LXC::Config->remove_lock($newid, 'create');
 
-		if ($target) {
-		    # always deactivate volumes - avoid lvm LVs to be active on several nodes
-		    PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
-		    PVE::Storage::deactivate_volumes($storecfg, $newvollist);
+		PVE::LXC::Config->lock_config($newid, sub {
+		    if ($target) {
+			# always deactivate volumes - avoid lvm LVs to be active on several nodes
+			PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
+			PVE::Storage::deactivate_volumes($storecfg, $newvollist);
 
-		    my $newconffile = PVE::LXC::Config->config_file($newid, $target);
-		    die "Failed to move config to node '$target' - rename failed: $!\n"
-			if !rename($conffile, $newconffile);
-		}
+			my $newconffile = PVE::LXC::Config->config_file($newid, $target);
+			die "Failed to move config to node '$target' - rename failed: $!\n"
+			    if !rename($conffile, $newconffile);
+		    }
+		});
 	    };
 	    my $err = $@;
-
 	    # Unlock the source config in any case:
 	    eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
 	    warn $@ if $@;
@@ -1574,10 +1586,10 @@ __PACKAGE__->register_method({
 		die "clone failed: $err";
 	    }
 
+	    PVE::Firewall::clone_vmfw_conf($vmid, $newid);
 	    return;
 	};
 
-	PVE::Firewall::clone_vmfw_conf($vmid, $newid);
 	return $rpcenv->fork_worker('vzclone', $vmid, $authuser, $realcmd);
     }});
 
