@@ -484,6 +484,9 @@ sub clear_machine_id {
 
     my $dbus_machine_id_path = "/var/lib/dbus/machine-id";
     my $machine_id_path = "/etc/machine-id";
+
+    my $machine_id_existed = $self->ct_file_exists($machine_id_path);
+
     if (
 	$self->ct_file_exists($dbus_machine_id_path)
 	&& !$self->ct_is_symlink($dbus_machine_id_path)
@@ -492,10 +495,10 @@ sub clear_machine_id {
         $self->ct_unlink($dbus_machine_id_path);
     }
 
-    # don't remove file if container is being cloned
-    if ($clone) {
+    # truncate on clone to avoid that FirstBoot condition is set
+    if ($clone && ($uses_systemd || $machine_id_existed)) {
 	$self->ct_file_set_contents($machine_id_path, "\n");
-    } else {
+    } elsif (!$clone && $machine_id_existed) {
 	$self->ct_unlink($machine_id_path);
     }
 }
