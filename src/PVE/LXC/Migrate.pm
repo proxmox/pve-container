@@ -66,6 +66,8 @@ sub prepare {
 	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $storage);
 	PVE::Storage::storage_check_enabled($self->{storecfg}, $storage, $self->{node});
 
+	die "content type 'rootdir' is not available on storage '$storage'\n"
+	    if !$scfg->{content}->{rootdir};
 
 	if ($scfg->{shared}) {
 	    # PVE::Storage::activate_storage checks this for non-shared storages
@@ -187,12 +189,15 @@ sub phase1 {
 	next if !PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, undef, 1);
 
 	# get list from PVE::Storage (for unreferenced volumes)
-	my $dl = PVE::Storage::vdisk_list($self->{storecfg}, $storeid, $vmid);
+	my $dl = PVE::Storage::vdisk_list($self->{storecfg}, $storeid, $vmid, undef, 'rootdir');
 
 	next if @{$dl->{$storeid}} == 0;
 
 	# check if storage is available on target node
 	PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, $self->{node});
+
+	die "content type 'rootdir' is not available on storage '$storeid'\n"
+	    if !$scfg->{content}->{rootdir};
 
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;
