@@ -1404,9 +1404,11 @@ __PACKAGE__->register_method({
 	if (!defined($full)) {
 	    $full = !PVE::LXC::Config->is_template($src_conf);
 	}
-	die "parameter 'storage' not allowed for linked clones\n" if defined($storage) && !$full;
 
 	eval {
+	    die "parameter 'storage' not allowed for linked clones\n"
+		if defined($storage) && !$full;
+
 	    die "snapshot '$snapname' does not exist\n"
 		if $snapname && !defined($src_conf->{snapshots}->{$snapname});
 
