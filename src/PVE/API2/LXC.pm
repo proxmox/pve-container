@@ -1395,6 +1395,16 @@ __PACKAGE__->register_method({
 
 	PVE::LXC::Config->create_and_lock_config($newid, 0);
 
+	my $lock_and_reload = sub {
+	    my ($vmid, $code) = @_;
+	    return PVE::LXC::Config->lock_config($vmid, sub {
+		my $conf = PVE::LXC::Config->load_config($vmid);
+		die "Lost 'create' config lock, aborting.\n"
+		    if !PVE::LXC::Config->has_lock($conf, 'create');
+
+		return $code->($conf);
+	    });
+	};
 
 	my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
 
@@ -1481,12 +1491,7 @@ __PACKAGE__->register_method({
 		$newconf->{description} = $param->{description};
 	    }
 
-	    PVE::LXC::Config->lock_config($newid, sub {
-		# read empty config, lock needs to be still here
-		my $conf = PVE::LXC::Config->load_config($newid);
-		die "Lost 'create' config lock, aborting.\n"
-		    if !PVE::LXC::Config->has_lock($conf, 'create');
-		# write the actual new config now to disk
+	    $lock_and_reload->($newid, sub {
 		PVE::LXC::Config->write_config($newid, $newconf);
 	    });
 	};
@@ -1495,10 +1500,7 @@ __PACKAGE__->register_method({
 	    warn "Failed to remove source CT config lock - $@\n" if $@;
 
 	    eval {
-		PVE::LXC::Config->lock_config($newid, sub {
-		    my $conf = PVE::LXC::Config->load_config($newid);
-		    die "Lost 'create' config lock, aborting.\n"
-			if !PVE::LXC::Config->has_lock($conf, 'create');
+		$lock_and_reload->($newid, sub {
 		    PVE::LXC::Config->destroy_config($newid);
 		});
 	    };
@@ -1509,10 +1511,8 @@ __PACKAGE__->register_method({
 
 	my $update_conf = sub {
 	    my ($key, $value) = @_;
-	    return PVE::LXC::Config->lock_config($newid, sub {
-		my $conf = PVE::LXC::Config->load_config($newid);
-		die "Lost 'create' config lock, aborting.\n"
-		    if !PVE::LXC::Config->has_lock($conf, 'create');
+	    return $lock_and_reload->($newid, sub {
+		my $conf = shift;
 		$conf->{$key} = $value;
 		PVE::LXC::Config->write_config($newid, $conf);
 	    });
@@ -1559,23 +1559,20 @@ __PACKAGE__->register_method({
 
 		PVE::AccessControl::add_vm_to_pool($newid, $pool) if $pool;
 
-		$newconf = PVE::LXC::Config->load_config($newid);
-		die "Lost 'create' config lock, aborting.\n"
-		    if !PVE::LXC::Config->has_lock($newconf, 'create');
-		my $rootdir = PVE::LXC::mount_all($newid, $storecfg, $newconf, 1);
-		my $lxc_setup = PVE::LXC::Setup->new($newconf, $rootdir);
-		$lxc_setup->post_clone_hook($newconf);
-		PVE::LXC::umount_all($newid, $storecfg, $newconf, 1);
-
-		PVE::LXC::Config->remove_lock($newid, 'create');
-
-		PVE::LXC::Config->lock_config($newid, sub {
-		    if ($target) {
-			# always deactivate volumes - avoid lvm LVs to be active on several nodes
-			PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
-			PVE::Storage::deactivate_volumes($storecfg, $newvollist);
-
-			PVE::LXC::Config->move_config_to_node($newid, $target);
+		$lock_and_reload->($newid, sub {
+		    my $conf = shift;
+		    my $rootdir = PVE::LXC::mount_all($newid, $storecfg, $conf, 1);
+		    eval {
+			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
+			$lxc_setup->post_clone_hook($conf);
+		    };
+		    my $err = $@;
+		    eval { PVE::LXC::umount_all($newid, $storecfg, $conf, 1); };
+		    if ($err) {
+			warn "$@\n" if $@;
+			die $err;
+		    } else {
+			die $@ if $@;
 		    }
 		});
 	    };
@@ -1594,10 +1591,7 @@ __PACKAGE__->register_method({
 		}
 
 		eval {
-		    PVE::LXC::Config->lock_config($newid, sub {
-			my $conf = PVE::LXC::Config->load_config($newid);
-			die "Lost 'create' config lock, aborting.\n"
-			    if !PVE::LXC::Config->has_lock($conf, 'create');
+		    $lock_and_reload->($newid, sub {
 			PVE::LXC::Config->destroy_config($newid);
 		    });
 		};
@@ -1605,6 +1599,18 @@ __PACKAGE__->register_method({
 
 		die "clone failed: $err";
 	    }
+
+	    $lock_and_reload->($newid, sub {
+		PVE::LXC::Config->remove_lock($newid, 'create');
+
+		if ($target) {
+		    # always deactivate volumes - avoid lvm LVs to be active on several nodes
+		    PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
+		    PVE::Storage::deactivate_volumes($storecfg, $newvollist);
+
+		    PVE::LXC::Config->move_config_to_node($newid, $target);
+		}
+	    });
 
 	    PVE::Firewall::clone_vmfw_conf($vmid, $newid);
 	    return;
