@@ -44,7 +44,7 @@ sub prepare {
     }
     $self->{was_running} = $running;
 
-    PVE::LXC::Config->foreach_volume($conf, sub {
+    PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, sub {
 	my ($ms, $mountpoint) = @_;
 
 	my $volid = $mountpoint->{volume};
@@ -186,7 +186,7 @@ sub phase1 {
 	next if $scfg->{shared};
 	next if !PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, undef, 1);
 
-	# get list from PVE::Storage (for unused volumes)
+	# get list from PVE::Storage (for unreferenced volumes)
 	my $dl = PVE::Storage::vdisk_list($self->{storecfg}, $storeid, $vmid);
 
 	next if @{$dl->{$storeid}} == 0;
@@ -208,9 +208,8 @@ sub phase1 {
 	PVE::LXC::Config->foreach_volume($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
     }
 
-    # finally all currently used volumes
-    PVE::LXC::Config->foreach_volume($conf, $test_mp);
-
+    # finally all current volumes
+    PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, $test_mp);
 
     # additional checks for local storage
     foreach my $volid (keys %$volhash) {
