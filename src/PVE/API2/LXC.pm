@@ -1387,7 +1387,6 @@ __PACKAGE__->register_method({
 
 	PVE::Cluster::check_cfs_quorum();
 
-	my $conffile;
 	my $newconf = {};
 	my $mountpoints = {};
 	my $fullclone = {};
@@ -1395,7 +1394,6 @@ __PACKAGE__->register_method({
 	my $running;
 
 	PVE::LXC::Config->create_and_lock_config($newid, 0);
-	$conffile = PVE::LXC::Config->config_file($newid);
 
 	PVE::LXC::Config->lock_config($vmid, sub {
 	    my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
@@ -1492,13 +1490,18 @@ __PACKAGE__->register_method({
 	    };
 	    if (my $err = $@) {
 		eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
-		PVE::LXC::Config->lock_config($newid, sub {
-		    my $conf = PVE::LXC::Config->load_config($newid);
-		    die "Lost 'create' config lock, aborting.\n"
-			if !PVE::LXC::Config->has_lock($conf, 'create');
-		    unlink($conffile);
-		});
-		warn $@ if $@;
+		warn "Failed to remove source CT config lock - $@\n" if $@;
+
+		eval {
+		    PVE::LXC::Config->lock_config($newid, sub {
+			my $conf = PVE::LXC::Config->load_config($newid);
+			die "Lost 'create' config lock, aborting.\n"
+			    if !PVE::LXC::Config->has_lock($conf, 'create');
+			PVE::LXC::Config->destroy_config($newid);
+		    });
+		};
+		warn "Failed to remove target CT config - $@\n" if $@;
+
 		die $err;
 	    }
 	});
@@ -1582,14 +1585,23 @@ __PACKAGE__->register_method({
 
 	    if ($err) {
 		# Now cleanup the config & disks:
-		unlink $conffile;
-
 		sleep 1; # some storages like rbd need to wait before release volume - really?
 
 		foreach my $volid (@$newvollist) {
 		    eval { PVE::Storage::vdisk_free($storecfg, $volid); };
 		    warn $@ if $@;
 		}
+
+		eval {
+		    PVE::LXC::Config->lock_config($newid, sub {
+			my $conf = PVE::LXC::Config->load_config($newid);
+			die "Lost 'create' config lock, aborting.\n"
+			    if !PVE::LXC::Config->has_lock($conf, 'create');
+			PVE::LXC::Config->destroy_config($newid);
+		    });
+		};
+		warn "Failed to remove target CT config - $@\n" if $@;
+
 		die "clone failed: $err";
 	    }
 
