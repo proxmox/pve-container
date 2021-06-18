@@ -63,8 +63,8 @@ sub prepare {
 	die "can't determine assigned storage for mount point '$ms'\n" if !$storage;
 
 	# check if storage is available on both nodes
-	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $storage);
-	PVE::Storage::storage_check_node($self->{storecfg}, $storage, $self->{node});
+	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $storage);
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $storage, $self->{node});
 
 
 	if ($scfg->{shared}) {
@@ -134,8 +134,8 @@ sub phase1 {
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 
 	# check if storage is available on both nodes
-	my $scfg = PVE::Storage::storage_check_node($self->{storecfg}, $sid);
-	PVE::Storage::storage_check_node($self->{storecfg}, $sid, $self->{node});
+	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $sid);
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $sid, $self->{node});
 
 	if ($scfg->{shared}) {
 	    $self->log('info', "volume '$volid' is on shared storage '$sid'")
@@ -192,7 +192,7 @@ sub phase1 {
 	next if @{$dl->{$storeid}} == 0;
 
 	# check if storage is available on target node
-	PVE::Storage::storage_check_node($self->{storecfg}, $storeid, $self->{node});
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, $self->{node});
 
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;

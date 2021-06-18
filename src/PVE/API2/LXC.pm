@@ -275,7 +275,7 @@ __PACKAGE__->register_method({
 	my $check_and_activate_storage = sub {
 	    my ($sid) = @_;
 
-	    my $scfg = PVE::Storage::storage_check_node($storage_cfg, $sid, $node);
+	    my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $sid, $node);
 
 	    raise_param_exc({ storage => "storage '$sid' does not support container directories"})
 		if !$scfg->{content}->{rootdir};
@@ -1378,7 +1378,7 @@ __PACKAGE__->register_method({
 	    PVE::Storage::storage_check_enabled($storecfg, $storage);
 	    if ($target) {
 		# check if storage is available on target node
-		PVE::Storage::storage_check_node($storecfg, $storage, $target);
+		PVE::Storage::storage_check_enabled($storecfg, $storage, $target);
 		# clone only works if target storage is shared
 		my $scfg = PVE::Storage::storage_config($storecfg, $storage);
 		die "can't clone to non-shared storage '$storage'\n" if !$scfg->{shared};
