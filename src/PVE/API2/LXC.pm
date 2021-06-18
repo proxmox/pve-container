@@ -1571,9 +1571,7 @@ __PACKAGE__->register_method({
 			PVE::Storage::deactivate_volumes($storecfg, $vollist, $snapname) if !$running;
 			PVE::Storage::deactivate_volumes($storecfg, $newvollist);
 
-			my $newconffile = PVE::LXC::Config->config_file($newid, $target);
-			die "Failed to move config to node '$target' - rename failed: $!\n"
-			    if !rename($conffile, $newconffile);
+			PVE::LXC::Config->move_config_to_node($newid, $target);
 		    }
 		});
 	    };
