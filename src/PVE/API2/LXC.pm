@@ -1394,6 +1394,7 @@ __PACKAGE__->register_method({
 	my $running;
 
 	PVE::LXC::Config->create_and_lock_config($newid, 0);
+	PVE::Firewall::clone_vmfw_conf($vmid, $newid);
 
 	my $lock_and_reload = sub {
 	    my ($vmid, $code) = @_;
@@ -1502,6 +1503,7 @@ __PACKAGE__->register_method({
 	    eval {
 		$lock_and_reload->($newid, sub {
 		    PVE::LXC::Config->destroy_config($newid);
+		    PVE::Firewall::remove_vmfw_conf($newid);
 		});
 	    };
 	    warn "Failed to remove target CT config - $@\n" if $@;
@@ -1593,6 +1595,7 @@ __PACKAGE__->register_method({
 		eval {
 		    $lock_and_reload->($newid, sub {
 			PVE::LXC::Config->destroy_config($newid);
+			PVE::Firewall::remove_vmfw_conf($newid);
 		    });
 		};
 		warn "Failed to remove target CT config - $@\n" if $@;
@@ -1612,7 +1615,6 @@ __PACKAGE__->register_method({
 		}
 	    });
 
-	    PVE::Firewall::clone_vmfw_conf($vmid, $newid);
 	    return;
 	};
 
