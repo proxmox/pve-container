@@ -508,7 +508,9 @@ my $confdesc = {
     description => {
 	optional => 1,
 	type => 'string',
-        description => "Container description. Only used on the configuration web interface.",
+	description => "Description for the Container. Shown in the web-interface CT's summary."
+	    ." This is saved as comment inside the configuration file.",
+	maxLength => 1024 * 8,
     },
     searchdomain => {
 	optional => 1,
