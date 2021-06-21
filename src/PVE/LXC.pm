@@ -1907,7 +1907,7 @@ sub alloc_disk {
 	    $volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 	    $do_format = 1;
 	} else {
-	    die "storage '$storage' does not support containers\n";
+	    die "content type 'rootdir' is not available or configured on storage '$storage'\n";
 	}
 	format_disk($storecfg, $volid, $rootuid, $rootgid) if $do_format;
     };
