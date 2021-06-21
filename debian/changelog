@@ -1,3 +1,23 @@
+pve-container (4.0-2) bullseye; urgency=medium
+
+  * api: vmstatus: make template property optional
+
+  * migrate: remove deprecated force parameter
+
+  * configure cpu/cpuset/memory cgroupv2 values
+
+  * pct exec: explicitly check if container is running at the PVE side already
+
+  * config: limit description/comment length to 8 KiB
+
+  * clone: clear the cloned containers `/etc/machine-id` when systemd is in
+    use, or that file exists. This ID needs to be unique as else various
+    issues, like MAC address duplications on Linux bridges, can happen
+
+  * migrate: enforce that rootdir content type is available
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 21 Jun 2021 10:40:39 +0200
+
 pve-container (4.0-1) bullseye; urgency=medium
 
   * re-build for Proxmox VE 7 / Debian Bullseye
