@@ -155,8 +155,8 @@ sub phase1 {
 
 	if (defined($snapname)) {
 	    # we cannot migrate shapshots on local storage
-	    # exceptions: 'zfspool'
-	    if (($scfg->{type} eq 'zfspool')) {
+	    # exceptions: 'zfspool', 'btrfs'
+	    if ($scfg->{type} eq 'zfspool' || $scfg->{type} eq 'btrfs') {
 		return;
 	    }
 	    die "non-migratable snapshot exists\n";
@@ -222,8 +222,9 @@ sub phase1 {
 	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	    my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
 
-	    my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool') ||
-		($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm');
+	    my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool')
+		|| ($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm')
+		|| ($scfg->{type} eq 'btrfs');
 
 	    die "storage type '$scfg->{type}' not supported\n"
 		if !$migratable;
