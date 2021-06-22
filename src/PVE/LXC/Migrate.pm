@@ -146,7 +146,7 @@ sub phase1 {
 	}
 
 	$volhash->{$volid}->{ref} = defined($snapname) ? 'snapshot' : 'config';
-	$volhash->{$volid}->{snapshots} = defined($snapname);
+	$volhash->{$volid}->{snapshots} = 1 if defined($snapname);
 
 	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
