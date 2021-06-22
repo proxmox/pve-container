@@ -1893,7 +1893,7 @@ sub alloc_disk {
     eval {
 	my $do_format = 0;
 	if ($scfg->{content}->{rootdir} && $scfg->{path}) {
-	    if ($size_kb > 0) {
+	    if ($size_kb > 0 && !($scfg->{type} eq 'btrfs' && $scfg->{quotas})) {
 		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 		$do_format = 1;
 	    } else {
