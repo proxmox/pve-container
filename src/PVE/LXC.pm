@@ -435,6 +435,15 @@ sub make_seccomp_config {
 
     my $rules = {
 	keyctl => ['errno 38'],
+
+	# Disable btrfs ioctrls since they don't work particularly well in user namespaces.
+	# Particularly, without the mount option to enable rmdir removing snapshots, user
+	# namespaces can create snapshots but neither `show` or `delete` them, which is quite
+	# horrible, so for now, just disable this entirely:
+	#
+	# BTRFS_IOCTL_MAGIC 0x94, _IOC type shift is 8,
+	# so `(req & 0xFF00) == 0x9400` is a btrfs ioctl and gets an EPERM
+	ioctl  => ['errno 1 [1,0x9400,SCMP_CMP_MASKED_EQ,0xff00]'],
     };
 
     my $raw_conf = '';
