@@ -1897,7 +1897,7 @@ sub alloc_disk {
 		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
 		$do_format = 1;
 	    } else {
-		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol', undef, 0);
+		$volid = PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol', undef, $size_kb);
 		$needs_chown = 1;
 	    }
 	} elsif ($scfg->{type} eq 'zfspool') {
