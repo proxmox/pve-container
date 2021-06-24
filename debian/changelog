@@ -1,3 +1,12 @@
+pve-container (4.0-3) bullseye; urgency=medium
+
+  * pct CLI: correctly handle 'warnings' task status
+
+  * fix #3421: only rely on the storage content-type to check if it can host
+    container. This allows custom storage plugins to support 'rootfs' images
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 24 Jun 2021 08:08:30 +0200
+
 pve-container (4.0-2) bullseye; urgency=medium
 
   * api: vmstatus: make template property optional
