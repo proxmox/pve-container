@@ -29,6 +29,7 @@ use PVE::Tools qw(
     $IPV4RE
     $IPV6RE
 );
+use PVE::RPCEnvironment;
 use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
@@ -2237,6 +2238,22 @@ my sub print_ct_stderr_log {
 	print STDERR "$line\n";
     }
 }
+my sub print_ct_warn_log {
+    my ($vmid) = @_;
+    my $log_fn = "/run/pve/ct-$vmid.warnings";
+    my $log = eval { file_get_contents($log_fn) };
+    return if !$log;
+
+    my $rpcenv = eval { PVE::RPCEnvironment::get() };
+
+    my $warn_fn = $rpcenv ? sub { $rpcenv->warn($_[0]) } : sub { print STDERR "WARN: $_[0]\n" };
+
+    while ($log =~ /^\h*\s*(.*?)\h*$/gm) {
+	my $line = $1;
+	$warn_fn->($line);
+    }
+    unlink $log_fn or warn "could not unlink '$log_fn' - $!\n";
+}
 
 my sub monitor_state_change($$) {
     my ($monitor_socket, $vmid) = @_;
@@ -2320,6 +2337,8 @@ sub vm_start {
 
 	# if debug is requested, print the log it also when the start succeeded
 	print_ct_stderr_log($vmid) if $is_debug;
+
+	print_ct_warn_log($vmid); # always print warn log, if any
     };
     if (my $err = $@) {
 	unlink $skiplock_flag_fn;

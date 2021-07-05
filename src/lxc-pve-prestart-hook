@@ -20,6 +20,16 @@ use PVE::Storage;
 use PVE::Syscall qw(:fsmount);
 use PVE::Tools qw(AT_FDCWD O_PATH);
 
+my $WARNFD;
+sub log_warn {
+    my ($vmid, $message) = @_;
+
+    if (!defined($WARNFD)) {
+	open($WARNFD, '>', "/run/pve/ct-${vmid}.warnings");
+    }
+    print $WARNFD "$message\n";
+}
+
 PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     my ($vmid, $vars, undef, undef) = @_;
 
