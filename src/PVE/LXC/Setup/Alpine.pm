@@ -106,4 +106,11 @@ sub setup_network {
     PVE::LXC::Setup::Debian::setup_network($self, $newconf);
 }
 
+# non systemd based containers work with pure cgroupv2
+sub unified_cgroupv2_support {
+    my ($self) = @_;
+
+    return 1;
+}
+
 1;

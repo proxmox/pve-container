@@ -40,6 +40,13 @@ sub new {
     return bless $self, $class;
 }
 
+# non systemd based containers work with pure cgroupv2
+sub unified_cgroupv2_support {
+    my ($self) = @_;
+
+    return 1;
+}
+
 # the rest gets handled by the Debian plugin, which is compatible with older
 # non-systemd Debian versions for now.
 
