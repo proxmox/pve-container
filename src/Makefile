@@ -11,6 +11,7 @@ LXC_TMPL_DIR=${LXC_SCRIPT_DIR}/templates
 LXC_HOOK_DIR=${LXC_SCRIPT_DIR}/hooks
 LXC_CONFIG_DIR=${LXC_SCRIPT_DIR}/config
 LXC_COMMON_CONFIG_DIR=${LXC_CONFIG_DIR}/common.conf.d
+LXC_USERNS_CONFIG_DIR=${LXC_CONFIG_DIR}/userns.conf.d
 SERVICEDIR=${DESTDIR}/lib/systemd/system
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
@@ -59,6 +60,8 @@ install: pct lxc-pve.conf pct.1 pct.conf.5 pct.bash-completion pct.zsh-completio
 	install -m 0644 pve-userns.seccomp ${LXC_CONFIG_DIR}/pve-userns.seccomp
 	install -d ${LXC_COMMON_CONFIG_DIR}
 	install -m 0644 lxc-pve.conf ${LXC_COMMON_CONFIG_DIR}/01-pve.conf
+	install -d ${LXC_USERNS_CONFIG_DIR}
+	install -m 0644 lxc-pve-userns.conf ${LXC_USERNS_CONFIG_DIR}/01-pve.conf
 	install -m 0644 -D pct.bash-completion ${BASHCOMPLDIR}/pct
 	install -m 0644 -D pct.zsh-completion ${ZSHCOMPLDIR}/_pct
 	make -C PVE install
