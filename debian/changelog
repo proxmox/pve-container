@@ -1,3 +1,10 @@
+pve-container (4.0-5) bullseye; urgency=medium
+
+  * start: detect and log possible problematic (old) container when running
+    with new default, pure cgroup v2 setup.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 05 Jul 2021 18:56:13 +0200
+
 pve-container (4.0-4) bullseye; urgency=medium
 
   * cgroupv2: restore usual devices controller behavior via ia userns.conf.d/
