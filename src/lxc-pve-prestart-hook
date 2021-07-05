@@ -15,6 +15,7 @@ use PVE::LXC::Config;
 use PVE::LXC::Setup;
 use PVE::LXC::Tools;
 use PVE::LXC;
+use PVE::SafeSyslog;
 use PVE::Storage;
 use PVE::Syscall qw(:fsmount);
 use PVE::Tools qw(AT_FDCWD O_PATH);
@@ -125,6 +126,12 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 
     my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
     $lxc_setup->pre_start_hook();
+
+    if (PVE::CGroup::cgroup_mode() == 2) {
+	if(!$lxc_setup->unified_cgroupv2_support()) {
+	    syslog('err', "CT $vmid does not support running in a pure cgroupv2 environment\n");
+	}
+    }
 
     if (@$devices) {
 	my $devlist = '';

@@ -503,6 +503,42 @@ sub clear_machine_id {
     }
 }
 
+# tries to guess the systemd version based on the existence of
+# (/usr)?/lib/systemd/libsystemd-shared<version>.so. It was introduced in v231.
+sub get_systemd_version {
+    my ($self) = @_;
+
+    my $sd_lib_dir = $self->ct_is_directory("/lib/systemd") ?
+	"/lib/systemd" : "/usr/lib/systemd";
+    my $libsd = PVE::Tools::dir_glob_regex($sd_lib_dir, "libsystemd-shared-.+\.so");
+    if (defined($libsd) && $libsd =~ /libsystemd-shared-(\d+)\.so/) {
+	return $1;
+    }
+
+    return undef;
+}
+
+sub unified_cgroupv2_support {
+    my ($self) = @_;
+
+    # https://www.freedesktop.org/software/systemd/man/systemd.html
+    # systemd is installed as symlink to /sbin/init
+    my $systemd = $self->ct_readlink('/sbin/init');
+
+    # assume non-systemd init will run with unified cgroupv2
+    if (!defined($systemd) || $systemd !~ m@/systemd$@) {
+	return 1;
+    }
+
+    # systemd version 232 (e.g. debian stretch) supports the unified hierarchy
+    my $sdver = $self->get_systemd_version();
+    if (!defined($sdver) || $sdver < 232) {
+	return 0;
+    }
+
+    return 1
+}
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
