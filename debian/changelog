@@ -1,3 +1,16 @@
+pve-container (4.0-4) bullseye; urgency=medium
+
+  * cgroupv2: restore usual devices controller behavior via ia userns.conf.d/
+    file
+
+  * disable btrfs ioctls for unprivileged containers via seccomp
+
+  * fix subvolume creation on btrfs where quotas are used
+
+  * bump minimum required lxc-pve version to 4.0.9-2
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 05 Jul 2021 09:57:25 +0200
+
 pve-container (4.0-3) bullseye; urgency=medium
 
   * pct CLI: correctly handle 'warnings' task status
