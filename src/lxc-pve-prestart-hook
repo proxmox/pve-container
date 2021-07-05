@@ -138,7 +138,9 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     $lxc_setup->pre_start_hook();
 
     if (PVE::CGroup::cgroup_mode() == 2) {
-	if(!$lxc_setup->unified_cgroupv2_support()) {
+	if (!$lxc_setup->unified_cgroupv2_support()) {
+	    log_warn($vmid, "old systemd (< v232) detected, container won't run in a pure cgroupv2"
+		." environment! Please see documentation -> container -> cgroup version.");
 	    syslog('err', "CT $vmid does not support running in a pure cgroupv2 environment\n");
 	}
     }
