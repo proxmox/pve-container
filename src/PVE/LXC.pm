@@ -610,6 +610,8 @@ sub update_lxc_config {
 
     my $ostype = $conf->{ostype} || die "missing 'ostype' - internal error";
 
+    File::Path::mkpath($dir);
+
     my $cfgpath = '/usr/share/lxc/config';
     my $inc = "$cfgpath/$ostype.common.conf";
     $inc ="$cfgpath/common.conf" if !-f $inc;
