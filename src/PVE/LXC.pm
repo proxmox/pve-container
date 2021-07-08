@@ -54,6 +54,8 @@ my $nodename = PVE::INotify::nodename();
 
 my $cpuinfo= PVE::ProcFSTools::read_cpuinfo();
 
+our $NEW_DISK_RE = qr/^([^:\s]+):(\d+(\.\d+)?)$/;
+
 sub config_list {
     my $vmlist = PVE::Cluster::get_vmlist();
     my $res = {};
@@ -1211,6 +1213,7 @@ sub check_ct_modify_config_perm {
     my ($rpcenv, $authuser, $vmid, $pool, $newconf, $delete) = @_;
 
     return 1 if $authuser eq 'root@pam';
+    my $storage_cfg = PVE::Storage::config();
 
     my $check = sub {
 	my ($opt, $delete) = @_;
@@ -1222,6 +1225,13 @@ sub check_ct_modify_config_perm {
 	    my $data = PVE::LXC::Config->parse_volume($opt, $newconf->{$opt});
 	    raise_perm_exc("mount point type $data->{type} is only allowed for root\@pam")
 		if $data->{type} ne 'volume';
+	    my $volid = $data->{volume};
+	    if ($volid =~ $NEW_DISK_RE) {
+		my $sid = $1;
+		$rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
+	    } else {
+		PVE::Storage::check_volume_access($rpcenv, $authuser, $storage_cfg, $vmid, $volid);
+	    }
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
 	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
@@ -1912,7 +1922,6 @@ sub alloc_disk {
     return ($volid, $needs_chown);
 }
 
-our $NEW_DISK_RE = qr/^([^:\s]+):(\d+(\.\d+)?)$/;
 sub create_disks {
     my ($storecfg, $vmid, $settings, $conf, $pending) = @_;
 
