@@ -6,6 +6,7 @@ use File::Basename;
 use File::Path;
 use Fcntl;
 
+use PVE::RPCEnvironment;
 use PVE::Storage::PBSPlugin;
 use PVE::Storage;
 use PVE::DataCenterConfig;
@@ -312,6 +313,8 @@ sub restore_configuration_from_proxmox_backup {
 sub sanitize_and_merge_config {
     my ($conf, $oldconf, $restricted, $unique) = @_;
 
+    my $rpcenv = PVE::RPCEnvironment::get();
+
     foreach my $key (keys %$oldconf) {
 	next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
 	next if $key =~ /^mp\d+$/; # don't recover mountpoints
@@ -327,12 +330,16 @@ sub sanitize_and_merge_config {
 
 	if ($key eq 'lxc' && $restricted) {
 	    my $lxc_list = $oldconf->{'lxc'};
-	    warn "skipping custom lxc options, restore manually as root:\n";
-	    warn "--------------------------------\n";
+
+	    my $msg = "skipping custom lxc options, restore manually as root:\n";
+	    $msg .= "--------------------------------\n";
 	    foreach my $lxc_opt (@$lxc_list) {
-		warn "$lxc_opt->[0]: $lxc_opt->[1]\n"
+		$msg .= "$lxc_opt->[0]: $lxc_opt->[1]\n"
 	    }
-	    warn "--------------------------------\n";
+	    $msg .= "--------------------------------";
+
+	    $rpcenv->warn($msg);
+
 	    next;
 	}
 
