@@ -1,3 +1,9 @@
+pve-container (4.0-8) bullseye; urgency=medium
+
+  * config: sync storage ACL checks with qemu-server
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 8 Jul 2021 12:29:36 +0200
+
 pve-container (4.0-7) bullseye; urgency=medium
 
   * fix #3506: config: fix removing the cpulimit of a running CT
