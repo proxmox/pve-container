@@ -712,9 +712,9 @@ __PACKAGE__->register_method ({
 
 	    my ($cpuset, $path);
 	    if (defined($path = $cgroup->get_path('cpuset', 1))) {
-		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
+		$cpuset = eval { PVE::CpuSet->new_from_path($path, 1); };
 	    } elsif (defined($path = $cgroup->get_path(undef, 1))) {
-		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
+		$cpuset = eval { PVE::CpuSet->new_from_path($path, 1); };
 	    } else {
 		# Container not running.
 		next;
