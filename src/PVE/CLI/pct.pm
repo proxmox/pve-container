@@ -711,9 +711,9 @@ __PACKAGE__->register_method ({
 	    my $cgroup = PVE::LXC::CGroup->new($vmid);
 
 	    my ($cpuset, $path);
-	    if (defined($path = $cgroup->get_path('cpuset'))) {
+	    if (defined($path = $cgroup->get_path('cpuset', 1))) {
 		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
-	    } elsif (defined($path = $cgroup->get_path())) {
+	    } elsif (defined($path = $cgroup->get_path(undef, 1))) {
 		$cpuset = eval { PVE::CpuSet->new_from_path($path); };
 	    } else {
 		# Container not running.
