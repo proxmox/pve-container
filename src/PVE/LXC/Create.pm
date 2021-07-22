@@ -52,10 +52,16 @@ sub detect_architecture {
 	return $arch;
     };
 
-    my $arch = eval { PVE::Tools::run_fork_with_timeout(5, $detect_arch) };
-    if (my $err = $@) {
+    my $arch = eval { PVE::Tools::run_fork_with_timeout(10, $detect_arch); };
+    my $err = $@;
+
+    if (!defined($arch) && !defined($err)) {
+	# on timeout
+	die "Architecture detection failed: timeout\n";
+    } elsif ($err) {
+	# any other error
 	$arch = 'amd64';
-	print "Architecture detection failed: $err\nFalling back to amd64.\n" .
+	print "Architecture detection failed: $err\nFalling back to $arch.\n" .
 	      "Use `pct set VMID --arch ARCH` to change.\n";
     } else {
 	print "Detected container architecture: $arch\n";
