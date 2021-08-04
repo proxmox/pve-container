@@ -254,7 +254,7 @@ __PACKAGE__->register_method({
 	my $ostemplate = extract_param($param, 'ostemplate');
 	my $storage = extract_param($param, 'storage') // 'local';
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, $param, []);
+	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, $pool, undef, $param, [], $unprivileged);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
@@ -1679,14 +1679,14 @@ __PACKAGE__->register_method({
 
 	die "no options specified\n" if !scalar(keys %$param);
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $param, []);
-
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
 	my $code = sub {
 
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($conf);
+
+	    PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $conf, $param, [], $conf->{unprivileged});
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
 

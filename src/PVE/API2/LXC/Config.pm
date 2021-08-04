@@ -144,62 +144,63 @@ __PACKAGE__->register_method({
 	my $revert_str = extract_param($param, 'revert');
 	my @revert = PVE::Tools::split_list($revert_str);
 
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, {}, [@delete]);
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, {}, [@revert]);
-
-	foreach my $opt (@revert) {
-	    raise_param_exc({ revert => "unknown option '$opt'" })
-		if !PVE::LXC::Config->option_exists($opt);
-
-	    raise_param_exc({ revert => "you can't use '-$opt' and '-revert $opt' at the same time" })
-		if defined($param->{$opt});
-	}
-
-	foreach my $opt (@delete) {
-	    raise_param_exc({ delete => "unknown option '$opt'" })
-		if !PVE::LXC::Config->option_exists($opt);
-
-	    raise_param_exc({ delete => "you can't use '-$opt' and -delete $opt' at the same time" })
-		if defined($param->{$opt});
-
-	    raise_param_exc({ delete => "you can't use '-delete $opt' and '-revert $opt' at the same time" })
-		if grep(/^$opt$/, @revert);
-	}
-
-	PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $param, []);
-
-	my $storage_cfg = PVE::Storage::config();
-
-	my $repl_conf = PVE::ReplicationConfig->new();
-	my $is_replicated = $repl_conf->check_for_existing_jobs($vmid, 1);
-	if ($is_replicated) {
-	    PVE::LXC::Config->foreach_volume($param, sub {
-		my ($opt, $mountpoint) = @_;
-		my $volid = $mountpoint->{volume};
-		return if !$volid || !($mountpoint->{replicate}//1);
-		if ($mountpoint->{type} eq 'volume') {
-		    my ($storeid, $format);
-		    if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
-			$storeid = $1;
-			$format = $mountpoint->{format} || PVE::Storage::storage_default_format($storage_cfg, $storeid);
-		    } else {
-			($storeid, undef) = PVE::Storage::parse_volume_id($volid, 1);
-			$format = (PVE::Storage::parse_volname($storage_cfg, $volid))[6];
-		    }
-		    return if PVE::Storage::storage_can_replicate($storage_cfg, $storeid, $format);
-		    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
-		    return if $scfg->{shared};
-		}
-		die "cannot add non-replicatable volume to a replicated VM\n";
-	    });
-	}
-
 	my $code = sub {
 
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($conf);
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
+
+	    my $unprivileged = $conf->{unprivileged};
+	    PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $conf, {}, [@delete], $unprivileged);
+	    PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $conf, {}, [@revert], $unprivileged);
+
+	    foreach my $opt (@revert) {
+		raise_param_exc({ revert => "unknown option '$opt'" })
+		    if !PVE::LXC::Config->option_exists($opt);
+
+		raise_param_exc({ revert => "you can't use '-$opt' and '-revert $opt' at the same time" })
+		    if defined($param->{$opt});
+	    }
+
+	    foreach my $opt (@delete) {
+		raise_param_exc({ delete => "unknown option '$opt'" })
+		    if !PVE::LXC::Config->option_exists($opt);
+
+		raise_param_exc({ delete => "you can't use '-$opt' and -delete $opt' at the same time" })
+		    if defined($param->{$opt});
+
+		raise_param_exc({ delete => "you can't use '-delete $opt' and '-revert $opt' at the same time" })
+		    if grep(/^$opt$/, @revert);
+	    }
+
+	    PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $conf, $param, [], $unprivileged);
+
+	    my $storage_cfg = PVE::Storage::config();
+
+	    my $repl_conf = PVE::ReplicationConfig->new();
+	    my $is_replicated = $repl_conf->check_for_existing_jobs($vmid, 1);
+	    if ($is_replicated) {
+		PVE::LXC::Config->foreach_volume($param, sub {
+		    my ($opt, $mountpoint) = @_;
+		    my $volid = $mountpoint->{volume};
+		    return if !$volid || !($mountpoint->{replicate}//1);
+		    if ($mountpoint->{type} eq 'volume') {
+			my ($storeid, $format);
+			if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
+			    $storeid = $1;
+			    $format = $mountpoint->{format} || PVE::Storage::storage_default_format($storage_cfg, $storeid);
+			} else {
+			    ($storeid, undef) = PVE::Storage::parse_volume_id($volid, 1);
+			    $format = (PVE::Storage::parse_volname($storage_cfg, $volid))[6];
+			}
+			return if PVE::Storage::storage_can_replicate($storage_cfg, $storeid, $format);
+			my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+			return if $scfg->{shared};
+		    }
+		    die "cannot add non-replicatable volume to a replicated VM\n";
+		});
+	    }
 
 	    my $running = PVE::LXC::check_running($vmid);
 

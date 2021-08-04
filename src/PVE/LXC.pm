@@ -1242,7 +1242,7 @@ sub template_create {
 }
 
 sub check_ct_modify_config_perm {
-    my ($rpcenv, $authuser, $vmid, $pool, $newconf, $delete) = @_;
+    my ($rpcenv, $authuser, $vmid, $pool, $oldconf, $newconf, $delete, $unprivileged) = @_;
 
     return 1 if $authuser eq 'root@pam';
     my $storage_cfg = PVE::Storage::config();
