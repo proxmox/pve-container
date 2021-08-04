@@ -320,6 +320,11 @@ sub sanitize_and_merge_config {
 	# storage supports creating a template there
 	next if $key =~ /^template$/;
 
+	if ($restricted && $key eq 'features' && !$conf->{unprivileged} && $oldconf->{unprivileged}) {
+	    warn "changing from unprivileged to privileged, skipping features\n";
+	    next;
+	}
+
 	if ($key eq 'lxc' && $restricted) {
 	    my $lxc_list = $oldconf->{'lxc'};
 	    warn "skipping custom lxc options, restore manually as root:\n";
