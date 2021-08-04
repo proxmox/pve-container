@@ -247,6 +247,13 @@ __PACKAGE__->register_method({
 	    # we don't want to restore a container-provided FW conf in this case
 	    # since the user is lacking permission to configure the container's FW
 	    $skip_fw_config_restore = 1;
+
+	    # error out if a user tries to change from unprivileged to privileged
+	    # explicit change is checked here, implicit is checked down below or happening in root-only paths
+	    my $conf = PVE::LXC::Config->load_config($vmid);
+	    if ($conf->{unprivileged} && defined($unprivileged) && !$unprivileged) {
+		raise_perm_exc("cannot change from unprivileged to privileged without VM.Allocate");
+	    }
 	} else {
 	    raise_perm_exc();
 	}
@@ -343,11 +350,12 @@ __PACKAGE__->register_method({
 	eval { PVE::LXC::Config->create_and_lock_config($vmid, $force) };
 	die "$emsg $@" if $@;
 
+	my $remove_lock = 1;
+
 	my $code = sub {
 	    my $old_conf = PVE::LXC::Config->load_config($vmid);
 	    my $was_template;
 
-	    my $vollist = [];
 	    eval {
 		my $orig_mp_param; # only used if $restore
 		if ($restore) {
@@ -367,6 +375,11 @@ __PACKAGE__->register_method({
 
 			$conf->{unprivileged} = $orig_conf->{unprivileged}
 			    if !defined($unprivileged) && defined($orig_conf->{unprivileged});
+
+			# implicit privileged change is checked here
+			if ($old_conf->{unprivileged} && !$conf->{unprivileged}) {
+			    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Allocate']);
+			}
 		    }
 		}
 		if ($storage_only_mode) {
@@ -409,7 +422,14 @@ __PACKAGE__->register_method({
 			$mp_param->{rootfs} = "$storage:4"; # defaults to 4GB
 		    }
 		}
+	    };
+	    die "$emsg $@" if $@;
 
+	    # up until here we did not modify the container, besides the lock
+	    $remove_lock = 0;
+
+	    my $vollist = [];
+	    eval {
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
 		# we always have the 'create' lock so check for more than 1 entry
@@ -468,7 +488,18 @@ __PACKAGE__->register_method({
 	};
 
 	my $workername = $restore ? 'vzrestore' : 'vzcreate';
-	my $realcmd = sub { PVE::LXC::Config->lock_config($vmid, $code); };
+	my $realcmd = sub {
+	    eval {
+		PVE::LXC::Config->lock_config($vmid, $code);
+	    };
+	    if (my $err = $@) {
+		# if we aborted before changing the container, we must remove the create lock
+		if ($remove_lock) {
+		    PVE::LXC::Config->remove_lock($vmid, 'create');
+		}
+		die $err;
+	    }
+	};
 
 	return $rpcenv->fork_worker($workername, $vmid, $authuser, $realcmd);
     }});
