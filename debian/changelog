@@ -1,3 +1,19 @@
+pve-container (4.0-9) bullseye; urgency=medium
+
+  * pct cpuset: use limiting cgroup
+
+  * pct cpuset: show effective values
+
+  * fix #3478: abort container creation on arch detection timeout
+
+  * allow nesting to be changed for VM.Allocate on unprivileged containers
+
+  * skip features when restoring an unprivileged container as privileged
+
+  * api: limit priv -> unpriv change on container restore to VM.Allocate
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 5 Aug 2021 16:10:12 +0200
+
 pve-container (4.0-8) bullseye; urgency=medium
 
   * config: sync storage ACL checks with qemu-server
