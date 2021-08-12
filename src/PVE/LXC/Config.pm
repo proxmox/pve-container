@@ -214,10 +214,15 @@ sub __snapshot_delete_vol_snapshot {
 }
 
 sub __snapshot_rollback_vol_possible {
-    my ($class, $mountpoint, $snapname) = @_;
+    my ($class, $mountpoint, $snapname, $blockers) = @_;
 
     my $storecfg = PVE::Storage::config();
-    PVE::Storage::volume_rollback_is_possible($storecfg, $mountpoint->{volume}, $snapname);
+    PVE::Storage::volume_rollback_is_possible(
+	$storecfg,
+	$mountpoint->{volume},
+	$snapname,
+	$blockers,
+    );
 }
 
 sub __snapshot_rollback_vol_rollback {
