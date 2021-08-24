@@ -110,6 +110,11 @@ sub template_fixup {
 	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
 	$self->ct_file_set_contents($filename, $data);
     }
+
+    # temporary fix for systemd-firstboot
+    my $locale_conf = '/etc/locale.conf';
+    $self->ct_file_set_contents($locale_conf, "LANG=C.utf8") if !$self->ct_file_exists($locale_conf);
+
     # always call so root can login, if /etc/securetty doesn't exists it's a no-op
     $self->setup_securetty($conf);
 }
