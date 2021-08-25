@@ -111,9 +111,9 @@ sub template_fixup {
 	$self->ct_file_set_contents($filename, $data);
     }
 
-    # temporary fix for systemd-firstboot
-    my $locale_conf = '/etc/locale.conf';
-    $self->ct_file_set_contents($locale_conf, "LANG=C.utf8") if !$self->ct_file_exists($locale_conf);
+    # temporary fix for systemd-firstboot as else it prompts for this option on a unconnected tty forever,
+    # making it seem like the CT hangs
+    $self->ct_file_set_contents('/etc/locale.conf', "LANG=C.utf8") if !$self->ct_file_exists('/etc/locale.conf');
 
     # always call so root can login, if /etc/securetty doesn't exists it's a no-op
     $self->setup_securetty($conf);
