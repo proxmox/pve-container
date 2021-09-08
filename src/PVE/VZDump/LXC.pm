@@ -21,7 +21,7 @@ use base qw (PVE::VZDump::Plugin);
 my $default_mount_point = "/mnt/vzsnap0";
 
 my $rsync_vm = sub {
-    my ($self, $task, $to, $text, $first) = @_;
+    my ($self, $task, $to, $text) = @_;
 
     my $disks = $task->{disks};
     my $from = $disks->[0]->{dir};
@@ -33,8 +33,7 @@ my $rsync_vm = sub {
 
     my $rsync = ['rsync', '--stats', '-h', @xattr, '--numeric-ids',
                  '-aH', '--delete', '--no-whole-file',
-                 ($first ? '--sparse' : '--inplace'),
-                 '--one-file-system', '--relative'];
+                 '--sparse', '--one-file-system', '--relative'];
     push @$rsync, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
     push @$rsync, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
     push @$rsync, map { "--exclude=$_" } @{$task->{exclude_dirs}};
@@ -261,13 +260,13 @@ sub copy_data_phase1 {
 	}
     }
 
-    $self->$rsync_vm($task, $task->{snapdir}, "first", 1);
+    $self->$rsync_vm($task, $task->{snapdir}, "first");
 }
 
 sub copy_data_phase2 {
     my ($self, $task) = @_;
 
-    $self->$rsync_vm($task, $task->{snapdir}, "final", 0);
+    $self->$rsync_vm($task, $task->{snapdir}, "final");
 }
 
 sub stop_vm {
