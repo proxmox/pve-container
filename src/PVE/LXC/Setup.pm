@@ -108,8 +108,7 @@ sub new {
 	return $self;
     }
 
-    my $plugin_class = $plugins->{$type} ||
-	"no such OS type '$type'\n";
+    my $plugin_class = $plugins->{$type} || die "no such OS type '$type'\n";
 
     my $plugin = $plugin_class->new($conf, $rootdir, $os_release);
     $self->{plugin} = $plugin;
@@ -126,7 +125,7 @@ sub new {
 	$plugin->{rootuid} = $rootuid;
 	$plugin->{rootgid} = $rootgid;
     }
-    
+
     return $self;
 }
 
@@ -177,10 +176,7 @@ sub template_fixup {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->template_fixup($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->template_fixup($self->{conf}) });
 }
  
 sub setup_network {
@@ -188,10 +184,7 @@ sub setup_network {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->setup_network($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->setup_network($self->{conf}) });
 }
 
 sub set_hostname {
@@ -199,10 +192,7 @@ sub set_hostname {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->set_hostname($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->set_hostname($self->{conf}) });
 }
 
 sub set_dns {
@@ -210,20 +200,15 @@ sub set_dns {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->set_dns($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->set_dns($self->{conf}) });
 }
 
 sub set_timezone {
     my ($self) = @_;
 
     return if !$self->{plugin}; # unmanaged
-    my $code = sub {
-	$self->{plugin}->set_timezone($self->{conf});
-    };
-    $self->protected_call($code);
+
+    $self->protected_call(sub { $self->{plugin}->set_timezone($self->{conf}) });
 }
 
 sub setup_init {
@@ -231,10 +216,7 @@ sub setup_init {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->setup_init($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->setup_init($self->{conf}) });
 }
 
 sub set_user_password {
@@ -242,10 +224,7 @@ sub set_user_password {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
-	$self->{plugin}->set_user_password($self->{conf}, $user, $pw);
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->set_user_password($self->{conf}, $user, $pw) });
 }
 
 sub rewrite_ssh_host_keys {
@@ -301,7 +280,7 @@ sub rewrite_ssh_host_keys {
 	}
     };
     $self->protected_call($code);
-}    
+}
 
 my $container_emulator_path = {
     'amd64' => '/usr/bin/qemu-x86_64-static',
@@ -339,11 +318,9 @@ sub pre_start_hook {
     }
 
     my $code = sub {
-
 	if ($emul && $emul_data) {
 	    $self->{plugin}->ct_file_set_contents($emul, $emul_data, 0755);
 	}
-
 	# Create /fastboot to skip run fsck
 	$self->{plugin}->ct_file_set_contents('/fastboot', '');
 
@@ -355,9 +332,7 @@ sub pre_start_hook {
 sub post_clone_hook {
     my ($self, $conf) = @_;
 
-    $self->protected_call(sub {
-	$self->{plugin}->post_clone_hook($conf);
-    });
+    $self->protected_call(sub { $self->{plugin}->post_clone_hook($conf) });
 }
 
 sub post_create_hook {
@@ -365,10 +340,9 @@ sub post_create_hook {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $code = sub {
+    $self->protected_call(sub {
 	$self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
-    };
-    $self->protected_call($code);
+    });
     $self->rewrite_ssh_host_keys();
 }
 
@@ -407,16 +381,14 @@ my $parse_os_release = sub {
 sub get_ct_os_release {
     my ($self) = @_;
 
-    my $code = sub {
+    my $data = $self->protected_call(sub {
 	if (-f '/etc/os-release') {
 	    return PVE::Tools::file_get_contents('/etc/os-release');
 	} elsif (-f '/usr/lib/os-release') {
 	    return PVE::Tools::file_get_contents('/usr/lib/os-release');
 	}
 	return undef;
-    };
-
-    my $data = $self->protected_call($code);
+    });
 
     return &$parse_os_release($data);
 }
@@ -424,9 +396,7 @@ sub get_ct_os_release {
 sub unified_cgroupv2_support {
     my ($self) = @_;
 
-    $self->protected_call(sub {
-	$self->{plugin}->unified_cgroupv2_support();
-    });
+    $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
 }
 
 1;
