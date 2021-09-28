@@ -2,39 +2,40 @@ package PVE::LXC::Setup;
 
 use strict;
 use warnings;
-use POSIX;
-use PVE::Tools;
 
+use POSIX;
 use Cwd 'abs_path';
 
-use PVE::LXC::Setup::Debian;
-use PVE::LXC::Setup::Ubuntu;
-use PVE::LXC::Setup::CentOS;
-use PVE::LXC::Setup::Fedora;
-use PVE::LXC::Setup::SUSE;
-use PVE::LXC::Setup::ArchLinux;
+use PVE::Tools;
+
 use PVE::LXC::Setup::Alpine;
-use PVE::LXC::Setup::Gentoo;
+use PVE::LXC::Setup::ArchLinux;
+use PVE::LXC::Setup::CentOS;
+use PVE::LXC::Setup::Debian;
 use PVE::LXC::Setup::Devuan;
+use PVE::LXC::Setup::Fedora;
+use PVE::LXC::Setup::Gentoo;
+use PVE::LXC::Setup::SUSE;
+use PVE::LXC::Setup::Ubuntu;
 
 my $plugins = {
+    alpine    => 'PVE::LXC::Setup::Alpine',
+    archlinux => 'PVE::LXC::Setup::ArchLinux',
+    centos    => 'PVE::LXC::Setup::CentOS',
     debian    => 'PVE::LXC::Setup::Debian',
     devuan    => 'PVE::LXC::Setup::Devuan',
-    ubuntu    => 'PVE::LXC::Setup::Ubuntu',
-    centos    => 'PVE::LXC::Setup::CentOS',
     fedora    => 'PVE::LXC::Setup::Fedora',
-    opensuse  => 'PVE::LXC::Setup::SUSE',
-    archlinux => 'PVE::LXC::Setup::ArchLinux',
-    alpine    => 'PVE::LXC::Setup::Alpine',
     gentoo    => 'PVE::LXC::Setup::Gentoo',
+    opensuse  => 'PVE::LXC::Setup::SUSE',
+    ubuntu    => 'PVE::LXC::Setup::Ubuntu',
 };
 
 # a map to allow supporting related distro flavours
 my $plugin_alias = {
-    arch => 'archlinux',
-    sles => 'opensuse',
     'opensuse-leap' => 'opensuse',
     'opensuse-tumbleweed' => 'opensuse',
+    arch => 'archlinux',
+    sles => 'opensuse',
 };
 
 my $autodetect_type = sub {
