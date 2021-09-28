@@ -241,7 +241,7 @@ sub rewrite_ssh_host_keys {
     my $keynames = {
 	rsa => 'ssh_host_rsa_key',
 	dsa => 'ssh_host_dsa_key',
-	ecdsa => 'ssh_host_ecdsa_key', 
+	ecdsa => 'ssh_host_ecdsa_key',
 	ed25519 => 'ssh_host_ed25519_key',
     };
 
@@ -251,10 +251,11 @@ sub rewrite_ssh_host_keys {
 
     my $keygen_outfunc = sub {
 	my $line = shift;
-
-	print "done: $line\n"
-	    if $line =~ m/^(?:[0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i ||
-	       $line =~ m/^SHA256:[0-9a-z+\/]{43}\s+\Q$ssh_comment\E$/i;
+	if ($line =~ m/^(?:[0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i
+	    || $line =~ m/^SHA256:[0-9a-z+\/]{43}\s+\Q$ssh_comment\E$/i
+	) {
+	    print "done: $line\n"
+	}
     };
 
     # Create temporary keys in /tmp on the host
@@ -263,9 +264,10 @@ sub rewrite_ssh_host_keys {
 	my $basename = $keynames->{$keytype};
 	my $file = "/tmp/$$.$basename";
 	print "Creating SSH host key '$basename' - this may take some time ...\n";
-	my $cmd = ['ssh-keygen', '-f', $file, '-t', $keytype,
-		   '-N', '', '-E', 'sha256', '-C', $ssh_comment];
-	PVE::Tools::run_command($cmd, outfunc => $keygen_outfunc);
+	PVE::Tools::run_command(
+	    ['ssh-keygen', '-f', $file, '-t', $keytype, '-N', '', '-E', 'sha256', '-C', $ssh_comment],
+	    outfunc => $keygen_outfunc,
+	);
 	$keyfiles->{"/etc/ssh/$basename"} = [PVE::Tools::file_get_contents($file), 0600];
 	$keyfiles->{"/etc/ssh/$basename.pub"} = [PVE::Tools::file_get_contents("$file.pub"), 0644];
 	unlink $file;
@@ -273,13 +275,11 @@ sub rewrite_ssh_host_keys {
     }
 
     # Write keys out in a protected call
-
-    my $code = sub {
+    $self->protected_call(sub {
 	foreach my $file (keys %$keyfiles) {
 	    $plugin->ct_file_set_contents($file, @{$keyfiles->{$file}});
 	}
-    };
-    $self->protected_call($code);
+    });
 }
 
 my $container_emulator_path = {
