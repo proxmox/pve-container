@@ -85,7 +85,7 @@ sub new {
 
     die "no root directory\n" if !$rootdir || $rootdir eq '/';
 
-    my $self = bless { conf => $conf, rootdir => $rootdir};
+    my $self = bless { conf => $conf, rootdir => $rootdir}, $class;
 
     my $os_release = $self->get_ct_os_release();
 
