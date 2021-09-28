@@ -347,6 +347,12 @@ sub post_create_hook {
     $self->rewrite_ssh_host_keys();
 }
 
+sub unified_cgroupv2_support {
+    my ($self) = @_;
+
+    $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
+}
+
 # os-release(5):
 #   (...) a newline-separated list of environment-like shell-compatible
 #   variable assignments. (...) beyond mere variable assignments, no shell
@@ -392,12 +398,6 @@ sub get_ct_os_release {
     });
 
     return &$parse_os_release($data);
-}
-
-sub unified_cgroupv2_support {
-    my ($self) = @_;
-
-    $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
 }
 
 1;
