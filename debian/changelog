@@ -1,3 +1,22 @@
+pve-container (4.0-10) bullseye; urgency=medium
+
+  * centos (and derivatives): set locale.conf to c.UTF-8 if it does not yet
+    exists on template extraction. This avoids systemd-firstboot hanging due
+    to prompting the user on a disconnected console.
+
+  * opensuse: pre-set locale/timezone to avoid systemd-firstboot hang on
+    prompt in a similar spirit as with centos above
+
+  * partially fix #3471: setup: centos: net: add missing UUID to ifcfg to
+    improve compatibility with NetworkManager (the default since CentOS 8)
+
+  * partially fix #3471: setup: centos: net: fix avoid setting the IPV6ADDR
+    config option to the literal "auto" for SLAAC
+
+  * partially fix #3471: setup: centos: net: set DNS also per iface config
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 29 Sep 2021 22:14:19 +0200
+
 pve-container (4.0-9) bullseye; urgency=medium
 
   * pct cpuset: use limiting cgroup
