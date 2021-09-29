@@ -48,6 +48,10 @@ sub template_fixup {
     my ($self, $conf) = @_;
 
     $self->setup_securetty($conf);
+
+    # temporary fix for systemd-firstboot
+    $self->ct_file_set_contents('/etc/locale.conf', "LANG=C.utf8") if !$self->ct_file_exists('/etc/locale.conf');
+    $self->ct_symlink('/usr/share/zoneinfo/UTC', '/etc/localtime') if !$self->ct_file_exists('/etc/localtime');
 }
 
 sub setup_init {
