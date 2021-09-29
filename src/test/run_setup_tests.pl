@@ -59,6 +59,7 @@ sub run_test {
 	my @testfiles = qw(/etc/hostname
 	                   /etc/hosts
 	                   /etc/inittab
+	                   /etc/locale.conf
 	                   /etc/network/interfaces
 	                   /etc/resolv.conf
 	                   /etc/passwd
