@@ -224,7 +224,8 @@ sub setup_network {
 		$data .= "IPV6ADDR=$d->{ip6}\n";
 		if (defined($d->{gw6})) {
 		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6) &&
-			!PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)) {
+			!PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)
+		    ) {
 			$routes6 .= "$d->{gw6} dev $d->{name}\n";
 			$routes6 .= "default via $d->{gw6} dev $d->{name}\n";
 		    } else {
