@@ -256,14 +256,9 @@ sub rewrite_ssh_host_keys {
 
     my $plugin = $self->{plugin};
 
-    return if ! -d "$self->{rootdir}/etc/ssh";
+    my $keynames = $plugin->ssh_host_key_types_to_generate();
 
-    my $keynames = {
-	rsa => 'ssh_host_rsa_key',
-	dsa => 'ssh_host_dsa_key',
-	ecdsa => 'ssh_host_ecdsa_key',
-	ed25519 => 'ssh_host_ed25519_key',
-    };
+    return if ! -d "$self->{rootdir}/etc/ssh" || !$keynames || !scalar(keys $keynames->%*);
 
     my $hostname = $self->{conf}->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;

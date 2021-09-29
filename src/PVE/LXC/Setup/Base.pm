@@ -540,6 +540,17 @@ sub unified_cgroupv2_support {
     return 1
 }
 
+sub ssh_host_key_types_to_generate {
+    my ($self) = @_;
+
+    return {
+	rsa => 'ssh_host_rsa_key',
+	dsa => 'ssh_host_dsa_key',
+	ecdsa => 'ssh_host_ecdsa_key',
+	ed25519 => 'ssh_host_ed25519_key',
+    };
+}
+
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
