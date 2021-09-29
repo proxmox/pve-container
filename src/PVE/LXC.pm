@@ -864,10 +864,20 @@ sub delete_mountpoint_volume {
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf, $replacement_conf, $purge_unreferenced) = @_;
 
-    PVE::LXC::Config->foreach_volume_full($conf, {include_unused => 1}, sub {
+    my $volids = {};
+    my $remove_volume = sub {
 	my ($ms, $mountpoint) = @_;
-	delete_mountpoint_volume($storage_cfg, $vmid, $mountpoint->{volume});
-    });
+
+	my $volume = $mountpoint->{volume};
+
+	return if $volids->{$volume};
+	$volids->{$volume} = 1;
+
+	delete_mountpoint_volume($storage_cfg, $vmid, $volume);
+    };
+    PVE::LXC::Config->foreach_volume_full($conf, {include_unused => 1}, $remove_volume);
+
+    PVE::LXC::Config->foreach_volume_full($conf->{pending}, {include_unused => 1}, $remove_volume);
 
     if ($purge_unreferenced) { # also remove unreferenced disk
 	my $vmdisks = PVE::Storage::vdisk_list($storage_cfg, undef, $vmid, undef, 'rootdir');
