@@ -1,4 +1,14 @@
-SOURCES=Base.pm Debian.pm Ubuntu.pm CentOS.pm Fedora.pm SUSE.pm ArchLinux.pm Alpine.pm Gentoo.pm Devuan.pm
+SOURCES=\
+    Base.pm		\
+    Alpine.pm		\
+    ArchLinux.pm	\
+    CentOS.pm		\
+    Debian.pm		\
+    Devuan.pm		\
+    Fedora.pm		\
+    Gentoo.pm		\
+    SUSE.pm		\
+    Ubuntu.pm		\
 
 .PHONY: install
 install:
