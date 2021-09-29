@@ -17,6 +17,9 @@ use PVE::INotify;
 use PVE::Tools;
 use PVE::Network;
 
+use PVE::LXC::Setup::Plugin;
+use base qw(PVE::LXC::Setup::Plugin);
+
 sub new {
     my ($class, $conf, $rootdir, $os_release) = @_;
 
@@ -591,6 +594,7 @@ sub post_create_hook {
 }
 
 # File access wrappers for container setup code.
+# NOTE: those are not direct part of the Plugin API (yet), avoid using them outside the child plugins
 # For user-namespace support these might need to take uid and gid maps into account.
 
 sub ct_is_file_ignored {

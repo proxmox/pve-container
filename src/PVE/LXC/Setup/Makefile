@@ -1,4 +1,5 @@
 SOURCES=\
+    Plugin.pm		\
     Base.pm		\
     Alpine.pm		\
     ArchLinux.pm	\
