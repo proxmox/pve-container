@@ -30,7 +30,8 @@ sub lookup_dns_conf {
     my $searchdomains = $conf->{searchdomain};
 
     if ($conf->{'testmode'}) {
-	return ('proxmox.com', '8.8.8.8 8.8.8.9');
+	$nameserver //= '8.8.8.8 8.8.8.9';
+	$searchdomains //= 'proxmox.com';
     }
 
     my $host_resolv_conf = $self->{host_resolv_conf};
