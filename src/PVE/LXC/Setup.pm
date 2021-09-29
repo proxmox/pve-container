@@ -228,6 +228,27 @@ sub set_user_password {
     $self->protected_call(sub { $self->{plugin}->set_user_password($self->{conf}, $user, $pw) });
 }
 
+my sub generate_ssh_key { # create temporary key in hosts' /run, then read and unlink
+    my ($type, $comment) = @_;
+
+    my $key_id = '';
+    my $keygen_outfunc = sub {
+	if ($_[0] =~ m/^((?:[0-9a-f]{2}:)+[0-9a-f]{2}|SHA256:[0-9a-z+\/]{43})\s+\Q$comment\E$/i) {
+	    $key_id = $_[0];
+	}
+    };
+    my $file = "/run/pve/.tmp$$.$type";
+    PVE::Tools::run_command(
+	['ssh-keygen', '-f', $file, '-t', $type, '-N', '', '-E', 'sha256', '-C', $comment],
+	outfunc => $keygen_outfunc,
+    );
+    my ($private) = (PVE::Tools::file_get_contents($file) =~ /^(.*)$/sg); # untaint
+    my ($public) = (PVE::Tools::file_get_contents("$file.pub") =~ /^(.*)$/sg); # untaint
+    unlink $file, "$file.pub";
+
+    return ($key_id, $private, $public);
+}
+
 sub rewrite_ssh_host_keys {
     my ($self) = @_;
 
@@ -248,37 +269,20 @@ sub rewrite_ssh_host_keys {
 
     my $hostname = $conf->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
-    my $ssh_comment = "root\@$hostname";
 
-    my $keygen_outfunc = sub {
-	my $line = shift;
-	if ($line =~ m/^(?:[0-9a-f]{2}:)+[0-9a-f]{2}\s+\Q$ssh_comment\E$/i
-	    || $line =~ m/^SHA256:[0-9a-z+\/]{43}\s+\Q$ssh_comment\E$/i
-	) {
-	    print "done: $line\n"
-	}
-    };
-
-    # Create temporary keys in /tmp on the host
-    my $keyfiles = {};
-    foreach my $keytype (keys %$keynames) {
+    my $keyfiles = [];
+    for my $keytype (keys $keynames->%*) {
 	my $basename = $keynames->{$keytype};
-	my $file = "/tmp/$$.$basename";
 	print "Creating SSH host key '$basename' - this may take some time ...\n";
-	PVE::Tools::run_command(
-	    ['ssh-keygen', '-f', $file, '-t', $keytype, '-N', '', '-E', 'sha256', '-C', $ssh_comment],
-	    outfunc => $keygen_outfunc,
-	);
-	$keyfiles->{"/etc/ssh/$basename"} = [PVE::Tools::file_get_contents($file), 0600];
-	$keyfiles->{"/etc/ssh/$basename.pub"} = [PVE::Tools::file_get_contents("$file.pub"), 0644];
-	unlink $file;
-	unlink "$file.pub";
+	my ($id, $private, $public) = generate_ssh_key($keytype, "root\@$hostname");
+	print "done: $id\n";
+
+	push $keyfiles->@*, ["/etc/ssh/$basename", $private, 0600], ["/etc/ssh/$basename.pub", $public, 0644];
     }
 
-    # Write keys out in a protected call
-    $self->protected_call(sub {
-	foreach my $file (keys %$keyfiles) {
-	    $plugin->ct_file_set_contents($file, @{$keyfiles->{$file}});
+    $self->protected_call(sub { # write them now all to the CTs rootfs at once
+	for my $file ($keyfiles->@*) {
+	    $plugin->ct_file_set_contents($file->@*);
 	}
     });
 }
