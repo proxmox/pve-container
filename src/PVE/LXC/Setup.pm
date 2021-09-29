@@ -254,11 +254,9 @@ sub rewrite_ssh_host_keys {
 
     return if !$self->{plugin}; # unmanaged
 
-    my $conf = $self->{conf};
     my $plugin = $self->{plugin};
-    my $rootdir = $self->{rootdir};
 
-    return if ! -d "$rootdir/etc/ssh";
+    return if ! -d "$self->{rootdir}/etc/ssh";
 
     my $keynames = {
 	rsa => 'ssh_host_rsa_key',
@@ -267,7 +265,7 @@ sub rewrite_ssh_host_keys {
 	ed25519 => 'ssh_host_ed25519_key',
     };
 
-    my $hostname = $conf->{hostname} || 'localhost';
+    my $hostname = $self->{conf}->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
 
     my $keyfiles = [];
