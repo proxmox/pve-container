@@ -1,0 +1,2 @@
+hostname: test1
+net0: bridge=vmbr0,name=eth0,ip6=auto
