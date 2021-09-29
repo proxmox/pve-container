@@ -236,6 +236,14 @@ sub setup_network {
 	    }
 	}
 
+	my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
+	my @nameservers = PVE::Tools::split_list($nameserver);
+
+	for my $i (0 .. $#nameservers) {
+	    $data .= "DNS".($i+1)."=$nameservers[$i]\n";
+	}
+	$data .= "DOMAIN=".join(' ', PVE::Tools::split_list($searchdomains))."\n" if $searchdomains;
+
 	next unless $data || $bootproto;
 	$header .= "BOOTPROTO=$bootproto\n";
 	$self->ct_file_set_contents($filename, $header . $data);
