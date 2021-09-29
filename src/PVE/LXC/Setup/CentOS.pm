@@ -3,6 +3,8 @@ package PVE::LXC::Setup::CentOS;
 use strict;
 use warnings;
 
+use UUID;
+
 use PVE::Tools;
 use PVE::Network;
 use PVE::LXC;
@@ -190,7 +192,7 @@ sub setup_network {
 	my $routes = '';
 	my $routes6 = '';
 
-	my $header = "DEVICE=$d->{name}\nONBOOT=yes\n";
+	my $header = "DEVICE=$d->{name}\nONBOOT=yes\nUUID=" . UUID::uuid() ."\n";
 	my $data = '';
 	my $bootproto = '';
 

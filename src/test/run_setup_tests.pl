@@ -119,6 +119,14 @@ $cluster_module->mock(
     },
 );
 
+
+my $uuid_module = Test::MockModule->new("UUID");
+$uuid_module->mock(
+    uuid => sub {
+	return '00000000-0000-0000-0000-000000000000';
+    },
+);
+
 if (scalar(@ARGV)) {
 
     foreach my $testdir (@ARGV) {
