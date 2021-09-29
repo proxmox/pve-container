@@ -285,20 +285,16 @@ sub rewrite_ssh_host_keys {
     });
 }
 
-my $container_emulator_path = {
-    'amd64' => '/usr/bin/qemu-x86_64-static',
-    'arm64' => '/usr/bin/qemu-aarch64-static',
-};
+my sub get_emulator {
+    my ($container_arch) = @_;
 
-sub pre_start_hook {
-    my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
+    my $container_emulator_path = {
+	'amd64' => '/usr/bin/qemu-x86_64-static',
+	'arm64' => '/usr/bin/qemu-aarch64-static',
+    };
 
     my $host_arch = PVE::Tools::get_host_arch();
-
-    # containers use different architecture names
-    if ($host_arch eq 'x86_64') {
+    if ($host_arch eq 'x86_64') { # containers use different architecture names
 	$host_arch = 'amd64';
     } elsif ($host_arch eq 'aarch64') {
 	$host_arch = 'arm64';
@@ -306,19 +302,23 @@ sub pre_start_hook {
 	die "unsupported host architecture '$host_arch'\n";
     }
 
-    my $container_arch = $self->{conf}->{arch};
-
     $container_arch = 'amd64' if $container_arch eq 'i386'; # always use 64 bit version
     $container_arch = 'arm64' if $container_arch eq 'armhf'; # always use 64 bit version
 
-    my $emul;
-    my $emul_data;
-
     if ($host_arch ne $container_arch) {
-	if ($emul = $container_emulator_path->{$container_arch}) {
-	    $emul_data = PVE::Tools::file_get_contents($emul, 10*1024*1024) if -f $emul;
+	if (my $emul = $container_emulator_path->{$container_arch}) {
+	    return ($emul, PVE::Tools::file_get_contents($emul, 10*1024*1024)) if -f $emul;
 	}
     }
+    # none required
+}
+
+sub pre_start_hook {
+    my ($self) = @_;
+
+    return if !$self->{plugin}; # unmanaged
+
+    my ($emul, $emul_data) = get_emulator($self->{conf}->{arch});
 
     my $code = sub {
 	if ($emul && $emul_data) {
