@@ -219,8 +219,7 @@ sub setup_network {
 	    $data .= "IPV6INIT=yes\n";
 	    if ($d->{ip6} eq 'auto') {
 		$data .= "IPV6_AUTOCONF=yes\n";
-	    }
-	    if ($d->{ip6} eq 'dhcp') {
+	    } elsif ($d->{ip6} eq 'dhcp') {
 		$data .= "DHCPV6C=yes\n";
 	    } else {
 		$data .= "IPV6ADDR=$d->{ip6}\n";
