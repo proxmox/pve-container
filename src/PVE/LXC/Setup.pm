@@ -17,6 +17,7 @@ use PVE::LXC::Setup::Fedora;
 use PVE::LXC::Setup::Gentoo;
 use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::Ubuntu;
+use PVE::LXC::Setup::Unmanaged;
 
 my $plugins = {
     alpine    => 'PVE::LXC::Setup::Alpine',
@@ -28,6 +29,7 @@ my $plugins = {
     gentoo    => 'PVE::LXC::Setup::Gentoo',
     opensuse  => 'PVE::LXC::Setup::SUSE',
     ubuntu    => 'PVE::LXC::Setup::Ubuntu',
+    unmanaged => 'PVE::LXC::Setup::Unmanaged',
 };
 
 # a map to allow supporting related distro flavours
@@ -91,7 +93,7 @@ sub new {
     my $os_release = $self->get_ct_os_release();
 
     if ($conf->{ostype} && $conf->{ostype} eq 'unmanaged') {
-	return $self;
+	$type = 'unmanaged';
     } elsif (!defined($type)) {
 	# try to autodetect type
 	$type = &$autodetect_type($self, $rootdir, $os_release);
@@ -102,11 +104,6 @@ sub new {
 		if ! -e "$rootdir/etc";
 	    warn "got unexpected ostype ($type != $expected_type)\n"
 	}
-    }
-
-    if ($type eq 'unmanaged') {
-	$conf->{ostype} = $type;
-	return $self;
     }
 
     my $plugin_class = $plugins->{$type} || die "no such OS type '$type'\n";
@@ -174,57 +171,36 @@ sub protected_call {
 
 sub template_fixup {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->template_fixup($self->{conf}) });
 }
  
 sub setup_network {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->setup_network($self->{conf}) });
 }
 
 sub set_hostname {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->set_hostname($self->{conf}) });
 }
 
 sub set_dns {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->set_dns($self->{conf}) });
 }
 
 sub set_timezone {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->set_timezone($self->{conf}) });
 }
 
 sub setup_init {
     my ($self) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->setup_init($self->{conf}) });
 }
 
 sub set_user_password {
     my ($self, $user, $pw) = @_;
-
-    return if !$self->{plugin}; # unmanaged
-
     $self->protected_call(sub { $self->{plugin}->set_user_password($self->{conf}, $user, $pw) });
 }
 
@@ -294,8 +270,6 @@ sub post_clone_hook {
 
 sub post_create_hook {
     my ($self, $root_password, $ssh_keys) = @_;
-
-    return if !$self->{plugin}; # unmanaged
 
     $self->protected_call(sub {
 	$self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
