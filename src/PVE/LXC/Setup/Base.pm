@@ -542,6 +542,8 @@ sub unified_cgroupv2_support {
 sub pre_start_hook {
     my ($self, $conf) = @_;
 
+    $self->ct_file_set_contents('/fastboot', ''); # skips fsck, among other things
+
     $self->setup_init($conf);
     $self->setup_network($conf);
     $self->set_hostname($conf);
