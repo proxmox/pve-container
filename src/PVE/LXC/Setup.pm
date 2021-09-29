@@ -280,49 +280,10 @@ sub rewrite_ssh_host_keys {
     });
 }
 
-my sub get_emulator {
-    my ($container_arch) = @_;
-
-    my $container_emulator_path = {
-	'amd64' => '/usr/bin/qemu-x86_64-static',
-	'arm64' => '/usr/bin/qemu-aarch64-static',
-    };
-
-    my $host_arch = PVE::Tools::get_host_arch();
-    if ($host_arch eq 'x86_64') { # containers use different architecture names
-	$host_arch = 'amd64';
-    } elsif ($host_arch eq 'aarch64') {
-	$host_arch = 'arm64';
-    } else {
-	die "unsupported host architecture '$host_arch'\n";
-    }
-
-    $container_arch = 'amd64' if $container_arch eq 'i386'; # always use 64 bit version
-    $container_arch = 'arm64' if $container_arch eq 'armhf'; # always use 64 bit version
-
-    if ($host_arch ne $container_arch) {
-	if (my $emul = $container_emulator_path->{$container_arch}) {
-	    return ($emul, PVE::Tools::file_get_contents($emul, 10*1024*1024)) if -f $emul;
-	}
-    }
-    # none required
-}
-
 sub pre_start_hook {
     my ($self) = @_;
 
-    return if !$self->{plugin}; # unmanaged
-
-    my ($emul, $emul_data) = get_emulator($self->{conf}->{arch});
-
-    my $code = sub {
-	if ($emul && $emul_data) {
-	    $self->{plugin}->ct_file_set_contents($emul, $emul_data, 0755);
-	}
-
-	$self->{plugin}->pre_start_hook($self->{conf});
-    };
-    $self->protected_call($code);
+    $self->protected_call(sub { $self->{plugin}->pre_start_hook($self->{conf}) });
 }
 
 sub post_clone_hook {
