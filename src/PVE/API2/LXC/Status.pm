@@ -360,7 +360,7 @@ __PACKAGE__->register_method({
     method => 'POST',
     protected => 1,
     proxyto => 'node',
-    description => "Suspend the container.",
+    description => "Suspend the container. This is experimental.",
     permissions => {
 	check => ['perm', '/vms/{vmid}', [ 'VM.PowerMgmt' ]],
     },
