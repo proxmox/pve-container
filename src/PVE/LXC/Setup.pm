@@ -173,7 +173,7 @@ sub template_fixup {
     my ($self) = @_;
     $self->protected_call(sub { $self->{plugin}->template_fixup($self->{conf}) });
 }
- 
+
 sub setup_network {
     my ($self) = @_;
     $self->protected_call(sub { $self->{plugin}->setup_network($self->{conf}) });
@@ -280,7 +280,7 @@ sub post_create_hook {
 sub unified_cgroupv2_support {
     my ($self) = @_;
 
-    $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
+    return $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
 }
 
 # os-release(5):
