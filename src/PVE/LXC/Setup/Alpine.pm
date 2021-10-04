@@ -31,18 +31,13 @@ sub template_fixup {
     my ($self, $conf) = @_;
 
     # enable networking service
-    $self->ct_symlink('/etc/init.d/networking',
-                      '/etc/runlevels/boot/networking');
+    $self->ct_symlink('/etc/init.d/networking', '/etc/runlevels/boot/networking');
     # fixup any symlinks
-    $self->ct_symlink('/etc/init.d/bootmisc',
-                      '/etc/runlevels/boot/bootmisc');
-    $self->ct_symlink('/etc/init.d/hostname',
-                      '/etc/runlevels/boot/hostname');
+    $self->ct_symlink('/etc/init.d/bootmisc', '/etc/runlevels/boot/bootmisc');
+    $self->ct_symlink('/etc/init.d/hostname', '/etc/runlevels/boot/hostname');
     # fix stop system
-    $self->ct_symlink('/etc/init.d/killprocs',
-                      '/etc/runlevels/shutdown/killprocs');
-    $self->ct_symlink('/etc/init.d/savecache',
-                      '/etc/runlevels/shutdown/savecache');
+    $self->ct_symlink('/etc/init.d/killprocs', '/etc/runlevels/shutdown/killprocs');
+    $self->ct_symlink('/etc/init.d/savecache', '/etc/runlevels/shutdown/savecache');
 
     $self->setup_securetty($conf);
 }
@@ -57,8 +52,7 @@ sub setup_init {
     my $inittab = $self->ct_file_get_contents($filename);
 
     my @lines = grep {
-	    # remove getty lines
-	    !/^\s*tty\d+:\d*:[^:]*:.*getty/
+	!/^\s*tty\d+:\d*:[^:]*:.*getty/ # remove getty lines
     } split(/\n/, $inittab);
 
     $inittab = join("\n", @lines) . "\n";
