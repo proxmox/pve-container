@@ -145,6 +145,7 @@ sub make_gateway_scripts {
 SCRIPTS
 }
 
+# NOTE: this is re-used by Alpine Linux, please have that in mind when changing things.
 sub setup_network {
     my ($self, $conf) = @_;
 
@@ -230,7 +231,9 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet static\n";
-		if ($conf->{ostype} eq "debian" && $self->{version} >= 10) {
+		if ($conf->{ostype} eq "debian" && $self->{version} >= 10
+		    || $conf->{ostype} eq "alpine" && $self->{version} >= 3.13
+		) {
 		    $interfaces .= "\taddress $net->{cidr}\n" if defined($net->{cidr});
 		} else {
 		    $interfaces .= "\taddress $net->{address}\n" if defined($net->{address});
