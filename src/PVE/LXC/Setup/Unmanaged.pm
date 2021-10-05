@@ -51,6 +51,7 @@ sub unified_cgroupv2_support {
 
 sub ssh_host_key_types_to_generate {
     my ($self) = @_;
+    return;
 }
 
 # hooks
