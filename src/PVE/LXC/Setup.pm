@@ -228,8 +228,6 @@ my sub generate_ssh_key { # create temporary key in hosts' /run, then read and u
 sub rewrite_ssh_host_keys {
     my ($self) = @_;
 
-    return if !$self->{plugin}; # unmanaged
-
     my $plugin = $self->{plugin};
 
     my $keynames = $plugin->ssh_host_key_types_to_generate();
