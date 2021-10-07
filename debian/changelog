@@ -1,3 +1,19 @@
+pve-container (4.0-11) bullseye; urgency=medium
+
+  * fix support for unmanaged containers
+
+  * pct status: mark suspend as experimental
+
+  * destroy: remove pending volumes as well
+
+  * setup: drop copying binfmt qemu-static executable for cross-architecture
+    containers, that should be handled by the kernel opening the binfmt helper
+    immediately on registering.
+
+  * setup: alpine: also use CIDR format for newer versions (>= 3.13)
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 07 Oct 2021 08:17:44 +0200
+
 pve-container (4.0-10) bullseye; urgency=medium
 
   * centos (and derivatives): set locale.conf to c.UTF-8 if it does not yet
