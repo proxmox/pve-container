@@ -469,12 +469,18 @@ sub set_timezone {
 	$tz_path = $self->{host_localtime};
     }
 
-    return if abs_path('/etc/localtime') eq $tz_path;
-
     if ($self->ct_file_exists($tz_path)) {
-	my $tmpfile = "localtime.$$.new.tmpfile";
-	$self->ct_symlink($tz_path, $tmpfile);
-	$self->ct_rename($tmpfile, "/etc/localtime");
+	if (abs_path('/etc/localtime') ne $tz_path) {
+	    my $tmpfile = "localtime.$$.new.tmpfile";
+	    $self->ct_symlink($tz_path, $tmpfile);
+	    $self->ct_rename($tmpfile, "/etc/localtime");
+	}
+
+	# not all distributions have /etc/timezone
+	if ($self->ct_file_exists('/etc/timezone')) {
+	    my $contents = $zoneinfo eq 'host' ? $self->{host_timezone} : $zoneinfo;
+	    $self->ct_file_set_contents('/etc/timezone', "$contents\n");
+	}
     } else {
 	warn "container does not have $tz_path, timezone can not be modified\n";
     }
