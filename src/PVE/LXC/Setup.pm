@@ -114,7 +114,9 @@ sub new {
 
     # Cache some host files we need access to:
     $plugin->{host_resolv_conf} = PVE::INotify::read_file('resolvconf');
-    $plugin->{host_localtime} = abs_path('/etc/localtime');
+
+    abs_path('/etc/localtime') =~ m|^(/.+)| or die "invalid /etc/localtime\n"; # untaint
+    $plugin->{host_localtime} = $1;
 
     # pass on user namespace information:
     my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
