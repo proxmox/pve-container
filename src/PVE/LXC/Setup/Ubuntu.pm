@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '21.10' => 1, # impish
     '21.04' => 1, # hirsute
     '20.10' => 1, # groovy
     '20.04' => 1, # focal LTS
