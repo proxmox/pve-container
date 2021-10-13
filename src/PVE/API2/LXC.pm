@@ -1512,7 +1512,12 @@ __PACKAGE__->register_method({
 	    # Replace the 'disk' lock with a 'create' lock.
 	    $newconf->{lock} = 'create';
 
+	    # delete all snapshot related config options
 	    delete $newconf->{snapshots};
+	    delete $newconf->{parent};
+	    delete $newconf->{snaptime};
+	    delete $newconf->{snapstate};
+
 	    delete $newconf->{pending};
 	    delete $newconf->{template};
 	    if ($param->{hostname}) {
