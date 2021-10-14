@@ -1513,20 +1513,13 @@ __PACKAGE__->register_method({
 	    $newconf->{lock} = 'create';
 
 	    # delete all snapshot related config options
-	    delete $newconf->{snapshots};
-	    delete $newconf->{parent};
-	    delete $newconf->{snaptime};
-	    delete $newconf->{snapstate};
+	    delete $newconf->@{qw(snapshots parent snaptime snapstate)};
 
 	    delete $newconf->{pending};
 	    delete $newconf->{template};
-	    if ($param->{hostname}) {
-		$newconf->{hostname} = $param->{hostname};
-	    }
 
-	    if ($param->{description}) {
-		$newconf->{description} = $param->{description};
-	    }
+	    $newconf->{hostname} = $param->{hostname} if $param->{hostname};
+	    $newconf->{description} = $param->{description} if $param->{description};
 
 	    $lock_and_reload->($newid, sub {
 		PVE::LXC::Config->write_config($newid, $newconf);
