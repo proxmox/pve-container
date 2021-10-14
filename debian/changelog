@@ -1,3 +1,23 @@
+pve-container (4.1-1) bullseye; urgency=medium
+
+  * setup: untaint path to host timezone
+
+  * setup: also set contents of /etc/timezone
+
+  * fix #3673: setup: add support for upcomming Ubuntu 21.10 Impish Indri
+    containers
+
+  * add support for upcomming Fedora 35
+
+  * api: clone: don't include snapshot related properties in the target
+    config, similar to the VM clone API endpoint.
+
+  * restore: sanitize config: use task log warn method to record that Proxmox
+    VE could not restore the container 1:1 if the config contained special
+    `lxc.` keys and the user is not root.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 14 Oct 2021 13:12:58 +0200
+
 pve-container (4.0-11) bullseye; urgency=medium
 
   * fix support for unmanaged containers
