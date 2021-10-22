@@ -245,7 +245,6 @@ __PACKAGE__->register_method({
 	my $pool = extract_param($param, 'pool');
 	if (defined($pool)) {
 	    $rpcenv->check_pool_exist($pool);
-	    $rpcenv->check_perm_modify($authuser, "/pool/$pool");
 	}
 
 	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
