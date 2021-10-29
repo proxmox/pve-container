@@ -29,11 +29,11 @@ use PVE::Tools qw(
     $IPV4RE
     $IPV6RE
 );
-use PVE::RPCEnvironment;
 use PVE::CpuSet;
 use PVE::Network;
 use PVE::AccessControl;
 use PVE::ProcFSTools;
+use PVE::RESTEnvironment;
 use PVE::Syscall qw(:fsmount);
 use PVE::LXC::Config;
 use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
@@ -2331,13 +2331,8 @@ my sub print_ct_warn_log {
     my $log = eval { file_get_contents($log_fn) };
     return if !$log;
 
-    my $rpcenv = eval { PVE::RPCEnvironment::get() };
-
-    my $warn_fn = $rpcenv ? sub { $rpcenv->warn($_[0]) } : sub { print STDERR "WARN: $_[0]\n" };
-
     while ($log =~ /^\h*\s*(.*?)\h*$/gm) {
-	my $line = $1;
-	$warn_fn->($line);
+	PVE::RESTEnvironment::log_warn($1);
     }
     unlink $log_fn or warn "could not unlink '$log_fn' - $!\n";
 }
