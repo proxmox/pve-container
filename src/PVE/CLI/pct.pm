@@ -849,7 +849,8 @@ our $cmddef = {
 
     clone => [ "PVE::API2::LXC", 'clone_vm', ['vmid', 'newid'], { node => $nodename }, $upid_exit ],
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
-    move_volume => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage'], { node => $nodename }, $upid_exit ],
+    'move-volume' => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage', 'target-vmid', 'target-volume'], { node => $nodename }, $upid_exit ],
+    move_volume => { alias => 'move-volume' },
 
     snapshot => [ "PVE::API2::LXC::Snapshot", 'snapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
     delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
