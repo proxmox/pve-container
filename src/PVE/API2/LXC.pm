@@ -1813,10 +1813,12 @@ __PACKAGE__->register_method({
     method => 'POST',
     protected => 1,
     proxyto => 'node',
-    description => "Move a rootfs-/mp-volume to a different storage",
+    description => "Move a rootfs-/mp-volume to a different storage or to a different container.",
     permissions => {
 	description => "You need 'VM.Config.Disk' permissions on /vms/{vmid}, " .
-	    "and 'Datastore.AllocateSpace' permissions on the storage.",
+	    "and 'Datastore.AllocateSpace' permissions on the storage. To move ".
+	    "a volume to another container, you need the permissions on the ".
+	    "target container as well.",
 	check =>
 	[ 'and',
 	  ['perm', '/vms/{vmid}', [ 'VM.Config.Disk' ]],
@@ -1828,14 +1830,20 @@ __PACKAGE__->register_method({
 	properties => {
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    'target-vmid' => get_standard_option('pve-vmid', {
+		completion => \&PVE::LXC::complete_ctid,
+		optional => 1,
+	    }),
 	    volume => {
 		type => 'string',
-		enum => [ PVE::LXC::Config->valid_volume_keys() ],
+		#TODO: check how to handle unused mount points as the mp parameter is not configured
+		enum => [ PVE::LXC::Config->valid_volume_keys_with_unused() ],
 		description => "Volume which will be moved.",
 	    },
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Target Storage.",
 		completion => \&PVE::Storage::complete_storage_enabled,
+		optional => 1,
 	    }),
 	    delete => {
 		type => 'boolean',
@@ -1856,6 +1864,21 @@ __PACKAGE__->register_method({
 		minimum => '0',
 		default => 'clone limit from datacenter or storage config',
 	    },
+	    'target-volume' => {
+	        type => 'string',
+		description => "The config key the volume will be moved to. Default is the " .
+		    "source volume key.",
+		enum => [PVE::LXC::Config->valid_volume_keys_with_unused()],
+		optional => 1,
+	    },
+	    'target-digest' => {
+		type => 'string',
+		description => 'Prevent changes if current configuration file of the target " .
+		    "container has a different SHA1 digest. This can be used to prevent " .
+		    "concurrent modifications.',
+		maxLength => 40,
+		optional => 1,
+	    },
 	},
     },
     returns => {
@@ -1870,32 +1893,54 @@ __PACKAGE__->register_method({
 
 	my $vmid = extract_param($param, 'vmid');
 
+	my $target_vmid = extract_param($param, 'target-vmid');
+
 	my $storage = extract_param($param, 'storage');
 
 	my $mpkey = extract_param($param, 'volume');
+
+	my $target_mpkey = extract_param($param, 'target-volume') // $mpkey;
+
+	my $digest = extract_param($param, 'digest');
+
+	my $target_digest = extract_param($param, 'target-digest');
 
 	my $lockname = 'disk';
 
 	my ($mpdata, $old_volid);
 
-	PVE::LXC::Config->lock_config($vmid, sub {
-	    my $conf = PVE::LXC::Config->load_config($vmid);
-	    PVE::LXC::Config->check_lock($conf);
+	die "either set storage or target-vmid, but not both\n"
+	    if $storage && $target_vmid;
 
-	    die "cannot move volumes of a running container\n" if PVE::LXC::check_running($vmid);
+	my $storecfg = PVE::Storage::config();
+	my $source_volid;
 
-	    $mpdata = PVE::LXC::Config->parse_volume($mpkey, $conf->{$mpkey});
-	    $old_volid = $mpdata->{volume};
+	my $move_to_storage_checks = sub {
+	    PVE::LXC::Config->lock_config($vmid, sub {
+		my $conf = PVE::LXC::Config->load_config($vmid);
+		PVE::LXC::Config->check_lock($conf);
 
-	    die "you can't move a volume with snapshots and delete the source\n"
-		if $param->{delete} && PVE::LXC::Config->is_volume_in_use_by_snapshots($conf, $old_volid);
+		die "cannot move volumes of a running container\n"
+		    if PVE::LXC::check_running($vmid);
 
-	    PVE::Tools::assert_if_modified($param->{digest}, $conf->{digest});
+		if ($mpkey =~ m/^unused\d+$/) {
+		    die "cannot move volume '$mpkey', only configured volumes can be moved to ".
+			"another storage\n";
+		}
 
-	    PVE::LXC::Config->set_lock($vmid, $lockname);
-	});
+		$mpdata = PVE::LXC::Config->parse_volume($mpkey, $conf->{$mpkey});
+		$old_volid = $mpdata->{volume};
 
-	my $realcmd = sub {
+		die "you can't move a volume with snapshots and delete the source\n"
+		    if $param->{delete} && PVE::LXC::Config->is_volume_in_use_by_snapshots($conf, $old_volid);
+
+		PVE::Tools::assert_if_modified($digest, $conf->{digest});
+
+		PVE::LXC::Config->set_lock($vmid, $lockname);
+	    });
+	};
+
+	my $storage_realcmd = sub {
 	    eval {
 		PVE::Cluster::log_msg('info', $authuser, "move volume CT $vmid: move --volume $mpkey --storage $storage");
 
@@ -1965,15 +2010,195 @@ __PACKAGE__->register_method({
 	    warn $@ if $@;
 	    die $err if $err;
 	};
-	my $task = eval {
-	    $rpcenv->fork_worker('move_volume', $vmid, $authuser, $realcmd);
+
+	my $load_and_check_reassign_configs = sub {
+	    my $vmlist = PVE::Cluster::get_vmlist()->{ids};
+
+	    die "Cannot move to/from 'rootfs'\n" if $mpkey eq "rootfs" || $target_mpkey eq "rootfs";
+
+	    if ($mpkey =~ m/^unused\d+$/ && $target_mpkey !~ m/^unused\d+$/) {
+		die "Moving an unused volume to a used one is not possible\n";
+	    }
+	    die "could not find CT ${vmid}\n" if !exists($vmlist->{$vmid});
+
+	    die "Both containers need to be on the same node ($vmlist->{$vmid}->{node}) ".
+		"but target continer is on $vmlist->{$target_vmid}->{node}.\n"
+		if $vmlist->{$vmid}->{node} ne $vmlist->{$target_vmid}->{node};
+
+	    my $source_conf = PVE::LXC::Config->load_config($vmid);
+	    PVE::LXC::Config->check_lock($source_conf);
+	    my $target_conf = PVE::LXC::Config->load_config($target_vmid);
+	    PVE::LXC::Config->check_lock($target_conf);
+
+	    die "Can't move volumes from or to template VMs\n"
+		if ($source_conf->{template} || $target_conf->{template});
+
+	    if ($digest) {
+		eval { PVE::Tools::assert_if_modified($digest, $source_conf->{digest}) };
+		die "Container ${vmid}: $@" if $@;
+	    }
+
+	    if ($target_digest) {
+		eval { PVE::Tools::assert_if_modified($target_digest, $target_conf->{digest}) };
+		die "Container ${target_vmid}: $@" if $@;
+	    }
+
+	    die "volume '${mpkey}' for container '$vmid' does not exist\n"
+		if !defined($source_conf->{$mpkey});
+
+	    die "Target volume key '${target_mpkey}' is already in use for container '$target_vmid'\n"
+		if exists $target_conf->{$target_mpkey};
+
+	    my $drive = PVE::LXC::Config->parse_volume(
+		$mpkey,
+		$source_conf->{$mpkey},
+	    );
+
+	    $source_volid = $drive->{volume};
+
+	    die "Volume '${mpkey}' has no associated image\n"
+		if !$source_volid;
+	    die "Cannot move volume used by a snapshot to another container\n"
+		if PVE::LXC::Config->is_volume_in_use_by_snapshots($source_conf, $source_volid);
+	    die "Storage does not support moving of this disk to another container\n"
+		if !PVE::Storage::volume_has_feature($storecfg, 'rename', $source_volid);
+	    die "Cannot move a bindmound or device mount to another container\n"
+		if $drive->{type} ne "volume";
+	    die "Cannot move volume to another container while the source container is running\n"
+		if PVE::LXC::check_running($vmid) && $mpkey !~ m/^unused\d+$/;
+
+	    my $repl_conf = PVE::ReplicationConfig->new();
+	    my $is_replicated = $repl_conf->check_for_existing_jobs($target_vmid, 1);
+	    my ($storeid, undef) = PVE::Storage::parse_volume_id($source_volid);
+	    my $format = (PVE::Storage::parse_volname($storecfg, $source_volid))[6];
+	    if (
+		$is_replicated
+		&& !PVE::Storage::storage_can_replicate($storecfg, $storeid, $format)
+	    ) {
+		die "Cannot move volume to a replicated container. Storage " .
+		    "does not support replication!\n";
+	    }
+	    return ($source_conf, $target_conf);
 	};
-	if (my $err = $@) {
-	    eval { PVE::LXC::Config->remove_lock($vmid, $lockname) };
-	    warn $@ if $@;
-	    die $err;
+
+	my $logfunc = sub {
+	    my ($msg) = @_;
+	    print STDERR "$msg\n";
+	};
+
+	my $volume_reassignfn = sub {
+	    return PVE::LXC::Config->lock_config($vmid, sub {
+		return PVE::LXC::Config->lock_config($target_vmid, sub {
+		    my ($source_conf, $target_conf) = &$load_and_check_reassign_configs();
+
+		    my $target_unused = $target_mpkey =~ m/^unused\d+$/;
+
+		    my $drive_param = PVE::LXC::Config->parse_volume(
+			$mpkey,
+			$source_conf->{$mpkey},
+		    );
+
+		    print "moving volume '$mpkey' from container '$vmid' to '$target_vmid'\n";
+		    my ($storage, $source_volname) = PVE::Storage::parse_volume_id($source_volid);
+
+		    my $fmt = (PVE::Storage::parse_volname($storecfg, $source_volid))[6];
+
+		    my $new_volid = PVE::Storage::rename_volume(
+			$storecfg,
+			$source_volid,
+			$target_vmid,
+		    );
+
+		    $drive_param->{volume} = $new_volid;
+
+		    delete $source_conf->{$mpkey};
+		    print "removing volume '${mpkey}' from container '${vmid}' config\n";
+		    PVE::LXC::Config->write_config($vmid, $source_conf);
+
+		    my $drive_string;
+
+		    if ($target_unused) {
+			$drive_string = $new_volid;
+		    } else {
+			$drive_string = PVE::LXC::Config->print_volume($target_mpkey, $drive_param);
+		    }
+
+		    if ($target_unused) {
+			$target_conf->{$target_mpkey} = $drive_string;
+		    } else {
+			my $running = PVE::LXC::check_running($target_vmid);
+			my $param = { $target_mpkey => $drive_string };
+		        my $errors = PVE::LXC::Config->update_pct_config(
+			    $target_vmid,
+			    $target_conf,
+			    $running,
+			    $param
+			);
+
+		        foreach my $key (keys %$errors) {
+		            $rpcenv->warn($errors->{$key});
+		        }
+		    }
+
+		    PVE::LXC::Config->write_config($target_vmid, $target_conf);
+		    $target_conf = PVE::LXC::Config->load_config($target_vmid);
+
+		    PVE::LXC::update_lxc_config($target_vmid, $target_conf) if !$target_unused;
+		    print "target container '$target_vmid' updated with '$target_mpkey'\n";
+
+		    # remove possible replication snapshots
+		    if (PVE::Storage::volume_has_feature($storecfg,'replicate', $source_volid)) {
+			eval {
+			    PVE::Replication::prepare(
+				$storecfg,
+				[$new_volid],
+				undef,
+				1,
+				undef,
+				$logfunc,
+			    )
+			};
+			if (my $err = $@) {
+			    $rpcenv->warn("Failed to remove replication snapshots on volume ".
+				"'${target_mpkey}'. Manual cleanup could be necessary. " .
+				"Error: ${err}\n");
+			}
+		    }
+		});
+	    });
+	};
+
+	if ($target_vmid) {
+	    $rpcenv->check_vm_perm($authuser, $target_vmid, undef, ['VM.Config.Disk'])
+		if $authuser ne 'root@pam';
+
+	    die "Moving a volume to the same container is not possible. Did you ".
+		"mean to move the volume to a different storage?\n"
+		if $vmid eq $target_vmid;
+
+	    &$load_and_check_reassign_configs();
+	    return $rpcenv->fork_worker(
+		'move_volume',
+		"${vmid}-${mpkey}>${target_vmid}-${target_mpkey}",
+		$authuser,
+		$volume_reassignfn
+	    );
+	} elsif ($storage) {
+	    &$move_to_storage_checks();
+	    my $task = eval {
+		$rpcenv->fork_worker('move_volume', $vmid, $authuser, $storage_realcmd);
+	    };
+	    if (my $err = $@) {
+		eval { PVE::LXC::Config->remove_lock($vmid, $lockname) };
+		warn $@ if $@;
+		die $err;
+	    }
+	    return $task;
+	} else {
+	    die "Provide either a 'storage' to move the mount point to a ".
+		"different storage or 'target-vmid' and 'target-mp' to move ".
+		"the mount point to another container\n";
 	}
-	return $task;
   }});
 
 __PACKAGE__->register_method({
