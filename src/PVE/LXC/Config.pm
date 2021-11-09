@@ -1561,6 +1561,15 @@ sub valid_volume_keys {
     return $reverse ? reverse @names : @names;
 }
 
+sub valid_volume_keys_with_unused {
+    my ($class, $reverse) = @_;
+    my @names = $class->valid_volume_keys();
+    for (my $i = 0; $i < $MAX_UNUSED_DISKS; $i++) {
+	push @names, "unused$i";
+    }
+    return $reverse ? reverse @names : @names;
+}
+
 sub get_vm_volumes {
     my ($class, $conf, $excludes) = @_;
 
