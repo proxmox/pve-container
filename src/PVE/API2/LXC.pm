@@ -1847,13 +1847,15 @@ __PACKAGE__->register_method({
 	    }),
 	    delete => {
 		type => 'boolean',
-		description => "Delete the original volume after successful copy. By default the original is kept as an unused volume entry.",
+		description => "Delete the original volume after successful copy. By default the " .
+		    "original is kept as an unused volume entry.",
 		optional => 1,
 		default => 0,
 	    },
 	    digest => {
 		type => 'string',
-		description => 'Prevent changes if current configuration file has different SHA1 digest. This can be used to prevent concurrent modifications.',
+		description => 'Prevent changes if current configuration file has different SHA1 " .
+		    "digest. This can be used to prevent concurrent modifications.',
 		maxLength => 40,
 		optional => 1,
 	    },
@@ -1942,7 +1944,11 @@ __PACKAGE__->register_method({
 
 	my $storage_realcmd = sub {
 	    eval {
-		PVE::Cluster::log_msg('info', $authuser, "move volume CT $vmid: move --volume $mpkey --storage $storage");
+		PVE::Cluster::log_msg(
+		    'info',
+		    $authuser,
+		    "move volume CT $vmid: move --volume $mpkey --storage $storage"
+		);
 
 		my $conf = PVE::LXC::Config->load_config($vmid);
 		my $storage_cfg = PVE::Storage::config();
@@ -1953,8 +1959,20 @@ __PACKAGE__->register_method({
 		    PVE::Storage::activate_volumes($storage_cfg, [ $old_volid ]);
 		    my $bwlimit = extract_param($param, 'bwlimit');
 		    my $source_storage = PVE::Storage::parse_volume_id($old_volid);
-		    my $movelimit = PVE::Storage::get_bandwidth_limit('move', [$source_storage, $storage], $bwlimit);
-		    $new_volid = PVE::LXC::copy_volume($mpdata, $vmid, $storage, $storage_cfg, $conf, undef, $movelimit);
+		    my $movelimit = PVE::Storage::get_bandwidth_limit(
+			'move',
+			[$source_storage, $storage],
+			$bwlimit
+		    );
+		    $new_volid = PVE::LXC::copy_volume(
+			$mpdata,
+			$vmid,
+			$storage,
+			$storage_cfg,
+			$conf,
+			undef,
+			$movelimit
+		    );
 		    if (PVE::LXC::Config->is_template($conf)) {
 			PVE::Storage::activate_volumes($storage_cfg, [ $new_volid ]);
 			my $template_volid = PVE::Storage::vdisk_create_base($storage_cfg, $new_volid);
@@ -1968,7 +1986,10 @@ __PACKAGE__->register_method({
 			$conf = PVE::LXC::Config->load_config($vmid);
 			PVE::Tools::assert_if_modified($digest, $conf->{digest});
 
-			$conf->{$mpkey} = PVE::LXC::Config->print_ct_mountpoint($mpdata, $mpkey eq 'rootfs');
+			$conf->{$mpkey} = PVE::LXC::Config->print_ct_mountpoint(
+			    $mpdata,
+			    $mpkey eq 'rootfs'
+			);
 
 			PVE::LXC::Config->add_unused_volume($conf, $old_volid) if !$param->{delete};
 
