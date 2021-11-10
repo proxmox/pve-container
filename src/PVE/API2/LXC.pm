@@ -1819,11 +1819,7 @@ __PACKAGE__->register_method({
 	    "and 'Datastore.AllocateSpace' permissions on the storage. To move ".
 	    "a volume to another container, you need the permissions on the ".
 	    "target container as well.",
-	check =>
-	[ 'and',
-	  ['perm', '/vms/{vmid}', [ 'VM.Config.Disk' ]],
-	  ['perm', '/storage/{storage}', [ 'Datastore.AllocateSpace' ]],
-	],
+	check => ['perm', '/vms/{vmid}', [ 'VM.Config.Disk' ]],
     },
     parameters => {
 	additionalProperties => 0,
@@ -2198,7 +2194,9 @@ __PACKAGE__->register_method({
 		raise_param_exc({ 'target-vmid' => $msg });
 	    }
 
-	    &$load_and_check_reassign_configs();
+	    my (undef, undef, $drive) = &$load_and_check_reassign_configs();
+	    my $storeid = PVE::Storage::parse_volume_id($drive->{volume});
+	    $rpcenv->check($authuser, "/storage/$storeid", ['Datastore.AllocateSpace']);
 	    return $rpcenv->fork_worker(
 		'move_volume',
 		"${vmid}-${mpkey}>${target_vmid}-${target_mpkey}",
@@ -2206,6 +2204,7 @@ __PACKAGE__->register_method({
 		$volume_reassignfn
 	    );
 	} elsif ($storage) {
+	    $rpcenv->check($authuser, "/storage/$storage", ['Datastore.AllocateSpace']);
 	    &$move_to_storage_checks();
 	    my $task = eval {
 		$rpcenv->fork_worker('move_volume', $vmid, $authuser, $storage_realcmd);
