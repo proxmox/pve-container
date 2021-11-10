@@ -1915,7 +1915,6 @@ __PACKAGE__->register_method({
 	    if $storage && $target_vmid;
 
 	my $storecfg = PVE::Storage::config();
-	my $source_volid;
 
 	my $move_to_storage_checks = sub {
 	    PVE::LXC::Config->lock_config($vmid, sub {
@@ -2041,17 +2040,20 @@ __PACKAGE__->register_method({
 		die "Moving an unused volume to a used one is not possible\n";
 	    }
 	    die "could not find CT ${vmid}\n" if !exists($vmlist->{$vmid});
+	    die "could not find CT ${target_vmid}\n" if !exists($vmlist->{$target_vmid});
 
-	    die "Both containers need to be on the same node ($vmlist->{$vmid}->{node}) ".
-		"but target continer is on $vmlist->{$target_vmid}->{node}.\n"
-		if $vmlist->{$vmid}->{node} ne $vmlist->{$target_vmid}->{node};
+	    my $source_node = $vmlist->{$vmid}->{node};
+	    my $target_node = $vmlist->{$target_vmid}->{node};
+
+	    die "Both containers need to be on the same node ($source_node != $target_node)\n"
+		if $source_node ne $target_node;
 
 	    my $source_conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($source_conf);
 	    my $target_conf = PVE::LXC::Config->load_config($target_vmid);
 	    PVE::LXC::Config->check_lock($target_conf);
 
-	    die "Can't move volumes from or to template VMs\n"
+	    die "Can't move volumes from or to template CT\n"
 		if ($source_conf->{template} || $target_conf->{template});
 
 	    if ($digest) {
@@ -2075,7 +2077,7 @@ __PACKAGE__->register_method({
 		$source_conf->{$mpkey},
 	    );
 
-	    $source_volid = $drive->{volume};
+	    my $source_volid = $drive->{volume};
 
 	    die "Volume '${mpkey}' has no associated image\n"
 		if !$source_volid;
@@ -2083,23 +2085,21 @@ __PACKAGE__->register_method({
 		if PVE::LXC::Config->is_volume_in_use_by_snapshots($source_conf, $source_volid);
 	    die "Storage does not support moving of this disk to another container\n"
 		if !PVE::Storage::volume_has_feature($storecfg, 'rename', $source_volid);
-	    die "Cannot move a bindmound or device mount to another container\n"
+	    die "Cannot move a bindmount or device mount to another container\n"
 		if $drive->{type} ne "volume";
-	    die "Cannot move volume to another container while the source container is running\n"
+	    die "Cannot move volume to another container while the source is running - detach first\n"
 		if PVE::LXC::check_running($vmid) && $mpkey !~ m/^unused\d+$/;
 
 	    my $repl_conf = PVE::ReplicationConfig->new();
-	    my $is_replicated = $repl_conf->check_for_existing_jobs($target_vmid, 1);
-	    my ($storeid, undef) = PVE::Storage::parse_volume_id($source_volid);
-	    my $format = (PVE::Storage::parse_volname($storecfg, $source_volid))[6];
-	    if (
-		$is_replicated
-		&& !PVE::Storage::storage_can_replicate($storecfg, $storeid, $format)
-	    ) {
-		die "Cannot move volume to a replicated container. Storage " .
-		    "does not support replication!\n";
+	    if ($repl_conf->check_for_existing_jobs($target_vmid, 1)) {
+		my ($storeid, undef) = PVE::Storage::parse_volume_id($source_volid);
+		my $format = (PVE::Storage::parse_volname($storecfg, $source_volid))[6];
+
+		die "Cannot move volume on storage '$storeid' to a replicated container - missing replication support\n"
+		    if !PVE::Storage::storage_can_replicate($storecfg, $storeid, $format);
 	    }
-	    return ($source_conf, $target_conf);
+
+	    return ($source_conf, $target_conf, $drive);
 	};
 
 	my $logfunc = sub {
@@ -2110,16 +2110,13 @@ __PACKAGE__->register_method({
 	my $volume_reassignfn = sub {
 	    return PVE::LXC::Config->lock_config($vmid, sub {
 		return PVE::LXC::Config->lock_config($target_vmid, sub {
-		    my ($source_conf, $target_conf) = &$load_and_check_reassign_configs();
+		    my ($source_conf, $target_conf, $drive) = &$load_and_check_reassign_configs();
+		    my $source_volid = $drive->{volume};
 
 		    my $target_unused = $target_mpkey =~ m/^unused\d+$/;
 
-		    my $drive_param = PVE::LXC::Config->parse_volume(
-			$mpkey,
-			$source_conf->{$mpkey},
-		    );
-
 		    print "moving volume '$mpkey' from container '$vmid' to '$target_vmid'\n";
+
 		    my ($storage, $source_volname) = PVE::Storage::parse_volume_id($source_volid);
 
 		    my $fmt = (PVE::Storage::parse_volname($storecfg, $source_volid))[6];
@@ -2130,7 +2127,7 @@ __PACKAGE__->register_method({
 			$target_vmid,
 		    );
 
-		    $drive_param->{volume} = $new_volid;
+		    $drive->{volume} = $new_volid;
 
 		    delete $source_conf->{$mpkey};
 		    print "removing volume '${mpkey}' from container '${vmid}' config\n";
@@ -2141,7 +2138,7 @@ __PACKAGE__->register_method({
 		    if ($target_unused) {
 			$drive_string = $new_volid;
 		    } else {
-			$drive_string = PVE::LXC::Config->print_volume($target_mpkey, $drive_param);
+			$drive_string = PVE::LXC::Config->print_volume($target_mpkey, $drive);
 		    }
 
 		    if ($target_unused) {
@@ -2189,13 +2186,17 @@ __PACKAGE__->register_method({
 	    });
 	};
 
-	if ($target_vmid) {
+	if ($target_vmid && $storage) {
+	    my $msg = "either set 'storage' or 'target-vmid', but not both";
+	    raise_param_exc({ 'target-vmid' => $msg, 'storage' => $msg });
+	} elsif ($target_vmid) {
 	    $rpcenv->check_vm_perm($authuser, $target_vmid, undef, ['VM.Config.Disk'])
 		if $authuser ne 'root@pam';
 
-	    die "Moving a volume to the same container is not possible. Did you ".
-		"mean to move the volume to a different storage?\n"
-		if $vmid eq $target_vmid;
+	    if ($vmid eq $target_vmid) {
+		my $msg = "must be different than source VMID to move disk to another container";
+		raise_param_exc({ 'target-vmid' => $msg });
+	    }
 
 	    &$load_and_check_reassign_configs();
 	    return $rpcenv->fork_worker(
@@ -2216,9 +2217,8 @@ __PACKAGE__->register_method({
 	    }
 	    return $task;
 	} else {
-	    die "Provide either a 'storage' to move the mount point to a ".
-		"different storage or 'target-vmid' and 'target-mp' to move ".
-		"the mount point to another container\n";
+	    my $msg = "both 'storage' and 'target-vmid' missing, either needs to be set";
+	    raise_param_exc({ 'target-vmid' => $msg, 'storage' => $msg });
 	}
   }});
 
