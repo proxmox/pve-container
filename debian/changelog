@@ -1,3 +1,18 @@
+pve-container (4.1-2) bullseye; urgency=medium
+
+  * rollback: improve interaction with snapshot replication
+
+  * cli: pct: rename 'move_volume' command to 'move-volume' with an alias for
+    backward compatibility
+
+  * api: move-volume: add move to another container
+
+  * fix #3721: better version check to avoid false-positive on the check if a
+    Alpine Linux in the container is new enough to support the CIDR format.
+    Fixes static addresses on some old, already EOL, Alpine Linux versions
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 12 Nov 2021 19:21:22 +0100
+
 pve-container (4.1-1) bullseye; urgency=medium
 
   * setup: untaint path to host timezone
