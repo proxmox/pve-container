@@ -145,6 +145,18 @@ sub make_gateway_scripts {
 SCRIPTS
 }
 
+my sub at_least : prototype($$$) {
+    my ($str, $want_maj, $want_min) = @_;
+    return if !defined($str) || !defined($want_maj);
+
+    my ($maj, $min) = $str =~ /^(\d+)(?:\.(\d+))?/;
+    return if !defined($maj);
+
+    return $want_maj < $maj || $want_maj == $maj && (
+	(!defined($min) && $want_min == 0) || (defined($min) && $want_min <= $min)
+    );
+}
+
 # NOTE: this is re-used by Alpine Linux, please have that in mind when changing things.
 sub setup_network {
     my ($self, $conf) = @_;
@@ -211,6 +223,7 @@ sub setup_network {
     my $done_v4_hash = {};
     my $done_v6_hash = {};
 
+    my ($os, $version) = ($conf->{ostype}, $self->{version});
     my $print_section = sub {
 	return if !$section;
 
@@ -231,8 +244,8 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet static\n";
-		if ($conf->{ostype} eq "debian" && $self->{version} >= 10
-		    || $conf->{ostype} eq "alpine" && $self->{version} >= 3.13
+		if ($os eq "debian" && at_least($version, 10, 0)
+		    || $os eq "alpine" && at_least($version, 3, 13)
 		) {
 		    $interfaces .= "\taddress $net->{cidr}\n" if defined($net->{cidr});
 		} else {
@@ -261,7 +274,9 @@ sub setup_network {
 		$interfaces .= "iface $ifname inet6 $1\n\n";
 	    } else {
 		$interfaces .= "iface $ifname inet6 static\n";
-		if ($conf->{ostype} eq "debian" && $self->{version} >= 10) {
+		if ($os eq "debian" && at_least($version, 10, 0)
+		    || $os eq "alpine" && at_least($version, 3, 13)
+		) {
 		    $interfaces .= "\taddress $net->{cidr6}\n" if defined($net->{cidr6});
 		} else {
 		    $interfaces .= "\taddress $net->{address6}\n" if defined($net->{address6});
