@@ -281,7 +281,7 @@ sub __snapshot_rollback_get_unused {
 cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
 
-my $valid_mount_option_re = qr/(noatime|nodev|nosuid|noexec)/;
+my $valid_mount_option_re = qr/(noatime|lazytime|nodev|nosuid|noexec)/;
 
 sub is_valid_mount_option {
     my ($option) = @_;
