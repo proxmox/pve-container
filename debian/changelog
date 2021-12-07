@@ -1,3 +1,11 @@
+pve-container (4.1-3) bullseye; urgency=medium
+
+  * setup: support upcomming Ubuntu 22.04 Jammy Jellyfish
+
+  * config: allow 'lazytime' mount option for containers
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 07 Dec 2021 19:10:54 +0100
+
 pve-container (4.1-2) bullseye; urgency=medium
 
   * rollback: improve interaction with snapshot replication
