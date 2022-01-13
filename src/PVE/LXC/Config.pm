@@ -101,6 +101,25 @@ sub __snapshot_save_vmstate {
     die "implement me - snapshot_save_vmstate\n";
 }
 
+sub __snapshot_activate_storages {
+    my ($class, $conf, $include_vmstate) = @_;
+
+    my $storecfg = PVE::Storage::config();
+    my $opts = $include_vmstate ? { 'extra_keys' => ['vmstate'] } : {};
+    my $storage_hash = {};
+
+    $class->foreach_volume_full($conf, $opts, sub {
+	my ($vs, $mountpoint) = @_;
+
+	return if $mountpoint->{type} ne 'volume';
+
+	my ($storeid) = PVE::Storage::parse_volume_id($mountpoint->{volume});
+	$storage_hash->{$storeid} = 1;
+    });
+
+    PVE::Storage::activate_storage_list($storecfg, [ sort keys $storage_hash->%* ]);
+}
+
 sub __snapshot_check_running {
     my ($class, $vmid) = @_;
     return PVE::LXC::check_running($vmid);

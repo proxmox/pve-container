@@ -16,6 +16,7 @@ use PVE::ReplicationConfig;
 use Test::MockModule;
 use Test::More;
 
+my $activate_storage_possible = 1;
 my $nodename;
 my $snapshot_possible;
 my $vol_snapshot_possible = {};
@@ -120,6 +121,15 @@ sub mocked_volume_snapshot_needs_fsfreeze {
     die "volid undefined\n"
 	if !defined($volid);
     return 0;
+}
+
+sub mocked_activate_storage {
+    my ($storecfg, $storeid) = @_;
+    die "Storage config not mocked! aborting\n"
+	if defined($storecfg);
+    die "storage activation failed\n"
+	if !$activate_storage_possible;
+    return;
 }
 
 sub mocked_vm_stop {
@@ -390,6 +400,7 @@ $vol_snapshot_rollback_possible->{"local:snapshotable-disk-4"} = 1;
 printf("\n");
 printf("Setting up Mocking for PVE::Storage\n");
 my $storage_module = new Test::MockModule('PVE::Storage');
+$storage_module->mock('activate_storage', \&mocked_activate_storage);
 $storage_module->mock('config', sub { return undef; });
 $storage_module->mock('volume_snapshot', \&mocked_volume_snapshot);
 $storage_module->mock('volume_snapshot_delete', \&mocked_volume_snapshot_delete);
@@ -429,6 +440,13 @@ $freeze_possible = 1;
 printf("Expected error for snapshot_create when mp volume snapshot is not possible\n");
 testcase_create("203", "test", 0, "test comment", "volume snapshot disabled\n\n", { "local:snapshotable-disk-1" => "test" }, { "local:snapshotable-disk-1" => "test" });
 
+$activate_storage_possible = 0;
+
+printf("Expected error for snapshot_create when storage activation is not possible\n");
+testcase_create("204", "test", 0, "test comment", "storage activation failed\n\n");
+
+$activate_storage_possible = 1;
+
 $nodename = "delete";
 printf("\n");
 printf("Running delete tests\n");
@@ -460,6 +478,13 @@ testcase_delete("203", "test", 0, "volume snapshot delete disabled\n", { "local:
 
 printf("Expected error for snapshot_delete with locked config\n");
 testcase_delete("202", "test", 0, "CT is locked (backup)\n");
+
+$activate_storage_possible = 0;
+
+printf("Expected error for snapshot_delete when storage activation is not possible\n");
+testcase_delete("204", "test", 0, "storage activation failed\n");
+
+$activate_storage_possible = 1;
 
 $nodename = "rollback";
 printf("\n");
@@ -510,5 +535,12 @@ testcase_rollback("207", "test", "volume_rollback_is_possible failed\n");
 
 printf("Expected error for snapshot_rollback with mp rollback failure (results in inconsistent state)\n");
 testcase_rollback("208", "test", "volume snapshot rollback disabled\n", { "local:snapshotable-disk-1" => "test", "local:snapshotable-disk-2" => "test" });
+
+$activate_storage_possible = 0;
+
+printf("Expected error for snapshot_rollback when storage activation is not possible\n");
+testcase_rollback("209", "test", "storage activation failed\n");
+
+$activate_storage_possible = 1;
 
 done_testing();
