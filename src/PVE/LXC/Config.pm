@@ -1191,7 +1191,9 @@ sub parse_volume {
 	return $parse_ct_mountpoint_full->($class, $unused_desc, $volume_string, $noerr);
     }
 
-    die "parse_volume - unknown type: $key\n";
+    die "parse_volume - unknown type: $key\n" if !$noerr;
+
+    return;
 }
 
 sub print_volume {
