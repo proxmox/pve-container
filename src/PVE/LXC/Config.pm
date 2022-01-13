@@ -192,7 +192,7 @@ sub __snapshot_delete_remove_drive {
 	delete $snap->{$remove_drive};
 
 	$class->add_unused_volume($snap, $mountpoint->{volume})
-	    if ($mountpoint->{type} eq 'volume');
+	    if $mountpoint && ($mountpoint->{type} eq 'volume');
     }
 }
 
