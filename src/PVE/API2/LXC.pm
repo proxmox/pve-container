@@ -36,6 +36,18 @@ BEGIN {
     }
 }
 
+my $check_storage_access_migrate = sub {
+    my ($rpcenv, $authuser, $storecfg, $storage, $node) = @_;
+
+    PVE::Storage::storage_check_enabled($storecfg, $storage, $node);
+
+    $rpcenv->check($authuser, "/storage/$storage", ['Datastore.AllocateSpace']);
+
+    my $scfg = PVE::Storage::storage_config($storecfg, $storage);
+    die "storage '$storage' does not support CT rootdirs\n"
+	if !$scfg->{content}->{rootdir};
+};
+
 __PACKAGE__->register_method ({
     subclass => "PVE::API2::LXC::Config",
     path => '{vmid}/config',
@@ -1091,6 +1103,7 @@ __PACKAGE__->register_method({
 		description => "Target node.",
 		completion => \&PVE::Cluster::complete_migration_target,
 	    }),
+	    'target-storage' => get_standard_option('pve-targetstorage'),
 	    online => {
 		type => 'boolean',
 		description => "Use online/live migration.",
@@ -1147,6 +1160,25 @@ __PACKAGE__->register_method({
 	if (PVE::LXC::check_running($vmid)) {
 	    die "can't migrate running container without --online or --restart\n"
 		if !$param->{online} && !$param->{restart};
+	}
+
+	if (my $targetstorage = delete $param->{'target-storage'}) {
+	    my $storecfg = PVE::Storage::config();
+	    my $storagemap = eval { PVE::JSONSchema::parse_idmap($targetstorage, 'pve-storage-id') };
+	    raise_param_exc({ targetstorage => "failed to parse storage map: $@" })
+		if $@;
+
+	    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk'])
+		if !defined($storagemap->{identity});
+
+	    foreach my $target_sid (values %{$storagemap->{entries}}) {
+		$check_storage_access_migrate->($rpcenv, $authuser, $storecfg, $target_sid, $target);
+	    }
+
+	    $check_storage_access_migrate->($rpcenv, $authuser, $storecfg, $storagemap->{default}, $target)
+		if $storagemap->{default};
+
+	    $param->{storagemap} = $storagemap;
 	}
 
 	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {

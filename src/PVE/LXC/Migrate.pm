@@ -64,7 +64,8 @@ sub prepare {
 
 	# check if storage is available on both nodes
 	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $storage);
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $storage, $self->{node});
+
+	my $targetsid = $storage;
 
 	die "content type 'rootdir' is not available on storage '$storage'\n"
 	    if !$scfg->{content}->{rootdir};
@@ -78,8 +79,14 @@ sub prepare {
 	    # unless in restart mode because we shut the container down
 	    die "unable to migrate local mount point '$volid' while CT is running"
 		if $running && !$restart;
+
+	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storage);
 	}
 
+	my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+
+	die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
+	    if !$target_scfg->{content}->{rootdir};
     });
 
     # todo: test if VM uses local resources
@@ -135,18 +142,27 @@ sub phase1 {
 
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 
-	# check if storage is available on both nodes
+	# check if storage is available on source node
 	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $sid);
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $sid, $self->{node});
+
+	my $targetsid = $sid;
 
 	if ($scfg->{shared}) {
 	    $self->log('info', "volume '$volid' is on shared storage '$sid'")
 		if !$snapname;
 	    return;
+	} else {
+	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $sid);
 	}
+
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+
+	my $bwlimit = $self->get_bwlimit($sid, $targetsid);
 
 	$volhash->{$volid}->{ref} = defined($snapname) ? 'snapshot' : 'config';
 	$volhash->{$volid}->{snapshots} = 1 if defined($snapname);
+	$volhash->{$volid}->{targetsid} = $targetsid;
+	$volhash->{$volid}->{bwlimit} = $bwlimit;
 
 	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
@@ -194,7 +210,8 @@ sub phase1 {
 	next if @{$dl->{$storeid}} == 0;
 
 	# check if storage is available on target node
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, $self->{node});
+	my $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storeid);
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
 
 	die "content type 'rootdir' is not available on storage '$storeid'\n"
 	    if !$scfg->{content}->{rootdir};
@@ -275,24 +292,37 @@ sub phase1 {
 	next if $rep_volumes->{$volid};
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
-	my $bwlimit = PVE::Storage::get_bandwidth_limit('migration', [$sid], $opts->{bwlimit});
+
 	# JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
+	my $bwlimit = $volhash->{$volid}->{bwlimit};
 	$bwlimit = $bwlimit * 1024 if defined($bwlimit);
 
-	my $storage_migrate_opts = {
-	    'ratelimit_bps' => $bwlimit,
-	    'insecure' => $opts->{migration_type} eq 'insecure',
-	    'with_snapshots' => $volhash->{$volid}->{snapshots},
+	my $targetsid = $volhash->{$volid}->{targetsid};
+
+	my $new_volid = eval {
+	    my $storage_migrate_opts = {
+		'ratelimit_bps' => $bwlimit,
+		'insecure' => $opts->{migration_type} eq 'insecure',
+		'with_snapshots' => $volhash->{$volid}->{snapshots},
+	    };
+
+	    my $logfunc = sub { $self->log('info', $_[0]); };
+	    return PVE::Storage::storage_migrate(
+		$self->{storecfg},
+		$volid,
+		$self->{ssh_info},
+		$targetsid,
+		$storage_migrate_opts,
+		$logfunc,
+	    );
 	};
 
-	my $logfunc = sub { $self->log('info', $_[0]); };
-	eval {
-	    PVE::Storage::storage_migrate($self->{storecfg}, $volid, $self->{ssh_info},
-					  $sid, $storage_migrate_opts, $logfunc);
-	};
 	if (my $err = $@) {
-	    die "storage migration for '$volid' to storage '$sid' failed - $err\n";
+	    die "storage migration for '$volid' to storage '$targetsid' failed - $err\n";
 	}
+
+	$self->{volume_map}->{$volid} = $new_volid;
+	$self->log('info', "volume '$volid' is '$new_volid' on the target\n");
 
 	eval { PVE::Storage::deactivate_volumes($self->{storecfg}, [$volid]); };
 	if (my $err = $@) {
@@ -316,6 +346,8 @@ sub phase1 {
 
     # transfer replication state before moving config
     $self->transfer_replication_state() if $rep_volumes;
+    PVE::LXC::Config->update_volume_ids($conf, $self->{volume_map});
+    PVE::LXC::Config->write_config($vmid, $conf);
     PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
     $self->{conf_migrated} = 1;
     $self->switch_replication_job_target() if $rep_volumes;
