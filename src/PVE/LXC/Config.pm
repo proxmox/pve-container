@@ -896,7 +896,7 @@ for (my $i = 0; $i < $MAX_UNUSED_DISKS; $i++) {
 }
 
 sub parse_pct_config {
-    my ($filename, $raw) = @_;
+    my ($filename, $raw, $strict) = @_;
 
     return undef if !defined($raw);
 
@@ -904,6 +904,16 @@ sub parse_pct_config {
 	digest => Digest::SHA::sha1_hex($raw),
 	snapshots => {},
 	pending => {},
+    };
+
+    my $handle_error = sub {
+	my ($msg) = @_;
+
+	if ($strict) {
+	    die $msg;
+	} else {
+	    warn $msg;
+	}
     };
 
     $filename =~ m|/lxc/(\d+).conf$|
@@ -945,9 +955,9 @@ sub parse_pct_config {
 	    if ($validity eq 1) {
 		push @{$conf->{lxc}}, [$key, $value];
 	    } elsif (my $errmsg = $validity) {
-		warn "vm $vmid - $key: $errmsg\n";
+		$handle_error->("vm $vmid - $key: $errmsg\n");
 	    } else {
-		warn "vm $vmid - unable to parse config: $line\n";
+		$handle_error->("vm $vmid - unable to parse config: $line\n");
 	    }
 	} elsif ($line =~ m/^(description):\s*(.*\S)\s*$/) {
 	    $descr .= PVE::Tools::decode_text($2);
@@ -958,16 +968,16 @@ sub parse_pct_config {
 	    if ($section eq 'pending') {
 		$conf->{delete} = $value;
 	    } else {
-		warn "vm $vmid - property 'delete' is only allowed in [pve:pending]\n";
+		$handle_error->("vm $vmid - property 'delete' is only allowed in [pve:pending]\n");
 	    }
 	} elsif ($line =~ m/^([a-z][a-z_]*\d*):\s*(.+?)\s*$/) {
 	    my $key = $1;
 	    my $value = $2;
 	    eval { $value = PVE::LXC::Config->check_type($key, $value); };
-	    warn "vm $vmid - unable to parse value of '$key' - $@" if $@;
+	    $handle_error->("vm $vmid - unable to parse value of '$key' - $@") if $@;
 	    $conf->{$key} = $value;
 	} else {
-	    warn "vm $vmid - unable to parse config: $line\n";
+	    $handle_error->("vm $vmid - unable to parse config: $line\n");
 	}
     }
 
