@@ -1162,7 +1162,7 @@ __PACKAGE__->register_method({
 	if (my $targetstorage = delete $param->{'target-storage'}) {
 	    my $storecfg = PVE::Storage::config();
 	    my $storagemap = eval { PVE::JSONSchema::parse_idmap($targetstorage, 'pve-storage-id') };
-	    raise_param_exc({ targetstorage => "failed to parse storage map: $@" })
+	    raise_param_exc({ 'target-storage' => "failed to parse storage map: $@" })
 		if $@;
 
 	    $rpcenv->check_vm_perm($authuser, $vmid, undef, ['VM.Config.Disk'])

@@ -211,10 +211,10 @@ sub phase1 {
 
 	# check if storage is available on target node
 	my $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storeid);
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+	my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
 
-	die "content type 'rootdir' is not available on storage '$storeid'\n"
-	    if !$scfg->{content}->{rootdir};
+	die "content type 'rootdir' is not available on storage '$targetsid'\n"
+	    if !$target_scfg->{content}->{rootdir};
 
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;
