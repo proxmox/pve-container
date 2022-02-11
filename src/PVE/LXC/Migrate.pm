@@ -304,6 +304,7 @@ sub phase1 {
 		'ratelimit_bps' => $bwlimit,
 		'insecure' => $opts->{migration_type} eq 'insecure',
 		'with_snapshots' => $volhash->{$volid}->{snapshots},
+		'allow_rename' => 1,
 	    };
 
 	    my $logfunc = sub { $self->log('info', $_[0]); };
