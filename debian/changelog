@@ -1,6 +1,6 @@
 pve-container (4.1-3) bullseye; urgency=medium
 
-  * setup: support upcomming Ubuntu 22.04 Jammy Jellyfish
+  * setup: support upcoming Ubuntu 22.04 Jammy Jellyfish
 
   * config: allow 'lazytime' mount option for containers
 
