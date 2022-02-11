@@ -243,9 +243,7 @@ __PACKAGE__->register_method({
 	PVE::Tools::validate_ssh_public_keys($ssh_keys) if defined($ssh_keys);
 
 	my $pool = extract_param($param, 'pool');
-	if (defined($pool)) {
-	    $rpcenv->check_pool_exist($pool);
-	}
+	$rpcenv->check_pool_exist($pool) if defined($pool);
 
 	if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
 	    # OK
