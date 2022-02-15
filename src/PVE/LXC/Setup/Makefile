@@ -10,6 +10,7 @@ SOURCES=\
     Gentoo.pm		\
     SUSE.pm		\
     Ubuntu.pm		\
+    NixOS.pm		\
     Unmanaged.pm	\
 
 .PHONY: install

@@ -469,7 +469,7 @@ my $confdesc = {
     ostype => {
 	optional => 1,
 	type => 'string',
-	enum => [qw(debian devuan ubuntu centos fedora opensuse archlinux alpine gentoo unmanaged)],
+	enum => [qw(debian devuan ubuntu centos fedora opensuse archlinux alpine gentoo nixos unmanaged)],
 	description => "OS type. This is used to setup configuration inside the container, and corresponds to lxc setup scripts in /usr/share/lxc/config/<ostype>.common.conf. Value 'unmanaged' can be used to skip and OS specific setup.",
     },
     console => {
