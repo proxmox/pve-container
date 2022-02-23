@@ -8,6 +8,7 @@ use File::Path;
 use POSIX qw(strftime);
 
 use PVE::Cluster qw(cfs_read_file);
+use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::LXC::Config;
 use PVE::LXC;
@@ -476,8 +477,23 @@ sub cleanup {
     }
 
     if ($task->{cleanup}->{remove_snapshot}) {
-	$self->loginfo("cleanup temporary 'vzdump' snapshot");
-	PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
+	my $lock_obtained;
+	my $do_delete = sub {
+	    $lock_obtained = 1;
+	    $self->loginfo("cleanup temporary 'vzdump' snapshot");
+	    PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
+	};
+
+	eval {
+	    eval { PVE::GuestHelpers::guest_migration_lock($vmid, 1, $do_delete); };
+	    if (my $err = $@) {
+		die $err if $lock_obtained;
+
+		$self->loginfo("waiting for active replication or other operation..");
+		PVE::GuestHelpers::guest_migration_lock($vmid, 600, $do_delete);
+	    }
+	};
+	die "snapshot 'vzdump' was not (fully) removed - $@" if $@;
     }
 }
 
