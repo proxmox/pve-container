@@ -10,6 +10,7 @@ use PVE::INotify;
 use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
 use PVE::Firewall;
+use PVE::GuestHelpers;
 use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
@@ -198,9 +199,17 @@ __PACKAGE__->register_method({
 
 	my $snapname = extract_param($param, 'snapname');
 
-	my $realcmd = sub {
+	my $do_delete = sub {
 	    PVE::Cluster::log_msg('info', $authuser, "delete snapshot VM $vmid: $snapname");
 	    PVE::LXC::Config->snapshot_delete($vmid, $snapname, $param->{force});
+	};
+
+	my $realcmd = sub {
+	    if ($param->{force}) {
+		$do_delete->();
+	    } else {
+		PVE::GuestHelpers::guest_migration_lock($vmid, 10, $do_delete);
+	    }
 	};
 
 	return $rpcenv->fork_worker('vzdelsnapshot', $vmid, $authuser, $realcmd);
