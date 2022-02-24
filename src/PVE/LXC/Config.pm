@@ -943,7 +943,7 @@ sub parse_pct_config {
 	    next;
 	}
 
-	if ($line =~ m/^\#(.*)\s*$/) {
+	if ($line =~ m/^\#(.*)$/) {
 	    $descr .= PVE::Tools::decode_text($1) . "\n";
 	    next;
 	}
