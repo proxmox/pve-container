@@ -220,6 +220,7 @@ sub phase1 {
 	    my ($volid, $sid, $volname) = @_;
 
 	    $volhash->{$volid}->{ref} = 'storage';
+	    $volhash->{$volid}->{targetsid} = $targetsid;
 	});
     }
 
