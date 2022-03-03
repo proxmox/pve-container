@@ -1207,6 +1207,13 @@ sub print_ct_mountpoint {
     return PVE::JSONSchema::print_property_string($info, $mp_desc, $skip);
 }
 
+sub print_ct_unused {
+    my ($class, $info) = @_;
+
+    my $skip = [ 'type' ];
+    return PVE::JSONSchema::print_property_string($info, $unused_desc, $skip);
+}
+
 sub parse_volume {
     my ($class, $key, $volume_string, $noerr) = @_;
 
@@ -1227,6 +1234,8 @@ sub parse_volume {
 
 sub print_volume {
     my ($class, $key, $volume) = @_;
+
+    return $class->print_ct_unused($volume) if $key =~ m/^unused(\d+)$/;
 
     return $class->print_ct_mountpoint($volume, $key eq 'rootfs');
 }
