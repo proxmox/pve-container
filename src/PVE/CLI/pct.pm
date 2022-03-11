@@ -792,7 +792,7 @@ __PACKAGE__->register_method ({
 		$path = $mp->{mp};
 		return if $param->{'ignore-mountpoints'} && $name =~ /^mp\d+/;
 		my $cmd = ["fstrim", "-v", "$rootdir$path"];
-		PVE::Tools::run_command($cmd);
+		PVE::Tools::run_command($cmd, noerr => 1);
 	    });
 	};
 	warn $@ if $@;
