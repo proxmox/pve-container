@@ -493,7 +493,8 @@ sub cleanup {
 		PVE::GuestHelpers::guest_migration_lock($vmid, 600, $do_delete);
 	    }
 	};
-	die "snapshot 'vzdump' was not (fully) removed - $@" if $@;
+	# will be cleaned up by next backup run anyway
+	warn "snapshot 'vzdump' was not (fully) removed - $@" if $@;
     }
 }
 
