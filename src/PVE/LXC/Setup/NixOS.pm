@@ -29,10 +29,6 @@ sub setup_network {
     $self->setup_systemd_networkd($conf);
 }
 
-sub set_hostname {
-    my ($self, $conf) = @_;
-}
-
 sub set_timezone {
     my ($self, $conf) = @_;
 }
