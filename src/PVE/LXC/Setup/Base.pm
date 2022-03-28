@@ -12,6 +12,7 @@ use Fcntl;
 use File::Path;
 use File::Spec;
 use File::Basename;
+use POSIX ();
 
 use PVE::INotify;
 use PVE::Tools;
@@ -663,22 +664,26 @@ sub ct_open_file_write {
 
 sub ct_make_path {
     my $self = shift;
-    if ($self->{id_map}) {
-	my $opts = pop;
-	if (ref($opts) eq 'HASH') {
-	    $opts->{owner} = $self->{rootuid} if !defined($self->{owner});
-	    $opts->{group} = $self->{rootgid} if !defined($self->{group});
-	}
-	File::Path::make_path(@_, $opts);
-    } else {
-	File::Path::make_path(@_);
+
+    my $opts = {};
+    if (defined($self->{id_map})) {
+	$opts->{owner} = $self->{rootuid};
+	$opts->{group} = $self->{rootgid};
     }
+    File::Path::make_path(@_, $opts);
 }
 
 sub ct_symlink {
     my ($self, $old, $new) = @_;
     return if $self->ct_is_file_ignored($new);
-    return CORE::symlink($old, $new);
+    if (CORE::symlink($old, $new)) {
+	if (defined($self->{id_map})) {
+	    POSIX::lchown($self->{rootuid}, $self->{rootgid}, $new);
+	}
+	return 1;
+    } else {
+	return 0;
+    }
 }
 
 sub ct_readlink {
