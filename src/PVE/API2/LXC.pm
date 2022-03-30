@@ -283,7 +283,15 @@ __PACKAGE__->register_method({
 	    $archive = '-';
 	    die "restore from pipe requires rootfs parameter\n" if !defined($param->{rootfs});
 	} else {
-	    PVE::Storage::check_volume_access($rpcenv, $authuser, $storage_cfg, $vmid, $ostemplate);
+	    my $content_type = $restore ? 'backup' : 'vztmpl';
+	    PVE::Storage::check_volume_access(
+		$rpcenv,
+		$authuser,
+		$storage_cfg,
+		$vmid,
+		$ostemplate,
+		$content_type,
+	    );
 	    $archive = $ostemplate;
 	}
 

@@ -1272,7 +1272,14 @@ sub check_ct_modify_config_perm {
 		my $sid = $1;
 		$rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 	    } else {
-		PVE::Storage::check_volume_access($rpcenv, $authuser, $storage_cfg, $vmid, $volid);
+		PVE::Storage::check_volume_access(
+		    $rpcenv,
+		    $authuser,
+		    $storage_cfg,
+		    $vmid,
+		    $volid,
+		    'rootdir',
+		);
 	    }
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
