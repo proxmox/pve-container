@@ -2105,22 +2105,15 @@ __PACKAGE__->register_method({
 	    die "Target volume key '${target_mpkey}' is already in use for container '$target_vmid'\n"
 		if exists $target_conf->{$target_mpkey};
 
-	    my $drive = PVE::LXC::Config->parse_volume(
-		$mpkey,
-		$source_conf->{$mpkey},
-	    );
-
-	    my $source_volid = $drive->{volume};
-
-	    die "Volume '${mpkey}' has no associated image\n"
-		if !$source_volid;
+	    my $drive = PVE::LXC::Config->parse_volume($mpkey, $source_conf->{$mpkey});
+	    my $source_volid = $drive->{volume} or die "Volume '${mpkey}' has no associated image\n";
 	    die "Cannot move volume used by a snapshot to another container\n"
 		if PVE::LXC::Config->is_volume_in_use_by_snapshots($source_conf, $source_volid);
 	    die "Storage does not support moving of this disk to another container\n"
 		if !PVE::Storage::volume_has_feature($storecfg, 'rename', $source_volid);
 	    die "Cannot move a bindmount or device mount to another container\n"
 		if $drive->{type} ne "volume";
-	    die "Cannot move volume to another container while the source is running - detach first\n"
+	    die "Cannot move in-use volume while the source CT is running - detach or shutdown first\n"
 		if PVE::LXC::check_running($vmid) && $mpkey !~ m/^unused\d+$/;
 
 	    my $repl_conf = PVE::ReplicationConfig->new();
@@ -2135,15 +2128,12 @@ __PACKAGE__->register_method({
 	    return ($source_conf, $target_conf, $drive);
 	};
 
-	my $logfunc = sub {
-	    my ($msg) = @_;
-	    print STDERR "$msg\n";
-	};
+	my $logfunc = sub { print STDERR "$_[0]\n"; };
 
 	my $volume_reassignfn = sub {
 	    return PVE::LXC::Config->lock_config($vmid, sub {
 		return PVE::LXC::Config->lock_config($target_vmid, sub {
-		    my ($source_conf, $target_conf, $drive) = &$load_and_check_reassign_configs();
+		    my ($source_conf, $target_conf, $drive) = $load_and_check_reassign_configs->();
 		    my $source_volid = $drive->{volume};
 
 		    my $target_unused = $target_mpkey =~ m/^unused\d+$/;
@@ -2167,7 +2157,6 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Config->write_config($vmid, $source_conf);
 
 		    my $drive_string;
-
 		    if ($target_unused) {
 			$drive_string = $new_volid;
 		    } else {
@@ -2185,10 +2174,7 @@ __PACKAGE__->register_method({
 			    $running,
 			    $param
 			);
-
-		        foreach my $key (keys %$errors) {
-		            $rpcenv->warn($errors->{$key});
-		        }
+			$rpcenv->warn($errors->{$_}) for keys $errors->%*;
 		    }
 
 		    PVE::LXC::Config->write_config($target_vmid, $target_conf);
@@ -2231,7 +2217,7 @@ __PACKAGE__->register_method({
 		raise_param_exc({ 'target-vmid' => $msg });
 	    }
 
-	    my (undef, undef, $drive) = &$load_and_check_reassign_configs();
+	    my (undef, undef, $drive) = $load_and_check_reassign_configs->();
 	    my $storeid = PVE::Storage::parse_volume_id($drive->{volume});
 	    $rpcenv->check($authuser, "/storage/$storeid", ['Datastore.AllocateSpace']);
 	    return $rpcenv->fork_worker(
