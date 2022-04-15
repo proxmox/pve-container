@@ -2083,8 +2083,13 @@ __PACKAGE__->register_method({
 
 	    my $source_conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($source_conf);
-	    my $target_conf = PVE::LXC::Config->load_config($target_vmid);
-	    PVE::LXC::Config->check_lock($target_conf);
+	    my $target_conf;
+	    if ($target_vmid eq $vmid) {
+		$target_conf = $source_conf;
+	    } else {
+		$target_conf = PVE::LXC::Config->load_config($target_vmid);
+		PVE::LXC::Config->check_lock($target_conf);
+	    }
 
 	    die "Can't move volumes from or to template CT\n"
 		if ($source_conf->{template} || $target_conf->{template});
@@ -2211,11 +2216,6 @@ __PACKAGE__->register_method({
 	} elsif ($target_vmid) {
 	    $rpcenv->check_vm_perm($authuser, $target_vmid, undef, ['VM.Config.Disk'])
 		if $authuser ne 'root@pam';
-
-	    if ($vmid eq $target_vmid) {
-		my $msg = "must be different than source VMID to move disk to another container";
-		raise_param_exc({ 'target-vmid' => $msg });
-	    }
 
 	    my (undef, undef, $drive) = $load_and_check_reassign_configs->();
 	    my $storeid = PVE::Storage::parse_volume_id($drive->{volume});
