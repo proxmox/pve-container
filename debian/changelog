@@ -1,3 +1,27 @@
+pve-container (4.1-5) bullseye; urgency=medium
+
+  * setup: add basic NixOS support
+
+  * migrate: set the target storage id also for unreferenced disks
+
+  * fix #3424: vzdump: cleanup: wait for active replication
+
+  * fix #3424: api: snapshot delete: wait for active replication
+
+  * fix #3917: pct: Ignore fstrim failure in CLI fstrim command
+
+  * fix #3960: properly set owner in CT setup
+
+  * api: create/modify: add content type checks
+
+  * api: reassign volume: allow to reassign to own CT
+
+  * initial support for Fedora 36
+
+  * setup: allow hostname configuration on NixOS
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 27 Apr 2022 19:01:34 +0200
+
 pve-container (4.1-4) bullseye; urgency=medium
 
   * snapshot: implement new activate storage helper
