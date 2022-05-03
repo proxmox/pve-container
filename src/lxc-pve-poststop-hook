@@ -12,6 +12,7 @@ use PVE::LXC::Config;
 use PVE::LXC::Tools;
 use PVE::LXC;
 use PVE::Network;
+use PVE::RESTEnvironment;
 use PVE::Storage;
 use PVE::Tools;
 
@@ -19,6 +20,8 @@ PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
     my ($vmid, $vars, undef, undef) = @_;
 
     return undef if ! -f PVE::LXC::Config->config_file($vmid);
+
+    PVE::RESTEnvironment->setup_default_cli_env();
 
     my $conf = PVE::LXC::Config->load_config($vmid);
 
