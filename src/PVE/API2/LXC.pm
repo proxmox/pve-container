@@ -2043,13 +2043,23 @@ __PACKAGE__->register_method({
 		    die $err;
 		}
 
+		my $deactivated = 0;
+		eval {
+		    PVE::Storage::deactivate_volumes($storage_cfg, [ $old_volid ]);
+		    $deactivated = 1;
+		};
+		warn $@ if $@;
+
 		if ($param->{delete}) {
-		    eval {
-			PVE::Storage::deactivate_volumes($storage_cfg, [ $old_volid ]);
-			PVE::Storage::vdisk_free($storage_cfg, $old_volid);
-		    };
-		    if (my $err = $@) {
-			warn $err;
+		    my $removed = 0;
+		    if ($deactivated) {
+			eval {
+			    PVE::Storage::vdisk_free($storage_cfg, $old_volid);
+			    $removed = 1;
+			};
+			warn $@ if $@;
+		    }
+		    if (!$removed) {
 			PVE::LXC::Config->lock_config($vmid, sub {
 			    my $conf = PVE::LXC::Config->load_config($vmid);
 			    PVE::LXC::Config->add_unused_volume($conf, $old_volid);
