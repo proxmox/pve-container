@@ -1,3 +1,10 @@
+pve-container (4.2-1) bullseye; urgency=medium
+
+  * prestart & poststop hook: init REST environment, for example to fix volume
+    activation on external Ceph RBD storages
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 04 May 2022 08:36:45 +0200
+
 pve-container (4.1-5) bullseye; urgency=medium
 
   * setup: add basic NixOS support
