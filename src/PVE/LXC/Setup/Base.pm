@@ -514,7 +514,7 @@ sub clear_machine_id {
     }
 }
 
-# tries to guess the systemd version based on the existence of
+# tries to guess the systemd (major) version based on the existence of
 # (/usr)?/lib/systemd/libsystemd-shared<version>.so. It was introduced in v231.
 sub get_systemd_version {
     my ($self) = @_;
@@ -522,7 +522,7 @@ sub get_systemd_version {
     my $sd_lib_dir = $self->ct_is_directory("/lib/systemd") ?
 	"/lib/systemd" : "/usr/lib/systemd";
     my $libsd = PVE::Tools::dir_glob_regex($sd_lib_dir, "libsystemd-shared-.+\.so");
-    if (defined($libsd) && $libsd =~ /libsystemd-shared-(\d+)\.so/) {
+    if (defined($libsd) && $libsd =~ /libsystemd-shared-(\d+)(?:\..*)?\.so/) {
 	return $1;
     }
 
