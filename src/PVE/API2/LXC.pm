@@ -1461,9 +1461,6 @@ __PACKAGE__->register_method({
 	my $vollist = [];
 	my $running;
 
-	PVE::LXC::Config->create_and_lock_config($newid, 0);
-	PVE::Firewall::clone_vmfw_conf($vmid, $newid);
-
 	my $lock_and_reload = sub {
 	    my ($vmid, $code) = @_;
 	    return PVE::LXC::Config->lock_config($vmid, sub {
@@ -1477,14 +1474,26 @@ __PACKAGE__->register_method({
 
 	my $src_conf = PVE::LXC::Config->set_lock($vmid, 'disk');
 
-	$running = PVE::LXC::check_running($vmid) || 0;
+	eval {
+	    PVE::LXC::Config->create_and_lock_config($newid, 0);
+	};
+	if (my $err = $@) {
+	    eval { PVE::LXC::Config->remove_lock($vmid, 'disk') };
+	    warn "Failed to remove source CT config lock - $@\n" if $@;
 
-	my $full = extract_param($param, 'full');
-	if (!defined($full)) {
-	    $full = !PVE::LXC::Config->is_template($src_conf);
+	    die $err;
 	}
 
 	eval {
+	    $running = PVE::LXC::check_running($vmid) || 0;
+
+	    my $full = extract_param($param, 'full');
+	    if (!defined($full)) {
+		$full = !PVE::LXC::Config->is_template($src_conf);
+	    }
+
+	    PVE::Firewall::clone_vmfw_conf($vmid, $newid);
+
 	    die "parameter 'storage' not allowed for linked clones\n"
 		if defined($storage) && !$full;
 
