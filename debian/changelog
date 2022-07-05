@@ -1,3 +1,14 @@
+pve-container (4.2-2) bullseye; urgency=medium
+
+  * fix #4088: ignore systemd minor version
+
+  * fix an issue with volume deactivation when moving volumes
+
+  * fix an issue where when failing to clone a container due to it being
+    locked empty left-over configs would remain
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 05 Jul 2022 09:23:09 +0200
+
 pve-container (4.2-1) bullseye; urgency=medium
 
   * prestart & poststop hook: init REST environment, for example to fix volume
