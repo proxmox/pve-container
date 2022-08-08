@@ -1471,40 +1471,38 @@ sub apply_pending_mountpoint {
 
     my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
     my $old = $conf->{$opt};
-    if ($mp->{type} eq 'volume') {
-	if ($mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
-	    my $original_value = $conf->{pending}->{$opt};
-	    my $vollist = PVE::LXC::create_disks(
-		$storecfg,
-		$vmid,
-		{ $opt => $original_value },
-		$conf,
-		1,
-	    );
-	    if ($running) {
-		# Re-parse mount point:
-		my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
-		eval {
-		    PVE::LXC::mountpoint_hotplug($vmid, $conf, $opt, $mp, $storecfg);
-		};
-		my $err = $@;
-		if ($err) {
-		    PVE::LXC::destroy_disks($storecfg, $vollist);
-		    # The pending-changes code collects errors but keeps on looping through further
-		    # pending changes, so unroll the change in $conf as well if destroy_disks()
-		    # didn't die().
-		    $conf->{pending}->{$opt} = $original_value;
-		    die $err;
-		}
-	    }
-	} else {
-	    die "skip\n" if $running && defined($old); # TODO: "changing" mount points?
-	    $rescan_volume->($storecfg, $mp);
-	    if ($running) {
+    if ($mp->{type} eq 'volume' && $mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
+	my $original_value = $conf->{pending}->{$opt};
+	my $vollist = PVE::LXC::create_disks(
+	    $storecfg,
+	    $vmid,
+	    { $opt => $original_value },
+	    $conf,
+	    1,
+	);
+	if ($running) {
+	    # Re-parse mount point:
+	    my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
+	    eval {
 		PVE::LXC::mountpoint_hotplug($vmid, $conf, $opt, $mp, $storecfg);
+	    };
+	    my $err = $@;
+	    if ($err) {
+		PVE::LXC::destroy_disks($storecfg, $vollist);
+		# The pending-changes code collects errors but keeps on looping through further
+		# pending changes, so unroll the change in $conf as well if destroy_disks()
+		# didn't die().
+		$conf->{pending}->{$opt} = $original_value;
+		die $err;
 	    }
-	    $conf->{pending}->{$opt} = $class->print_ct_mountpoint($mp);
 	}
+    } else {
+	die "skip\n" if $running && defined($old); # TODO: "changing" mount points?
+	$rescan_volume->($storecfg, $mp) if $mp->{type} eq 'volume';
+	if ($running) {
+	    PVE::LXC::mountpoint_hotplug($vmid, $conf, $opt, $mp, $storecfg);
+	}
+	$conf->{pending}->{$opt} = $class->print_ct_mountpoint($mp);
     }
 
     if (defined($old)) {
