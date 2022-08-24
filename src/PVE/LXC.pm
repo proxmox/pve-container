@@ -948,8 +948,10 @@ sub update_net {
 
 		if ($have_sdn) {
 		    PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		    PVE::Network::SDN::Zones::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{bridge}, $newnet->{firewall});
 		} else {
 		    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+		    PVE::Network::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{firewall}); # early returns if brport has learning on
 		}
 
 		# This includes the rate:
@@ -982,9 +984,11 @@ sub hotplug_net {
     if ($have_sdn) {
 	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
 	PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+	PVE::Network::SDN::Zones::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{bridge}, $newnet->{firewall});
     } else {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
 	PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
+	PVE::Network::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{firewall}); # early returns if brport has learning on
     }
 
     # attach peer in container

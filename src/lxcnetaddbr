@@ -63,8 +63,10 @@ if (-d "/sys/class/net/$iface") {
 
     if ($have_sdn) {
 	PVE::Network::SDN::Zones::tap_plug($iface, $net->{bridge}, $tag, $firewall, $trunks, $rate);
+	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $net->{hwaddr}, $net->{bridge}, $net->{firewall});
     } else {
 	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+	PVE::Network::add_bridge_fdb($iface, $net->{hwaddr}, $net->{firewall}); # early returns if brport has learning on
     }
 }
 
