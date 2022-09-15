@@ -285,7 +285,7 @@ sub post_create_hook {
 sub unified_cgroupv2_support {
     my ($self) = @_;
 
-    return $self->protected_call(sub { $self->{plugin}->unified_cgroupv2_support() });
+    return $self->{plugin}->unified_cgroupv2_support($self->get_ct_init_path());
 }
 
 # os-release(5):
@@ -333,6 +333,22 @@ sub get_ct_os_release {
     });
 
     return &$parse_os_release($data);
+}
+
+# Checks whether /sbin/init is a symlink, and if it is, 
+# resolves it to the actual binary
+sub get_ct_init_path { 
+    my ($self) = @_;
+
+    my $init = $self->protected_call(sub {
+	my $init_path = "/sbin/init";
+	if($self->{plugin}->ct_is_symlink($init_path)) {
+    	    $init_path = $self->{plugin}->ct_readlink($init_path);
+	}
+	return $init_path;
+    });
+
+    return $init;
 }
 
 1;

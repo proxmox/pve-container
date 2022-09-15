@@ -48,7 +48,7 @@ sub set_user_password {
 }
 
 sub unified_cgroupv2_support {
-    my ($self) = @_;
+    my ($self, $init) = @_;
     croak "implement me in sub-class\n";
 }
 

@@ -514,40 +514,42 @@ sub clear_machine_id {
     }
 }
 
-# tries to guess the systemd (major) version based on the existence of
-# (/usr)?/lib/systemd/libsystemd-shared<version>.so. It was introduced in v231.
+# tries to guess the systemd (major) version based on the
+# libsystemd-shared<version>.so linked with /sbin/init
 sub get_systemd_version {
-    my ($self) = @_;
+    my ($self, $init) = @_;
 
-    my $sd_lib_dir = $self->ct_is_directory("/lib/systemd") ?
-	"/lib/systemd" : "/usr/lib/systemd";
-    my $libsd = PVE::Tools::dir_glob_regex($sd_lib_dir, "libsystemd-shared-.+\.so");
-    if (defined($libsd) && $libsd =~ /libsystemd-shared-(\d+)(?:\..*)?\.so/) {
-	return $1;
-    }
+    my $version = undef;
+    PVE::Tools::run_command(
+	['objdump', '-p', $self->{rootdir}.$init],
+	outfunc => sub {
+	    my $line = shift;
+	    if ($line =~ /libsystemd-shared-(\d+)(?:\.[a-zA-Z0-9]*)?\.so:$/) {
+		$version = $1;
+	    }},
+	errmsg => "objdump on $init failed",
+    );
 
-    return undef;
+    return $version;
 }
 
 sub unified_cgroupv2_support {
-    my ($self) = @_;
+    my ($self, $init) = @_;
 
     # https://www.freedesktop.org/software/systemd/man/systemd.html
     # systemd is installed as symlink to /sbin/init
-    my $systemd = $self->ct_readlink('/sbin/init');
-
     # assume non-systemd init will run with unified cgroupv2
-    if (!defined($systemd) || $systemd !~ m@/systemd$@) {
+    if (!defined($init) || $init !~ m@/systemd$@) {
 	return 1;
     }
 
     # systemd version 232 (e.g. debian stretch) supports the unified hierarchy
-    my $sdver = $self->get_systemd_version();
+    my $sdver = $self->get_systemd_version($init);
     if (!defined($sdver) || $sdver < 232) {
 	return 0;
     }
 
-    return 1
+    return 1;
 }
 
 sub ssh_host_key_types_to_generate {

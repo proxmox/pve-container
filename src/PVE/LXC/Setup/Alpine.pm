@@ -102,7 +102,7 @@ sub setup_network {
 
 # non systemd based containers work with pure cgroupv2
 sub unified_cgroupv2_support {
-    my ($self) = @_;
+    my ($self, $init) = @_;
 
     return 1;
 }
