@@ -685,8 +685,14 @@ sub update_lxc_config {
 	my $memory = $conf->{memory} || 512;
 	my $swap = $conf->{swap} // 0;
 
-	my $lxcmem = int($memory*1024*1024);
-	$raw .= "lxc.cgroup2.memory.max = $lxcmem\n";
+	# cgroup memory usage is limited by the hard 'max' limit (OOM-killer enforced) and the soft
+	# 'high' limit (cgroup processes get throttled and put under heavy reclaim pressure).
+	my $lxc_mem_max = int($memory * 1024 * 1024);
+	$raw .= "lxc.cgroup2.memory.max = $lxc_mem_max\n";
+	# Set the high to 1016/1024 (~99.2%) of the 'max' hard limit clamped to 128 MiB max, to
+	# scale it for the lower range while having a decent 2^x based rest for 2^y memory configs.
+	my $lxc_mem_high = $memory >= 16 * 1024 ? int(($memory - 128) * 1024 * 1024) : int($memory * 1024 * 1016);
+	$raw .= "lxc.cgroup2.memory.high = $lxc_mem_high\n";
 
 	my $lxcswap = int($swap*1024*1024);
 	$raw .= "lxc.cgroup2.memory.swap.max = $lxcswap\n";
