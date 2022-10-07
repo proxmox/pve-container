@@ -699,7 +699,7 @@ sub update_lxc_config {
 	    $raw .= "lxc.cgroup.cpu.cfs_quota_us = $value\n";
 	}
 
-	my $shares = $conf->{cpuunits} || 1024;
+	my $shares = PVE::CGroup::clamp_cpu_shares($conf->{cpuunits});
 	$raw .= "lxc.cgroup.cpu.shares = $shares\n";
     } elsif ($cgv2->{cpu}) {
 	# See PVE::CGroup
@@ -709,8 +709,7 @@ sub update_lxc_config {
 	}
 
 	if (defined(my $shares = $conf->{cpuunits})) {
-	    die "cpu weight (shares) must be in range [1, 10000]\n"
-		if $shares < 1 || $shares > 10000;
+	    $shares = PVE::CGroup::clamp_cpu_shares($shares);
 	    $raw .= "lxc.cgroup2.cpu.weight = $shares\n";
 	}
     }
