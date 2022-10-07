@@ -221,6 +221,9 @@ __PACKAGE__->register_method({
 	my $restore = extract_param($param, 'restore');
 	my $unique = extract_param($param, 'unique');
 
+	$param->{cpuunits} = PVE::CGroup::clamp_cpu_shares($param->{cpuunits})
+	    if defined($param->{cpuunits}); # clamp value depending on cgroup version
+
 	# used to skip firewall config restore if user lacks permission
 	my $skip_fw_config_restore = 0;
 

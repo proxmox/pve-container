@@ -10,6 +10,7 @@ use PVE::INotify;
 use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
 use PVE::Firewall;
+use PVE::GuestHelpers;
 use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
@@ -143,6 +144,9 @@ __PACKAGE__->register_method({
 	my @delete = PVE::Tools::split_list($delete_str);
 	my $revert_str = extract_param($param, 'revert');
 	my @revert = PVE::Tools::split_list($revert_str);
+
+	$param->{cpuunits} = PVE::CGroup::clamp_cpu_shares($param->{cpuunits})
+	    if defined($param->{cpuunits}); # clamp value depending on cgroup version
 
 	my $code = sub {
 
