@@ -1346,7 +1346,7 @@ sub vmconfig_hotplug_pending {
 	    } elsif ($opt eq 'cpulimit') {
 		$cgroup->change_cpu_quota(undef, undef); # reset, cgroup module can better decide values
 	    } elsif ($opt eq 'cpuunits') {
-		$cgroup->change_cpu_shares(undef, 1024);
+		$cgroup->change_cpu_shares(undef);
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
@@ -1371,7 +1371,7 @@ sub vmconfig_hotplug_pending {
 		my $quota = 100000 * $value;
 		$cgroup->change_cpu_quota(int(100000 * $value), 100000);
 	    } elsif ($opt eq 'cpuunits') {
-		$cgroup->change_cpu_shares($value, 1024);
+		$cgroup->change_cpu_shares($value);
 	    } elsif ($opt =~ m/^net(\d+)$/) {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($value);
