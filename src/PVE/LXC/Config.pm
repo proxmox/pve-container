@@ -446,13 +446,13 @@ my $confdesc = {
     lock => {
 	optional => 1,
 	type => 'string',
-	description => "Lock/unlock the VM.",
+	description => "Lock/unlock the container.",
 	enum => [qw(backup create destroyed disk fstrim migrate mounted rollback snapshot snapshot-delete)],
     },
     onboot => {
 	optional => 1,
 	type => 'boolean',
-	description => "Specifies whether a VM will be started during system bootup.",
+	description => "Specifies whether a container will be started during system bootup.",
 	default => 0,
     },
     startup => get_standard_option('pve-startup-order'),
@@ -518,14 +518,14 @@ my $confdesc = {
     memory => {
 	optional => 1,
 	type => 'integer',
-	description => "Amount of RAM for the VM in MB.",
+	description => "Amount of RAM for the container in MB.",
 	minimum => 16,
 	default => 512,
     },
     swap => {
 	optional => 1,
 	type => 'integer',
-	description => "Amount of SWAP for the VM in MB.",
+	description => "Amount of SWAP for the container in MB.",
 	minimum => 0,
 	default => 512,
     },
