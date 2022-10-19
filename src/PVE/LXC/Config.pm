@@ -2,6 +2,7 @@ package PVE::LXC::Config;
 
 use strict;
 use warnings;
+
 use Fcntl qw(O_RDONLY);
 
 use PVE::AbstractConfig;
@@ -16,8 +17,10 @@ use PVE::LXC;
 
 use base qw(PVE::AbstractConfig);
 
-use constant {FIFREEZE => 0xc0045877,
-              FITHAW   => 0xc0045878};
+use constant {
+    FIFREEZE => 0xc0045877,
+    FITHAW   => 0xc0045878,
+};
 
 my $nodename = PVE::INotify::nodename();
 my $lock_handles =  {};
@@ -1256,11 +1259,9 @@ sub print_lxc_network {
 sub parse_lxc_network {
     my ($class, $data) = @_;
 
-    my $res = {};
+    return {} if !$data;
 
-    return $res if !$data;
-
-    $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data);
+    my $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data);
 
     $res->{type} = 'veth';
     if (!$res->{hwaddr}) {
