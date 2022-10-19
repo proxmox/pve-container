@@ -12,6 +12,8 @@ use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools;
 
+use PVE::LXC;
+
 use base qw(PVE::AbstractConfig);
 
 use constant {FIFREEZE => 0xc0045877,
