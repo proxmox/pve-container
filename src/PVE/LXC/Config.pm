@@ -92,10 +92,8 @@ sub has_feature {
 	return if $err; # skip further test
 	return if $backup_only && !$class->mountpoint_backup_enabled($ms, $mountpoint);
 
-	$err = 1
-	    if !PVE::Storage::volume_has_feature($storecfg, $feature,
-						 $mountpoint->{volume},
-						 $snapname, $running, $opts);
+	$err = 1 if !PVE::Storage::volume_has_feature(
+	    $storecfg, $feature, $mountpoint->{volume}, $snapname, $running, $opts);
     });
 
     return $err ? 0 : 1;
