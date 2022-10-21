@@ -12,6 +12,8 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '23.04' => 1, # tbd
+    '22.10' => 1, # kinetic
     '22.04' => 1, # jammy
     '21.10' => 1, # impish
     '21.04' => 1, # hirsute
