@@ -1,3 +1,13 @@
+pve-container (4.2-3) bullseye; urgency=medium
+
+  * fix #4164: use DHCP=yes instead of DHCP=both in systemd-networkd config
+
+  * apply pending mountpoint: also hotplug non-volume mount points
+
+  * support Ubuntu 22.10 Kinetic Kudu
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 21 Oct 2022 14:56:59 +0200
+
 pve-container (4.2-2) bullseye; urgency=medium
 
   * fix #4088: ignore systemd minor version
