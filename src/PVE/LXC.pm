@@ -1814,7 +1814,7 @@ sub __mountpoint_mount {
     die "unsupported storage";
 }
 
-sub mountpoint_hotplug($$$) {
+sub mountpoint_hotplug :prototype($$$$$) {
     my ($vmid, $conf, $opt, $mp, $storage_cfg) = @_;
 
     my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
