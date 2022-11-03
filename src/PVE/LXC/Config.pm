@@ -758,6 +758,7 @@ our $netconf_desc = {
 	type => 'integer',
 	description => 'Maximum transfer unit of the interface. (lxc.network.mtu)',
 	minimum => 64, # minimum ethernet frame is 64 bytes
+	maximum => 65535,
 	optional => 1,
     },
     ip => {
@@ -1113,6 +1114,14 @@ sub update_pct_config {
 	    $value = PVE::LXC::verify_searchdomain_list($value);
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
+	} elsif ($opt =~ m/^net(\d+)$/) {
+	    my $res = PVE::JSONSchema::parse_property_string($netconf_desc, $value);
+
+	    if (my $mtu = $res->{mtu}) {
+		my $bridge_mtu = PVE::Network::read_bridge_mtu($res->{bridge});
+		die "$opt: MTU size '$mtu' is bigger than bridge MTU '$bridge_mtu'\n"
+		    if ($mtu > $bridge_mtu);
+	    }
 	}
 	$conf->{pending}->{$opt} = $value;
 	$class->remove_from_pending_delete($conf, $opt);
