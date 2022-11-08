@@ -526,7 +526,8 @@ sub get_systemd_version {
 	    my $line = shift;
 	    if ($line =~ /libsystemd-shared-(\d+)(?:\.[a-zA-Z0-9]*)?\.so:$/) {
 		$version = $1;
-	    }},
+	    }
+	},
 	errmsg => "objdump on $init failed",
     );
 
