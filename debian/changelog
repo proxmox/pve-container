@@ -1,3 +1,27 @@
+pve-container (4.3-1) bullseye; urgency=medium
+
+  * config: cpuunits: drop description for outdated special value
+
+  * clamp cpu unit value to the value range of the currently booted
+    cgroup controller
+
+  * fix #4228: add start parameter to rollback endpoint for automatic
+    restarting of CT
+
+  * fix #4192: revamp check for systemd version, avoiding some false-
+    positives
+
+  * fix #3606: drop --inplace from suspend backups
+
+  * net: implement support for bridge disable mac learning by manually
+    registering FDB entries in that case
+
+  * devuan: add preliminary support for Devuan 12 Daedalus
+
+  * fedora: support 37 and add pre-liminary support for 38
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 13 Nov 2022 15:27:55 +0100
+
 pve-container (4.2-3) bullseye; urgency=medium
 
   * fix #4164: use DHCP=yes instead of DHCP=both in systemd-networkd config
