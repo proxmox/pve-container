@@ -2,19 +2,22 @@ package PVE::LXC::Migrate;
 
 use strict;
 use warnings;
-use PVE::AbstractMigrate;
+
 use File::Basename;
 use File::Copy; # fixme: remove
-use PVE::Tools;
-use PVE::INotify;
+
 use PVE::Cluster;
-use PVE::Storage;
-use PVE::LXC::Config;
-use PVE::LXC;
+use PVE::INotify;
+use PVE::Replication;
 use PVE::ReplicationConfig;
 use PVE::ReplicationState;
-use PVE::Replication;
+use PVE::Storage;
+use PVE::Tools;
 
+use PVE::LXC::Config;
+use PVE::LXC;
+
+use PVE::AbstractMigrate;
 use base qw(PVE::AbstractMigrate);
 
 sub lock_vm {
