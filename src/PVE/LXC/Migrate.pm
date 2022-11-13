@@ -397,8 +397,7 @@ sub final_cleanup {
 	if (my $err = $@) {
 	    $self->log('err', $err);
 	}
-	# in restart mode, we start the container on the source node
-	# on migration error
+	# in restart mode, we start the container on the source node on migration error
 	if ($self->{opts}->{restart} && $self->{was_running}) {
 	    $self->log('info', "start container on source node");
 	    my $skiplock = 1;
@@ -408,8 +407,7 @@ sub final_cleanup {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
 	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");
 
-	# in restart mode, we start the container on the target node
-	# after migration
+	# in restart mode, we start the container on the target node after migration
 	if ($self->{opts}->{restart} && $self->{was_running}) {
 	    $self->log('info', "start container on target node");
 	    my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'start', $vmid];
