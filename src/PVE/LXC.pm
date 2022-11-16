@@ -1344,6 +1344,10 @@ sub check_ct_modify_config_perm {
 	} elsif ($opt eq 'hookscript') {
 	    # For now this is restricted to root@pam
 	    raise_perm_exc("changing the hookscript is only allowed for root\@pam");
+	} elsif ($opt eq 'tags') {
+	    my $old = $oldconf->{$opt};
+	    my $new = $delete ? '' : $newconf->{$opt};
+	    PVE::GuestHelpers::assert_tag_permissions($vmid, $old, $new, $rpcenv, $authuser);
 	} else {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
 	}
