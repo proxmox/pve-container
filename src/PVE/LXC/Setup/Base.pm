@@ -524,7 +524,7 @@ sub get_systemd_version {
 	['objdump', '-p', $self->{rootdir}.$init],
 	outfunc => sub {
 	    my $line = shift;
-	    if ($line =~ /libsystemd-shared-(\d+)(?:\.[a-zA-Z0-9]*)?\.so:$/) {
+	    if ($line =~ /libsystemd-shared-(\d+)(?:[-.][a-zA-Z0-9]+)*\.so:?$/) {
 		$version = $1;
 	    }
 	},
