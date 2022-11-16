@@ -1,3 +1,10 @@
+pve-container (4.3-2) bullseye; urgency=medium
+
+  * setup: get init path: switch to resolving link recursively to cope with
+    distros that use a relative symlink for /sbin/init
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 16 Nov 2022 16:53:26 +0100
+
 pve-container (4.3-1) bullseye; urgency=medium
 
   * config: cpuunits: drop description for outdated special value
