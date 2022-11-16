@@ -694,6 +694,19 @@ sub ct_readlink {
     return CORE::readlink($name);
 }
 
+sub ct_readlink_recursive {
+    my ($self, $name) = @_;
+
+    my $res = $name;
+    for (my $i = 0; $self->ct_is_symlink($res); $i++) {
+	# arbitrary limit, but should be enough for all for our management relevant things
+	die "maximal link depth of 10 for resolving '$name' reached, abort\n" if $i >= 10;
+	$res = $self->ct_readlink($res);
+	$res = abs_path($res);
+    }
+    return $res;
+}
+
 sub ct_file_exists {
     my ($self, $file) = @_;
     return -f $file;
