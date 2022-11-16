@@ -1,3 +1,9 @@
+pve-container (4.3-3) bullseye; urgency=medium
+
+  * setup: relax matching when detecting systemd version
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 16 Nov 2022 17:50:52 +0100
+
 pve-container (4.3-2) bullseye; urgency=medium
 
   * setup: get init path: switch to resolving link recursively to cope with
