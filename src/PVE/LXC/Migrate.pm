@@ -476,6 +476,9 @@ sub phase1_cleanup {
 
     if ($self->{volumes}) {
 	foreach my $volid (@{$self->{volumes}}) {
+	    if (my $mapped_volume = $self->{volume_map}->{$volid}) {
+		$volid = $mapped_volume;
+	    }
 	    $self->log('err', "found stale volume copy '$volid' on node '$self->{node}'");
 	    # fixme: try to remove ?
 	}
