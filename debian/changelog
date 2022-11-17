@@ -1,3 +1,16 @@
+pve-container (4.3-4) bullseye; urgency=medium
+
+  * improve edge-case parsing and limits for CT networking MTU
+
+  * assert that the user can indeed set/remove any changed tag
+
+  * migration: add remote migration foundations including new pct
+    'remote-migrate' CLI command
+
+  * migrate: print mapped volume in error
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 17 Nov 2022 15:02:15 +0100
+
 pve-container (4.3-3) bullseye; urgency=medium
 
   * setup: relax matching when detecting systemd version
