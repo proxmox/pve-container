@@ -3,6 +3,8 @@ package PVE::API2::LXC;
 use strict;
 use warnings;
 
+use Socket qw(SOCK_STREAM);
+
 use PVE::SafeSyslog;
 use PVE::Tools qw(extract_param run_command);
 use PVE::Exception qw(raise raise_param_exc raise_perm_exc);
@@ -1089,6 +1091,174 @@ __PACKAGE__->register_method ({
 	my $title = "CT $vmid";
 
 	return PVE::API2Tools::run_spiceterm($authpath, $permissions, $vmid, $node, $proxy, $title, $shcmd);
+    }});
+
+
+__PACKAGE__->register_method({
+    name => 'remote_migrate_vm',
+    path => '{vmid}/remote_migrate',
+    method => 'POST',
+    protected => 1,
+    proxyto => 'node',
+    description => "Migrate the container to another cluster. Creates a new migration task. EXPERIMENTAL feature!",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Migrate' ]],
+    },
+    parameters => {
+    	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	    'target-vmid' => get_standard_option('pve-vmid', { optional => 1 }),
+	    'target-endpoint' => get_standard_option('proxmox-remote', {
+		description => "Remote target endpoint",
+	    }),
+	    online => {
+		type => 'boolean',
+		description => "Use online/live migration.",
+		optional => 1,
+	    },
+	    restart => {
+		type => 'boolean',
+		description => "Use restart migration",
+		optional => 1,
+	    },
+	    timeout => {
+		type => 'integer',
+		description => "Timeout in seconds for shutdown for restart migration",
+		optional => 1,
+		default => 180,
+	    },
+	    delete => {
+		type => 'boolean',
+		description => "Delete the original CT and related data after successful migration. By default the original CT is kept on the source cluster in a stopped state.",
+		optional => 1,
+		default => 0,
+	    },
+	    'target-storage' => get_standard_option('pve-targetstorage', {
+		optional => 0,
+	    }),
+	    'target-bridge' => {
+		type => 'string',
+		description => "Mapping from source to target bridges. Providing only a single bridge ID maps all source bridges to that bridge. Providing the special value '1' will map each source bridge to itself.",
+		format => 'bridge-pair-list',
+	    },
+	    bwlimit => {
+		description => "Override I/O bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'number',
+		minimum => '0',
+		default => 'migrate limit from datacenter or storage config',
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
+
+	my $source_vmid = extract_param($param, 'vmid');
+	my $target_endpoint = extract_param($param, 'target-endpoint');
+	my $target_vmid = extract_param($param, 'target-vmid') // $source_vmid;
+
+	my $delete = extract_param($param, 'delete') // 0;
+
+	PVE::Cluster::check_cfs_quorum();
+
+	# test if CT exists
+	my $conf = PVE::LXC::Config->load_config($source_vmid);
+	PVE::LXC::Config->check_lock($conf);
+
+	# try to detect errors early
+	if (PVE::LXC::check_running($source_vmid)) {
+	    die "can't migrate running container without --online or --restart\n"
+		if !$param->{online} && !$param->{restart};
+	}
+
+	raise_param_exc({ vmid => "cannot migrate HA-managed CT to remote cluster" })
+	    if PVE::HA::Config::vm_is_ha_managed($source_vmid);
+
+	my $remote = PVE::JSONSchema::parse_property_string('proxmox-remote', $target_endpoint);
+
+	# TODO: move this as helper somewhere appropriate?
+	my $conn_args = {
+	    protocol => 'https',
+	    host => $remote->{host},
+	    port => $remote->{port} // 8006,
+	    apitoken => $remote->{apitoken},
+	};
+
+	my $fp;
+	if ($fp = $remote->{fingerprint}) {
+	    $conn_args->{cached_fingerprints} = { uc($fp) => 1 };
+	}
+
+	print "Establishing API connection with remote at '$remote->{host}'\n";
+
+	my $api_client = PVE::APIClient::LWP->new(%$conn_args);
+
+	if (!defined($fp)) {
+	    my $cert_info = $api_client->get("/nodes/localhost/certificates/info");
+	    foreach my $cert (@$cert_info) {
+		my $filename = $cert->{filename};
+		next if $filename ne 'pveproxy-ssl.pem' && $filename ne 'pve-ssl.pem';
+		$fp = $cert->{fingerprint} if !$fp || $filename eq 'pveproxy-ssl.pem';
+	    }
+	    $conn_args->{cached_fingerprints} = { uc($fp) => 1 }
+		if defined($fp);
+	}
+
+	my $storecfg = PVE::Storage::config();
+	my $target_storage = extract_param($param, 'target-storage');
+	my $storagemap = eval { PVE::JSONSchema::parse_idmap($target_storage, 'pve-storage-id') };
+	raise_param_exc({ 'target-storage' => "failed to parse storage map: $@" })
+	    if $@;
+
+	my $target_bridge = extract_param($param, 'target-bridge');
+	my $bridgemap = eval { PVE::JSONSchema::parse_idmap($target_bridge, 'pve-bridge-id') };
+	raise_param_exc({ 'target-bridge' => "failed to parse bridge map: $@" })
+	    if $@;
+
+	die "remote migration requires explicit storage mapping!\n"
+	    if $storagemap->{identity};
+
+	$param->{storagemap} = $storagemap;
+	$param->{bridgemap} = $bridgemap;
+	$param->{remote} = {
+	    conn => $conn_args, # re-use fingerprint for tunnel
+	    client => $api_client,
+	    vmid => $target_vmid,
+	};
+	$param->{migration_type} = 'websocket';
+	$param->{delete} = $delete if $delete;
+
+	my $cluster_status = $api_client->get("/cluster/status");
+	my $target_node;
+	foreach my $entry (@$cluster_status) {
+	    next if $entry->{type} ne 'node';
+	    if ($entry->{local}) {
+		$target_node = $entry->{name};
+		last;
+	    }
+	}
+
+	die "couldn't determine endpoint's node name\n"
+	    if !defined($target_node);
+
+	my $realcmd = sub {
+	    PVE::LXC::Migrate->migrate($target_node, $remote->{host}, $source_vmid, $param);
+	};
+
+	my $worker = sub {
+	    return PVE::GuestHelpers::guest_migration_lock($source_vmid, 10, $realcmd);
+	};
+
+	return $rpcenv->fork_worker('vzmigrate', $source_vmid, $authuser, $worker);
     }});
 
 
@@ -2321,4 +2491,469 @@ __PACKAGE__->register_method({
 	return PVE::GuestHelpers::config_with_pending_array($conf, $pending_delete_hash);
     }});
 
+__PACKAGE__->register_method({
+    name => 'mtunnel',
+    path => '{vmid}/mtunnel',
+    method => 'POST',
+    protected => 1,
+    description => 'Migration tunnel endpoint - only for internal use by CT migration.',
+    permissions => {
+	check =>
+	[ 'and',
+	  ['perm', '/vms/{vmid}', [ 'VM.Allocate' ]],
+	  ['perm', '/', [ 'Sys.Incoming' ]],
+	],
+	description => "You need 'VM.Allocate' permissions on '/vms/{vmid}' and Sys.Incoming" .
+	               " on '/'. Further permission checks happen during the actual migration.",
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    storages => {
+		type => 'string',
+		format => 'pve-storage-id-list',
+		optional => 1,
+		description => 'List of storages to check permission and availability. Will be checked again for all actually used storages during migration.',
+	    },
+	    bridges => {
+		type => 'string',
+		format => 'pve-bridge-id-list',
+		optional => 1,
+		description => 'List of network bridges to check availability. Will be checked again for actually used bridges during migration.',
+	    },
+	},
+    },
+    returns => {
+	additionalProperties => 0,
+	properties => {
+	    upid => { type => 'string' },
+	    ticket => { type => 'string' },
+	    socket => { type => 'string' },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
+
+	my $node = extract_param($param, 'node');
+	my $vmid = extract_param($param, 'vmid');
+
+	my $storages = extract_param($param, 'storages');
+	my $bridges = extract_param($param, 'bridges');
+
+	my $nodename = PVE::INotify::nodename();
+
+	raise_param_exc({ node => "node needs to be 'localhost' or local hostname '$nodename'" })
+	    if $node ne 'localhost' && $node ne $nodename;
+
+	$node = $nodename;
+
+	my $storecfg = PVE::Storage::config();
+	foreach my $storeid (PVE::Tools::split_list($storages)) {
+	    $check_storage_access_migrate->($rpcenv, $authuser, $storecfg, $storeid, $node);
+	}
+
+	foreach my $bridge (PVE::Tools::split_list($bridges)) {
+	    PVE::Network::read_bridge_mtu($bridge);
+	}
+
+	PVE::Cluster::check_cfs_quorum();
+
+	my $socket_addr = "/run/pve/ct-$vmid.mtunnel";
+
+	my $lock = 'create';
+	eval { PVE::LXC::Config->create_and_lock_config($vmid, 0, $lock); };
+
+	raise_param_exc({ vmid => "unable to create empty CT config - $@"})
+	    if $@;
+
+	my $realcmd = sub {
+	    my $state = {
+		storecfg => PVE::Storage::config(),
+		lock => $lock,
+		vmid => $vmid,
+	    };
+
+	    my $run_locked = sub {
+		my ($code, $params) = @_;
+		return PVE::LXC::Config->lock_config($state->{vmid}, sub {
+		    my $conf = PVE::LXC::Config->load_config($state->{vmid});
+
+		    $state->{conf} = $conf;
+
+		    die "Encountered wrong lock - aborting mtunnel command handling.\n"
+			if $state->{lock} && !PVE::LXC::Config->has_lock($conf, $state->{lock});
+
+		    return $code->($params);
+		});
+	    };
+
+	    my $cmd_desc = {
+		config => {
+		    conf => {
+			type => 'string',
+			description => 'Full CT config, adapted for target cluster/node',
+		    },
+		    'firewall-config' => {
+			type => 'string',
+			description => 'CT firewall config',
+			optional => 1,
+		    },
+		},
+		ticket => {
+		    path => {
+			type => 'string',
+			description => 'socket path for which the ticket should be valid. must be known to current mtunnel instance.',
+		    },
+		},
+		quit => {
+		    cleanup => {
+			type => 'boolean',
+			description => 'remove CT config and volumes, aborting migration',
+			default => 0,
+		    },
+		},
+		'disk-import' => $PVE::StorageTunnel::cmd_schema->{'disk-import'},
+		'query-disk-import' => $PVE::StorageTunnel::cmd_schema->{'query-disk-import'},
+		bwlimit => $PVE::StorageTunnel::cmd_schema->{bwlimit},
+	    };
+
+	    my $cmd_handlers = {
+		'version' => sub {
+		    # compared against other end's version
+		    # bump/reset for breaking changes
+		    # bump/bump for opt-in changes
+		    return {
+			api => $PVE::LXC::Migrate::WS_TUNNEL_VERSION,
+			age => 0,
+		    };
+		},
+		'config' => sub {
+		    my ($params) = @_;
+
+		    # parse and write out VM FW config if given
+		    if (my $fw_conf = $params->{'firewall-config'}) {
+			my ($path, $fh) = PVE::Tools::tempfile_contents($fw_conf, 700);
+
+			my $empty_conf = {
+			    rules => [],
+			    options => {},
+			    aliases => {},
+			    ipset => {} ,
+			    ipset_comments => {},
+			};
+			my $cluster_fw_conf = PVE::Firewall::load_clusterfw_conf();
+
+			# TODO: add flag for strict parsing?
+			# TODO: add import sub that does all this given raw content?
+			my $vmfw_conf = PVE::Firewall::generic_fw_config_parser($path, $cluster_fw_conf, $empty_conf, 'vm');
+			$vmfw_conf->{vmid} = $state->{vmid};
+			PVE::Firewall::save_vmfw_conf($state->{vmid}, $vmfw_conf);
+
+			$state->{cleanup}->{fw} = 1;
+		    }
+
+		    my $conf_fn = "incoming/lxc/$state->{vmid}.conf";
+		    my $new_conf = PVE::LXC::Config::parse_pct_config($conf_fn, $params->{conf}, 1);
+		    delete $new_conf->{lock};
+		    delete $new_conf->{digest};
+
+		    my $unprivileged = delete $new_conf->{unprivileged};
+		    my $arch = delete $new_conf->{arch};
+
+		    # TODO handle properly?
+		    delete $new_conf->{snapshots};
+		    delete $new_conf->{parent};
+		    delete $new_conf->{pending};
+		    delete $new_conf->{lxc};
+
+		    PVE::LXC::Config->remove_lock($state->{vmid}, 'create');
+
+		    eval {
+			my $conf = {
+			    unprivileged => $unprivileged,
+			    arch => $arch,
+			};
+			PVE::LXC::check_ct_modify_config_perm(
+			    $rpcenv,
+			    $authuser,
+			    $state->{vmid},
+			    undef,
+			    $conf,
+			    $new_conf,
+			    undef,
+			    $unprivileged,
+			);
+			my $errors = PVE::LXC::Config->update_pct_config(
+			    $state->{vmid},
+			    $conf,
+			    0,
+			    $new_conf,
+			    [],
+			    [],
+			);
+			raise_param_exc($errors) if scalar(keys %$errors);
+			PVE::LXC::Config->write_config($state->{vmid}, $conf);
+			PVE::LXC::update_lxc_config($vmid, $conf);
+		    };
+		    if (my $err = $@) {
+			# revert to locked previous config
+			my $conf = PVE::LXC::Config->load_config($state->{vmid});
+			$conf->{lock} = 'create';
+			PVE::LXC::Config->write_config($state->{vmid}, $conf);
+
+			die $err;
+		    }
+
+		    my $conf = PVE::LXC::Config->load_config($state->{vmid});
+		    $conf->{lock} = 'migrate';
+		    PVE::LXC::Config->write_config($state->{vmid}, $conf);
+
+		    $state->{lock} = 'migrate';
+
+		    return;
+		},
+		'bwlimit' => sub {
+		    my ($params) = @_;
+		    return PVE::StorageTunnel::handle_bwlimit($params);
+		},
+		'disk-import' => sub {
+		    my ($params) = @_;
+
+		    $check_storage_access_migrate->(
+			$rpcenv,
+			$authuser,
+			$state->{storecfg},
+			$params->{storage},
+			$node
+		    );
+
+		    $params->{unix} = "/run/pve/ct-$state->{vmid}.storage";
+
+		    return PVE::StorageTunnel::handle_disk_import($state, $params);
+		},
+		'query-disk-import' => sub {
+		    my ($params) = @_;
+
+		    return PVE::StorageTunnel::handle_query_disk_import($state, $params);
+		},
+		'unlock' => sub {
+		    PVE::LXC::Config->remove_lock($state->{vmid}, $state->{lock});
+		    delete $state->{lock};
+		    return;
+		},
+		'start' => sub {
+		    PVE::LXC::vm_start(
+			$state->{vmid},
+			$state->{conf},
+			0
+		    );
+
+		    return;
+		},
+		'stop' => sub {
+		    PVE::LXC::vm_stop($state->{vmid}, 1, 10, 1);
+		    return;
+		},
+		'ticket' => sub {
+		    my ($params) = @_;
+
+		    my $path = $params->{path};
+
+		    die "Not allowed to generate ticket for unknown socket '$path'\n"
+			if !defined($state->{sockets}->{$path});
+
+		    return { ticket => PVE::AccessControl::assemble_tunnel_ticket($authuser, "/socket/$path") };
+		},
+		'quit' => sub {
+		    my ($params) = @_;
+
+		    if ($params->{cleanup}) {
+			if ($state->{cleanup}->{fw}) {
+			    PVE::Firewall::remove_vmfw_conf($state->{vmid});
+			}
+
+			for my $volid (keys $state->{cleanup}->{volumes}->%*) {
+			    print "freeing volume '$volid' as part of cleanup\n";
+			    eval { PVE::Storage::vdisk_free($state->{storecfg}, $volid) };
+			    warn $@ if $@;
+			}
+
+			PVE::LXC::destroy_lxc_container(
+			    $state->{storecfg},
+			    $state->{vmid},
+			    $state->{conf},
+			    undef,
+			    0,
+			);
+		    }
+
+		    print "switching to exit-mode, waiting for client to disconnect\n";
+		    $state->{exit} = 1;
+		    return;
+		},
+	    };
+
+	    $run_locked->(sub {
+		my $socket_addr = "/run/pve/ct-$state->{vmid}.mtunnel";
+		unlink $socket_addr;
+
+		$state->{socket} = IO::Socket::UNIX->new(
+	            Type => SOCK_STREAM(),
+		    Local => $socket_addr,
+		    Listen => 1,
+		);
+
+		$state->{socket_uid} = getpwnam('www-data')
+		    or die "Failed to resolve user 'www-data' to numeric UID\n";
+		chown $state->{socket_uid}, -1, $socket_addr;
+	    });
+
+	    print "mtunnel started\n";
+
+	    my $conn = eval { PVE::Tools::run_with_timeout(300, sub { $state->{socket}->accept() }) };
+	    if ($@) {
+		warn "Failed to accept tunnel connection - $@\n";
+
+		warn "Removing tunnel socket..\n";
+		unlink $state->{socket};
+
+		warn "Removing temporary VM config..\n";
+		$run_locked->(sub {
+		    PVE::LXC::destroy_config($state->{vmid});
+		});
+
+		die "Exiting mtunnel\n";
+	    }
+
+	    $state->{conn} = $conn;
+
+	    my $reply_err = sub {
+		my ($msg) = @_;
+
+		my $reply = JSON::encode_json({
+		    success => JSON::false,
+		    msg => $msg,
+		});
+		$conn->print("$reply\n");
+		$conn->flush();
+	    };
+
+	    my $reply_ok = sub {
+		my ($res) = @_;
+
+		$res->{success} = JSON::true;
+		my $reply = JSON::encode_json($res);
+		$conn->print("$reply\n");
+		$conn->flush();
+	    };
+
+	    while (my $line = <$conn>) {
+		chomp $line;
+
+		# untaint, we validate below if needed
+		($line) = $line =~ /^(.*)$/;
+		my $parsed = eval { JSON::decode_json($line) };
+		if ($@) {
+		    $reply_err->("failed to parse command - $@");
+		    next;
+		}
+
+		my $cmd = delete $parsed->{cmd};
+		if (!defined($cmd)) {
+		    $reply_err->("'cmd' missing");
+		} elsif ($state->{exit}) {
+		    $reply_err->("tunnel is in exit-mode, processing '$cmd' cmd not possible");
+		    next;
+		} elsif (my $handler = $cmd_handlers->{$cmd}) {
+		    print "received command '$cmd'\n";
+		    eval {
+			if ($cmd_desc->{$cmd}) {
+			    PVE::JSONSchema::validate($parsed, $cmd_desc->{$cmd});
+			} else {
+			    $parsed = {};
+			}
+			my $res = $run_locked->($handler, $parsed);
+			$reply_ok->($res);
+		    };
+		    $reply_err->("failed to handle '$cmd' command - $@")
+			if $@;
+		} else {
+		    $reply_err->("unknown command '$cmd' given");
+		}
+	    }
+
+	    if ($state->{exit}) {
+		print "mtunnel exited\n";
+	    } else {
+		die "mtunnel exited unexpectedly\n";
+	    }
+	};
+
+	my $ticket = PVE::AccessControl::assemble_tunnel_ticket($authuser, "/socket/$socket_addr");
+	my $upid = $rpcenv->fork_worker('vzmtunnel', $vmid, $authuser, $realcmd);
+
+	return {
+	    ticket => $ticket,
+	    upid => $upid,
+	    socket => $socket_addr,
+	};
+    }});
+
+__PACKAGE__->register_method({
+    name => 'mtunnelwebsocket',
+    path => '{vmid}/mtunnelwebsocket',
+    method => 'GET',
+    permissions => {
+	description => "You need to pass a ticket valid for the selected socket. Tickets can be created via the mtunnel API call, which will check permissions accordingly.",
+        user => 'all', # check inside
+    },
+    description => 'Migration tunnel endpoint for websocket upgrade - only for internal use by VM migration.',
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid'),
+	    socket => {
+		type => "string",
+		description => "unix socket to forward to",
+	    },
+	    ticket => {
+		type => "string",
+		description => "ticket return by initial 'mtunnel' API call, or retrieved via 'ticket' tunnel command",
+	    },
+	},
+    },
+    returns => {
+	type => "object",
+	properties => {
+	    port => { type => 'string', optional => 1 },
+	    socket => { type => 'string', optional => 1 },
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
+
+	my $nodename = PVE::INotify::nodename();
+	my $node = extract_param($param, 'node');
+
+	raise_param_exc({ node => "node needs to be 'localhost' or local hostname '$nodename'" })
+	    if $node ne 'localhost' && $node ne $nodename;
+
+	my $vmid = $param->{vmid};
+	# check VM exists
+	PVE::LXC::Config->load_config($vmid);
+
+	my $socket = $param->{socket};
+	PVE::AccessControl::verify_tunnel_ticket($param->{ticket}, $authuser, "/socket/$socket");
+
+	return { socket => $socket };
+    }});
 1;

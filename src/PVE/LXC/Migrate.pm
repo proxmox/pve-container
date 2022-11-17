@@ -20,6 +20,9 @@ use PVE::LXC;
 use PVE::AbstractMigrate;
 use base qw(PVE::AbstractMigrate);
 
+# compared against remote end's minimum version
+our $WS_TUNNEL_VERSION = 2;
+
 sub lock_vm {
     my ($self, $vmid, $code, @param) = @_;
 
@@ -31,6 +34,7 @@ sub prepare {
 
     my $online = $self->{opts}->{online};
     my $restart= $self->{opts}->{restart};
+    my $remote = $self->{opts}->{remote};
 
     $self->{storecfg} = PVE::Storage::config();
 
@@ -47,6 +51,7 @@ sub prepare {
     }
     $self->{was_running} = $running;
 
+    my $storages = {};
     PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, sub {
 	my ($ms, $mountpoint) = @_;
 
@@ -73,7 +78,7 @@ sub prepare {
 	die "content type 'rootdir' is not available on storage '$storage'\n"
 	    if !$scfg->{content}->{rootdir};
 
-	if ($scfg->{shared}) {
+	if ($scfg->{shared} && !$remote) {
 	    # PVE::Storage::activate_storage checks this for non-shared storages
 	    my $plugin = PVE::Storage::Plugin->lookup($scfg->{type});
 	    warn "Used shared storage '$storage' is not online on source node!\n"
@@ -86,18 +91,63 @@ sub prepare {
 	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storage);
 	}
 
-	my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+	if (!$remote) {
+	    my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
 
-	die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
-	    if !$target_scfg->{content}->{rootdir};
+	    die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
+		if !$target_scfg->{content}->{rootdir};
+	}
+
+	$storages->{$targetsid} = 1;
     });
 
     # todo: test if VM uses local resources
 
-    # test ssh connection
-    my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
-    eval { $self->cmd_quiet($cmd); };
-    die "Can't connect to destination address using public key\n" if $@;
+    if ($remote) {
+	# test & establish websocket connection
+	my $bridges = map_bridges($conf, $self->{opts}->{bridgemap}, 1);
+
+	my $remote = $self->{opts}->{remote};
+	my $conn = $remote->{conn};
+
+	my $log = sub {
+	    my ($level, $msg) = @_;
+	    $self->log($level, $msg);
+	};
+
+	my $websocket_url = "https://$conn->{host}:$conn->{port}/api2/json/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnelwebsocket";
+	my $url = "/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnel";
+
+	my $tunnel_params = {
+	    url => $websocket_url,
+	};
+
+	my $storage_list = join(',', keys %$storages);
+	my $bridge_list = join(',', keys %$bridges);
+
+	my $req_params = {
+	    storages => $storage_list,
+	    bridges => $bridge_list,
+	};
+
+	my $tunnel = PVE::Tunnel::fork_websocket_tunnel($conn, $url, $req_params, $tunnel_params, $log);
+	my $min_version = $tunnel->{version} - $tunnel->{age};
+	$self->log('info', "local WS tunnel version: $WS_TUNNEL_VERSION");
+	$self->log('info', "remote WS tunnel version: $tunnel->{version}");
+	$self->log('info', "minimum required WS tunnel version: $min_version");
+	die "Remote tunnel endpoint not compatible, upgrade required\n"
+	    if $WS_TUNNEL_VERSION < $min_version;
+	 die "Remote tunnel endpoint too old, upgrade required\n"
+	    if $WS_TUNNEL_VERSION > $tunnel->{version};
+
+	$self->log('info', "websocket tunnel started\n");
+	$self->{tunnel} = $tunnel;
+    } else {
+	# test ssh connection
+	my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
+	eval { $self->cmd_quiet($cmd); };
+	die "Can't connect to destination address using public key\n" if $@;
+    }
 
     # in restart mode, we shutdown the container before migrating
     if ($restart && $running) {
@@ -115,6 +165,8 @@ sub prepare {
 
 sub phase1 {
     my ($self, $vmid) = @_;
+
+    my $remote = $self->{opts}->{remote};
 
     $self->log('info', "starting migration of CT $self->{vmid} to node '$self->{node}' ($self->{nodeip})");
 
@@ -150,7 +202,7 @@ sub phase1 {
 
 	my $targetsid = $sid;
 
-	if ($scfg->{shared}) {
+	if ($scfg->{shared} && !$remote) {
 	    $self->log('info', "volume '$volid' is on shared storage '$sid'")
 		if !$snapname;
 	    return;
@@ -158,7 +210,8 @@ sub phase1 {
 	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $sid);
 	}
 
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node})
+	    if !$remote;
 
 	my $bwlimit = $self->get_bwlimit($sid, $targetsid);
 
@@ -195,6 +248,9 @@ sub phase1 {
 
 	eval {
 	    &$test_volid($volid, $snapname);
+
+	    die "remote migration with snapshots not supported yet\n"
+		if $remote && $snapname;
 	};
 
 	&$log_error($@, $volid) if $@;
@@ -204,7 +260,7 @@ sub phase1 {
     my @sids = PVE::Storage::storage_ids($self->{storecfg});
     foreach my $storeid (@sids) {
 	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $storeid);
-	next if $scfg->{shared};
+	next if $scfg->{shared} && !$remote;
 	next if !PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, undef, 1);
 
 	# get list from PVE::Storage (for unreferenced volumes)
@@ -214,10 +270,12 @@ sub phase1 {
 
 	# check if storage is available on target node
 	my $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storeid);
-	my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+	if (!$remote) {
+	    my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
 
-	die "content type 'rootdir' is not available on storage '$targetsid'\n"
-	    if !$target_scfg->{content}->{rootdir};
+	    die "content type 'rootdir' is not available on storage '$targetsid'\n"
+		if !$target_scfg->{content}->{rootdir};
+	}
 
 	PVE::Storage::foreach_volid($dl, sub {
 	    my ($volid, $sid, $volname) = @_;
@@ -243,12 +301,21 @@ sub phase1 {
 	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	    my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
 
-	    my $migratable = ($scfg->{type} eq 'dir') || ($scfg->{type} eq 'zfspool')
-		|| ($scfg->{type} eq 'lvmthin') || ($scfg->{type} eq 'lvm')
-		|| ($scfg->{type} eq 'btrfs');
+	    # TODO move to storage plugin layer?
+	    my $migratable_storages = [
+		'dir',
+		'zfspool',
+		'lvmthin',
+		'lvm',
+		'btrfs',
+	    ];
+	    if ($remote) {
+		push @$migratable_storages, 'cifs';
+		push @$migratable_storages, 'nfs';
+	    }
 
 	    die "storage type '$scfg->{type}' not supported\n"
-		if !$migratable;
+		if !grep { $_ eq $scfg->{type} } @$migratable_storages;
 
 	    # image is a linked clone on local storage, se we can't migrate.
 	    if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
@@ -283,7 +350,10 @@ sub phase1 {
 
     my $rep_cfg = PVE::ReplicationConfig->new();
 
-    if (my $jobcfg = $rep_cfg->find_local_replication_job($vmid, $self->{node})) {
+    if ($remote) {
+	die "cannot remote-migrate replicated VM\n"
+	    if $rep_cfg->check_for_existing_jobs($vmid, 1);
+    } elsif (my $jobcfg = $rep_cfg->find_local_replication_job($vmid, $self->{node})) {
 	die "can't live migrate VM with replicated volumes\n" if $self->{running};
 	my $start_time = time();
 	my $logfunc = sub { my ($msg) = @_;  $self->log('info', $msg); };
@@ -294,7 +364,6 @@ sub phase1 {
     my $opts = $self->{opts};
     foreach my $volid (keys %$volhash) {
 	next if $rep_volumes->{$volid};
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	push @{$self->{volumes}}, $volid;
 
 	# JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
@@ -304,22 +373,39 @@ sub phase1 {
 	my $targetsid = $volhash->{$volid}->{targetsid};
 
 	my $new_volid = eval {
-	    my $storage_migrate_opts = {
-		'ratelimit_bps' => $bwlimit,
-		'insecure' => $opts->{migration_type} eq 'insecure',
-		'with_snapshots' => $volhash->{$volid}->{snapshots},
-		'allow_rename' => 1,
-	    };
+	    if ($remote) {
+		my $log = sub {
+		    my ($level, $msg) = @_;
+		    $self->log($level, $msg);
+		};
 
-	    my $logfunc = sub { $self->log('info', $_[0]); };
-	    return PVE::Storage::storage_migrate(
-		$self->{storecfg},
-		$volid,
-		$self->{ssh_info},
-		$targetsid,
-		$storage_migrate_opts,
-		$logfunc,
-	    );
+		return PVE::StorageTunnel::storage_migrate(
+		    $self->{tunnel},
+		    $self->{storecfg},
+		    $volid,
+		    $self->{vmid},
+		    $remote->{vmid},
+		    $volhash->{$volid},
+		    $log,
+		);
+	    } else {
+		my $storage_migrate_opts = {
+		    'ratelimit_bps' => $bwlimit,
+		    'insecure' => $opts->{migration_type} eq 'insecure',
+		    'with_snapshots' => $volhash->{$volid}->{snapshots},
+		    'allow_rename' => 1,
+		};
+
+		my $logfunc = sub { $self->log('info', $_[0]); };
+		return PVE::Storage::storage_migrate(
+		    $self->{storecfg},
+		    $volid,
+		    $self->{ssh_info},
+		    $targetsid,
+		    $storage_migrate_opts,
+		    $logfunc,
+		);
+	    }
 	};
 
 	if (my $err = $@) {
@@ -349,13 +435,38 @@ sub phase1 {
     my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
-    # transfer replication state before moving config
-    $self->transfer_replication_state() if $rep_volumes;
-    PVE::LXC::Config->update_volume_ids($conf, $self->{volume_map});
-    PVE::LXC::Config->write_config($vmid, $conf);
-    PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
+    if ($remote) {
+	my $remote_conf = PVE::LXC::Config->load_config($vmid);
+	PVE::LXC::Config->update_volume_ids($remote_conf, $self->{volume_map});
+
+	my $bridges = map_bridges($remote_conf, $self->{opts}->{bridgemap});
+	for my $target (keys $bridges->%*) {
+	    for my $nic (keys $bridges->{$target}->%*) {
+		$self->log('info', "mapped: $nic from $bridges->{$target}->{$nic} to $target");
+	    }
+	}
+	my $conf_str = PVE::LXC::Config::write_pct_config("remote", $remote_conf);
+
+	# TODO expose in PVE::Firewall?
+	my $vm_fw_conf_path = "/etc/pve/firewall/$vmid.fw";
+	my $fw_conf_str;
+	$fw_conf_str = PVE::Tools::file_get_contents($vm_fw_conf_path)
+	    if -e $vm_fw_conf_path;
+	my $params = {
+	    conf => $conf_str,
+	    'firewall-config' => $fw_conf_str,
+	};
+
+	PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'config', $params);
+    } else {
+	# transfer replication state before moving config
+	$self->transfer_replication_state() if $rep_volumes;
+	PVE::LXC::Config->update_volume_ids($conf, $self->{volume_map});
+	PVE::LXC::Config->write_config($vmid, $conf);
+	PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
+	$self->switch_replication_job_target() if $rep_volumes;
+    }
     $self->{conf_migrated} = 1;
-    $self->switch_replication_job_target() if $rep_volumes;
 }
 
 sub phase1_cleanup {
@@ -369,12 +480,21 @@ sub phase1_cleanup {
 	    # fixme: try to remove ?
 	}
     }
+
+    if ($self->{opts}->{remote}) {
+	# cleans up remote volumes
+	PVE::Tunnel::finish_tunnel($self->{tunnel}, 1);
+	delete $self->{tunnel};
+    }
 }
 
 sub phase3 {
     my ($self, $vmid) = @_;
 
     my $volids = $self->{volumes};
+
+    # handled below in final_cleanup
+    return if $self->{opts}->{remote};
 
     # destroy local copies
     foreach my $volid (@$volids) {
@@ -403,6 +523,24 @@ sub final_cleanup {
 	    my $skiplock = 1;
 	    PVE::LXC::vm_start($vmid, $self->{vmconf}, $skiplock);
 	}
+    } elsif ($self->{opts}->{remote}) {
+	eval { PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'unlock') };
+	$self->log('err', "Failed to clear migrate lock - $@\n") if $@;
+
+	if ($self->{opts}->{restart} && $self->{was_running}) {
+	    $self->log('info', "start container on target node");
+	    PVE::Tunnel::write_tunnel($self->{tunnel}, 60, 'start');
+	}
+	if ($self->{opts}->{delete}) {
+	    PVE::LXC::destroy_lxc_container(
+		PVE::Storage::config(),
+		$vmid,
+		PVE::LXC::Config->load_config($vmid),
+		undef,
+		0,
+	    );
+	}
+	PVE::Tunnel::finish_tunnel($self->{tunnel});
     } else {
 	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
 	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");
@@ -414,7 +552,30 @@ sub final_cleanup {
 	    $self->cmd($cmd);
 	}
     }
+}
 
+sub map_bridges {
+    my ($conf, $map, $scan_only) = @_;
+
+    my $bridges = {};
+
+    foreach my $opt (keys %$conf) {
+	next if $opt !~ m/^net\d+$/;
+
+	next if !$conf->{$opt};
+	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+	next if !$d || !$d->{bridge};
+
+	my $target_bridge = PVE::JSONSchema::map_id($map, $d->{bridge});
+	$bridges->{$target_bridge}->{$opt} = $d->{bridge};
+
+	next if $scan_only;
+
+	$d->{bridge} = $target_bridge;
+	$conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
+    }
+
+    return $bridges;
 }
 
 1;
