@@ -10,6 +10,7 @@ use POSIX;
 use PVE::CLIHandler;
 use PVE::Cluster;
 use PVE::CpuSet;
+use PVE::Exception qw(raise_param_exc);
 use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
@@ -803,6 +804,128 @@ __PACKAGE__->register_method ({
 	return undef;
     }});
 
+
+__PACKAGE__->register_method({
+    name => 'remote_migrate_vm',
+    path => 'remote_migrate_vm',
+    method => 'POST',
+    description => "Migrate container to a remote cluster. Creates a new migration task. EXPERIMENTAL feature!",
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Migrate' ]],
+    },
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::QemuServer::complete_vmid }),
+	    'target-vmid' => get_standard_option('pve-vmid', { optional => 1 }),
+	    'target-endpoint' => get_standard_option('proxmox-remote', {
+		description => "Remote target endpoint",
+	    }),
+	    online => {
+		type => 'boolean',
+		description => "Use online/live migration.",
+		optional => 1,
+	    },
+	    restart => {
+		type => 'boolean',
+		description => "Use restart migration",
+		optional => 1,
+	    },
+	    timeout => {
+		type => 'integer',
+		description => "Timeout in seconds for shutdown for restart migration",
+		optional => 1,
+		default => 180,
+	    },
+	    delete => {
+		type => 'boolean',
+		description => "Delete the original CT and related data after successful migration. By default the original CT is kept on the source cluster in a stopped state.",
+		optional => 1,
+		default => 0,
+	    },
+	    'target-storage' => get_standard_option('pve-targetstorage', {
+		completion => \&PVE::QemuServer::complete_migration_storage,
+		optional => 0,
+	    }),
+	    'target-bridge' => {
+		type => 'string',
+		description => "Mapping from source to target bridges. Providing only a single bridge ID maps all source bridges to that bridge. Providing the special value '1' will map each source bridge to itself.",
+		format => 'bridge-pair-list',
+	    },
+	    bwlimit => {
+		description => "Override I/O bandwidth limit (in KiB/s).",
+		optional => 1,
+		type => 'integer',
+		minimum => '0',
+		default => 'migrate limit from datacenter or storage config',
+	    },
+	},
+    },
+    returns => {
+	type => 'string',
+	description => "the task ID.",
+    },
+    code => sub {
+	my ($param) = @_;
+
+	my $rpcenv = PVE::RPCEnvironment::get();
+	my $authuser = $rpcenv->get_user();
+
+	my $source_vmid = $param->{vmid};
+	my $target_endpoint = $param->{'target-endpoint'};
+	my $target_vmid = $param->{'target-vmid'} // $source_vmid;
+
+	my $remote = PVE::JSONSchema::parse_property_string('proxmox-remote', $target_endpoint);
+
+	# TODO: move this as helper somewhere appropriate?
+	my $conn_args = {
+	    protocol => 'https',
+	    host => $remote->{host},
+	    port => $remote->{port} // 8006,
+	    apitoken => $remote->{apitoken},
+	};
+
+	$conn_args->{cached_fingerprints} = { uc($remote->{fingerprint}) => 1 }
+	    if defined($remote->{fingerprint});
+
+	my $api_client = PVE::APIClient::LWP->new(%$conn_args);
+	my $resources = $api_client->get("/cluster/resources", { type => 'vm' });
+	if (grep { defined($_->{vmid}) && $_->{vmid} eq $target_vmid } @$resources) {
+	    raise_param_exc({ target_vmid => "Guest with ID '$target_vmid' already exists on remote cluster" });
+	}
+
+	my $storages = $api_client->get("/nodes/localhost/storage", { enabled => 1 });
+
+	my $storecfg = PVE::Storage::config();
+	my $target_storage = $param->{'target-storage'};
+	my $storagemap = eval { PVE::JSONSchema::parse_idmap($target_storage, 'pve-storage-id') };
+	raise_param_exc({ 'target-storage' => "failed to parse storage map: $@" })
+	    if $@;
+
+	my $check_remote_storage = sub {
+	    my ($storage) = @_;
+	    my $found = [ grep { $_->{storage} eq $storage } @$storages ];
+	    die "remote: storage '$storage' does not exist!\n"
+		if !@$found;
+
+	    $found = @$found[0];
+
+	    my $content_types = [ PVE::Tools::split_list($found->{content}) ];
+	    die "remote: storage '$storage' cannot store CT rootdir\n"
+		if !grep { $_ eq 'rootdir' } @$content_types;
+	};
+
+	foreach my $target_sid (values %{$storagemap->{entries}}) {
+	    $check_remote_storage->($target_sid);
+	}
+
+	$check_remote_storage->($storagemap->{default})
+	    if $storagemap->{default};
+
+	return PVE::API2::LXC->remote_migrate_vm($param);
+    }});
+
 our $cmddef = {
     list=> [ 'PVE::API2::LXC', 'vmlist', [], { node => $nodename }, sub {
 	my $res = shift;
@@ -851,6 +974,7 @@ our $cmddef = {
     migrate => [ "PVE::API2::LXC", 'migrate_vm', ['vmid', 'target'], { node => $nodename }, $upid_exit],
     'move-volume' => [ "PVE::API2::LXC", 'move_volume', ['vmid', 'volume', 'storage', 'target-vmid', 'target-volume'], { node => $nodename }, $upid_exit ],
     move_volume => { alias => 'move-volume' },
+    'remote-migrate' => [ __PACKAGE__, 'remote_migrate_vm', ['vmid', 'target-vmid', 'target-endpoint'], { node => $nodename }, $upid_exit ],
 
     snapshot => [ "PVE::API2::LXC::Snapshot", 'snapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
     delsnapshot => [ "PVE::API2::LXC::Snapshot", 'delsnapshot', ['vmid', 'snapname'], { node => $nodename } , $upid_exit ],
