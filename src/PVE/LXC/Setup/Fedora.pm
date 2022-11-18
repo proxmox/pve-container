@@ -29,6 +29,18 @@ sub template_fixup {
 sub setup_init {
     my ($self, $conf) = @_;
     $self->setup_container_getty_service($conf);
+
+    my $version = $self->{version};
+
+    if ($version >= 37) {
+	# systemd-networkd is disabled by the preset in >=37, reenable it
+	# this only affects the first-boot (if no /etc/machien-id exists).
+	$self->ct_mkdir('/etc/systemd/system-preset', 0755);
+	$self->ct_file_set_contents(
+	    '/etc/systemd/system-preset/00-pve.preset',
+	    "enable systemd-networkd.service\n",
+	);
+    }
 }
 
 sub setup_network {
