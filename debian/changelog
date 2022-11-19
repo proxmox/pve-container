@@ -1,3 +1,11 @@
+pve-container (4.3-5) bullseye; urgency=medium
+
+  * enable systemd-networkd per preset in fedora 37+
+
+  * fix #4355: d/control: depend on binutils to ensure objdump is available
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 19 Nov 2022 11:39:49 +0100
+
 pve-container (4.3-4) bullseye; urgency=medium
 
   * improve edge-case parsing and limits for CT networking MTU
