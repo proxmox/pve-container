@@ -340,11 +340,7 @@ sub get_ct_init_path {
     my ($self) = @_;
 
     my $init = $self->protected_call(sub {
-	my $init_path = "/sbin/init";
-	if ($self->{plugin}->ct_is_symlink($init_path)) {
-	    $init_path = $self->{plugin}->ct_readlink_recursive($init_path);
-	}
-	return $init_path;
+	return $self->{plugin}->get_ct_init_path();
     });
 
     return $init;

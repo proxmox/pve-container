@@ -553,6 +553,16 @@ sub unified_cgroupv2_support {
     return 1;
 }
 
+sub get_ct_init_path {
+    my ($self) = @_;
+
+    my $init_path = "/sbin/init";
+    if ($self->ct_is_symlink($init_path)) {
+	$init_path = $self->ct_readlink_recursive($init_path);
+    }
+    return $init_path;
+}
+
 sub ssh_host_key_types_to_generate {
     my ($self) = @_;
 

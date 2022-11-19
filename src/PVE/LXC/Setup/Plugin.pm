@@ -52,6 +52,11 @@ sub unified_cgroupv2_support {
     croak "implement me in sub-class\n";
 }
 
+sub get_ct_init_path {
+    my ($self) = @_;
+    croak "implement me in sub-class\n";
+}
+
 sub ssh_host_key_types_to_generate {
     my ($self) = @_;
     croak "implement me in sub-class\n";

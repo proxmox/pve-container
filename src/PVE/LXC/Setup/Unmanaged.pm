@@ -49,6 +49,11 @@ sub unified_cgroupv2_support {
     return 1; # faking it won't normally hurt ;-)
 }
 
+sub get_ct_init_path {
+    my ($self) = @_;
+    return '/sbin/init'; # only passed to unified_cgroupv2_support for now
+}
+
 sub ssh_host_key_types_to_generate {
     my ($self) = @_;
     return;
