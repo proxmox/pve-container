@@ -943,7 +943,8 @@ sub update_net {
 	} else {
 	    if (safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
 		safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
-		safe_num_ne($oldnet->{firewall}, $newnet->{firewall})) {
+		safe_num_ne($oldnet->{firewall}, $newnet->{firewall})
+	    ) {
 
 		if ($oldnet->{bridge}) {
 		    PVE::Network::tap_unplug($veth);
@@ -954,12 +955,15 @@ sub update_net {
 		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
+		my ($bridge, $mac, $firewall, $rate) = $newnet->@{'bridge', 'hwaddr', 'firewall', 'rate'};
 		if ($have_sdn) {
-		    PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
-		    PVE::Network::SDN::Zones::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{bridge}, $newnet->{firewall});
+		    PVE::Network::SDN::Zones::tap_plug(
+		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate);
+		    PVE::Network::SDN::Zones::add_bridge_fdb($veth, $mac, $bridge, $firewall);
 		} else {
-		    PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
-		    PVE::Network::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{firewall}); # early returns if brport has learning on
+		    PVE::Network::tap_plug(
+		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate);
+		    PVE::Network::add_bridge_fdb($veth, $mac, $firewall); # early returns if brport has learning on
 		}
 
 		# This includes the rate:

@@ -62,8 +62,8 @@ if (-d "/sys/class/net/$iface") {
     PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
 
     if ($have_sdn) {
-	PVE::Network::SDN::Zones::tap_plug($iface, $net->{bridge}, $tag, $firewall, $trunks, $rate);
-	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $net->{hwaddr}, $net->{bridge}, $net->{firewall});
+	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $net->{hwaddr}, $bridge, $firewall);
     } else {
 	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
 	PVE::Network::add_bridge_fdb($iface, $net->{hwaddr}, $net->{firewall}); # early returns if brport has learning on
