@@ -962,8 +962,7 @@ sub update_net {
 		    PVE::Network::SDN::Zones::add_bridge_fdb($veth, $mac, $bridge, $firewall);
 		} else {
 		    PVE::Network::tap_plug(
-		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate);
-		    PVE::Network::add_bridge_fdb($veth, $mac, $firewall); # early returns if brport has learning on
+		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate, { mac => $mac });
 		}
 
 		# This includes the rate:
