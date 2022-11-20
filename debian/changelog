@@ -1,3 +1,12 @@
+pve-container (4.3-6) bullseye; urgency=medium
+
+  * setup: fix using non-plugin methods to avoid breaking unmanaged CTs
+
+  * network: let the common tap-plug helper add fdb entries, if needed and
+    supported.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 20 Nov 2022 16:33:52 +0100
+
 pve-container (4.3-5) bullseye; urgency=medium
 
   * enable systemd-networkd per preset in fedora 37+
