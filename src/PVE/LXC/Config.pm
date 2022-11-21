@@ -1114,6 +1114,8 @@ sub update_pct_config {
 	    $value = PVE::LXC::verify_searchdomain_list($value);
 	} elsif ($opt eq 'unprivileged') {
 	    die "unable to modify read-only option: '$opt'\n";
+	} elsif ($opt eq 'tags') {
+	    $value = PVE::GuestHelpers::get_unique_tags($value);
 	} elsif ($opt =~ m/^net(\d+)$/) {
 	    my $res = PVE::JSONSchema::parse_property_string($netconf_desc, $value);
 
