@@ -1,3 +1,9 @@
+pve-container (4.4-2) bullseye; urgency=medium
+
+  * CentOS & derivates: also support all 9.x point releases
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 22 Nov 2022 10:25:30 +0100
+
 pve-container (4.4-1) bullseye; urgency=medium
 
   * config: only save unique tags when updating them via the API
