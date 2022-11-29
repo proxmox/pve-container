@@ -372,12 +372,13 @@ __PACKAGE__->register_method({
 	eval { PVE::LXC::Config->create_and_lock_config($vmid, $force) };
 	die "$emsg $@" if $@;
 
-	my $remove_lock = 1;
+	my $destroy_config_on_error = !$same_container_exists;
 
 	my $code = sub {
 	    my $old_conf = PVE::LXC::Config->load_config($vmid);
 	    my $was_template;
 
+	    my $vollist = [];
 	    eval {
 		my $orig_mp_param; # only used if $restore
 		if ($restore) {
@@ -444,14 +445,10 @@ __PACKAGE__->register_method({
 			$mp_param->{rootfs} = "$storage:4"; # defaults to 4GB
 		    }
 		}
-	    };
-	    die "$emsg $@" if $@;
 
-	    # up until here we did not modify the container, besides the lock
-	    $remove_lock = 0;
+		# up until here we did not modify the container, besides the lock
+		$destroy_config_on_error = 1;
 
-	    my $vollist = [];
-	    eval {
 		$vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
 		# we always have the 'create' lock so check for more than 1 entry
@@ -499,8 +496,10 @@ __PACKAGE__->register_method({
 	    };
 	    if (my $err = $@) {
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
-		eval { PVE::LXC::Config->destroy_config($vmid) };
-		warn $@ if $@;
+		if ($destroy_config_on_error) {
+		    eval { PVE::LXC::Config->destroy_config($vmid) };
+		    warn $@ if $@;
+		}
 		die "$emsg $err";
 	    }
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
@@ -516,7 +515,7 @@ __PACKAGE__->register_method({
 	    };
 	    if (my $err = $@) {
 		# if we aborted before changing the container, we must remove the create lock
-		if ($remove_lock) {
+		if (!$destroy_config_on_error) {
 		    PVE::LXC::Config->remove_lock($vmid, 'create');
 		}
 		die $err;
