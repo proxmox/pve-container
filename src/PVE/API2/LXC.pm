@@ -499,6 +499,11 @@ __PACKAGE__->register_method({
 		if ($destroy_config_on_error) {
 		    eval { PVE::LXC::Config->destroy_config($vmid) };
 		    warn $@ if $@;
+
+		    if (!$skip_fw_config_restore) { # Only if user has permission to change the fw
+			PVE::Firewall::remove_vmfw_conf($vmid);
+			warn $@ if $@;
+		    }
 		}
 		die "$emsg $err";
 	    }
