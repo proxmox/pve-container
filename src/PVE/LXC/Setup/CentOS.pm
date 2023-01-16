@@ -157,9 +157,8 @@ sub set_hostname {
 
     $self->update_etc_hosts($hostip, $oldname, $hostname, $searchdomains);
 
-    if ($self->ct_file_exists($hostname_fn)) {
-	$self->ct_file_set_contents($hostname_fn, "$hostname\n");
-    }
+    # Always write /etc/hostname, even if it does not exist yet
+    $self->ct_file_set_contents($hostname_fn, "$hostname\n");
 
     if ($self->ct_file_exists($sysconfig_network)) {
 	my $data = $self->ct_file_get_contents($sysconfig_network);
