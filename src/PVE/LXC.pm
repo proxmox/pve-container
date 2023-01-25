@@ -13,6 +13,7 @@ use Cwd qw();
 use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
 use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
 use IO::Socket::UNIX;
+use IO::Poll qw(POLLIN POLLHUP);
 
 use PVE::Exception qw(raise_perm_exc);
 use PVE::Storage;
@@ -2473,13 +2474,22 @@ sub vm_stop {
     }
 
     eval { run_command($cmd, timeout => $shutdown_timeout) };
+
+    # Wait until the command socket is closed.
+    # In case the lxc-stop call failed, reading from the command socket may block forever,
+    # so poll with another timeout to avoid freezing the shutdown task.
     if (my $err = $@) {
-	warn $@ if $@;
+	warn $err if $err;
+
+	my $poll = IO::Poll->new();
+	$poll->mask($sock => POLLIN | POLLHUP); # watch for input and EOF events
+	$poll->poll($shutdown_timeout); # IO::Poll timeout is in seconds
+	return if ($poll->events($sock) & POLLHUP);
+    } else {
+	my $result = <$sock>;
+	return if !defined $result; # monitor is gone and the ct has stopped.
     }
 
-    my $result = <$sock>;
-
-    return if !defined $result; # monitor is gone and the ct has stopped.
     die "container did not stop\n";
 }
 
