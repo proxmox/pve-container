@@ -763,7 +763,7 @@ __PACKAGE__->register_method ({
     name => 'fstrim',
     path => 'fstrim',
     method => 'POST',
-    description => "Run fstrim on a chosen CT and its mountpoints.",
+    description => "Run fstrim on a chosen CT and its mountpoints, except bind or read-only mountpoints.",
     parameters => {
 	additionalProperties => 0,
 	properties => {
@@ -791,6 +791,7 @@ __PACKAGE__->register_method ({
 	    PVE::LXC::Config->foreach_volume($conf, sub {
 		my ($name, $mp) = @_;
 		$path = $mp->{mp};
+		return if $mp->{type} eq 'bind' || $mp->{ro};
 		return if $param->{'ignore-mountpoints'} && $name =~ /^mp\d+/;
 		my $cmd = ["fstrim", "-v", "$rootdir$path"];
 		PVE::Tools::run_command($cmd, noerr => 1);
