@@ -1004,8 +1004,9 @@ sub hotplug_net {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
     }
     PVE::LXC::net_tap_plug(
-	$veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks},
-	$newnet->{rate}, { mac => $newnet->{hwaddr} });
+        $veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks},
+        $newnet->{rate}, { mac => $newnet->{hwaddr} },
+    );
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
