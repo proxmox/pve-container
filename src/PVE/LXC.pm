@@ -669,7 +669,7 @@ sub update_lxc_config {
 
     # some init scripts expect a linux terminal (turnkey).
     $raw .= "lxc.environment = TERM=linux\n";
-    
+
     my $utsname = $conf->{hostname} || "CT$vmid";
     $raw .= "lxc.uts.name = $utsname\n";
 
@@ -1704,14 +1704,14 @@ sub __mountpoint_mount {
     my $type = $mountpoint->{type};
     my $quota = !$snapname && !$mountpoint->{ro} && $mountpoint->{quota};
     my $mounted_dev;
-    
+
     return if !$volid || !$mount;
 
     $mount =~ s!/+!/!g;
 
     my $mount_path;
     my ($mpfd, $parentfd, $last_dir);
-    
+
     if (defined($rootdir)) {
 	($rootdir, $mount_path, $mpfd, $parentfd, $last_dir) =
 	    __mount_prepare_rootdir($rootdir, $mount, $rootuid, $rootgid);
@@ -1720,7 +1720,7 @@ sub __mountpoint_mount {
     if (defined($stage_mount)) {
 	$mount_path = $rootdir;
     }
-    
+
     my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 
     die "unknown snapshot path for '$volid'" if !$storage && defined($snapname);
@@ -1829,7 +1829,7 @@ sub __mountpoint_mount {
 	warn "cannot enable quota control for bind mounts\n" if $quota;
 	return wantarray ? ($volid, 0, undef) : $volid;
     }
-    
+
     die "unsupported storage";
 }
 
