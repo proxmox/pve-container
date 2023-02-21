@@ -7,14 +7,7 @@ exit 0 if $ENV{LXC_NAME} && $ENV{LXC_NAME} !~ /^\d+$/;
 
 use PVE::LXC;
 use PVE::Tools qw(run_command);
-use PVE::Network;
 use PVE::ProcFSTools;
-
-my $have_sdn;
-eval {
-    require PVE::Network::SDN::Zones;
-    $have_sdn = 1;
-};
 
 die "got unexpected argument count\n" if scalar(@ARGV) != 5;
 
@@ -48,6 +41,7 @@ my $firewall = $net->{firewall};
 my $bridge = $net->{bridge};
 my $trunks = $net->{trunks};
 my $rate = $net->{rate};
+my $hwaddr = $net->{hwaddr};
 
 die "missing bridge configuration" if !$bridge;
 
@@ -61,12 +55,7 @@ if (-d "/sys/class/net/$iface") {
     PVE::Tools::run_command("/sbin/ip link set dev $iface up mtu $bridgemtu");
     PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
 
-    if ($have_sdn) {
-	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
-	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $net->{hwaddr}, $bridge, $firewall);
-    } else {
-	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $net->{hwaddr}});
-    }
+    PVE::LXC::net_tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
 }
 
 exit 0;

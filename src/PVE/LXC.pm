@@ -918,6 +918,18 @@ sub vm_stop_cleanup {
     warn $@ if $@; # avoid errors - just warn
 }
 
+sub net_tap_plug : prototype($$$$$$;$) {
+    my ($iface, $bridge, $tag, $firewall, $trunks, $rate, $opts) = @_;
+
+    if ($have_sdn) {
+	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $opts->{mac}, $bridge, $firewall)
+	    if defined($opts->{mac});
+    } else {
+	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, $opts);
+    }
+}
+
 sub update_net {
     my ($vmid, $conf, $opt, $newnet, $netid, $rootdir) = @_;
 
@@ -957,14 +969,7 @@ sub update_net {
 		}
 
 		my ($bridge, $mac, $firewall, $rate) = $newnet->@{'bridge', 'hwaddr', 'firewall', 'rate'};
-		if ($have_sdn) {
-		    PVE::Network::SDN::Zones::tap_plug(
-		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate);
-		    PVE::Network::SDN::Zones::add_bridge_fdb($veth, $mac, $bridge, $firewall);
-		} else {
-		    PVE::Network::tap_plug(
-		        $veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate, { mac => $mac });
-		}
+		PVE::LXC::net_tap_plug($veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate, { mac => $mac });
 
 		# This includes the rate:
 		foreach (qw(bridge tag firewall rate)) {
@@ -995,13 +1000,12 @@ sub hotplug_net {
 
     if ($have_sdn) {
 	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-	PVE::Network::SDN::Zones::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
-	PVE::Network::SDN::Zones::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{bridge}, $newnet->{firewall});
     } else {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-	PVE::Network::tap_plug($veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks}, $newnet->{rate});
-	PVE::Network::add_bridge_fdb($veth, $newnet->{hwaddr}, $newnet->{firewall}); # early returns if brport has learning on
     }
+    PVE::LXC::net_tap_plug(
+	$veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks},
+	$newnet->{rate}, { mac => $newnet->{hwaddr} });
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];
