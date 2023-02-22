@@ -918,15 +918,16 @@ sub vm_stop_cleanup {
     warn $@ if $@; # avoid errors - just warn
 }
 
-sub net_tap_plug : prototype($$$$$$;$) {
-    my ($iface, $bridge, $tag, $firewall, $trunks, $rate, $opts) = @_;
+sub net_tap_plug : prototype($$) {
+    my ($iface, $net) = @_;
+    my ($bridge, $tag, $firewall, $trunks, $rate, $hwaddr) =
+	$net->@{'bridge', 'tag', 'firewall', 'trunks', 'rate', 'hwaddr'};
 
     if ($have_sdn) {
 	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
-	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $opts->{mac}, $bridge, $firewall)
-	    if defined($opts->{mac});
+	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge, $firewall);
     } else {
-	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, $opts);
+	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
     }
 }
 
@@ -968,8 +969,7 @@ sub update_net {
 		    PVE::LXC::Config->write_config($vmid, $conf);
 		}
 
-		my ($bridge, $mac, $firewall, $rate) = $newnet->@{'bridge', 'hwaddr', 'firewall', 'rate'};
-		PVE::LXC::net_tap_plug($veth, $bridge, $newnet->{tag}, $firewall, $newnet->{trunks}, $rate, { mac => $mac });
+		PVE::LXC::net_tap_plug($veth, $newnet);
 
 		# This includes the rate:
 		foreach (qw(bridge tag firewall rate)) {
@@ -1003,10 +1003,8 @@ sub hotplug_net {
     } else {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
     }
-    PVE::LXC::net_tap_plug(
-        $veth, $newnet->{bridge}, $newnet->{tag}, $newnet->{firewall}, $newnet->{trunks},
-        $newnet->{rate}, { mac => $newnet->{hwaddr} },
-    );
+
+    PVE::LXC::net_tap_plug($veth, $newnet);
 
     # attach peer in container
     my $cmd = ['lxc-device', '-n', $vmid, 'add', $vethpeer, "$eth" ];

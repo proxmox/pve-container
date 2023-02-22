@@ -36,13 +36,7 @@ die "unable to find network definition for interface '$iface'\n"
 
 my $net = PVE::LXC::Config->parse_lxc_network($netconf);
 
-my $tag = $net->{tag};
-my $firewall = $net->{firewall};
 my $bridge = $net->{bridge};
-my $trunks = $net->{trunks};
-my $rate = $net->{rate};
-my $hwaddr = $net->{hwaddr};
-
 die "missing bridge configuration" if !$bridge;
 
 if (-d "/sys/class/net/$iface") {
@@ -54,8 +48,7 @@ if (-d "/sys/class/net/$iface") {
 
     PVE::Tools::run_command("/sbin/ip link set dev $iface up mtu $bridgemtu");
     PVE::Tools::run_command("/sbin/ip addr add 0.0.0.0/0 dev $iface");
-
-    PVE::LXC::net_tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
+    PVE::LXC::net_tap_plug($iface, $net);
 }
 
 exit 0;
