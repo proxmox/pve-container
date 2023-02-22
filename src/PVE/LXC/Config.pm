@@ -814,6 +814,12 @@ our $netconf_desc = {
 	description => "Apply rate limiting to the interface",
 	optional => 1,
     },
+    # TODO: Rename this option and the qemu-server one to `link-down` for PVE 8.0
+    link_down => {
+	type => 'boolean',
+	description => 'Whether this interface should be disconnected (like pulling the plug).',
+	optional => 1,
+    },
 };
 PVE::JSONSchema::register_format('pve-lxc-network', $netconf_desc);
 

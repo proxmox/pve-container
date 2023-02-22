@@ -920,6 +920,14 @@ sub vm_stop_cleanup {
 
 sub net_tap_plug : prototype($$) {
     my ($iface, $net) = @_;
+
+    if (defined($net->{link_down})) {
+	PVE::Tools::run_command(['/sbin/ip', 'link', 'set', 'dev', $iface, 'down']);
+	# Don't add disconnected interfaces to the bridge, otherwise e.g. applying any network
+	# change (e.g. `ifreload -a`) could (re-)activate it unintentionally.
+	return;
+    }
+
     my ($bridge, $tag, $firewall, $trunks, $rate, $hwaddr) =
 	$net->@{'bridge', 'tag', 'firewall', 'trunks', 'rate', 'hwaddr'};
 
@@ -929,6 +937,8 @@ sub net_tap_plug : prototype($$) {
     } else {
 	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
     }
+
+    PVE::Tools::run_command(['/sbin/ip', 'link', 'set', 'dev', $iface, 'up']);
 }
 
 sub update_net {
@@ -957,7 +967,8 @@ sub update_net {
 	} else {
 	    if (safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
 		safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
-		safe_num_ne($oldnet->{firewall}, $newnet->{firewall})
+		safe_num_ne($oldnet->{firewall}, $newnet->{firewall}) ||
+		safe_boolean_ne($oldnet->{link_down}, $newnet->{link_down})
 	    ) {
 
 		if ($oldnet->{bridge}) {
@@ -972,7 +983,7 @@ sub update_net {
 		PVE::LXC::net_tap_plug($veth, $newnet);
 
 		# This includes the rate:
-		foreach (qw(bridge tag firewall rate)) {
+		foreach (qw(bridge tag firewall rate link_down)) {
 		    $oldnet->{$_} = $newnet->{$_} if $newnet->{$_};
 		}
 	    } elsif (safe_string_ne($oldnet->{rate}, $newnet->{rate})) {
@@ -1015,7 +1026,7 @@ sub hotplug_net {
     PVE::Tools::run_command($cmd);
 
     my $done = { type => 'veth' };
-    foreach (qw(bridge tag firewall hwaddr name)) {
+    foreach (qw(bridge tag firewall hwaddr name link_down)) {
 	$done->{$_} = $newnet->{$_} if $newnet->{$_};
     }
     $conf->{$opt} = PVE::LXC::Config->print_lxc_network($done);
