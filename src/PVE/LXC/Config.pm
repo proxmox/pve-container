@@ -1754,4 +1754,16 @@ sub get_backup_volumes {
     return $return_volumes;
 }
 
+sub get_derived_property {
+    my ($class, $conf, $name) = @_;
+
+    if ($name eq 'max-cpu') {
+	return $conf->{cpulimit} || $conf->{cores} || 0;
+    } elsif ($name eq 'max-memory') {
+	return ($conf->{memory} || 512) * 1024 * 1024;
+    } else {
+	die "unknown derived property - $name\n";
+    }
+}
+
 1;
