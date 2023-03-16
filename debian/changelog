@@ -1,3 +1,22 @@
+pve-container (4.4-3) bullseye; urgency=medium
+
+  * fix #4460: setup: centos: create /etc/hostname if it does not exist
+
+  * fix #4470: pct fstrim: ignore bind and read-only mount points
+
+  * add a timeout when waiting for shutdown if lxc-stop fails
+
+  * restore: clean up config and firewall config after trying to restore
+    invalid archive
+
+  * add 'link_down' option to have container network interfaces "unplugged"
+
+  * allow riscv32/64 containers
+
+  * cleanup networking related code
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 16 Mar 2023 15:56:32 +0100
+
 pve-container (4.4-2) bullseye; urgency=medium
 
   * CentOS & derivates: also support all 9.x point releases
