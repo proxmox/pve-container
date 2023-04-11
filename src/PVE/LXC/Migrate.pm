@@ -55,9 +55,7 @@ sub prepare {
     PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, sub {
 	my ($ms, $mountpoint) = @_;
 
-	my $volid = $mountpoint->{volume};
 	my $type = $mountpoint->{type};
-
 	# skip dev/bind mps when shared
 	if ($type ne 'volume') {
 	    if ($mountpoint->{shared}) {
@@ -67,7 +65,9 @@ sub prepare {
 	    }
 	}
 
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1) if $volid;
+	my $volid = $mountpoint->{volume} or die "missing volume for mount point '$ms'\n";
+
+	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
 	die "can't determine assigned storage for mount point '$ms'\n" if !$storage;
 
 	# check if storage is available on both nodes
