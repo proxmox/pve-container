@@ -297,21 +297,21 @@ PVE::Tools::run_command("cp -a snapshot-input snapshot-working");
 
 printf("\n");
 printf("Setting up Mocking for PVE::LXC and PVE::LXC::Config\n");
-my $lxc_module = new Test::MockModule('PVE::LXC');
+my $lxc_module = Test::MockModule('PVE::LXC')->new();
 $lxc_module->mock('sync_container_namespace', sub { return; });
 $lxc_module->mock('check_running', \&mocked_check_running);
 $lxc_module->mock('vm_stop', \&mocked_vm_stop);
 $lxc_module->mock('freeze', \&mocked_freeze);
 $lxc_module->mock('thaw', \&mocked_freeze); # re-use, as for now we don't care
 
-my $lxc_config_module = new Test::MockModule('PVE::LXC::Config');
+my $lxc_config_module = Test::MockModule('PVE::LXC::Config')->new();
 $lxc_config_module->mock('config_file_lock', sub { return "snapshot-working/pve-test.lock"; });
 $lxc_config_module->mock('cfs_config_path', \&mocked_cfs_config_path);
 $lxc_config_module->mock('load_config', \&mocked_load_config);
 $lxc_config_module->mock('write_config', \&mocked_write_config);
 $lxc_config_module->mock('has_feature', \&mocked_has_feature);
 
-my $pve_cluster_module = new Test::MockModule('PVE::Cluster');
+my $pve_cluster_module = Test::MockModule('PVE::Cluster')->new();
 sub mocked_get_config {
     my ($path) = @_;
     return PVE::Tools::file_get_contents("snapshot-working/$path");
@@ -319,7 +319,7 @@ sub mocked_get_config {
 $pve_cluster_module->mock('get_config', \&mocked_get_config);
 
 # ignore existing replication config
-my $repl_config_module = new Test::MockModule('PVE::ReplicationConfig');
+my $repl_config_module = Test::MockModule('PVE::ReplicationConfig')->new();
 $repl_config_module->mock('check_for_existing_jobs' => sub { return undef });
 
 $running = 1;
@@ -399,7 +399,7 @@ $vol_snapshot_rollback_possible->{"local:snapshotable-disk-4"} = 1;
 
 printf("\n");
 printf("Setting up Mocking for PVE::Storage\n");
-my $storage_module = new Test::MockModule('PVE::Storage');
+my $storage_module = Test::MockModule('PVE::Storage')->new();
 $storage_module->mock('activate_storage', \&mocked_activate_storage);
 $storage_module->mock('config', sub { return undef; });
 $storage_module->mock('volume_snapshot', \&mocked_volume_snapshot);
@@ -411,7 +411,7 @@ printf("\tconfig(), volume_snapshot(), volume_snapshot_delete(), volume_snapshot
 
 printf("\n");
 printf("Setting up Mocking for PVE::Tools\n");
-my $tools_module = new Test::MockModule('PVE::Tools');
+my $tools_module = Test::MockModule('PVE::Tools')->new();
 $tools_module->mock('run_command' => \&mocked_run_command);
 printf("\trun_command() mocked\n");
 
