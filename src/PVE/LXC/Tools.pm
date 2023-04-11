@@ -1,6 +1,8 @@
 # Module for lxc related functionality used mostly by our hooks.
-
 package PVE::LXC::Tools;
+
+use strict;
+use warnings;
 
 use Errno qw(ENOSYS);
 

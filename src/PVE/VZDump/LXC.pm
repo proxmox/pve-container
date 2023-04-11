@@ -70,7 +70,7 @@ sub new {
     PVE::VZDump::check_bin('lxc-stop');
     PVE::VZDump::check_bin('lxc-start');
 
-    my $self = bless {};
+    my $self = bless {}, $class;
 
     $self->{vzdump} = $vzdump;
     $self->{storecfg} = PVE::Storage::config();
