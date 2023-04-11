@@ -35,7 +35,7 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     my ($vmid, $vars, undef, undef) = @_;
 
     my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
-    my $skiplock = 1 if -e $skiplock_flag_fn;
+    my $skiplock = -e $skiplock_flag_fn;
     unlink $skiplock_flag_fn if $skiplock;
 
     PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
