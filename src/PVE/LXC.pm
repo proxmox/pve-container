@@ -733,14 +733,14 @@ sub update_lxc_config {
 	$raw .= "lxc.net.$ind.hwaddr = $d->{hwaddr}\n" if defined($d->{hwaddr});
 	$raw .= "lxc.net.$ind.name = $d->{name}\n" if defined($d->{name});
 
-	# Keep container from starting with invalid mtu configuration
-	if (my $mtu = $d->{mtu}) {
-	    my $bridge_mtu = PVE::Network::read_bridge_mtu($d->{bridge});
-	    die "$k: MTU size '$mtu' is bigger than bridge MTU '$bridge_mtu'\n"
-		if ($mtu > $bridge_mtu);
+	my $bridge_mtu = PVE::Network::read_bridge_mtu($d->{bridge});
+	my $mtu = $d->{mtu} || $bridge_mtu;
 
-	    $raw .= "lxc.net.$ind.mtu = $mtu\n";
-	}
+	# Keep container from starting with invalid mtu configuration
+	die "$k: MTU size '$mtu' is bigger than bridge MTU '$bridge_mtu'\n"
+	    if ($mtu > $bridge_mtu);
+
+	$raw .= "lxc.net.$ind.mtu = $mtu\n";
 
 	# Starting with lxc 4.0, we do not patch lxc to execute our up-scripts.
 	if ($lxc_major >= 4) {
