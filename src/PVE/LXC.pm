@@ -2104,8 +2104,8 @@ sub update_disksize {
 	    $changes = 1;
 	    print "$prefix updated volume size of '$mp->{volume}' in config.\n";
 	    $mp->{size} = $size;
-	    my $nomp = 1 if ($key eq 'rootfs');
-	    $conf->{$key} = PVE::LXC::Config->print_ct_mountpoint($mp, $nomp);
+	    my $no_mp = $key eq 'rootfs'; # rootfs is handled different from other mount points
+	    $conf->{$key} = PVE::LXC::Config->print_ct_mountpoint($mp, $no_mp);
 	}
     };
 
