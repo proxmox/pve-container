@@ -460,11 +460,12 @@ sub create_file {
 
     if (defined($uid) || defined($gid)) {
 	$trunc = 1;
-	my ($fuid, $fgid) = (stat($fd))[4,5] if !defined($uid) || !defined($gid);
-	$uid = $fuid if !defined($uid);
-	$gid = $fgid if !defined($gid);
-	chown($uid, $gid, $fd)
-	    or die "failed to change file owner: $!\n";
+	if (!defined($uid) || !defined($gid)) {
+	    my ($fuid, $fgid) = (stat($fd))[4,5];
+	    $uid //= $fuid;
+	    $gid //= $fgid;
+	}
+	chown($uid, $gid, $fd) or die "failed to change file owner: $!\n";
     }
     return $fd;
 }
