@@ -3,23 +3,29 @@ package PVE::LXC;
 use strict;
 use warnings;
 
-use POSIX qw(EINTR);
-
-use Socket;
-
+use Cwd qw();
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
+use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
 use File::Path;
 use File::Spec;
-use Cwd qw();
-use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
-use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
-use IO::Socket::UNIX;
 use IO::Poll qw(POLLIN POLLHUP);
+use IO::Socket::UNIX;
+use POSIX qw(EINTR);
+use Socket;
+use Time::HiRes qw (gettimeofday);
 
+use PVE::AccessControl;
+use PVE::CGroup;
+use PVE::CpuSet;
 use PVE::Exception qw(raise_perm_exc);
-use PVE::Storage;
-use PVE::SafeSyslog;
+use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
+use PVE::Network;
+use PVE::ProcFSTools;
+use PVE::RESTEnvironment;
+use PVE::SafeSyslog;
+use PVE::Storage;
 use PVE::Tools qw(
     run_command
     dir_glob_foreach
@@ -30,20 +36,13 @@ use PVE::Tools qw(
     $IPV4RE
     $IPV6RE
 );
-use PVE::CpuSet;
-use PVE::Network;
-use PVE::AccessControl;
-use PVE::ProcFSTools;
-use PVE::RESTEnvironment;
 use PVE::Syscall qw(:fsmount);
-use PVE::LXC::Config;
-use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
-use PVE::LXC::Tools;
-use PVE::LXC::CGroup;
-use PVE::LXC::Monitor;
-use PVE::CGroup;
 
-use Time::HiRes qw (gettimeofday);
+use PVE::LXC::CGroup;
+use PVE::LXC::Config;
+use PVE::LXC::Monitor;
+use PVE::LXC::Tools;
+
 my $have_sdn;
 eval {
     require PVE::Network::SDN::Zones;
