@@ -1303,6 +1303,22 @@ sub option_exists {
 }
 # END JSON config code
 
+# takes a max memory value as KiB and returns an tuple with max and high values
+sub calculate_memory_constraints {
+    my ($memory) = @_;
+
+    return if !defined($memory);
+
+    # cgroup memory usage is limited by the hard 'max' limit (OOM-killer enforced) and the soft
+    # 'high' limit (cgroup processes get throttled and put under heavy reclaim pressure).
+    my $memory_max = int($memory * 1024 * 1024);
+    # Set the high to 1016/1024 (~99.2%) of the 'max' hard limit clamped to 128 MiB max, to scale
+    # it for the lower range while having a decent 2^x based rest for 2^y memory configs.
+    my $memory_high = $memory >= 16 * 1024 ? int(($memory - 128) * 1024 * 1024) : int($memory * 1024 * 1016);
+
+    return ($memory_max, $memory_high);
+}
+
 my $LXC_FASTPLUG_OPTIONS= {
     'description' => 1,
     'onboot' => 1,
@@ -1339,11 +1355,11 @@ sub vmconfig_hotplug_pending {
     # memory (iow. memory+swap). This means we have to change them together.
     my $hotplug_memory_done;
     my $hotplug_memory = sub {
-	my ($wanted_memory, $wanted_swap) = @_;
+	my ($new_memory, $new_swap) = @_;
 
-	$wanted_memory = int($wanted_memory * 1024 * 1024) if defined($wanted_memory);
-	$wanted_swap = int($wanted_swap * 1024 * 1024) if defined($wanted_swap);
-	$cgroup->change_memory_limit($wanted_memory, $wanted_swap);
+	($new_memory, my $new_memory_high) = calculate_memory_constraints($new_memory);
+	$new_swap = int($new_swap * 1024 * 1024) if defined($new_swap);
+	$cgroup->change_memory_limit($new_memory, $new_swap, $new_memory_high);
 
 	$hotplug_memory_done = 1;
     };
