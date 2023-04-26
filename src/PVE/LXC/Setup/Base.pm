@@ -506,11 +506,18 @@ sub clear_machine_id {
         $self->ct_unlink($dbus_machine_id_path);
     }
 
-    # truncate on clone to avoid that FirstBoot condition is set
-    if ($clone && ($uses_systemd || $machine_id_existed)) {
-	$self->ct_file_set_contents($machine_id_path, "\n");
-    } elsif (!$clone && $machine_id_existed) {
-	$self->ct_unlink($machine_id_path);
+    if ($machine_id_existed) {
+	# truncate exiting ones on clone to avoid FirstBoot condition. admins can override this by
+	# removing the machine-id file or setting it to uninitialized before creating a template, or
+	# cloning a guest - as per machine-id(5) man page. TODO: add explicit switch to API?
+	if ($clone) {
+	    my $old_machine_id = $self->ct_file_read_firstline($machine_id_path) // '';
+	    if ($uses_systemd && $old_machine_id ne 'uninitialized') {
+		$self->ct_file_set_contents($machine_id_path, "\n") if $uses_systemd;
+	    }
+	} else {
+	    $self->ct_unlink($machine_id_path);
+	}
     }
 }
 
