@@ -2324,6 +2324,41 @@ sub parse_id_maps {
     return ($id_map, $rootuid, $rootgid);
 }
 
+sub validate_id_maps {
+    my ($id_map) = @_;
+
+    # $mappings->{$type}->{$side} = [ { line => $line, start => $start, count => $count }, ... ]
+    #   $type: either "u" or "g"
+    #   $side: either "container" or "host"
+    #   $line: index of this mapping in @$id_map
+    #   $start, $count: interval of this mapping
+    my $mappings = { u => {}, g => {} };
+    for (my $i = 0; $i < scalar(@$id_map); $i++) {
+	my ($type, $ct_start, $host_start, $count) = $id_map->[$i]->@*;
+	my $sides = $mappings->{$type};
+	push $sides->{host}->@*, { line => $i, start => $host_start, count => $count };
+	push $sides->{container}->@*, { line => $i, start => $ct_start, count => $count };
+    }
+
+    # find the first conflict between two consecutive mappings when sorted by their start id
+    for my $type (qw(u g)) {
+	for my $side (qw(container host)) {
+	    my @entries = sort { $a->{start} <=> $b->{start} } $mappings->{$type}->{$side}->@*;
+	    for my $idx (1..scalar(@entries) - 1) {
+		my $previous = $entries[$idx - 1];
+		my $current = $entries[$idx];
+		if ($previous->{start} + $previous->{count} > $current->{start}) {
+		    my $conflict = $current->{start};
+		    my @previous_line = $id_map->[$previous->{line}]->@*;
+		    my @current_line = $id_map->[$current->{line}]->@*;
+		    die "invalid map entry '@current_line': $side ${type}id $conflict "
+		       ."is also mapped by entry '@previous_line'\n";
+		}
+	    }
+	}
+    }
+}
+
 sub userns_command {
     my ($id_map) = @_;
     if (@$id_map) {
@@ -2405,6 +2440,12 @@ sub vm_start {
     }
 
     update_lxc_config($vmid, $conf);
+
+    eval {
+	my ($id_map, undef, undef) = PVE::LXC::parse_id_maps($conf);
+	PVE::LXC::validate_id_maps($id_map);
+    };
+    warn "lxc.idmap: $@" if $@;
 
     my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
 
