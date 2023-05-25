@@ -38,9 +38,9 @@ sbuild: $(DSC)
 
 .PHONY: clean
 clean:
-	make -C src clean
-	rm -rf *.deb $(PACKAGE)*.tar.gz *.changes *.buildinfo $(DSC) $(PACKAGE)-*/
-	find . -name '*~' -exec rm {} ';'
+	$(MAKE) -C src clean
+	rm -rf $(BUILDDIR)
+	rm -f *.deb *.changes *.buildinfo *.dsc *.tar.?z
 
 .PHONY: distclean
 distclean: clean

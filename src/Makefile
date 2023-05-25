@@ -86,9 +86,7 @@ test:
 clean: 	
 	make -C test clean
 	make cleanup-docgen
-	rm -rf *.1 *.5 *.tmp *.bash-completion
-	rm -rf *.1 *.5 *.tmp *.zsh-completion
-	find . -name '*~' -exec rm {} ';'
+	rm -f *.1 *.5 *.tmp *.bash-completion *.bash-completion
 
 .PHONY: distclean
 distclean: clean
