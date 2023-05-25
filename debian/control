@@ -2,7 +2,7 @@ Source: pve-container
 Section: perl
 Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
-Build-Depends: debhelper (>= 12~),
+Build-Depends: debhelper-compat (= 13),
                libpve-cluster-perl,
                libpve-common-perl (>= 6.4-1),
                libpve-guest-common-perl (>= 4.2-2),
