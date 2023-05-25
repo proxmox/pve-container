@@ -41,7 +41,7 @@ sbuild: $(DSC)
 clean:
 	$(MAKE) -C src clean
 	rm -rf $(BUILDDIR) $(BUILDDIR).tmp
-	rm -f *.deb *.changes *.buildinfo *.dsc *.tar.?z
+	rm -f *.deb *.changes *.build *.buildinfo *.dsc *.tar.?z
 
 .PHONY: distclean
 distclean: clean
