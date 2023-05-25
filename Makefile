@@ -29,8 +29,12 @@ $(DEB): $(BUILDDIR)
 .PHONY: dsc
 dsc: $(DSC)
 $(DSC): $(BUILDDIR)
-	cd $(BUILDDIR); dpkg-buildpackage -S -us -uc -d -nc
+	cd $(BUILDDIR); dpkg-buildpackage -S -us -uc -d
 	lintian $(DSC)
+
+.PHONY: sbuild
+sbuild: $(DSC)
+	sbuild $(DSC)
 
 .PHONY: clean
 clean:
