@@ -14,10 +14,11 @@ all: $(DEB)
 dinstall: $(DEB)
 	dpkg -i $(DEB)
 
-$(BUILDDIR):
-	rm -rf $(BUILDDIR)
-	rsync -a src/ debian $(BUILDDIR)
-	echo "git clone git://git.proxmox.com/git/pve-container\\ngit checkout $(GITVERSION)" > $(BUILDDIR)/debian/SOURCE
+$(BUILDDIR): src debian
+	rm -rf $(BUILDDIR) $(BUILDDIR).tmp; mkdir $(BUILDDIR).tmp
+	cp -t $(BUILDDIR).tmp -a debian src/*
+	echo "git clone git://git.proxmox.com/git/pve-container\\ngit checkout $(GITVERSION)" >$(BUILDDIR).tmp/debian/SOURCE
+	mv $(BUILDDIR).tmp $(BUILDDIR)
 
 .PHONY: deb
 deb: $(DEB)
@@ -39,7 +40,7 @@ sbuild: $(DSC)
 .PHONY: clean
 clean:
 	$(MAKE) -C src clean
-	rm -rf $(BUILDDIR)
+	rm -rf $(BUILDDIR) $(BUILDDIR).tmp
 	rm -f *.deb *.changes *.buildinfo *.dsc *.tar.?z
 
 .PHONY: distclean
