@@ -12,7 +12,7 @@ Build-Depends: debhelper (>= 12~),
                pve-cluster (>= 4.0-8),
                pve-doc-generator (>= 5.3-3),
                pve-firewall,
-Standards-Version: 4.5.1
+Standards-Version: 4.6.2
 
 Package: pve-container
 Section: perl
