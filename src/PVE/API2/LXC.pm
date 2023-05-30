@@ -1955,9 +1955,6 @@ __PACKAGE__->register_method({
 	    die "can't resize mount point owned by another container ($owner)"
 		if $vmid != $owner;
 
-	    die "can't resize volume: $disk if snapshot exists\n"
-		if %{$conf->{snapshots}} && $format eq 'qcow2';
-
 	    my ($storeid, $volname) = PVE::Storage::parse_volume_id($volid);
 
 	    $rpcenv->check($authuser, "/storage/$storeid", ['Datastore.AllocateSpace']);
