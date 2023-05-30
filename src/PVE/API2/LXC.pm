@@ -1926,23 +1926,20 @@ __PACKAGE__->register_method({
 
 	my $sizestr = extract_param($param, 'size');
 	my $ext = ($sizestr =~ s/^\+//);
-	my $newsize = PVE::JSONSchema::parse_size($sizestr);
-	die "invalid size string" if !defined($newsize);
+	my $request_size = PVE::JSONSchema::parse_size($sizestr);
+	die "invalid size string" if !defined($request_size);
 
 	die "no options specified\n" if !scalar(keys %$param);
 
 	my $storage_cfg = cfs_read_file("storage.cfg");
 
-	my $code = sub {
-
+	my $load_and_check = sub {
 	    my $conf = PVE::LXC::Config->load_config($vmid);
 	    PVE::LXC::Config->check_lock($conf);
 
 	    PVE::LXC::check_ct_modify_config_perm($rpcenv, $authuser, $vmid, undef, $conf, $param, [], $conf->{unprivileged});
 
 	    PVE::Tools::assert_if_modified($digest, $conf->{digest});
-
-	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $disk = $param->{disk};
 	    my $mp = PVE::LXC::Config->parse_volume($disk, $conf->{$disk});
@@ -1965,66 +1962,77 @@ __PACKAGE__->register_method({
 
 	    die "Could not determine current size of volume '$volid'\n" if !defined($size);
 
-	    $newsize += $size if $ext;
+	    my $newsize = $ext ? $size + $request_size : $request_size;
 	    $newsize = int($newsize);
 
 	    die "unable to shrink disk size\n" if $newsize < $size;
 
 	    die "disk is already at specified size\n" if $size == $newsize;
 
-	    PVE::Cluster::log_msg('info', $authuser, "update CT $vmid: resize --disk $disk --size $sizestr");
-	    my $realcmd = sub {
-		# Note: PVE::Storage::volume_resize doesn't do anything if $running=1, so
-		# we pass 0 here (parameter only makes sense for qemu)
-		PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
-
-		$mp->{size} = $newsize;
-		$conf->{$disk} = PVE::LXC::Config->print_ct_mountpoint($mp, $disk eq 'rootfs');
-
-		PVE::LXC::Config->write_config($vmid, $conf);
-
-		if ($format eq 'raw') {
-		    # we need to ensure that the volume is mapped, if not needed this is a NOP
-		    my $path = PVE::Storage::map_volume($storage_cfg, $volid);
-		    $path = PVE::Storage::path($storage_cfg, $volid) if !defined($path);
-		    if ($running) {
-
-			$mp->{mp} = '/';
-			my $use_loopdev = (PVE::LXC::mountpoint_mount_path($mp, $storage_cfg))[1];
-			$path = PVE::LXC::query_loopdev($path) if $use_loopdev;
-			die "internal error: CT running but mount point not attached to a loop device"
-			    if !$path;
-			PVE::Tools::run_command(['losetup', '--set-capacity', $path]) if $use_loopdev;
-
-			# In order for resize2fs to know that we need online-resizing a mountpoint needs
-			# to be visible to it in its namespace.
-			# To not interfere with the rest of the system we unshare the current mount namespace,
-			# mount over /tmp and then run resize2fs.
-
-			# interestingly we don't need to e2fsck on mounted systems...
-			my $quoted = PVE::Tools::shellquote($path);
-			my $cmd = "mount --make-rprivate / && mount $quoted /tmp && resize2fs $quoted";
-			eval {
-			    PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
-			};
-			warn "Failed to update the container's filesystem: $@\n" if $@;
-		    } else {
-			eval {
-			    PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
-			    PVE::Tools::run_command(['resize2fs', $path]);
-			};
-			warn "Failed to update the container's filesystem: $@\n" if $@;
-
-			# always un-map if not running, this is a NOP if not needed
-			PVE::Storage::unmap_volume($storage_cfg, $volid);
-		    }
-		}
-	    };
-
-	    return $rpcenv->fork_worker('resize', $vmid, $authuser, $realcmd);
+	    return ($conf, $disk, $mp, $volid, $format, $newsize);
 	};
 
-	return PVE::LXC::Config->lock_config($vmid, $code);;
+	my $code = sub {
+	    my ($conf, $disk, $mp, $volid, $format, $newsize) = $load_and_check->();
+
+	    my $running = PVE::LXC::check_running($vmid);
+
+	    PVE::Cluster::log_msg('info', $authuser, "update CT $vmid: resize --disk $disk --size $sizestr");
+
+	    # Note: PVE::Storage::volume_resize doesn't do anything if $running=1, so
+	    # we pass 0 here (parameter only makes sense for qemu)
+	    PVE::Storage::volume_resize($storage_cfg, $volid, $newsize, 0);
+
+	    $mp->{size} = $newsize;
+	    $conf->{$disk} = PVE::LXC::Config->print_ct_mountpoint($mp, $disk eq 'rootfs');
+
+	    PVE::LXC::Config->write_config($vmid, $conf);
+
+	    if ($format eq 'raw') {
+		# we need to ensure that the volume is mapped, if not needed this is a NOP
+		my $path = PVE::Storage::map_volume($storage_cfg, $volid);
+		$path = PVE::Storage::path($storage_cfg, $volid) if !defined($path);
+		if ($running) {
+
+		    $mp->{mp} = '/';
+		    my $use_loopdev = (PVE::LXC::mountpoint_mount_path($mp, $storage_cfg))[1];
+		    $path = PVE::LXC::query_loopdev($path) if $use_loopdev;
+		    die "internal error: CT running but mount point not attached to a loop device"
+			if !$path;
+		    PVE::Tools::run_command(['losetup', '--set-capacity', $path]) if $use_loopdev;
+
+		    # In order for resize2fs to know that we need online-resizing a mountpoint needs
+		    # to be visible to it in its namespace.
+		    # To not interfere with the rest of the system we unshare the current mount namespace,
+		    # mount over /tmp and then run resize2fs.
+
+		    # interestingly we don't need to e2fsck on mounted systems...
+		    my $quoted = PVE::Tools::shellquote($path);
+		    my $cmd = "mount --make-rprivate / && mount $quoted /tmp && resize2fs $quoted";
+		    eval {
+			PVE::Tools::run_command(['unshare', '-m', '--', 'sh', '-c', $cmd]);
+		    };
+		    warn "Failed to update the container's filesystem: $@\n" if $@;
+		} else {
+		    eval {
+			PVE::Tools::run_command(['e2fsck', '-f', '-y', $path]);
+			PVE::Tools::run_command(['resize2fs', $path]);
+		    };
+		    warn "Failed to update the container's filesystem: $@\n" if $@;
+
+		    # always un-map if not running, this is a NOP if not needed
+		    PVE::Storage::unmap_volume($storage_cfg, $volid);
+		}
+	    }
+	};
+
+	my $worker = sub {
+	    PVE::LXC::Config->lock_config($vmid, $code);;
+	};
+
+	$load_and_check->(); # early checks before forking+locking
+
+	return $rpcenv->fork_worker('resize', $vmid, $authuser, $worker);
     }});
 
 __PACKAGE__->register_method({
