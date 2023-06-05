@@ -2300,8 +2300,9 @@ sub parse_id_maps {
     my $lxc = $conf->{lxc};
     foreach my $entry (@$lxc) {
 	my ($key, $value) = @$entry;
-	# FIXME: remove the 'id_map' variant when lxc-3.0 arrives
-	next if $key ne 'lxc.idmap' && $key ne 'lxc.id_map';
+
+	next if $key ne 'lxc.idmap';
+
 	if ($value =~ /^([ug])\s+(\d+)\s+(\d+)\s+(\d+)\s*$/) {
 	    my ($type, $ct, $host, $length) = ($1, $2, $3, $4);
 	    push @$id_map, [$type, $ct, $host, $length];
