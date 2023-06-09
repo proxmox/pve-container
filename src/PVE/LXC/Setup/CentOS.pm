@@ -119,6 +119,8 @@ sub template_fixup {
 
     # always call so root can login, if /etc/securetty doesn't exists it's a no-op
     $self->setup_securetty($conf);
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {

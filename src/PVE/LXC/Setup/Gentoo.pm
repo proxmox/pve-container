@@ -35,6 +35,8 @@ sub devttydir {
 sub template_fixup {
     my ($self, $conf) = @_;
     $self->setup_securetty($conf);
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {

@@ -841,4 +841,15 @@ sub remove_pve_sections {
     return $data =~ s/^\h*\Q$head\E.*^\h*\Q$tail\E.*?$//rgms;
 }
 
+# templates from images.linuxcontainers.org have a bogus LXC_NAME line in /etc/hosts
+sub remove_lxc_name_from_etc_hosts {
+    my ($self) = @_;
+    my $hosts = $self->ct_file_get_contents('/etc/hosts');
+    my @lines = grep { !/^127.0.1.1\s+LXC_NAME$/ } split(/\n/, $hosts);
+
+    $hosts = join("\n", @lines). "\n";
+
+    $self->ct_file_set_contents('/etc/hosts', $hosts);
+}
+
 1;

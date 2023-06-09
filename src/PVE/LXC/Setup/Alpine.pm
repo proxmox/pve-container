@@ -40,6 +40,8 @@ sub template_fixup {
     $self->ct_symlink('/etc/init.d/savecache', '/etc/runlevels/shutdown/savecache');
 
     $self->setup_securetty($conf);
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {
