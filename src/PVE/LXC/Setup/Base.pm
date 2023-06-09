@@ -261,7 +261,7 @@ DATA
 	my ($has_ipv4, $has_ipv6);
 
 	# DHCP bitflags:
-	my @DHCPMODES = ('no', 'v4', 'v6', 'yes');
+	my @DHCPMODES = ('no', 'ipv4', 'ipv6', 'yes');
 	my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
 	my $dhcp = $NONE;
 	my $accept_ra = 'false';
