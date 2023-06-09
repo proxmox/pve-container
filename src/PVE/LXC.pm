@@ -18,7 +18,7 @@ use PVE::AccessControl;
 use PVE::CGroup;
 use PVE::CpuSet;
 use PVE::Exception qw(raise_perm_exc);
-use PVE::GuestHelpers qw(safe_string_ne safe_num_ne safe_boolean_ne);
+use PVE::GuestHelpers qw(check_vnet_access safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Network;
@@ -1317,6 +1317,7 @@ sub check_ct_modify_config_perm {
 	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
 		 $opt eq 'searchdomain' || $opt eq 'hostname') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
+	    PVE::LXC::check_bridge_access($rpcenv, $authuser, $newconf->{$opt});
 	} elsif ($opt eq 'features') {
 	    raise_perm_exc("changing feature flags for privileged container is only allowed for root\@pam")
 		if !$unprivileged;
@@ -1382,6 +1383,20 @@ sub check_ct_modify_config_perm {
 
     return 1;
 }
+
+sub check_bridge_access {
+    my ($rpcenv, $authuser, $raw) = @_;
+
+    return 1 if $authuser eq 'root@pam';
+
+    my $net = PVE::LXC::Config->parse_lxc_network($raw);
+    my $bridge = $net->{bridge};
+    my $tag = $net->{tag};
+    my $trunks = $net->{trunks};
+    check_vnet_access($rpcenv, $authuser, $bridge, $tag, $trunks);
+
+    return 1;
+};
 
 sub umount_all {
     my ($vmid, $storage_cfg, $conf, $noerr) = @_;

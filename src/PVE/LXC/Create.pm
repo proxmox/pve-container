@@ -325,6 +325,7 @@ sub sanitize_and_merge_config {
     my ($conf, $oldconf, $restricted, $unique) = @_;
 
     my $rpcenv = PVE::RPCEnvironment::get();
+    my $authuser = $rpcenv->get_user();
 
     foreach my $key (keys %$oldconf) {
 	next if $key eq 'digest' || $key eq 'rootfs' || $key eq 'snapshots' || $key eq 'unprivileged' || $key eq 'parent';
@@ -352,6 +353,10 @@ sub sanitize_and_merge_config {
 	    $rpcenv->warn($msg);
 
 	    next;
+	}
+
+	if ($key =~ /^net\d+$/ && !defined($conf->{$key})) {
+	    PVE::LXC::check_bridge_access($rpcenv, $authuser, $oldconf->{$key});
 	}
 
 	if ($unique && $key =~ /^net\d+$/) {

@@ -388,6 +388,14 @@ __PACKAGE__->register_method({
 			print "recovering backed-up configuration from '$archive'\n";
 			($orig_conf, $orig_mp_param) = PVE::LXC::Create::recover_config($storage_cfg, $archive, $vmid);
 
+			for my $opt (keys %$orig_conf) {
+			    # early check before disks are created
+			    # the "real" check is in later on when actually merging the configs
+			    if ($opt =~ /^net\d+$/ && !defined($param->{$opt})) {
+				PVE::LXC::check_bridge_access($rpcenv, $authuser, $orig_conf->{$opt});
+			    }
+			}
+
 			$was_template = delete $orig_conf->{template};
 
 			# When we're root call 'restore_configuration' with restricted=0,
@@ -1532,7 +1540,7 @@ __PACKAGE__->register_method({
 	description => "You need 'VM.Clone' permissions on /vms/{vmid}, " .
 	    "and 'VM.Allocate' permissions " .
 	    "on /vms/{newid} (or on the VM pool /pool/{pool}). You also need " .
-	    "'Datastore.AllocateSpace' on any used storage.",
+	    "'Datastore.AllocateSpace' on any used storage, and 'SDN.Use' on any bridge.",
 	check =>
 	[ 'and',
 	  ['perm', '/vms/{vmid}', [ 'VM.Clone' ]],
@@ -1724,6 +1732,8 @@ __PACKAGE__->register_method({
 		    my $net = PVE::LXC::Config->parse_lxc_network($value);
 		    $net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
 		    $newconf->{$opt} = PVE::LXC::Config->print_lxc_network($net);
+
+		    PVE::LXC::check_bridge_access($rpcenv, $authuser, $newconf->{$opt});
 		} else {
 		    # copy everything else
 		    $newconf->{$opt} = $value;
