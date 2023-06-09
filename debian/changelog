@@ -1,3 +1,18 @@
+pve-container (5.0.1) bookworm; urgency=medium
+
+  * network permissions: implement checks for using a bridge or vnet on
+    create container, update config, backup restore and clone
+
+  * fix #4457: actively set bridge MTU, if no MTU is defined in the config
+
+  * api: resize: fork before locking
+
+  * setup: fedora: support up to Fedora 40 for future proofing
+
+  * config: implement method to calculate derived properties from a config
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 09 Jun 2023 10:18:22 +0200
+
 pve-container (5.0.0) bookworm; urgency=medium
 
   * rebuild for Debian 12 bookworm release series
