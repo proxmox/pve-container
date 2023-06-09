@@ -1390,9 +1390,7 @@ sub check_bridge_access {
     return 1 if $authuser eq 'root@pam';
 
     my $net = PVE::LXC::Config->parse_lxc_network($raw);
-    my $bridge = $net->{bridge};
-    my $tag = $net->{tag};
-    my $trunks = $net->{trunks};
+    my ($bridge, $tag, $trunks) = $net->@{'bridge', 'tag', 'trunks'};
     check_vnet_access($rpcenv, $authuser, $bridge, $tag, $trunks);
 
     return 1;
