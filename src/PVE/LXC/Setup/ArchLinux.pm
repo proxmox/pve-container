@@ -40,6 +40,8 @@ sub template_fixup {
 
     # edit /etc/securetty (enable login on console)
     $self->setup_securetty($conf);
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {

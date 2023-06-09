@@ -52,6 +52,8 @@ sub template_fixup {
     # temporary fix for systemd-firstboot
     $self->ct_file_set_contents('/etc/locale.conf', "LANG=C.utf8") if !$self->ct_file_exists('/etc/locale.conf');
     $self->ct_symlink('/usr/share/zoneinfo/UTC', '/etc/localtime') if !$self->ct_file_exists('/etc/localtime');
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {

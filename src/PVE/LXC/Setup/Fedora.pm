@@ -24,6 +24,8 @@ sub template_fixup {
     my ($self, $conf) = @_;
     $self->setup_securetty($conf);
     $self->ct_unlink('/etc/systemd/system/getty@.service');
+
+    $self->remove_lxc_name_from_etc_hosts();
 }
 
 sub setup_init {
