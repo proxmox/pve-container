@@ -26,7 +26,9 @@ sub new {
 	'buster/sid' => 10,
 	'bullseye/sid' => 11,
 	'bookworm/sid' => 12,
-	'kali-rolling' => 11,
+	'trixie/sid' => 13,
+	'forky/sid' => 14,
+	'kali-rolling' => 12,
     };
     $version = $version_map->{$version} if exists($version_map->{$version});
 
@@ -35,8 +37,7 @@ sub new {
 
     $version = $1;
 
-    die "unsupported debian version '$version'\n"
-	if !($version >= 4 && $version <= 12);
+    die "unsupported debian version '$version'\n" if !($version >= 4 && $version <= 13);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
