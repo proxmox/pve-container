@@ -27,6 +27,8 @@ sub new {
 	'chimaera/ceres' => 11,
 	'daedalus' => 12,
 	'daedalus/ceres' => 12,
+	'excalibur' => 13,
+	'excalibur/ceres' => 13,
     };
     die "unsupported Devuan version '$version'\n" if !exists($version_map->{$version});
 
