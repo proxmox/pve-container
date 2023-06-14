@@ -1,0 +1,2 @@
+hostname: test3
+net0: name=eth0,hwaddr=12:22:33:44:55:66,bridge=vmbr0,ip=10.0.0.100/32,gw=11.0.0.1

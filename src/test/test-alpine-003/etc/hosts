@@ -1,0 +1,3 @@
+127.0.1.1	LXC_NAME
+127.0.0.1	localhost localhost.localdomain
+::1		localhost localhost.localdomain

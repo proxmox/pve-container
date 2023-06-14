@@ -1,0 +1,5 @@
+127.0.0.1	localhost localhost.localdomain
+::1		localhost localhost.localdomain
+# --- BEGIN PVE ---
+10.0.0.100 test3.proxmox.com test3
+# --- END PVE ---
