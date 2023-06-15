@@ -2511,6 +2511,56 @@ __PACKAGE__->register_method({
     }});
 
 __PACKAGE__->register_method({
+    name => 'ip',
+    path => '{vmid}/interfaces',
+    method => 'GET',
+    protected => 1,
+    permissions => {
+	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+    },
+    description => 'Get IP addresses of the specified container interface.',
+    parameters => {
+	additionalProperties => 0,
+	properties => {
+	    node => get_standard_option('pve-node'),
+	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+	},
+    },
+    returns => {
+	type => "array",
+	items => {
+	    type => 'object',
+	    properties => {
+		name => {
+		    type => 'string',
+		    description => 'The name of the interface',
+		    optional => 0,
+		},
+		hwaddr => {
+		    type => 'string',
+		    description => 'The MAC address of the interface',
+		    optional => 0,
+		},
+		inet => {
+		    type => 'string',
+		    description => 'The IPv4 address of the interface',
+		    optional => 1,
+		},
+		inet6 => {
+		    type => 'string',
+		    description => 'The IPv6 address of the interface',
+		    optional => 1,
+		},
+	    }
+	},
+    },
+    code => sub {
+	my ($param) = @_;
+
+	return PVE::LXC::get_interfaces($param->{vmid});
+    }});
+
+__PACKAGE__->register_method({
     name => 'mtunnel',
     path => '{vmid}/mtunnel',
     method => 'POST',

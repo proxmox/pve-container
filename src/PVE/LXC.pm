@@ -1036,6 +1036,32 @@ sub hotplug_net {
     PVE::LXC::Config->write_config($vmid, $conf);
 }
 
+sub get_interfaces {
+    my ($vmid) = @_;
+
+    my $pid = eval { find_lxc_pid($vmid); };
+    return if $@;
+
+    my $output;
+    # enters the network namespace of the container and executes 'ip a'
+    run_command(['nsenter', '-t', $pid, '--net', '--', 'ip', '--json', 'a'],
+	outfunc => sub { $output .= shift; });
+
+    my $config = JSON::decode_json($output);
+
+    my $res;
+    for my $interface ($config->@*) {
+	my $obj = { name => $interface->{ifname} };
+	for my $ip ($interface->{addr_info}->@*) {
+	    $obj->{$ip->{family}} = $ip->{local} . "/" . $ip->{prefixlen};
+	}
+	$obj->{hwaddr} = $interface->{address};
+	push @$res, $obj
+    }
+
+    return $res;
+}
+
 sub update_ipconfig {
     my ($vmid, $conf, $opt, $eth, $newnet, $rootdir) = @_;
 
