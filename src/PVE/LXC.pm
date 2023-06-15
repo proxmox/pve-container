@@ -1314,10 +1314,11 @@ sub check_ct_modify_config_perm {
 	    }
 	} elsif ($opt eq 'memory' || $opt eq 'swap') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
-	} elsif ($opt =~ m/^net\d+$/ || $opt eq 'nameserver' ||
-		 $opt eq 'searchdomain' || $opt eq 'hostname') {
+	} elsif ($opt =~ m/^net\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	    PVE::LXC::check_bridge_access($rpcenv, $authuser, $newconf->{$opt});
+	} elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' || $opt eq 'hostname') {
+	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	} elsif ($opt eq 'features') {
 	    raise_perm_exc("changing feature flags for privileged container is only allowed for root\@pam")
 		if !$unprivileged;
