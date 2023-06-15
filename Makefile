@@ -40,8 +40,8 @@ sbuild: $(DSC)
 .PHONY: clean
 clean:
 	$(MAKE) -C src clean
-	rm -rf $(BUILDDIR) $(BUILDDIR).tmp
-	rm -f *.deb *.changes *.build *.buildinfo *.dsc *.tar.?z
+	rm -rf $(PACKAGE)-[0-9]*/
+	rm -f *.deb *.changes *.build *.buildinfo *.dsc $(PACKAGE)*.tar*
 
 .PHONY: distclean
 distclean: clean
