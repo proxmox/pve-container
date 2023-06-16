@@ -63,23 +63,8 @@ my sub at_least : prototype($$$) {
     );
 }
 
-sub setup_init {
+my sub setup_inittab {
     my ($self, $conf) = @_;
-
-    my $systemd = $self->ct_readlink('/sbin/init');
-    if (defined($systemd) && $systemd =~ m@/systemd$@) {
-	$self->setup_container_getty_service($conf);
-
-	my $version = $self->{version};
-	if (at_least($version, 12, 0)) {
-	    # this only affects the first-boot (if no /etc/machien-id exists).
-	    $self->setup_systemd_preset({
-		# systemd-networkd gets enabled by default, disable it, debian uses
-		# ifupdown
-		'systemd-networkd.service' => 0,
-	    });
-	}
-    }
 
     my $filename = "/etc/inittab";
     return if !$self->ct_file_exists($filename);
@@ -98,6 +83,7 @@ sub setup_init {
 
     $inittab .= "p0::powerfail:/sbin/init 0\n";
 
+    my $version = $self->{version};
     for (my $id = 1; $id <= $ttycount; $id++) {
 	next if $id == 7; # reserved for X11
 	my $levels = ($id == 1) ? '2345' : '23';
@@ -109,6 +95,27 @@ sub setup_init {
     }
 
     $self->ct_file_set_contents($filename, $inittab);
+}
+
+sub setup_init {
+    my ($self, $conf) = @_;
+
+    my $systemd = $self->ct_readlink('/sbin/init');
+    if (defined($systemd) && $systemd =~ m@/systemd$@) {
+	$self->setup_container_getty_service($conf);
+
+	my $version = $self->{version};
+	if (at_least($version, 12, 0)) {
+	    # this only affects the first-boot (if no /etc/machien-id exists).
+	    $self->setup_systemd_preset({
+		# systemd-networkd gets enabled by default, disable it, debian uses
+		# ifupdown
+		'systemd-networkd.service' => 0,
+	    });
+	}
+    }
+
+    setup_inittab($self, $conf);
 }
 
 sub remove_gateway_scripts {
