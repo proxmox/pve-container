@@ -25,18 +25,6 @@ sub new {
 
 sub template_fixup {
     my ($self, $conf) = @_;
-    # ArchLinux doesn't come with any particular predefined and enabled
-    # networking, so it probably makes sense to do the equivalent of
-    # 'systemctl enable systemd-networkd', since that's what we're configuring
-    # in setup_network
-
-    # systemctl enable systemd-networkd
-    $self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
-    $self->ct_mkdir('/etc/systemd/system/socket.target.wants');
-    $self->ct_symlink('/usr/lib/systemd/system/systemd-networkd.service',
-                      '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service');
-    $self->ct_symlink('/usr/lib/systemd/system/systemd-networkd.socket',
-                      '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
 
     # edit /etc/securetty (enable login on console)
     $self->setup_securetty($conf);
@@ -46,6 +34,15 @@ sub template_fixup {
 
 sub setup_init {
     my ($self, $conf) = @_;
+
+    $self->setup_systemd_preset({
+	# ArchLinux doesn't come with any particular predefined and enabled
+	# networking, so it probably makes sense to do the equivalent of
+	# 'systemctl enable systemd-networkd', since that's what we're configuring
+	# in setup_network
+	'systemd-networkd.service' => 1
+    });
+
     $self->setup_container_getty_service($conf);
 }
 
