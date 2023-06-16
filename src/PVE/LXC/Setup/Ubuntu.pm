@@ -64,7 +64,7 @@ sub template_fixup {
 
     my $version = $self->{version};
 
-    if ($version >= '17.10') {
+    if ($version >= '17.10' && $version < '23.04') {
 	# enable systemd-networkd
 	$self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
 	$self->ct_mkdir('/etc/systemd/system/socket.target.wants');
@@ -95,6 +95,10 @@ sub setup_init {
     my ($self, $conf) = @_;
 
     my $version = $self->{version};
+
+    if ($version >= '23.04') {
+	$self->setup_systemd_preset({ 'systemd-networkd.service' => 1 });
+    }
 
     if ($version >= '16.10') {
         $self->setup_container_getty_service($conf);
