@@ -1,3 +1,26 @@
+pve-container (5.0.2) bookworm; urgency=medium
+
+  * setup: systemd-network: use modern values for dhcp-modes, breaks
+    containers using systemd-network with a container systemd before v219
+    (released 2015). At that time most distros did not yet used systemd for
+    networking, but rather ifupdown, netplan or NetworkManager; and we require
+    CT distros to use systemd v232 or newer due to default unified cgroupv2
+    hierarchy anyway.
+
+  * fix #4515: template setup: remove bogus "LXC_NAME" line from /etc/hosts
+
+  * config modifications: fix hostname/DNS perm check
+
+  * do not enable system-networkd on first start for Debian 12 and newer,
+    which uses ifupdown by default, causing systemd-networkd-wait-online to
+    fail
+
+  * setup: enable systemd-networkd via preset for Arch Linux
+
+  * setup: enable systemd-networkd via preset for Ubuntu 23.04+
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 16 Jun 2023 13:35:14 +0200
+
 pve-container (5.0.1) bookworm; urgency=medium
 
   * network permissions: implement checks for using a bridge or vnet on
