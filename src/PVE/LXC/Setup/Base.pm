@@ -308,6 +308,33 @@ DATA
     }
 }
 
+# At first boot, systemd goes through a set of `presets` to bring the
+# enable/disable state of services to a default.
+# Meaning for newer templates we should use this instead of manually creating
+# enable/disable symlinks.
+#
+# `$preset` should map service names to a bool-ish.
+sub setup_systemd_preset {
+    my ($self, $preset) = @_;
+
+    my $preset_data =
+	"# Added by PVE at create-time for first-boot configuration.\n";
+
+    for my $service (sort keys %$preset) {
+	if ($preset->{$service}) {
+	    $preset_data .= "enable $service\n";
+	} else {
+	    $preset_data .= "disable $service\n";
+	}
+    }
+
+    $self->ct_mkdir('/etc/systemd/system-preset', 0755);
+    $self->ct_file_set_contents(
+	'/etc/systemd/system-preset/00-pve.preset',
+	$preset_data,
+    );
+}
+
 sub setup_securetty {
     my ($self, $conf, @add) = @_;
 

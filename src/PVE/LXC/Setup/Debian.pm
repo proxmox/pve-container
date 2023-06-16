@@ -51,12 +51,34 @@ sub devttydir {
     return '';
 }
 
+my sub at_least : prototype($$$) {
+    my ($str, $want_maj, $want_min) = @_;
+    return if !defined($str) || !defined($want_maj);
+
+    my ($maj, $min) = $str =~ /^(\d+)(?:\.(\d+))?/;
+    return if !defined($maj);
+
+    return $want_maj < $maj || $want_maj == $maj && (
+	(!defined($min) && $want_min == 0) || (defined($min) && $want_min <= $min)
+    );
+}
+
 sub setup_init {
     my ($self, $conf) = @_;
 
     my $systemd = $self->ct_readlink('/sbin/init');
     if (defined($systemd) && $systemd =~ m@/systemd$@) {
 	$self->setup_container_getty_service($conf);
+
+	my $version = $self->{version};
+	if (at_least($version, 12, 0)) {
+	    # this only affects the first-boot (if no /etc/machien-id exists).
+	    $self->setup_systemd_preset({
+		# systemd-networkd gets enabled by default, disable it, debian uses
+		# ifupdown
+		'systemd-networkd.service' => 0,
+	    });
+	}
     }
 
     my $filename = "/etc/inittab";
@@ -76,7 +98,6 @@ sub setup_init {
 
     $inittab .= "p0::powerfail:/sbin/init 0\n";
 
-    my $version = $self->{version};
     for (my $id = 1; $id <= $ttycount; $id++) {
 	next if $id == 7; # reserved for X11
 	my $levels = ($id == 1) ? '2345' : '23';
@@ -144,18 +165,6 @@ sub make_gateway_scripts {
 \tpre-down ip route del $gw dev $ifname
 # --- END PVE ---
 SCRIPTS
-}
-
-my sub at_least : prototype($$$) {
-    my ($str, $want_maj, $want_min) = @_;
-    return if !defined($str) || !defined($want_maj);
-
-    my ($maj, $min) = $str =~ /^(\d+)(?:\.(\d+))?/;
-    return if !defined($maj);
-
-    return $want_maj < $maj || $want_maj == $maj && (
-	(!defined($min) && $want_min == 0) || (defined($min) && $want_min <= $min)
-    );
 }
 
 # NOTE: this is re-used by Alpine Linux, please have that in mind when changing things.

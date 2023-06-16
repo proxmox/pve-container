@@ -35,13 +35,12 @@ sub setup_init {
     my $version = $self->{version};
 
     if ($version >= 37) {
-	# systemd-networkd is disabled by the preset in >=37, reenable it
 	# this only affects the first-boot (if no /etc/machien-id exists).
-	$self->ct_mkdir('/etc/systemd/system-preset', 0755);
-	$self->ct_file_set_contents(
-	    '/etc/systemd/system-preset/00-pve.preset',
-	    "enable systemd-networkd.service\n",
-	);
+	$self->setup_systemd_preset({
+	    # systemd-networkd is disabled by the preset in >=37 in favor of
+	    # NetworkManager, reenable it, since we make use of it.
+	    'systemd-networkd.service' => 0,
+	});
     }
 }
 
