@@ -195,6 +195,12 @@ sub phase1 {
 
 	return if !$volid;
 
+	# check if volume exists, might be a pending new one
+	if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
+	    $self->log('info', "volume '$volid' does not exist (pending change?)");
+	    return;
+	}
+
 	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 
 	# check if storage is available on source node
@@ -256,40 +262,16 @@ sub phase1 {
 	&$log_error($@, $volid) if $@;
     };
 
-    # first unused / lost volumes owned by this container
-    my @sids = PVE::Storage::storage_ids($self->{storecfg});
-    foreach my $storeid (@sids) {
-	my $scfg = PVE::Storage::storage_config($self->{storecfg}, $storeid);
-	next if $scfg->{shared} && !$remote;
-	next if !PVE::Storage::storage_check_enabled($self->{storecfg}, $storeid, undef, 1);
-
-	# get list from PVE::Storage (for unreferenced volumes)
-	my $dl = PVE::Storage::vdisk_list($self->{storecfg}, $storeid, $vmid, undef, 'rootdir');
-
-	next if @{$dl->{$storeid}} == 0;
-
-	# check if storage is available on target node
-	my $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storeid);
-	if (!$remote) {
-	    my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
-
-	    die "content type 'rootdir' is not available on storage '$targetsid'\n"
-		if !$target_scfg->{content}->{rootdir};
-	}
-
-	PVE::Storage::foreach_volid($dl, sub {
-	    my ($volid, $sid, $volname) = @_;
-
-	    $volhash->{$volid}->{ref} = 'storage';
-	    $volhash->{$volid}->{targetsid} = $targetsid;
-	});
-    }
-
-    # then all volumes referenced in snapshots
+    # first all volumes referenced in snapshots
     foreach my $snapname (keys %{$conf->{snapshots}}) {
 	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
 	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
 	PVE::LXC::Config->foreach_volume($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
+    }
+
+    # then all pending volumes
+    if (defined($conf->{pending}) && $conf->{pending}->%*) {
+	PVE::LXC::Config->foreach_volume($conf->{pending}, $test_mp);
     }
 
     # finally all current volumes
