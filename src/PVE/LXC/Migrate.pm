@@ -182,6 +182,7 @@ sub phase1 {
     my $volhash = {}; # 'config', 'snapshot' or 'storage' for local volumes
     my $volhash_errors = {};
     my $abort = 0;
+    my $path_to_volid = {};
 
     my $log_error = sub {
 	my ($msg, $volid) = @_;
@@ -231,6 +232,8 @@ sub phase1 {
 	die "owned by other guest (owner = $owner)\n"
 	    if !$owner || ($owner != $self->{vmid});
 
+	$path_to_volid->{$path}->{$volid} = 1;
+
 	if (defined($snapname)) {
 	    # we cannot migrate shapshots on local storage
 	    # exceptions: 'zfspool', 'btrfs'
@@ -276,6 +279,12 @@ sub phase1 {
 
     # finally all current volumes
     PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, $test_mp);
+
+    for my $path (keys %$path_to_volid) {
+	my @volids = keys $path_to_volid->{$path}->%*;
+	die "detected not supported aliased volumes: '" . join("', '", @volids) . "'"
+	    if (scalar @volids > 1);
+    }
 
     # additional checks for local storage
     foreach my $volid (keys %$volhash) {
