@@ -1,3 +1,14 @@
+pve-container (5.0.3) bookworm; urgency=medium
+
+  * migration: only migrate volumes used by the guest not also those
+    that are owned by them (VMID in name) but not referenced in the
+    config
+
+  * migration: fail when aliased volume are detected, as referencing the same
+    volume multiple times can lead to unexpected behavior in a migration.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 21 Jun 2023 13:05:04 +0200
+
 pve-container (5.0.2) bookworm; urgency=medium
 
   * setup: systemd-network: use modern values for dhcp-modes, breaks
