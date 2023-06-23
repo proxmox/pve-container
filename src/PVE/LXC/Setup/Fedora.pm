@@ -39,7 +39,7 @@ sub setup_init {
 	$self->setup_systemd_preset({
 	    # systemd-networkd is disabled by the preset in >=37 in favor of
 	    # NetworkManager, reenable it, since we make use of it.
-	    'systemd-networkd.service' => 0,
+	    'systemd-networkd.service' => 1,
 	});
     }
 }
