@@ -1,3 +1,10 @@
+pve-container (5.0.4) bookworm; urgency=medium
+
+  * setup: fedora: fix regression with wrong systemd-networkd preset for
+    Fedora 37 and newer
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 24 Jun 2023 15:08:37 +0200
+
 pve-container (5.0.3) bookworm; urgency=medium
 
   * migration: only migrate volumes used by the guest not also those
