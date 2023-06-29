@@ -67,6 +67,7 @@ __PACKAGE__->register_method ({
 	    foreach my $k (sort (keys %$stat)) {
 		my $v = $stat->{$k};
 		next if !defined($v);
+		next if $k eq 'cpu';
 		print "$k: $v\n";
 	    }
 	} else {
