@@ -1316,7 +1316,8 @@ sub check_ct_modify_config_perm {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Memory']);
 	} elsif ($opt =~ m/^net\d+$/) {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
-	    PVE::LXC::check_bridge_access($rpcenv, $authuser, $newconf->{$opt});
+	    check_bridge_access($rpcenv, $authuser, $oldconf->{$opt}) if $oldconf->{$opt};
+	    check_bridge_access($rpcenv, $authuser, $newconf->{$opt}) if $newconf->{$opt};
 	} elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' || $opt eq 'hostname') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	} elsif ($opt eq 'features') {
