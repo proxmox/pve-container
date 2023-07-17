@@ -116,6 +116,10 @@ sub restore_proxmox_backup_archive {
     my $cmd = "restore";
     my $param = [$name, "root.pxar", $rootdir, '--allow-existing-dirs'];
 
+    if ($no_unpack_error) {
+        push(@$param, '--ignore-extract-device-errors');
+    }
+
     PVE::Storage::PBSPlugin::run_raw_client_cmd(
 	$scfg, $storeid, $cmd, $param, userns_cmd => $userns_cmd);
 
