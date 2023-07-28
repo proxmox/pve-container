@@ -395,6 +395,12 @@ sub archive {
 	push @$param, '--backup-id', $vmid;
 	push @$param, '--backup-time', $task->{backup_time};
 
+	if (my $entries_max = $opts->{"performance"}->{"pbs-entries-max"}) {
+	    push $param->@*, '--entries-max', $entries_max;
+	    $self->loginfo(
+		"set max number of entries in memory for file-based backups to $entries_max");
+	}
+
 	my @storage = ($opts->{scfg}, $opts->{storage});
 
 	my $logfunc = sub { my $line = shift; $self->loginfo($line) };
