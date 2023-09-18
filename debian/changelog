@@ -1,3 +1,17 @@
+pve-container (5.0.5) bookworm; urgency=medium
+
+  * fix #4765: pct: do not report cpu usage
+
+  * config permission check: also check access for currently configured
+    bridge
+
+  * fix #3460: restore: honor 'ignore-unpack-errors' flag for Proxmox Backup
+    Server backup source
+
+  * fix #3069: vzdump: add 'pbs-entries-max' parameter
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 18 Sep 2023 16:51:24 +0200
+
 pve-container (5.0.4) bookworm; urgency=medium
 
   * setup: fedora: fix regression with wrong systemd-networkd preset for
