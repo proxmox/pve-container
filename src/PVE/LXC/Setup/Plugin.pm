@@ -62,6 +62,11 @@ sub ssh_host_key_types_to_generate {
     croak "implement me in sub-class\n";
 }
 
+sub detect_architecture {
+    my ($self) = @_;
+    croak "implement me in sub-class\n";
+}
+
 # hooks
 
 sub pre_start_hook {

@@ -150,4 +150,54 @@ sub can_use_new_mount_api() {
     return $cached_can_use_new_mount_api;
 }
 
+# Tries to the architecture of an executable file based on its ELF header.
+sub detect_elf_architecture {
+    my ($elf_fn) = @_;
+
+    # see https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+
+    my $supported_elf_machine = {
+	0x03 => 'i386',
+	0x3e => 'amd64',
+	0x28 => 'armhf',
+	0xb7 => 'arm64',
+	0xf3 => 'riscv',
+    };
+
+    my $detect_arch = sub {
+	open(my $fh, "<", $elf_fn) or die "open '$elf_fn' failed: $!\n";
+	binmode($fh);
+
+	my $length = read($fh, my $data, 20) or die "read failed: $!\n";
+
+	# 4 bytes ELF magic number and 1 byte ELF class, padding, machine
+	my ($magic, $class, undef, $machine) = unpack("A4CA12n", $data);
+
+	die "'$elf_fn' does not resolve to an ELF!\n"
+	    if (!defined($class) || !defined($magic) || $magic ne "\177ELF");
+
+	my $arch = $supported_elf_machine->{$machine};
+	die "'$elf_fn' has unknown ELF machine '$machine'!\n"
+	    if !defined($arch);
+
+	if ($arch eq 'riscv') {
+	    if ($class eq 1) {
+		$arch = 'riscv32';
+	    } elsif ($class eq 2) {
+		$arch = 'riscv64';
+	    } else {
+		die "'$elf_fn' has invalid class '$class'!\n";
+	    }
+	}
+
+	return $arch;
+    };
+
+    my $arch = eval { PVE::Tools::run_fork_with_timeout(10, $detect_arch); };
+    my $err = $@ // "timeout\n";
+    die $err if !defined($arch);
+
+    return $arch;
+}
+
 1;
