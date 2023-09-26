@@ -935,7 +935,7 @@ sub net_tap_plug : prototype($$) {
 
     if ($have_sdn) {
 	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
-	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge, $firewall);
+	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge);
     } else {
 	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
     }
