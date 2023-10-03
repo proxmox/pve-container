@@ -903,7 +903,6 @@ for (my $i = 0; $i < $MAX_MOUNT_POINTS; $i++) {
 	type => 'string', format => $mp_desc,
 	description => "Use volume as container mount point. Use the special " .
 	    "syntax STORAGE_ID:SIZE_IN_GiB to allocate a new volume.",
-	optional => 1,
     };
 }
 
