@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Cwd qw();
-use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED ENOSYS EEXIST);
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
 use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
 use File::Path;
 use File::Spec;
@@ -1681,7 +1681,6 @@ sub mountpoint_stage {
 	__mountpoint_mount($mountpoint, $stage_dir, $storage_cfg, $snapname, $rootuid, $rootgid, 1);
 
     if (!defined($path)) {
-	return undef if $! == ENOSYS;
 	die "failed to mount subvolume: $!\n";
     }
 
@@ -1716,15 +1715,8 @@ sub mountpoint_insert_staged {
 
 # Use $stage_mount, $rootdir is treated as a temporary path to "stage" the file system. The user
 #   can then open a file descriptor to it which can be used with the `move_mount` syscall.
-#   Note that if the kernel does not support the new mount API, this will not perform any action
-#   and return `undef` with $! = ENOSYS.
 sub __mountpoint_mount {
     my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid, $stage_mount) = @_;
-
-    if (defined($stage_mount) && !PVE::LXC::Tools::can_use_new_mount_api()) {
-	$! = ENOSYS;
-	return undef;
-    }
 
     # When staging mount points we always mount to $rootdir directly (iow. as if `mp=/`).
     # This is required since __mount_prepare_rootdir() will return handles to the parent directory
@@ -1933,7 +1925,7 @@ sub get_staging_mount_path($) {
     return $target;
 }
 
-# Mount /run/pve/mountpoints as tmpfs
+# Mount tmpfs for mount point staging and return the path.
 sub get_staging_tempfs() {
     # We choose a path in /var/lib/lxc/ here because the lxc-start apparmor profile restricts most
     # mounts to that.

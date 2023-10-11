@@ -69,71 +69,52 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
     };
 
-    my $setup_mountpoint;
-    if (!PVE::LXC::Tools::can_use_new_mount_api()) {
-	# Legacy mode for old kernels:
-	$setup_mountpoint = sub {
-	    my ($opt, $mountpoint) = @_;
+    my $rootdir_fd = undef;
+    my $setup_mountpoint = sub {
+	my ($opt, $mountpoint) = @_;
 
-	    my (undef, undef, $dev) = PVE::LXC::mountpoint_mount(
-		$mountpoint,
-		$rootdir,
-		$storage_cfg,
-		undef,
-		$rootuid,
-		$rootgid,
-	    );
-	    push @$devices, $dev if $dev && $mountpoint->{quota};
-	};
-    } else {
-	# With newer kernels we stage mount points and then use move_mount().
-	my $rootdir_fd = undef;
-	$setup_mountpoint = sub {
-	    my ($opt, $mountpoint) = @_;
+	my $dir = PVE::LXC::get_staging_mount_path($opt);
+	my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
+	    $mountpoint,
+	    $dir,
+	    $storage_cfg,
+	    undef,
+	    $rootuid,
+	    $rootgid,
+	);
 
-	    my $dir = PVE::LXC::get_staging_mount_path($opt);
-	    my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
-		$mountpoint,
-		$dir,
-		$storage_cfg,
-		undef,
-		$rootuid,
-		$rootgid,
-	    );
+	my ($dest_dir, $dest_base_fd);
+	if ($rootdir_fd) {
+	    # Mount relative to the rootdir fd.
+	    $dest_base_fd = $rootdir_fd;
+	    $dest_dir = './' . $mountpoint->{mp};
+	} else {
+	    # Assert that 'rootfs' is the first one:
+	    die "foreach_mount() error\n" if $opt ne 'rootfs';
 
-	    my ($dest_dir, $dest_base_fd);
-	    if ($rootdir_fd) {
-		# Mount relative to the rootdir fd.
-		$dest_base_fd = $rootdir_fd;
-		$dest_dir = './' . $mountpoint->{mp};
-	    } else {
-		# Assert that 'rootfs' is the first one:
-		die "foreach_mount() error\n" if $opt ne 'rootfs';
+	    # Mount the rootfs absolutely.
+	    # $rootdir is not controlled by the container, so this is fine.
+	    sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
+		or die "failed to open '.': $!\n";
+	    $dest_dir = $rootdir;
+	}
 
-		# Mount the rootfs absolutely.
-		# $rootdir is not controlled by the container, so this is fine.
-		sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
-		    or die "failed to open '.': $!\n";
-		$dest_dir = $rootdir;
-	    }
+	PVE::LXC::mountpoint_insert_staged(
+	    $mount_fd,
+	    $dest_base_fd,
+	    $dest_dir,
+	    $opt,
+	    $rootuid,
+	    $rootgid,
+	);
 
-	    PVE::LXC::mountpoint_insert_staged(
-		$mount_fd,
-		$dest_base_fd,
-		$dest_dir,
-		$opt,
-		$rootuid,
-		$rootgid,
-	    );
+	# From now on we mount inside our rootfs:
+	if (!$rootdir_fd) {
+	    $rootdir_fd = $mount_fd;
+	}
 
-	    # From now on we mount inside our rootfs:
-	    if (!$rootdir_fd) {
-		$rootdir_fd = $mount_fd;
-	    }
-
-	    push @$devices, $dev if $dev && $mountpoint->{quota};
-	};
-    }
+	push @$devices, $dev if $dev && $mountpoint->{quota};
+    };
 
     PVE::LXC::Config->foreach_volume($conf, $setup_mountpoint);
 

@@ -1415,10 +1415,6 @@ sub vmconfig_hotplug_pending {
 		    $hotplug_memory->($conf->{pending}->{memory}, $conf->{pending}->{swap});
 		}
 	    } elsif ($opt =~ m/^mp(\d+)$/) {
-		if (!PVE::LXC::Tools::can_use_new_mount_api()) {
-		    die "skip\n";
-		}
-
 		if (exists($conf->{$opt})) {
 		    die "skip\n"; # don't try to hotplug over existing mp
 		}
