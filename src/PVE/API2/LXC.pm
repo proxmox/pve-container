@@ -475,9 +475,11 @@ __PACKAGE__->register_method({
 		    if ($restore) {
 			print "merging backed-up and given configuration..\n";
 			PVE::LXC::Create::restore_configuration($vmid, $storage_cfg, $archive, $rootdir, $conf, !$is_root, $unique, $skip_fw_config_restore);
+			PVE::LXC::create_ifaces_ipams_ips($conf, $vmid) if $unique;
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 			$lxc_setup->template_fixup($conf);
 		    } else {
+			PVE::LXC::create_ifaces_ipams_ips($conf, $vmid);
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
 			$lxc_setup->post_create_hook($password, $ssh_keys);
@@ -503,6 +505,8 @@ __PACKAGE__->register_method({
 		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
+		eval { PVE::LXC::delete_ifaces_ipams_ips($conf, $vmid) };
+		warn $@ if $@;
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
 		if ($destroy_config_on_error) {
 		    eval { PVE::LXC::Config->destroy_config($vmid) };
