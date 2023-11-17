@@ -4,8 +4,8 @@ use strict;
 use warnings;
 
 use Cwd qw();
-use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
-use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY);
+use Errno qw(ELOOP ENOENT ENOTDIR EROFS ECONNREFUSED EEXIST);
+use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY :mode);
 use File::Path;
 use File::Spec;
 use IO::Poll qw(POLLIN POLLHUP);
@@ -638,6 +638,29 @@ sub update_lxc_config {
 	# systemd, e.g., systemd-networkd https://systemd.io/CONTAINER_INTERFACE/
 	$raw .= "lxc.mount.auto = sys:mixed\n";
     }
+
+    PVE::LXC::Config->foreach_passthrough_device($conf, sub {
+	my ($key, $device) = @_;
+
+	die "Path is not defined for passthrough device $key"
+	    unless (defined($device->{path}));
+
+	my $absolute_path = $device->{path};
+	my ($mode, $rdev) = (stat($absolute_path))[2, 6];
+
+	die "Device $absolute_path does not exist\n" if $! == ENOENT;
+
+	die "Error accessing device $absolute_path\n"
+	    if (!defined($mode) || !defined($rdev));
+
+	die "$absolute_path is not a device\n"
+	    if (!S_ISBLK($mode) && !S_ISCHR($mode));
+
+	my $major = PVE::Tools::dev_t_major($rdev);
+	my $minor = PVE::Tools::dev_t_minor($rdev);
+	my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
+	$raw .= "lxc.cgroup2.devices.allow = $device_type_char $major:$minor rw\n";
+    });
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
     # cannot be exposed to the container with r/w access (cgroup perms).
@@ -1344,6 +1367,8 @@ sub check_ct_modify_config_perm {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	    check_bridge_access($rpcenv, $authuser, $oldconf->{$opt}) if $oldconf->{$opt};
 	    check_bridge_access($rpcenv, $authuser, $newconf->{$opt}) if $newconf->{$opt};
+	} elsif ($opt =~ m/^dev\d+$/) {
+	    raise_perm_exc("configuring device passthrough is only allowed for root\@pam");
 	} elsif ($opt eq 'nameserver' || $opt eq 'searchdomain' || $opt eq 'hostname') {
 	    $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Network']);
 	} elsif ($opt eq 'features') {
@@ -2391,6 +2416,34 @@ sub validate_id_maps {
 	    }
 	}
     }
+}
+
+sub map_ct_id_to_host {
+    my ($id, $id_map, $id_type) = @_;
+
+    for my $mapping (@$id_map) {
+	my ($type, $ct, $host, $length) = @$mapping;
+
+	next if ($type ne $id_type);
+
+	if ($id >= $ct && $id < ($ct + $length)) {
+	    return $host - $ct + $id;
+	}
+    }
+
+    return $id;
+}
+
+sub map_ct_uid_to_host {
+    my ($uid, $id_map) = @_;
+
+    return map_ct_id_to_host($uid, $id_map, 'u');
+}
+
+sub map_ct_gid_to_host {
+    my ($gid, $id_map) = @_;
+
+    return map_ct_id_to_host($gid, $id_map, 'g');
 }
 
 sub userns_command {

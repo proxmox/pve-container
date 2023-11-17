@@ -3,18 +3,32 @@
 use strict;
 use warnings;
 
-use File::Path;
+use Fcntl qw(S_IFREG);
 use File::Basename;
+use File::Path;
 
 use PVE::LXC::Tools;
-use PVE::Tools;
+use PVE::Tools qw(MS_BIND);
 
 PVE::LXC::Tools::lxc_hook('autodev', 'lxc', sub {
     my ($vmid, $vars, undef, undef) = @_;
 
     my $root = $vars->{ROOTFS_MOUNT};
 
-    PVE::LXC::Tools::for_current_devices($vmid, sub {
+    PVE::LXC::Tools::for_current_passthrough_devices($vmid, sub {
+	my ($type, $major, $minor, $dev) = @_;
+
+	my $rel_devpath = "/dev/$dev";
+	my $rel_dir = dirname($rel_devpath);
+	File::Path::mkpath("$root/$rel_dir");
+	PVE::Tools::mknod("$root/dev/$dev", S_IFREG, 0)
+	    or die("Could not mknod $root/dev/$dev: $!\n");
+
+	PVE::Tools::mount("/var/lib/lxc/$vmid/passthrough/dev/$dev", "$root/dev/$dev", 0, MS_BIND, 0)
+	    or die("Bind mount of device $dev into container failed: $!\n");
+    });
+
+    PVE::LXC::Tools::for_current_passthrough_mounts($vmid, sub {
 	my ($type, $major, $minor, $dev) = @_;
 
 	my $rel_devpath = "/dev/$dev";

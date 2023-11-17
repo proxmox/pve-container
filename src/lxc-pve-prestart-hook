@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use Fcntl qw(O_DIRECTORY :mode);
+use File::Basename;
 use File::Path;
 use POSIX;
 
@@ -58,11 +59,13 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
     # Delete any leftover reboot-trigger file
     unlink("/var/lib/lxc/$vmid/reboot");
 
-    my $devlist_file = "/var/lib/lxc/$vmid/devices";
-    unlink $devlist_file;
+    # Delete the old device list file
+    # in case it was left over from a previous version of pve-container.
+    unlink("/var/lib/lxc/$vmid/devices");
+
     my $devices = [];
 
-    my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
 
     # Unmount first when the user mounted the container with "pct mount".
     eval {
@@ -118,6 +121,49 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 
     PVE::LXC::Config->foreach_volume($conf, $setup_mountpoint);
 
+    # Device passthrough
+    my $passthrough_devices = [];
+
+    my $passthrough_dir = "/var/lib/lxc/$vmid/passthrough";
+    File::Path::make_path($passthrough_dir);
+    PVE::Tools::mount("none", $passthrough_dir, "tmpfs", 0, "size=8k")
+        or die ("Could not mount tmpfs for device passthrough at $passthrough_dir: $!");
+
+    my $setup_passthrough_device = sub {
+	my ($key, $device) = @_;
+
+	my $absolute_path = $device->{path};
+	my ($mode, $rdev) = (stat($absolute_path))[2, 6];
+
+	die "Could not get mode or device ID of $absolute_path\n"
+	    if (!defined($mode) || !defined($rdev));
+
+	my $passthrough_device_path = $passthrough_dir . $absolute_path;
+	File::Path::make_path(dirname($passthrough_device_path));
+	PVE::Tools::mknod($passthrough_device_path, $mode, $rdev)
+	    or die("failed to mknod $passthrough_device_path: $!\n");
+
+	# Use chmod because umask could mess with the access mode on mknod
+	my $passthrough_mode = 0660;
+	$passthrough_mode = oct($device->{mode}) if defined($device->{mode});
+	chmod $passthrough_mode, $passthrough_device_path
+	    or die "failed to chmod $passthrough_mode $passthrough_device_path: $!\n";
+
+	# Set uid and gid of the device node
+	my $uid = 0;
+	my $gid = 0;
+	$uid = $device->{uid} if defined($device->{uid});
+	$gid = $device->{gid} if defined($device->{gid});
+	$uid = PVE::LXC::map_ct_uid_to_host($uid, $id_map);
+	$gid = PVE::LXC::map_ct_gid_to_host($gid, $id_map);
+	chown $uid, $gid, $passthrough_device_path
+	    or die("failed to chown $uid:$gid $passthrough_device_path: $!\n");
+
+	push @$passthrough_devices, [$absolute_path, $mode, $rdev];
+    };
+
+    PVE::LXC::Config->foreach_passthrough_device($conf, $setup_passthrough_device);
+
     my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
     $lxc_setup->pre_start_hook();
 
@@ -138,7 +184,19 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	    my $minor = PVE::Tools::dev_t_minor($rdev);
 	    $devlist .= "b:$major:$minor:$dev\n";
 	}
-	PVE::Tools::file_set_contents($devlist_file, $devlist);
+	PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/mounts", $devlist);
+    }
+
+    if (@$passthrough_devices) {
+	my $devlist = '';
+	for my $dev (@$passthrough_devices) {
+	    my ($path, $mode, $rdev) = @$dev;
+	    my $major = PVE::Tools::dev_t_major($rdev);
+	    my $minor = PVE::Tools::dev_t_minor($rdev);
+	    my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
+	    $devlist .= "$device_type_char:$major:$minor:$path\n";
+	}
+	PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/devices", $devlist);
     }
 });
 

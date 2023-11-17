@@ -29,6 +29,7 @@ mkdir $lockdir;
 mkdir "/etc/pve/nodes/$nodename/lxc";
 my $MAX_MOUNT_POINTS = 256;
 my $MAX_UNUSED_DISKS = $MAX_MOUNT_POINTS;
+my $MAX_DEVICES = 256;
 
 # BEGIN implemented abstract methods from PVE::AbstractConfig
 
@@ -908,6 +909,63 @@ for (my $i = 0; $i < $MAX_UNUSED_DISKS; $i++) {
     }
 }
 
+PVE::JSONSchema::register_format('pve-lxc-dev-string', \&verify_lxc_dev_string);
+sub verify_lxc_dev_string {
+    my ($dev, $noerr) = @_;
+
+    # do not allow /./ or /../ or /.$ or /..$
+    # enforce /dev/ at the beginning
+
+    if (
+	$dev =~ m@/\.\.?(?:/|$)@ ||
+	$dev !~ m!^/dev/!
+    ) {
+	return undef if $noerr;
+	die "$dev is not a valid device path\n";
+    }
+
+    return $dev;
+}
+
+my $dev_desc = {
+    path => {
+	optional => 1,
+	type => 'string',
+	default_key => 1,
+	format => 'pve-lxc-dev-string',
+	format_description => 'Path',
+	description => 'Device to pass through to the container',
+	verbose_description => 'Path to the device to pass through to the container',
+    },
+    mode => {
+	optional => 1,
+	type => 'string',
+	pattern => '0[0-7]{3}',
+	format_description => 'Octal access mode',
+	description => 'Access mode to be set on the device node',
+    },
+    uid => {
+	optional => 1,
+	type => 'integer',
+	minimum => 0,
+	description => 'User ID to be assigned to the device node',
+    },
+    gid => {
+	optional => 1,
+	type => 'integer',
+	minimum => 0,
+	description => 'Group ID to be assigned to the device node',
+    },
+};
+
+for (my $i = 0; $i < $MAX_DEVICES; $i++) {
+    $confdesc->{"dev$i"} = {
+	optional => 1,
+	type => 'string', format => $dev_desc,
+	description => "Device to pass through to the container",
+    }
+}
+
 sub parse_pct_config {
     my ($filename, $raw, $strict) = @_;
 
@@ -1253,6 +1311,23 @@ sub parse_volume {
     die "parse_volume - unknown type: $key\n" if !$noerr;
 
     return;
+}
+
+sub parse_device {
+    my ($class, $device_string, $noerr) = @_;
+
+    my $res = eval { PVE::JSONSchema::parse_property_string($dev_desc, $device_string) };
+    if ($@) {
+	return undef if $noerr;
+	die $@;
+    }
+
+    if (!defined($res->{path})) {
+	return undef if $noerr;
+	die "Path has to be defined\n";
+    }
+
+    return $res;
 }
 
 sub print_volume {
@@ -1759,6 +1834,18 @@ sub get_derived_property {
 	return ($conf->{memory} || 512) * 1024 * 1024;
     } else {
 	die "unknown derived property - $name\n";
+    }
+}
+
+sub foreach_passthrough_device {
+    my ($class, $conf, $func, @param) = @_;
+
+    for my $key (keys %$conf) {
+	next if $key !~ m/^dev(\d+)$/;
+
+	my $device = $class->parse_device($conf->{$key});
+
+	$func->($key, $device, @param);
     }
 }
 
