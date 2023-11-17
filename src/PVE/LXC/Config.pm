@@ -22,6 +22,12 @@ use constant {
     FITHAW   => 0xc0045878,
 };
 
+my $have_sdn;
+eval {
+    require PVE::Network::SDN::Vnets;
+    $have_sdn = 1;
+};
+
 my $nodename = PVE::INotify::nodename();
 my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
@@ -1383,6 +1389,12 @@ sub vmconfig_hotplug_pending {
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
+		if ($have_sdn) {
+		    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+		    print "delete ips from $opt\n";
+		    eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
+		    warn $@ if $@;
+		}
 	    } else {
 		die "skip\n"; # skip non-hotpluggable opts
 	    }

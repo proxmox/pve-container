@@ -961,6 +961,12 @@ sub update_net {
 	    safe_string_ne($oldnet->{name}, $newnet->{name})) {
 
 	    PVE::Network::veth_delete($veth);
+
+	    if ($have_sdn) {
+		eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldnet->{bridge}, $oldnet->{hwaddr}, $conf->{hostname}) };
+		warn $@ if $@;
+	    }
+
 	    delete $conf->{$opt};
 	    PVE::LXC::Config->write_config($vmid, $conf);
 
@@ -974,14 +980,23 @@ sub update_net {
 	    ) {
 
 		if ($oldnet->{bridge}) {
+
 		    PVE::Network::tap_unplug($veth);
 		    foreach (qw(bridge tag firewall)) {
 			delete $oldnet->{$_};
 		    }
 		    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($oldnet);
 		    PVE::LXC::Config->write_config($vmid, $conf);
+
+		    if ($have_sdn) {
+			eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldnet->{bridge}, $oldnet->{hwaddr}, $conf->{hostname}) };
+			warn $@ if $@;
+		    }
 		}
 
+		if ($have_sdn) {
+		    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
+		}
 		PVE::LXC::net_tap_plug($veth, $newnet);
 
 		# This includes the rate:
@@ -1012,6 +1027,8 @@ sub hotplug_net {
     my $eth = $newnet->{name};
 
     if ($have_sdn) {
+	PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
+	PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
 	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
     } else {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
