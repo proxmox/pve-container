@@ -19,6 +19,8 @@ use PVE::Tools;
 use PVE::Network;
 
 use PVE::LXC::Setup::Plugin;
+use PVE::LXC::Tools;
+
 use base qw(PVE::LXC::Setup::Plugin);
 
 sub new {
@@ -606,6 +608,13 @@ sub ssh_host_key_types_to_generate {
 	ecdsa => 'ssh_host_ecdsa_key',
 	ed25519 => 'ssh_host_ed25519_key',
     };
+}
+
+sub detect_architecture {
+    my ($self) = @_;
+
+    # '/bin/sh' is POSIX mandatory
+    return PVE::LXC::Tools::detect_elf_architecture('/bin/sh');
 }
 
 sub pre_start_hook {
