@@ -1,0 +1,4 @@
+/*.buildinfo
+/*.changes
+/*.deb
+/pve-container-[0-9]*/
