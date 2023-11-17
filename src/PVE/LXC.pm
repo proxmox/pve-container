@@ -46,6 +46,7 @@ use PVE::LXC::Tools;
 my $have_sdn;
 eval {
     require PVE::Network::SDN::Zones;
+    require PVE::Network::SDN::Vnets;
     $have_sdn = 1;
 };
 
@@ -897,6 +898,8 @@ sub destroy_lxc_container {
 	    warn $@ if $@;
 	});
     }
+
+    delete_ifaces_ipams_ips($conf, $vmid);
 
     rmdir "/var/lib/lxc/$vmid/rootfs";
     unlink "/var/lib/lxc/$vmid/config";
@@ -2752,6 +2755,19 @@ sub thaw($) {
 	PVE::LXC::Command::unfreeze($vmid, 30);
     } else {
 	PVE::LXC::CGroup->new($vmid)->freeze_thaw(0);
+    }
+}
+
+sub delete_ifaces_ipams_ips {
+    my ($conf, $vmid) = @_;
+
+    return if !$have_sdn;
+
+    for my $opt (keys %$conf) {
+	next if $opt !~ m/^net(\d+)$/;
+	my $net = PVE::QemuServer::parse_net($conf->{$opt});
+	eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
+	warn $@ if $@;
     }
 }
 
