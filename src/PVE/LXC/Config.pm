@@ -1471,6 +1471,12 @@ sub vmconfig_apply_pending {
 	    } elsif ($opt =~ m/^unused(\d+)$/) {
 		PVE::LXC::delete_mountpoint_volume($storecfg, $vmid, $conf->{$opt})
 		    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+	    } elsif ($opt =~ m/^net(\d+)$/) {
+		if ($have_sdn) {
+		    my $net = $class->parse_lxc_network($conf->{$opt});
+		    eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
+		    warn $@ if $@;
+		}
 	    }
 	};
 	if (my $err = $@) {
@@ -1493,6 +1499,15 @@ sub vmconfig_apply_pending {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
 		$conf->{pending}->{$opt} = $class->print_lxc_network($net);
+		if ($have_sdn) {
+		    if($conf->{$opt}) {
+			my $old_net = $class->parse_lxc_network($conf->{$opt});
+			if ($old_net->{bridge} ne $net->{bridge} || $old_net->{hwaddr} ne $net->{hwaddr}) {
+			    PVE::Network::SDN::Vnets::del_ips_from_mac($old_net->{bridge}, $old_net->{hwaddr}, $conf->{name});
+			}
+		    }
+		    PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
+		}
 	    }
 	};
 	if (my $err = $@) {
