@@ -1,3 +1,18 @@
+pve-container (5.0.6) bookworm; urgency=medium
+
+  * api: network: add endpoint to get interfaces details like configured IPs
+
+  * setup: fix architecture detection for NixOS containers
+
+  * setup base: disable sysfs debug mounts via systemd presets, used by Debian
+    12+, Fedora 37+, CentOS 8+, ArchLinux and Ubuntu 23.04+.
+
+  * setup: handle getty services also via systemd-preset to avoid potential
+    glitches that happen only for the first boot. For example, Fedora 39 had
+    no console available during the first boot.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 19 Nov 2023 19:29:01 +0100
+
 pve-container (5.0.5) bookworm; urgency=medium
 
   * fix #4765: pct: do not report cpu usage
