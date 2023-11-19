@@ -106,10 +106,9 @@ sub setup_init {
 
 	my $version = $self->{version};
 	if (at_least($version, 12, 0)) {
-	    # this only affects the first-boot (if no /etc/machien-id exists).
+	    # this only affects the first-boot (if no /etc/machine-id exists).
 	    $self->setup_systemd_preset({
-		# systemd-networkd gets enabled by default, disable it, debian uses
-		# ifupdown
+		# systemd-networkd gets enabled by default, disable it, debian uses ifupdown
 		'systemd-networkd.service' => 0,
 	    });
 	}

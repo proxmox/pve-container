@@ -35,10 +35,10 @@ sub setup_init {
     my $version = $self->{version};
 
     if ($version >= 37) {
-	# this only affects the first-boot (if no /etc/machien-id exists).
+	# this only affects the first-boot (if no /etc/machine-id exists).
 	$self->setup_systemd_preset({
-	    # systemd-networkd is disabled by the preset in >=37 in favor of
-	    # NetworkManager, reenable it, since we make use of it.
+	    # systemd-networkd is disabled by the preset in >= 37 in favor of NetworkManager,
+	    # reenable it, since we make use of it.
 	    'systemd-networkd.service' => 1,
 	});
     }
