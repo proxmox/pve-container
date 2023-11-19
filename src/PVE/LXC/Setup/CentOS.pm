@@ -131,6 +131,11 @@ sub setup_init {
     $self->fixup_old_getty();
 
     $self->setup_container_getty_service($conf);
+
+    # older versions might not be able to cope with our relative modern preset default
+    if ($self->{version} >= 8) {
+	$self->setup_systemd_preset(); # this only affects the first-boot (if no /etc/machine-id exists)
+    }
 }
 
 sub set_hostname {
