@@ -56,47 +56,49 @@ sub run_test {
 	srand(0);
 	$lxc_setup->post_create_hook('$5$SALT$PASS','ssh-rsa ABCDEFG ABC@DEF');
 
-	my @testfiles = qw(/etc/hostname
-	                   /etc/hosts
-	                   /etc/inittab
-	                   /etc/locale.conf
-	                   /etc/network/interfaces
-	                   /etc/resolv.conf
-	                   /etc/passwd
-	                   /etc/shadow
-	                   /etc/sysconfig/network
-	                   /etc/sysconfig/network-scripts/ifcfg-eth0
-	                   /etc/sysconfig/network-scripts/route-eth0
-	                   /etc/sysconfig/network-scripts/route6-eth0
-	                   /etc/sysconfig/network-scripts/ifcfg-eth1
-	                   /etc/sysconfig/network-scripts/route-eth1
-	                   /etc/sysconfig/network-scripts/route6-eth1
-	                   /etc/sysconfig/network-scripts/ifcfg-eth2
-	                   /etc/sysconfig/network-scripts/route-eth2
-	                   /etc/sysconfig/network-scripts/route6-eth2
-	                   /etc/sysconfig/network-scripts/ifcfg-eth3
-	                   /etc/sysconfig/network-scripts/route-eth3
-	                   /etc/sysconfig/network-scripts/route6-eth3
-	                   /etc/sysconfig/network/ifcfg-eth0
-	                   /etc/sysconfig/network/ifroute-eth0
-	                   /etc/sysconfig/network/ifcfg-eth1
-	                   /etc/sysconfig/network/ifroute-eth1
-	                   /etc/sysconfig/network/ifcfg-eth2
-	                   /etc/sysconfig/network/ifroute-eth2
-	                   /etc/sysconfig/network/ifcfg-eth3
-	                   /etc/sysconfig/network/ifroute-eth3
-	                   /etc/init/start-ttys.conf
-	                   /etc/init/tty.conf
-	                   /etc/init/power-status-changed.conf
-	                   /etc/securetty
-	                   /etc/crontab
-	                   /root
-	                   /root/.ssh
-	                   /root/.ssh/authorized_keys
-	                   /roothome
-	                   /roothome/.ssh
-	                   /roothome/.ssh/authorized_keys);
-	foreach my $fn (@testfiles) {
+	my @testfiles = qw(
+	    /etc/hostname
+	   /etc/hosts
+	   /etc/inittab
+	   /etc/locale.conf
+	   /etc/network/interfaces
+	   /etc/resolv.conf
+	   /etc/passwd
+	   /etc/shadow
+	   /etc/sysconfig/network
+	   /etc/sysconfig/network-scripts/ifcfg-eth0
+	   /etc/sysconfig/network-scripts/route-eth0
+	   /etc/sysconfig/network-scripts/route6-eth0
+	   /etc/sysconfig/network-scripts/ifcfg-eth1
+	   /etc/sysconfig/network-scripts/route-eth1
+	   /etc/sysconfig/network-scripts/route6-eth1
+	   /etc/sysconfig/network-scripts/ifcfg-eth2
+	   /etc/sysconfig/network-scripts/route-eth2
+	   /etc/sysconfig/network-scripts/route6-eth2
+	   /etc/sysconfig/network-scripts/ifcfg-eth3
+	   /etc/sysconfig/network-scripts/route-eth3
+	   /etc/sysconfig/network-scripts/route6-eth3
+	   /etc/sysconfig/network/ifcfg-eth0
+	   /etc/sysconfig/network/ifroute-eth0
+	   /etc/sysconfig/network/ifcfg-eth1
+	   /etc/sysconfig/network/ifroute-eth1
+	   /etc/sysconfig/network/ifcfg-eth2
+	   /etc/sysconfig/network/ifroute-eth2
+	   /etc/sysconfig/network/ifcfg-eth3
+	   /etc/sysconfig/network/ifroute-eth3
+	   /etc/init/start-ttys.conf
+	   /etc/init/tty.conf
+	   /etc/init/power-status-changed.conf
+	   /etc/securetty
+	   /etc/crontab
+	   /root
+	   /root/.ssh
+	   /root/.ssh/authorized_keys
+	   /roothome
+	   /roothome/.ssh
+	   /roothome/.ssh/authorized_keys
+	);
+	for my $fn (@testfiles) {
 	    next if !-f "$testdir/$fn.exp";
 	    test_file("$testdir/$fn.exp", "$rootfs/$fn");
 	}
