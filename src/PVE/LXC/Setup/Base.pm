@@ -326,6 +326,8 @@ sub setup_systemd_preset {
     my $preset = {
 	'sys-kernel-config.mount' => 0,
 	'sys-kernel-debug.mount' => 0,
+	'getty@.service' => 0,
+	'container-getty@.service' => 1,
     };
 
     if (defined($extra_preset)) {
