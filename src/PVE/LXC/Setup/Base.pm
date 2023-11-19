@@ -310,18 +310,29 @@ DATA
     }
 }
 
-# At first boot, systemd goes through a set of `presets` to bring the
+# At first boot (/etc/machine-id not existing), systemd goes through a set of `presets` to bring the
 # enable/disable state of services to a default.
-# Meaning for newer templates we should use this instead of manually creating
-# enable/disable symlinks.
+# Meaning for newer templates we should use this instead of manually creating enable/disable
+# symlinks.
 #
-# `$preset` should map service names to a bool-ish.
+# Disables some common problematic and/or useless units by default.
+#
+# `$extra_preset` should map service names to a bool-ish. It can also hold overrides for the default
+# presets.
 sub setup_systemd_preset {
-    my ($self, $preset) = @_;
+    my ($self, $extra_preset) = @_;
 
-    my $preset_data =
-	"# Added by PVE at create-time for first-boot configuration.\n";
+    # some don't make sense in CTs, child-plugins can still override through extra_presets
+    my $preset = {
+	'sys-kernel-config.mount' => 0,
+	'sys-kernel-debug.mount' => 0,
+    };
 
+    if (defined($extra_preset)) {
+	$preset->{$_} = $extra_preset->{$_} for keys $extra_preset->%*;
+    }
+
+    my $preset_data = "# Added by PVE at create-time for first-boot configuration.\n";
     for my $service (sort keys %$preset) {
 	if ($preset->{$service}) {
 	    $preset_data .= "enable $service\n";
