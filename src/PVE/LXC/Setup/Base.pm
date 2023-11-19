@@ -326,6 +326,8 @@ sub setup_systemd_preset {
     my $preset = {
 	'sys-kernel-config.mount' => 0,
 	'sys-kernel-debug.mount' => 0,
+	# NOTE: some older distro releases (e.g., centos 7.0) had no container-getty, which itself
+	# is not an issue for presets, but disabling getty@ then could cause issues.
 	'getty@.service' => 0,
 	'container-getty@.service' => 1,
     };
