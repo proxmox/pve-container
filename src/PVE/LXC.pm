@@ -965,9 +965,12 @@ sub update_net {
 
 	    PVE::Network::veth_delete($veth);
 
-	    if ($have_sdn) {
+	    if ($have_sdn && safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr})) {
 		eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldnet->{bridge}, $oldnet->{hwaddr}, $conf->{hostname}) };
 		warn $@ if $@;
+
+		PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
+		PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
 	    }
 
 	    delete $conf->{$opt};
@@ -976,13 +979,15 @@ sub update_net {
 	    hotplug_net($vmid, $conf, $opt, $newnet, $netid);
 
 	} else {
-	    if (safe_string_ne($oldnet->{bridge}, $newnet->{bridge}) ||
+	    my $bridge_changed = safe_string_ne($oldnet->{bridge}, $newnet->{bridge});
+
+	    if ($bridge_changed ||
 		safe_num_ne($oldnet->{tag}, $newnet->{tag}) ||
 		safe_num_ne($oldnet->{firewall}, $newnet->{firewall}) ||
 		safe_boolean_ne($oldnet->{link_down}, $newnet->{link_down})
 	    ) {
-
 		if ($oldnet->{bridge}) {
+		    my $oldbridge = $oldnet->{bridge};
 
 		    PVE::Network::tap_unplug($veth);
 		    foreach (qw(bridge tag firewall)) {
@@ -991,13 +996,13 @@ sub update_net {
 		    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($oldnet);
 		    PVE::LXC::Config->write_config($vmid, $conf);
 
-		    if ($have_sdn) {
-			eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldnet->{bridge}, $oldnet->{hwaddr}, $conf->{hostname}) };
+		    if ($have_sdn && $bridge_changed) {
+			eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldbridge, $oldnet->{hwaddr}, $conf->{hostname}) };
 			warn $@ if $@;
 		    }
 		}
 
-		if ($have_sdn) {
+		if ($have_sdn && $bridge_changed) {
 		    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
 		}
 		PVE::LXC::net_tap_plug($veth, $newnet);
@@ -1016,6 +1021,9 @@ sub update_net {
 	    PVE::LXC::Config->write_config($vmid, $conf);
 	}
     } else {
+	PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
+	PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
+
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
     }
 
@@ -1030,8 +1038,6 @@ sub hotplug_net {
     my $eth = $newnet->{name};
 
     if ($have_sdn) {
-	PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
-	PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
 	PVE::Network::SDN::Zones::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
     } else {
 	PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
