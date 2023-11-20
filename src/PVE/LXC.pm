@@ -2771,9 +2771,9 @@ sub create_ifaces_ipams_ips {
 
     for my $opt (keys %$conf) {
 	next if $opt !~ m/^net(\d+)$/;
-	my $net = PVE::QemuServer::parse_net($conf->{$opt});
+	my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
 	next if $net->{type} ne 'veth';
-        PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
+	PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
     }
 }
 
@@ -2784,7 +2784,7 @@ sub delete_ifaces_ipams_ips {
 
     for my $opt (keys %$conf) {
 	next if $opt !~ m/^net(\d+)$/;
-	my $net = PVE::QemuServer::parse_net($conf->{$opt});
+	my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
 	eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
 	warn $@ if $@;
     }
