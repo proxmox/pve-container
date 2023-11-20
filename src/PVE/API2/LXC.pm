@@ -479,7 +479,6 @@ __PACKAGE__->register_method({
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 			$lxc_setup->template_fixup($conf);
 		    } else {
-			PVE::LXC::create_ifaces_ipams_ips($conf, $vmid);
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
 			PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)
 			$lxc_setup->post_create_hook($password, $ssh_keys);
