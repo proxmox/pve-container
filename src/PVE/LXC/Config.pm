@@ -1500,13 +1500,15 @@ sub vmconfig_apply_pending {
 		my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
 		$conf->{pending}->{$opt} = $class->print_lxc_network($net);
 		if ($have_sdn) {
-		    if($conf->{$opt}) {
+		    if ($conf->{$opt}) {
 			my $old_net = $class->parse_lxc_network($conf->{$opt});
 			if ($old_net->{bridge} ne $net->{bridge} || $old_net->{hwaddr} ne $net->{hwaddr}) {
 			    PVE::Network::SDN::Vnets::del_ips_from_mac($old_net->{bridge}, $old_net->{hwaddr}, $conf->{name});
+			    PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
 			}
+		    } else {
+			PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
 		    }
-		    PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
 		}
 	    }
 	};
