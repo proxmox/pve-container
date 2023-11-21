@@ -34,5 +34,6 @@ Depends: binutils,
          xz-utils,
          ${misc:Depends},
          ${perl:Depends},
+Recommends: libpve-network-perl (>= 0.8.3),
 Description: Proxmox VE Container management tool
  Tool to manage Linux Containers on Proxmox VE.
