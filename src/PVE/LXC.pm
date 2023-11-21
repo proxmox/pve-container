@@ -1044,8 +1044,10 @@ sub update_net {
 	    PVE::LXC::Config->write_config($vmid, $conf);
 	}
     } else {
-	PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
-	PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
+	if ($have_sdn) {
+	    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
+	    PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
+	}
 
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);
     }
