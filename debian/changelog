@@ -1,3 +1,15 @@
+pve-container (5.0.7) bookworm; urgency=medium
+
+  * allow passing raw device nodes through to containers
+
+  * recommend libpve-network-perl for SDN support
+
+  * initial support for dhcp ip allocation in dhcp-enabled SDN zones
+
+  - Proxmox Support Team <support@proxmox.com>  Tue, 21 Nov 2023 15:37:14 +0100
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 21 Nov 2023 15:45:04 +0100
+
 pve-container (5.0.6) bookworm; urgency=medium
 
   * api: network: add endpoint to get interfaces details like configured IPs
