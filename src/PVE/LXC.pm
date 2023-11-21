@@ -993,7 +993,7 @@ sub update_net {
 		warn $@ if $@;
 
 		PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
-		PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
+		PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr}, $vmid, $conf->{hostname});
 	    }
 
 	    delete $conf->{$opt};
@@ -1046,7 +1046,7 @@ sub update_net {
     } else {
 	if ($have_sdn) {
 	    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
-	    PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr});
+	    PVE::Network::SDN::Vnets::add_dhcp_mapping($newnet->{bridge}, $newnet->{hwaddr}, $vmid, $conf->{hostname});
 	}
 
 	hotplug_net($vmid, $conf, $opt, $newnet, $netid);

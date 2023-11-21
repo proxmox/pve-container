@@ -210,7 +210,7 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	    next if $k !~ /^net(\d+)/;
 	    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 	    next if $net->{type} ne 'veth';
-	    PVE::Network::SDN::Vnets::add_dhcp_mapping($net->{bridge}, $net->{hwaddr});
+	    PVE::Network::SDN::Vnets::add_dhcp_mapping($net->{bridge}, $net->{hwaddr}, $conf->{vmid}, $conf->{hostname});
 	}
     }
 });
