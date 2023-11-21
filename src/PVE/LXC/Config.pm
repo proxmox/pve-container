@@ -22,6 +22,12 @@ use constant {
     FITHAW   => 0xc0045878,
 };
 
+my $have_sdn;
+eval {
+    require PVE::Network::SDN::Vnets;
+    $have_sdn = 1;
+};
+
 my $nodename = PVE::INotify::nodename();
 my $lock_handles =  {};
 my $lockdir = "/run/lock/lxc";
@@ -1458,6 +1464,12 @@ sub vmconfig_hotplug_pending {
 	    } elsif ($opt =~ m/^net(\d)$/) {
 		my $netid = $1;
 		PVE::Network::veth_delete("veth${vmid}i$netid");
+		if ($have_sdn) {
+		    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+		    print "delete ips from $opt\n";
+		    eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
+		    warn $@ if $@;
+		}
 	    } else {
 		die "skip\n"; # skip non-hotpluggable opts
 	    }
@@ -1534,6 +1546,12 @@ sub vmconfig_apply_pending {
 	    } elsif ($opt =~ m/^unused(\d+)$/) {
 		PVE::LXC::delete_mountpoint_volume($storecfg, $vmid, $conf->{$opt})
 		    if !$class->is_volume_in_use($conf, $conf->{$opt}, 1, 1);
+	    } elsif ($opt =~ m/^net(\d+)$/) {
+		if ($have_sdn) {
+		    my $net = $class->parse_lxc_network($conf->{$opt});
+		    eval { PVE::Network::SDN::Vnets::del_ips_from_mac($net->{bridge}, $net->{hwaddr}, $conf->{hostname}) };
+		    warn $@ if $@;
+		}
 	    }
 	};
 	if (my $err = $@) {
@@ -1556,6 +1574,17 @@ sub vmconfig_apply_pending {
 		my $netid = $1;
 		my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
 		$conf->{pending}->{$opt} = $class->print_lxc_network($net);
+		if ($have_sdn) {
+		    if ($conf->{$opt}) {
+			my $old_net = $class->parse_lxc_network($conf->{$opt});
+			if ($old_net->{bridge} ne $net->{bridge} || $old_net->{hwaddr} ne $net->{hwaddr}) {
+			    PVE::Network::SDN::Vnets::del_ips_from_mac($old_net->{bridge}, $old_net->{hwaddr}, $conf->{name});
+			    PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
+			}
+		    } else {
+			PVE::Network::SDN::Vnets::add_next_free_cidr($net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1);
+		    }
+		}
 	    }
 	};
 	if (my $err = $@) {

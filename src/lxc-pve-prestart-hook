@@ -22,6 +22,12 @@ use PVE::Storage;
 use PVE::Syscall qw(:fsmount);
 use PVE::Tools qw(AT_FDCWD O_PATH);
 
+my $have_sdn;
+eval {
+    require PVE::Network::SDN::Vnets;
+    $have_sdn = 1;
+};
+
 my $WARNFD;
 sub log_warn {
     my ($vmid, $message) = @_;
@@ -197,6 +203,15 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	    $devlist .= "$device_type_char:$major:$minor:$path\n";
 	}
 	PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/devices", $devlist);
+    }
+
+    if ($have_sdn) {
+	for my $k (keys %$conf) {
+	    next if $k !~ /^net(\d+)/;
+	    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+	    next if $net->{type} ne 'veth';
+	    PVE::Network::SDN::Vnets::add_dhcp_mapping($net->{bridge}, $net->{hwaddr});
+	}
     }
 });
 

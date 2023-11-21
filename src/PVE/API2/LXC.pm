@@ -475,6 +475,7 @@ __PACKAGE__->register_method({
 		    if ($restore) {
 			print "merging backed-up and given configuration..\n";
 			PVE::LXC::Create::restore_configuration($vmid, $storage_cfg, $archive, $rootdir, $conf, !$is_root, $unique, $skip_fw_config_restore);
+			PVE::LXC::create_ifaces_ipams_ips($conf, $vmid) if $unique;
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 			$lxc_setup->template_fixup($conf);
 		    } else {
@@ -503,6 +504,8 @@ __PACKAGE__->register_method({
 		PVE::LXC::Config->write_config($vmid, $conf);
 	    };
 	    if (my $err = $@) {
+		eval { PVE::LXC::delete_ifaces_ipams_ips($conf, $vmid) };
+		warn $@ if $@;
 		PVE::LXC::destroy_disks($storage_cfg, $vollist);
 		if ($destroy_config_on_error) {
 		    eval { PVE::LXC::Config->destroy_config($vmid) };
@@ -1826,7 +1829,9 @@ __PACKAGE__->register_method({
 		$lock_and_reload->($newid, sub {
 		    my $conf = shift;
 		    my $rootdir = PVE::LXC::mount_all($newid, $storecfg, $conf, 1);
+
 		    eval {
+			PVE::LXC::create_ifaces_ipams_ips($conf, $vmid);
 			my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
 			$lxc_setup->post_clone_hook($conf);
 		    };
@@ -1846,7 +1851,7 @@ __PACKAGE__->register_method({
 	    warn $@ if $@;
 
 	    if ($err) {
-		# Now cleanup the config & disks:
+		# Now cleanup the config & disks & ipam:
 		sleep 1; # some storages like rbd need to wait before release volume - really?
 
 		foreach my $volid (@$newvollist) {
@@ -1856,6 +1861,8 @@ __PACKAGE__->register_method({
 
 		eval {
 		    $lock_and_reload->($newid, sub {
+			my $conf = shift;
+			PVE::LXC::delete_ifaces_ipams_ips($conf, $newid);
 			PVE::LXC::Config->destroy_config($newid);
 			PVE::Firewall::remove_vmfw_conf($newid);
 		    });
