@@ -69,7 +69,7 @@ sub config_list {
 	my $d = $ids->{$vmid};
 	next if !$d->{node} || $d->{node} ne $nodename;
 	next if !$d->{type} || $d->{type} ne 'lxc';
-	$res->{$vmid} = { type => 'lxc', vmid => $vmid };
+	$res->{$vmid} = { type => 'lxc', vmid => int($vmid) };
     }
     return $res;
 }
