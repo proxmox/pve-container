@@ -143,6 +143,16 @@ __PACKAGE__->register_method ({
 	exec(@$cmd);
     }});
 
+# TODO: Evaluate if still needed with PVE9
+sub clean_environment {
+    # These env variables are currently needed by PVE to work correctly with rust libraries,
+    # but can break ssl inside of containers.
+    # An explanation why they are needed and the code that sets them can be found here:
+    # https://git.proxmox.com/?p=proxmox-perl-rs.git;a=blob;f=common/pkg/Proxmox/Lib/SslProbe.pm
+    delete $ENV{SSL_CERT_FILE};
+    delete $ENV{SSL_CERT_DIR};
+};
+
 __PACKAGE__->register_method ({
     name => 'enter',
     path => 'enter',
@@ -164,6 +174,7 @@ __PACKAGE__->register_method ({
 	PVE::LXC::Config->load_config($vmid); # test if container exists on this node
 	die "container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
 
+	clean_environment();
 	exec('lxc-attach', '-n',  $vmid);
     }});
 
@@ -189,6 +200,7 @@ __PACKAGE__->register_method ({
 
 	die "missing command" if !@{$param->{'extra-args'}};
 
+	clean_environment();
 	exec('lxc-attach', '-n', $vmid, '--', @{$param->{'extra-args'}});
     }});
 
