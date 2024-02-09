@@ -162,12 +162,22 @@ __PACKAGE__->register_method ({
 	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
+	    # FIXME: passing the environment into the container potentially leaks hosts secrets, or causes
+	    # unexpected behavior. Change to opt-in for pve 9
+	    'keep-env' => {
+		type => 'boolean',
+		description => "Keep the current environment. This option will disabled by default with PVE 9."
+		    ." If you rely on a preserved environment, please use this option to be future-proof.",
+		optional => 1,
+		default => 1,
+	    },
 	},
     },
     returns => { type => 'null' },
 
     code => sub {
 	my ($param) = @_;
+	my $keep_env = $param->{'keep-env'} // 1; # FIXME: switch to default 0 with pve 9, see above
 
 	my $vmid = $param->{vmid};
 
@@ -175,7 +185,10 @@ __PACKAGE__->register_method ({
 	die "container '$vmid' not running!\n" if !PVE::LXC::check_running($vmid);
 
 	clean_environment();
-	exec('lxc-attach', '-n',  $vmid);
+
+	my @lxc_attach_cmd = ('lxc-attach', '-n', $vmid);
+	push @lxc_attach_cmd, $keep_env ? '--keep-env' : '--clear-env';
+	exec(@lxc_attach_cmd);
     }});
 
 __PACKAGE__->register_method ({
@@ -187,12 +200,20 @@ __PACKAGE__->register_method ({
 	additionalProperties => 0,
 	properties => {
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
+	    'keep-env' => {
+		type => 'boolean',
+		description => "Keep the current environment. This option will disabled by default with PVE 9."
+		    ." If you rely on a preserved environment, please use this option to be future-proof.",
+		optional => 1,
+		default => 1, # FIXME: switch to default 0 with pve 9, see enter method
+	    },
 	    'extra-args' => get_standard_option('extra-args'),
 	},
     },
     returns => { type => 'null' },
     code => sub {
 	my ($param) = @_;
+	my $keep_env = $param->{'keep-env'} // 1; # FIXME: switch to default 0 with pve 9, see enter method
 
 	my $vmid = $param->{vmid};
 	PVE::LXC::Config->load_config($vmid); # test if container exists on this node
@@ -201,7 +222,11 @@ __PACKAGE__->register_method ({
 	die "missing command" if !@{$param->{'extra-args'}};
 
 	clean_environment();
-	exec('lxc-attach', '-n', $vmid, '--', @{$param->{'extra-args'}});
+
+	my @lxc_attach_cmd = ('lxc-attach', '-n', $vmid);
+	push @lxc_attach_cmd, $keep_env ? '--keep-env' : '--clear-env';
+	push @lxc_attach_cmd, '--', @{$param->{'extra-args'}};
+	exec(@lxc_attach_cmd);
     }});
 
 __PACKAGE__->register_method ({
