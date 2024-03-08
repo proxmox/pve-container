@@ -3,6 +3,7 @@ package PVE::API2::LXC;
 use strict;
 use warnings;
 
+use IO::Socket::UNIX;
 use Socket qw(SOCK_STREAM);
 
 use PVE::SafeSyslog;
