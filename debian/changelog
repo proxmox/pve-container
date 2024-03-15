@@ -1,3 +1,15 @@
+pve-container (5.0.9) bookworm; urgency=medium
+
+  * config: schema: remove duplicate attribute assignment for mpX
+
+  * fix #5194: pct: delete environment variables set by pve
+
+  * pct: drop completion helper for target storage on remote-migration
+
+  * pct: add keep-env option to the 'enter' and 'exec' command
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 15 Mar 2024 10:24:22 +0100
+
 pve-container (5.0.8) bookworm; urgency=medium
 
   * sdn: pass vmid and hostname to allow requesting a new mapping
