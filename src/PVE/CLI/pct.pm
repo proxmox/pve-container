@@ -885,7 +885,6 @@ __PACKAGE__->register_method({
 		default => 0,
 	    },
 	    'target-storage' => get_standard_option('pve-targetstorage', {
-		completion => \&PVE::QemuServer::complete_migration_storage,
 		optional => 0,
 	    }),
 	    'target-bridge' => {
