@@ -1,0 +1,7 @@
+#include <tunables/global>
+
+profile pve-container-mounthotplug flags=(attach_disconnected) {
+  #include <abstractions/lxc/start-container>
+
+  mount options=(move),
+}

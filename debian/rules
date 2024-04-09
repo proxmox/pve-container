@@ -14,3 +14,6 @@
 
 override_dh_installsystemd:
 	dh_installsystemd -ppve-container --no-start --no-enable --no-restart-after-upgrade -r 'system-pve\x2dcontainer.slice'
+
+override_dh_install:
+	dh_apparmor -p pve-container --profile-name=pve-container-mounthotplug

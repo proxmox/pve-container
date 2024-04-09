@@ -1974,7 +1974,7 @@ sub mountpoint_hotplug :prototype($$$$$) {
 	my $dir = get_staging_mount_path($opt);
 
 	# Now switch our apparmor profile before mounting:
-	my $data = 'changeprofile /usr/bin/lxc-start';
+	my $data = 'changeprofile pve-container-mounthotplug';
 	if (syswrite($aa_fd, $data, length($data)) != length($data)) {
 	    die "failed to change apparmor profile: $!\n";
 	}

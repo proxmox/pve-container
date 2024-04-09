@@ -4,6 +4,7 @@ PREFIX=${DESTDIR}/usr
 BINDIR=${PREFIX}/bin
 LIBDIR=${PREFIX}/lib
 SBINDIR=${PREFIX}/sbin
+ETCDIR=${DESTDIR}/etc
 MANDIR=${PREFIX}/share/man
 DOCDIR=${PREFIX}/share/doc/${PACKAGE}
 LXC_SCRIPT_DIR=${PREFIX}/share/lxc
@@ -13,6 +14,7 @@ LXC_CONFIG_DIR=${LXC_SCRIPT_DIR}/config
 LXC_COMMON_CONFIG_DIR=${LXC_CONFIG_DIR}/common.conf.d
 LXC_USERNS_CONFIG_DIR=${LXC_CONFIG_DIR}/userns.conf.d
 SERVICEDIR=${DESTDIR}/lib/systemd/system
+APPARMORDDIR=${ETCDIR}/apparmor.d
 PODDIR=${DOCDIR}/pod
 MAN1DIR=${MANDIR}/man1/
 MAN5DIR=${MANDIR}/man5/
@@ -73,6 +75,7 @@ install: pct lxc-pve.conf pct.1 pct.conf.5 pct.bash-completion pct.zsh-completio
 	gzip -9 ${MAN5DIR}/pct.conf.5
 	cd ${MAN5DIR}; ln -s pct.conf.5.gz ct.conf.5.gz
 	install -D -m 0644 10-pve-ct-inotify-limits.conf ${LIBDIR}/sysctl.d/10-pve-ct-inotify-limits.conf
+	install -D -m 0644 pve-container-mounthotplug ${APPARMORDDIR}/pve-container-mounthotplug
 
 pve-userns.seccomp: /usr/share/lxc/config/common.seccomp
 	cp $< $@
