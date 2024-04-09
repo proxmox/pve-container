@@ -1975,7 +1975,8 @@ sub mountpoint_hotplug :prototype($$$$$) {
 
 	# Now switch our apparmor profile before mounting:
 	my $data = 'changeprofile pve-container-mounthotplug';
-	if (syswrite($aa_fd, $data, length($data)) != length($data)) {
+	my $data_written = syswrite($aa_fd, $data, length($data));
+	if (!defined($data_written) || $data_written != length($data)) {
 	    die "failed to change apparmor profile: $!\n";
 	}
 	# Check errors on close as well:
