@@ -1849,6 +1849,7 @@ sub __mountpoint_mount {
 
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storage);
 
+	PVE::Storage::activate_volumes($storage_cfg, [$volid], $snapname);
 	my $path = PVE::Storage::map_volume($storage_cfg, $volid, $snapname);
 
 	$path = PVE::Storage::path($storage_cfg, $volid, $snapname) if !defined($path);
