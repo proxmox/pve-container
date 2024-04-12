@@ -220,6 +220,12 @@ __PACKAGE__->register_method({
 	    node => get_standard_option('pve-node'),
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    skiplock => get_standard_option('skiplock'),
+	    'overrule-shutdown' => {
+		description => "Abort any active and visible 'vzshutdown' tasks before stopping",
+		optional => 1,
+		type => 'boolean',
+		default => 0,
+	    }
 	},
     },
     returns => {
@@ -237,9 +243,14 @@ __PACKAGE__->register_method({
 	raise_param_exc({ skiplock => "Only root may use this option." })
 	    if $skiplock && $authuser ne 'root@pam';
 
+	my $overrule_shutdown = extract_param($param, 'overrule-shutdown');
+
 	die "CT $vmid not running\n" if !PVE::LXC::check_running($vmid);
 
 	if (PVE::HA::Config::vm_is_ha_managed($vmid) && $rpcenv->{type} ne 'ha') {
+
+	    raise_param_exc({ 'overrule-shutdown' => "Not applicable for HA resources." })
+		if $overrule_shutdown;
 
 	    my $hacmd = sub {
 		my $upid = shift;
@@ -256,6 +267,14 @@ __PACKAGE__->register_method({
 
 	    my $realcmd = sub {
 		my $upid = shift;
+
+		if ($overrule_shutdown) {
+		    my $overruled_tasks = PVE::GuestHelpers::abort_guest_tasks(
+			$rpcenv, 'vzshutdown', $vmid);
+		    my $overruled_tasks_list = join(", ", $overruled_tasks->@*);
+		    print "overruled vzshutdown tasks: $overruled_tasks_list\n"
+			if @$overruled_tasks;
+		};
 
 		PVE::LXC::Config->lock_config($vmid, sub {
 		    syslog('info', "stopping CT $vmid: $upid\n");
