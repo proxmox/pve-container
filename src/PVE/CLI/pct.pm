@@ -299,9 +299,13 @@ __PACKAGE__->register_method ({
 	    }
 
 	    push(@$command, $path);
-	    PVE::Tools::run_command($command);
+	    eval { PVE::Tools::run_command($command); };
+	    my $err = $@;
 
-	    PVE::Storage::unmap_volume($storage_cfg, $volid) if $storage_id;
+	    eval { PVE::Storage::unmap_volume($storage_cfg, $volid) if $storage_id; };
+	    warn $@ if $@;
+
+	    die $err if $err;
 	};
 
 	PVE::LXC::Config->lock_config($vmid, $do_fsck);
