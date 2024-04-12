@@ -287,6 +287,7 @@ __PACKAGE__->register_method ({
 		die "unable to run fsck for '$volid' (format == $format)\n"
 		    if $format ne 'raw';
 
+		PVE::Storage::activate_volumes($storage_cfg, [$volid]);
 		$path = PVE::Storage::map_volume($storage_cfg, $volid);
 
 	    } else {
@@ -302,8 +303,12 @@ __PACKAGE__->register_method ({
 	    eval { PVE::Tools::run_command($command); };
 	    my $err = $@;
 
-	    eval { PVE::Storage::unmap_volume($storage_cfg, $volid) if $storage_id; };
-	    warn $@ if $@;
+	    if ($storage_id) {
+		eval { PVE::Storage::unmap_volume($storage_cfg, $volid); };
+		warn $@ if $@;
+		eval { PVE::Storage::deactivate_volumes($storage_cfg, [$volid]); };
+		warn $@ if $@;
+	    }
 
 	    die $err if $err;
 	};
