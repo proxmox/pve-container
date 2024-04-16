@@ -14,6 +14,7 @@ use PVE::JSONSchema qw(get_standard_option);
 use PVE::Tools;
 
 use PVE::LXC;
+use PVE::LXC::Tools;
 
 use base qw(PVE::AbstractConfig);
 
