@@ -1193,6 +1193,14 @@ sub update_pct_config {
 		die "$opt: MTU size '$mtu' is bigger than bridge MTU '$bridge_mtu'\n"
 		    if ($mtu > $bridge_mtu);
 	    }
+	} elsif ($opt =~ m/^dev(\d+)$/) {
+	    my $device = $class->parse_device($value);
+
+	    die "Path is not defined for passthrough device $opt"
+		if !defined($device->{path});
+
+            # Validate device
+            PVE::LXC::Tools::get_device_mode_and_rdev($device->{path});
 	}
 	$conf->{pending}->{$opt} = $value;
 	$class->remove_from_pending_delete($conf, $opt);

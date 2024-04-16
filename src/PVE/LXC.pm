@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Cwd qw();
-use Errno qw(ELOOP ENOENT ENOTDIR EROFS ECONNREFUSED EEXIST);
+use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
 use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY :mode);
 use File::Path;
 use File::Spec;
@@ -643,20 +643,10 @@ sub update_lxc_config {
     PVE::LXC::Config->foreach_passthrough_device($conf, sub {
 	my ($key, $device) = @_;
 
-	die "Path is not defined for passthrough device $key"
-	    unless (defined($device->{path}));
+	die "Path is not defined for passthrough device $key\n"
+	    if !defined($device->{path});
 
-	my $absolute_path = $device->{path};
-	my ($mode, $rdev) = (stat($absolute_path))[2, 6];
-
-	die "Device $absolute_path does not exist\n" if $! == ENOENT;
-
-	die "Error accessing device $absolute_path\n"
-	    if (!defined($mode) || !defined($rdev));
-
-	die "$absolute_path is not a device\n"
-	    if (!S_ISBLK($mode) && !S_ISCHR($mode));
-
+	my ($mode, $rdev) = PVE::LXC::Tools::get_device_mode_and_rdev($device->{path});
 	my $major = PVE::Tools::dev_t_major($rdev);
 	my $minor = PVE::Tools::dev_t_minor($rdev);
 	my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
