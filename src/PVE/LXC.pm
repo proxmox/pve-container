@@ -1825,8 +1825,20 @@ sub __mountpoint_mount {
     }
 
     my $acl = $mountpoint->{acl};
-    if (defined($acl)) {
-	push @$optlist, ($acl ? 'acl' : 'noacl');
+
+    if ($acl) {
+	push @$optlist, 'acl';
+    } elsif (defined($acl)) {
+	my $noacl = 1;
+
+	if ($storage) {
+	    my (undef, undef, undef, undef, undef, undef, $format) =
+		PVE::Storage::parse_volname($storage_cfg, $volid);
+
+	    $noacl = 0 if $format eq 'raw';
+	}
+
+	push @$optlist, 'noacl' if $noacl;
     }
 
     my $optstring = join(',', @$optlist);
