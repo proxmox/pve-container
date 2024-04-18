@@ -2048,7 +2048,9 @@ sub format_disk {
     my ($storage_cfg, $volid, $root_uid, $root_gid) = @_;
 
     if ($volid =~ m!^/dev/.+!) {
-	mkfs($volid);
+	# FIXME: remove in Proxmox VE 9 – this code path cannot really be reached currently, using
+	# block devices needs manual preparations by the user
+	mkfs($volid, $root_uid, $root_gid);
 	return;
     }
 
