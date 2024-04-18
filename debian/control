@@ -3,6 +3,7 @@ Section: perl
 Priority: extra
 Maintainer: Proxmox Support Team <support@proxmox.com>
 Build-Depends: debhelper-compat (= 13),
+               dh-apparmor,
                libpve-access-control (>= 8.0.0~),
                libpve-cluster-perl,
                libpve-common-perl (>= 8.1.0),
