@@ -1828,17 +1828,11 @@ sub __mountpoint_mount {
 
     if ($acl) {
 	push @$optlist, 'acl';
-    } elsif (defined($acl)) {
-	my $noacl = 1;
-
-	if ($storage) {
-	    my (undef, undef, undef, undef, undef, undef, $format) =
-		PVE::Storage::parse_volname($storage_cfg, $volid);
-
-	    $noacl = 0 if $format eq 'raw';
-	}
-
-	push @$optlist, 'noacl' if $noacl;
+    } elsif (defined($acl) && $storage) { # acl is explicitly set to false
+	# Since kernel 6.1 the noacl mount option got removed for ext4, which is used for all raw volumes
+	# FIXME: just ignore and log_warn with acl=0 in Proxmox VE 9 (warn also in pve8to9!)
+	my $format = (PVE::Storage::parse_volname($storage_cfg, $volid))[6];
+	push @$optlist, 'noacl' if $format ne 'raw';
     }
 
     my $optstring = join(',', @$optlist);
