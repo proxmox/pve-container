@@ -124,11 +124,11 @@ sub new {
     $plugin->{host_localtime} = $1;
 
     # pass on user namespace information:
-    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     if (@$id_map) {
 	$plugin->{id_map} = $id_map;
-	$plugin->{rootuid} = $rootuid;
-	$plugin->{rootgid} = $rootgid;
+	$plugin->{root_uid} = $root_uid;
+	$plugin->{root_gid} = $root_gid;
     }
 
     # if arch is unset, we try to autodetect it

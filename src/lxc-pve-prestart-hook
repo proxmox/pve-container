@@ -71,7 +71,7 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 
     my $devices = [];
 
-    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
 
     # Unmount first when the user mounted the container with "pct mount".
     eval {
@@ -88,8 +88,8 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	    $dir,
 	    $storage_cfg,
 	    undef,
-	    $rootuid,
-	    $rootgid,
+	    $root_uid,
+	    $root_gid,
 	);
 
 	my ($dest_dir, $dest_base_fd);
@@ -113,8 +113,8 @@ PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
 	    $dest_base_fd,
 	    $dest_dir,
 	    $opt,
-	    $rootuid,
-	    $rootgid,
+	    $root_uid,
+	    $root_gid,
 	);
 
 	# From now on we mount inside our rootfs:

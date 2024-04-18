@@ -689,8 +689,8 @@ sub ct_reset_ownership {
     @files = grep { !$self->ct_is_file_ignored($_) } @files;
     return if !@files;
 
-    my $uid = $self->{rootuid};
-    my $gid = $self->{rootgid};
+    my $uid = $self->{root_uid};
+    my $gid = $self->{root_gid};
     chown($uid, $gid, @files);
 }
 
@@ -738,8 +738,8 @@ sub ct_make_path {
 
     my $opts = {};
     if (defined($self->{id_map})) {
-	$opts->{owner} = $self->{rootuid};
-	$opts->{group} = $self->{rootgid};
+	$opts->{owner} = $self->{root_uid};
+	$opts->{group} = $self->{root_gid};
     }
     File::Path::make_path(@_, $opts);
 }
@@ -749,7 +749,7 @@ sub ct_symlink {
     return if $self->ct_is_file_ignored($new);
     if (CORE::symlink($old, $new)) {
 	if (defined($self->{id_map})) {
-	    POSIX::lchown($self->{rootuid}, $self->{rootgid}, $new);
+	    POSIX::lchown($self->{root_uid}, $self->{root_gid}, $new);
 	}
 	return 1;
     } else {

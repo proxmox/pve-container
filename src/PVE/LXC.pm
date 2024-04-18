@@ -1513,7 +1513,7 @@ sub mount_all {
     my $volid_list = PVE::LXC::Config->get_vm_volumes($conf);
     PVE::Storage::activate_volumes($storage_cfg, $volid_list);
 
-    my (undef, $rootuid, $rootgid) = parse_id_maps($conf);
+    my (undef, $root_uid, $root_gid) = parse_id_maps($conf);
 
     eval {
 	PVE::LXC::Config->foreach_volume($conf, sub {
@@ -1521,7 +1521,7 @@ sub mount_all {
 
 	    $mountpoint->{ro} = 0 if $ignore_ro;
 
-	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $rootuid, $rootgid);
+	    mountpoint_mount($mountpoint, $rootdir, $storage_cfg, undef, $root_uid, $root_gid);
         });
     };
     if (my $err = $@) {
@@ -1597,17 +1597,17 @@ sub run_with_loopdev {
 #   * directory name of the last directory
 # So that the path $2/$3 should lead to $1 afterwards.
 sub walk_tree_nofollow($$$;$$) {
-    my ($start, $subdir, $mkdir, $rootuid, $rootgid) = @_;
+    my ($start, $subdir, $mkdir, $root_uid, $root_gid) = @_;
 
     sysopen(my $fd, $start, O_PATH | O_DIRECTORY)
 	or die "failed to open start directory $start: $!\n";
 
-    return walk_tree_nofollow_fd($start, $fd, $subdir, $mkdir, $rootuid, $rootgid);
+    return walk_tree_nofollow_fd($start, $fd, $subdir, $mkdir, $root_uid, $root_gid);
 }
 
 
 sub walk_tree_nofollow_fd($$$$;$$) {
-    my ($start_dirname, $start_fd, $subdir, $mkdir, $rootuid, $rootgid) = @_;
+    my ($start_dirname, $start_fd, $subdir, $mkdir, $root_uid, $root_gid) = @_;
 
     # splitdir() returns '' for empty components including the leading /
     my @comps = grep { length($_)>0 } File::Spec->splitdir($subdir);
@@ -1635,8 +1635,8 @@ sub walk_tree_nofollow_fd($$$$;$$) {
 	    $next = PVE::Tools::openat(fileno($fd), $component, O_NOFOLLOW | O_DIRECTORY);
 	    die "failed to create path: $dir: $!\n" if !$next;
 
-	    PVE::Tools::fchownat(fileno($next), '', $rootuid, $rootgid, PVE::Tools::AT_EMPTY_PATH)
-		if defined($rootuid) && defined($rootgid);
+	    PVE::Tools::fchownat(fileno($next), '', $root_uid, $root_gid, PVE::Tools::AT_EMPTY_PATH)
+		if defined($root_uid) && defined($root_gid);
 	}
 
 	close $second if defined($last_component) && $second != $start_fd;
@@ -1730,24 +1730,24 @@ sub bindmount {
 # from $rootdir and $mount and walk the path from $rootdir to the final
 # directory to check for symlinks.
 sub __mount_prepare_rootdir {
-    my ($rootdir, $mount, $rootuid, $rootgid) = @_;
+    my ($rootdir, $mount, $root_uid, $root_gid) = @_;
     $rootdir =~ s!/+!/!g;
     $rootdir =~ s!/+$!!;
     my $mount_path = "$rootdir/$mount";
-    my ($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1, $rootuid, $rootgid);
+    my ($mpfd, $parentfd, $last_dir) = walk_tree_nofollow($rootdir, $mount, 1, $root_uid, $root_gid);
     return ($rootdir, $mount_path, $mpfd, $parentfd, $last_dir);
 }
 
 # use $rootdir = undef to just return the corresponding mount path
 sub mountpoint_mount {
-    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid) = @_;
-    return __mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid, undef);
+    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $root_uid, $root_gid) = @_;
+    return __mountpoint_mount($mountpoint, $rootdir, $storage_cfg, $snapname, $root_uid, $root_gid, undef);
 }
 
 sub mountpoint_stage {
-    my ($mountpoint, $stage_dir, $storage_cfg, $snapname, $rootuid, $rootgid) = @_;
+    my ($mountpoint, $stage_dir, $storage_cfg, $snapname, $root_uid, $root_gid) = @_;
     my ($path, $loop, $dev) =
-	__mountpoint_mount($mountpoint, $stage_dir, $storage_cfg, $snapname, $rootuid, $rootgid, 1);
+	__mountpoint_mount($mountpoint, $stage_dir, $storage_cfg, $snapname, $root_uid, $root_gid, 1);
 
     if (!defined($path)) {
 	die "failed to mount subvolume: $!\n";
@@ -1764,14 +1764,14 @@ sub mountpoint_stage {
 }
 
 sub mountpoint_insert_staged {
-    my ($mount_fd, $rootdir_fd, $mp_dir, $opt, $rootuid, $rootgid) = @_;
+    my ($mount_fd, $rootdir_fd, $mp_dir, $opt, $root_uid, $root_gid) = @_;
 
     if (!defined($rootdir_fd)) {
 	sysopen($rootdir_fd, '.', O_PATH | O_DIRECTORY)
 	    or die "failed to open '.': $!\n";
     }
 
-    my $dest_fd = walk_tree_nofollow_fd('/', $rootdir_fd, $mp_dir, 1, $rootuid, $rootgid);
+    my $dest_fd = walk_tree_nofollow_fd('/', $rootdir_fd, $mp_dir, 1, $root_uid, $root_gid);
 
     PVE::Tools::move_mount(
 	fileno($mount_fd),
@@ -1785,7 +1785,7 @@ sub mountpoint_insert_staged {
 # Use $stage_mount, $rootdir is treated as a temporary path to "stage" the file system. The user
 #   can then open a file descriptor to it which can be used with the `move_mount` syscall.
 sub __mountpoint_mount {
-    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $rootuid, $rootgid, $stage_mount) = @_;
+    my ($mountpoint, $rootdir, $storage_cfg, $snapname, $root_uid, $root_gid, $stage_mount) = @_;
 
     # When staging mount points we always mount to $rootdir directly (iow. as if `mp=/`).
     # This is required since __mount_prepare_rootdir() will return handles to the parent directory
@@ -1806,7 +1806,7 @@ sub __mountpoint_mount {
 
     if (defined($rootdir)) {
 	($rootdir, $mount_path, $mpfd, $parentfd, $last_dir) =
-	    __mount_prepare_rootdir($rootdir, $mount, $rootuid, $rootgid);
+	    __mount_prepare_rootdir($rootdir, $mount, $root_uid, $root_gid);
     }
 
     if (defined($stage_mount)) {
@@ -1935,7 +1935,7 @@ sub __mountpoint_mount {
 sub mountpoint_hotplug :prototype($$$$$) {
     my ($vmid, $conf, $opt, $mp, $storage_cfg) = @_;
 
-    my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my (undef, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
 
     # We do the rest in a fork with an unshared mount namespace, because:
     #  -) change our papparmor profile to that of /usr/bin/lxc-start
@@ -1980,13 +1980,13 @@ sub mountpoint_hotplug :prototype($$$$$) {
 	close($aa_fd)
 	    or die "failed to change apparmor profile (close() failed): $!\n";
 
-	my $mount_fd = mountpoint_stage($mp, $dir, $storage_cfg, undef, $rootuid, $rootgid);
+	my $mount_fd = mountpoint_stage($mp, $dir, $storage_cfg, undef, $root_uid, $root_gid);
 
 	PVE::Tools::setns(fileno($ct_mnt_ns), PVE::Tools::CLONE_NEWNS);
 	chdir('/')
 	    or die "failed to change root directory within the container's mount namespace: $!\n";
 
-	mountpoint_insert_staged($mount_fd, undef, $mp->{mp}, $opt, $rootuid, $rootgid);
+	mountpoint_insert_staged($mount_fd, undef, $mp->{mp}, $opt, $root_uid, $root_gid);
     });
 }
 
@@ -2019,7 +2019,7 @@ sub get_staging_tempfs() {
 }
 
 sub mkfs {
-    my ($dev, $rootuid, $rootgid) = @_;
+    my ($dev, $root_uid, $root_gid) = @_;
 
     run_command(
 	[
@@ -2027,7 +2027,7 @@ sub mkfs {
 	    '-O',
 	    'mmp',
 	    '-E',
-	    "root_owner=$rootuid:$rootgid",
+	    "root_owner=$root_uid:$root_gid",
 	    $dev,
 	],
 	outfunc => sub {
@@ -2045,7 +2045,7 @@ sub mkfs {
 }
 
 sub format_disk {
-    my ($storage_cfg, $volid, $rootuid, $rootgid) = @_;
+    my ($storage_cfg, $volid, $root_uid, $root_gid) = @_;
 
     if ($volid =~ m!^/dev/.+!) {
 	mkfs($volid);
@@ -2068,7 +2068,7 @@ sub format_disk {
     die "cannot format volume '$volid' (format == $format)\n"
 	if $format ne 'raw';
 
-    mkfs($path, $rootuid, $rootgid);
+    mkfs($path, $root_uid, $root_gid);
 }
 
 sub destroy_disks {
@@ -2081,7 +2081,7 @@ sub destroy_disks {
 }
 
 sub alloc_disk {
-    my ($storecfg, $vmid, $storage, $size_kb, $rootuid, $rootgid) = @_;
+    my ($storecfg, $vmid, $storage, $size_kb, $root_uid, $root_gid) = @_;
 
     my $needs_chown = 0;
     my $volid;
@@ -2108,7 +2108,7 @@ sub alloc_disk {
 	} else {
 	    die "content type 'rootdir' is not available or configured on storage '$storage'\n";
 	}
-	format_disk($storecfg, $volid, $rootuid, $rootgid) if $do_format;
+	format_disk($storecfg, $volid, $root_uid, $root_gid) if $do_format;
     };
     if (my $err = $@) {
 	# in case formatting got interrupted:
@@ -2128,7 +2128,7 @@ sub create_disks {
     my $vollist = [];
 
     eval {
-	my (undef, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+	my (undef, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
 	my $chown_vollist = [];
 
 	PVE::LXC::Config->foreach_volume($settings, sub {
@@ -2145,7 +2145,7 @@ sub create_disks {
 		my $size_kb = int(${size_gb}*1024) * 1024;
 
 		my $needs_chown = 0;
-		($volid, $needs_chown) = alloc_disk($storecfg, $vmid, $storage, $size_kb, $rootuid, $rootgid);
+		($volid, $needs_chown) = alloc_disk($storecfg, $vmid, $storage, $size_kb, $root_uid, $root_gid);
 		push @$chown_vollist, $volid if $needs_chown;
 		push @$vollist, $volid;
 		$mountpoint->{volume} = $volid;
@@ -2164,7 +2164,7 @@ sub create_disks {
 	PVE::Storage::activate_volumes($storecfg, $chown_vollist, undef);
 	foreach my $volid (@$chown_vollist) {
 	    my $path = PVE::Storage::path($storecfg, $volid, undef);
-	    chown($rootuid, $rootgid, $path);
+	    chown($root_uid, $root_gid, $path);
 	}
 	PVE::Storage::deactivate_volumes($storecfg, $chown_vollist, undef);
     };
@@ -2378,8 +2378,8 @@ sub parse_id_maps {
     my ($conf) = @_;
 
     my $id_map = [];
-    my $rootuid = 0;
-    my $rootgid = 0;
+    my $root_uid = 0;
+    my $root_gid = 0;
 
     my $lxc = $conf->{lxc};
     foreach my $entry (@$lxc) {
@@ -2391,8 +2391,8 @@ sub parse_id_maps {
 	    my ($type, $ct, $host, $length) = ($1, $2, $3, $4);
 	    push @$id_map, [$type, $ct, $host, $length];
 	    if ($ct == 0) {
-		$rootuid = $host if $type eq 'u';
-		$rootgid = $host if $type eq 'g';
+		$root_uid = $host if $type eq 'u';
+		$root_gid = $host if $type eq 'g';
 	    }
 	} else {
 	    die "failed to parse idmap: $value\n";
@@ -2403,10 +2403,10 @@ sub parse_id_maps {
 	# Should we read them from /etc/subuid?
 	$id_map = [ ['u', '0', '100000', '65536'],
 	            ['g', '0', '100000', '65536'] ];
-	$rootuid = $rootgid = 100000;
+	$root_uid = $root_gid = 100000;
     }
 
-    return ($id_map, $rootuid, $rootgid);
+    return ($id_map, $root_uid, $root_gid);
 }
 
 sub validate_id_maps {
@@ -2689,7 +2689,7 @@ sub run_unshared {
 }
 
 my $copy_volume = sub {
-    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname, $bwlimit, $rootuid,  $rootgid) = @_;
+    my ($src_volid, $src, $dst_volid, $dest, $storage_cfg, $snapname, $bwlimit, $root_uid,  $root_gid) = @_;
 
     my $src_mp = { volume => $src_volid, mp => '/', ro => 1 };
     $src_mp->{type} = PVE::LXC::Config->classify_mountpoint($src_volid);
@@ -2701,10 +2701,10 @@ my $copy_volume = sub {
     eval {
 	# mount and copy
 	mkdir $src;
-	mountpoint_mount($src_mp, $src, $storage_cfg, $snapname, $rootuid, $rootgid);
+	mountpoint_mount($src_mp, $src, $storage_cfg, $snapname, $root_uid, $root_gid);
 	push @mounted, $src;
 	mkdir $dest;
-	mountpoint_mount($dst_mp, $dest, $storage_cfg, undef, $rootuid, $rootgid);
+	mountpoint_mount($dst_mp, $dest, $storage_cfg, undef, $root_uid, $root_gid);
 	push @mounted, $dest;
 
 	$bwlimit //= 0;
@@ -2753,7 +2753,7 @@ sub copy_volume {
     my $src  = "/var/lib/lxc/$vmid/.copy-volume-2";
 
     # get id's for unprivileged container
-    my (undef, $rootuid, $rootgid) = parse_id_maps($conf);
+    my (undef, $root_uid, $root_gid) = parse_id_maps($conf);
 
     # Allocate the disk before unsharing in order to make sure zfs subvolumes
     # are visible in this namespace, otherwise the host only sees the empty
@@ -2763,15 +2763,15 @@ sub copy_volume {
 	# Make sure $mp contains a correct size.
 	$mp->{size} = PVE::Storage::volume_size_info($storage_cfg, $mp->{volume});
 	my $needs_chown;
-	($new_volid, $needs_chown) = alloc_disk($storage_cfg, $vmid, $storage, $mp->{size}/1024, $rootuid, $rootgid);
+	($new_volid, $needs_chown) = alloc_disk($storage_cfg, $vmid, $storage, $mp->{size}/1024, $root_uid, $root_gid);
 	if ($needs_chown) {
 	    PVE::Storage::activate_volumes($storage_cfg, [$new_volid], undef);
 	    my $path = PVE::Storage::path($storage_cfg, $new_volid, undef);
-	    chown($rootuid, $rootgid, $path);
+	    chown($root_uid, $root_gid, $path);
 	}
 
 	run_unshared(sub {
-	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname, $bwlimit, $rootuid, $rootgid);
+	    $copy_volume->($mp->{volume}, $src, $new_volid, $dest, $storage_cfg, $snapname, $bwlimit, $root_uid, $root_gid);
 	});
     };
     if (my $err = $@) {

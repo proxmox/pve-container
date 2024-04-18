@@ -120,10 +120,10 @@ sub prepare {
 
     $task->{hostname} = $conf->{'hostname'} || "CT$vmid";
 
-    my ($id_map, $rootuid, $rootgid) = PVE::LXC::parse_id_maps($conf);
+    my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
-    $task->{rootuid} = $rootuid;
-    $task->{rootgid} = $rootgid;
+    $task->{root_uid} = $root_uid;
+    $task->{root_gid} = $root_gid;
 
     my $volids = $task->{volids} = [];
 
@@ -241,7 +241,7 @@ sub snapshot {
     PVE::Storage::activate_volumes($storage_cfg, $volids, 'vzdump');
     foreach my $disk (@$disks) {
 	$disk->{dir} = "${rootdir}$disk->{mp}";
-	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump', $task->{rootuid}, $task->{rootgid});
+	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump', $task->{root_uid}, $task->{root_gid});
     }
 
     $task->{snapdir} = $rootdir;
@@ -346,7 +346,7 @@ sub archive {
 	my $rootdir = $default_mount_point;
 	foreach my $disk (@$disks) {
 	    $disk->{dir} = "${rootdir}$disk->{mp}";
-	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{rootuid}, $task->{rootgid});
+	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{root_uid}, $task->{root_gid});
 	    # add every enabled mountpoint (since we use --one-file-system)
 	    # mp already starts with a / so we only need to add the dot
 	    push @sources, ".$disk->{mp}";
