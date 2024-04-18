@@ -221,7 +221,7 @@ __PACKAGE__->register_method({
 	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid_running }),
 	    skiplock => get_standard_option('skiplock'),
 	    'overrule-shutdown' => {
-		description => "Abort any active and visible 'vzshutdown' tasks before stopping",
+		description => "Try to abort active 'vzshutdown' tasks before stopping.",
 		optional => 1,
 		type => 'boolean',
 		default => 0,
