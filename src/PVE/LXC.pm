@@ -18,6 +18,7 @@ use PVE::AccessControl;
 use PVE::CGroup;
 use PVE::CpuSet;
 use PVE::Exception qw(raise_perm_exc);
+use PVE::Firewall;
 use PVE::GuestHelpers qw(check_vnet_access safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
@@ -946,14 +947,17 @@ sub net_tap_plug : prototype($$) {
 	return;
     }
 
-    my ($bridge, $tag, $firewall, $trunks, $rate, $hwaddr) =
-	$net->@{'bridge', 'tag', 'firewall', 'trunks', 'rate', 'hwaddr'};
+    my ($bridge, $tag, $trunks, $rate, $hwaddr) =
+	$net->@{'bridge', 'tag', 'trunks', 'rate', 'hwaddr'};
+
+    # The nftable-based implementation from the newer proxmox-firewall does not requires FW bridges
+    my $create_firewall_bridges = $net->{firewall} && !PVE::Firewall::is_nftables();
 
     if ($have_sdn) {
-	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate);
+	PVE::Network::SDN::Zones::tap_plug($iface, $bridge, $tag, $create_firewall_bridges, $trunks, $rate);
 	PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge);
     } else {
-	PVE::Network::tap_plug($iface, $bridge, $tag, $firewall, $trunks, $rate, { mac => $hwaddr });
+	PVE::Network::tap_plug($iface, $bridge, $tag, $create_firewall_bridges, $trunks, $rate, { mac => $hwaddr });
     }
 
     PVE::Tools::run_command(['/sbin/ip', 'link', 'set', 'dev', $iface, 'up']);
