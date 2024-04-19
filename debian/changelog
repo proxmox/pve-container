@@ -1,3 +1,28 @@
+pve-container (5.0.10) bookworm; urgency=medium
+
+  * api: status: move config locking from API handler into the task worker to
+    avoid potentially blocking the API daemon
+
+  * fix #5160: fix move-mount regression for mount point hotplug
+
+  * api: container index: fix return type of vmid to ensure its an integer
+
+  * pct: fsck: also clean-up (unmap) any mounted volume when the fsck command
+    failed
+
+  * ensure that device passthrough changes do not get written to the config
+    even though they fail basic validation like if the device exists
+
+  * fix #4474: api: add overrule-shutdown parameter to stop endpoint
+
+  * fix #4846: avoid setting the deprecated noacl mount option on ext4
+
+  * firewall: add handling for new nftables based firewall implementation,
+  which currently is a opt-in drop-in replacement for the older iptables-
+  based one.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 19 Apr 2024 20:33:01 +0200
+
 pve-container (5.0.9) bookworm; urgency=medium
 
   * config: schema: remove duplicate attribute assignment for mpX
