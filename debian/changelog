@@ -1,3 +1,9 @@
+pve-container (5.0.11) bookworm; urgency=medium
+
+  * api: fix regression with locking and start-after-create
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 24 Apr 2024 14:28:00 +0200
+
 pve-container (5.0.10) bookworm; urgency=medium
 
   * api: status: move config locking from API handler into the task worker to
