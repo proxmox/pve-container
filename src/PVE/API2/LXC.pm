@@ -520,9 +520,6 @@ __PACKAGE__->register_method({
 		die "$emsg $err";
 	    }
 	    PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
-
-	    PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node })
-		if $start_after_create;
 	};
 
 	my $workername = $restore ? 'vzrestore' : 'vzcreate';
@@ -536,6 +533,8 @@ __PACKAGE__->register_method({
 		    PVE::LXC::Config->remove_lock($vmid, 'create');
 		}
 		die $err;
+	    } elsif ($start_after_create) {
+		PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node });
 	    }
 	};
 
