@@ -433,7 +433,7 @@ __PACKAGE__->register_method({
 		    my $used = $format->($df->{used});
 		    my $avail = $format->($df->{avail});
 
-		    my $pc = sprintf('%.1f', $df->{used}/$df->{total});
+		    my $pc = sprintf('%.1f', 100 * $df->{used} / $df->{total});
 
 		    my $entry = [ $name, $mp->{volume}, $total, $used, $avail, $pc, $path ];
 		    push @list, $entry;
