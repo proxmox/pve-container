@@ -73,7 +73,9 @@ sub template_fixup {
 			  '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service');
 	$self->ct_symlink('/lib/systemd/system/systemd-networkd.socket',
 			  '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
+    }
 
+    if ($version >= '17.10') {
 	# unlink default netplan lxc config
 	$self->ct_unlink('/etc/netplan/10-lxc.yaml');
     }
