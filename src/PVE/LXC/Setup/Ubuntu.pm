@@ -12,6 +12,7 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '24.04' => 1, # noble
     '23.10' => 1, # mantic
     '23.04' => 1, # lunar
     '22.10' => 1, # kinetic
