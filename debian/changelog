@@ -1,3 +1,13 @@
+pve-container (5.1.10) bookworm; urgency=medium
+
+  * fix #5414: use proper percentages in `pct df`
+
+  * setup: support Ubuntu 24.04 Noble
+
+  * setup: unlink default netplan configuration even with Ubuntu >= 23.04
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 02 May 2024 14:37:10 +0200
+
 pve-container (5.0.11) bookworm; urgency=medium
 
   * api: fix regression with locking and start-after-create
