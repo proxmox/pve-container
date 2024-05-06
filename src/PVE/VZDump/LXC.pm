@@ -52,13 +52,15 @@ my $rsync_vm = sub {
     }
 
     my $transferred = '';
-    my $logfunc = sub {
+    my $outfunc = sub {
 	return if $_[0] !~ /^Total transferred file size: (.+)$/;
 	$transferred = $1;
     };
 
+    my $errfunc = sub { $self->logerr($_[0]); };
+
     my $starttime = time();
-    PVE::Tools::run_command([@$rsync, $to], logfunc => $logfunc);
+    PVE::Tools::run_command([@$rsync, $to], outfunc => $outfunc, errfunc => $errfunc);
     my $delay = time () - $starttime;
 
     $self->loginfo ("$text sync finished - transferred $transferred in ${delay}s");
