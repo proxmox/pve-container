@@ -446,7 +446,16 @@ sub archive {
 	    } else {
 		push @findexcl_anchored, $pattern;
 	    }
-	}
+
+	    # NOTE rsync and proxmox-backup-client will match directories, but not files when there
+	    # is a trailing slash, tar won't match either. For suspend mode, rsync already did the
+	    # exclusion, so no need to warn.
+	    # TODO PVE 9 - consider matching "$pattern*" and "$pattern.*" in this case, which will
+	    # only include the empty directory to more closely align the behavior between different
+	    # modes. Don't forget to update the docs!
+	    $self->log("warn", "tar does not match exclusion with a trailing slash '$pattern'")
+		if $pattern =~ m|/$| && $task->{mode} ne 'suspend';
+        }
 
 	push @$tar, '--no-anchored';
 	push @$tar, '--exclude=lost+found' if $userns_cmd;
