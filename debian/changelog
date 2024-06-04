@@ -1,3 +1,11 @@
+pve-container (4.4-7) bullseye; urgency=medium
+
+  * setup: support Ubuntu 24.04 Noble
+
+  * setup: unlink default netplan configuration even with Ubuntu >= 23.04
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 04 Jun 2024 12:42:45 +0200
+
 pve-container (4.4-6) bullseye; urgency=medium
 
   * do not enable system-networkd on first start for Debian 12 and newer,
