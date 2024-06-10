@@ -1,3 +1,11 @@
+pve-container (5.1.11) bookworm; urgency=medium
+
+  * remote migration: enable schema validation
+
+  * vzdump: conditionally set PBS change detection mode option
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 10 Jun 2024 13:58:17 +0200
+
 pve-container (5.1.10) bookworm; urgency=medium
 
   * fix #5414: use proper percentages in `pct df`
