@@ -2820,6 +2820,7 @@ sub complete_os_templates {
     my $res = [];
     foreach my $id (keys %$data) {
         foreach my $item (@{ $data->{$id} }) {
+            next if $vtype eq 'backup' && ($item->{subtype} // '') ne 'lxc';
             push @$res, $item->{volid} if defined($item->{volid});
         }
     }
