@@ -1,3 +1,11 @@
+pve-container (5.1.12) bookworm; urgency=medium
+
+  * backup: log errors from rsync
+
+  * d/control: relax versioned dependency for backup client again
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 18 Jun 2024 09:16:15 +0200
+
 pve-container (5.1.11) bookworm; urgency=medium
 
   * remote migration: enable schema validation
