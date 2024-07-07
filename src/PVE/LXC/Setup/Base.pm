@@ -291,6 +291,9 @@ DATA
 	    } elsif ($ip ne 'manual') {
 		$has_ipv6 = 1;
 		$data .= "Address = $ip\n";
+        if (!defined(my $gw = $d->{gw6})) {
+            $accept_ra = 'true';
+        }
 	    }
 	}
 	if (defined(my $gw = $d->{gw6})) {
