@@ -89,7 +89,7 @@ sub for_devices {
     my $fd;
 
     if (! open $fd, '<', $devlist_file) {
-	exit 0 if $!{ENOENT}; # If the list is empty the file might not exist.
+	return if $!{ENOENT}; # If the list is empty the file might not exist.
 	die "failed to open device list: $!\n";
     }
 
