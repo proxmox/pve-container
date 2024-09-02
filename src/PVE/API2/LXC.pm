@@ -2523,6 +2523,7 @@ __PACKAGE__->register_method({
     path => '{vmid}/interfaces',
     method => 'GET',
     protected => 1,
+    proxyto => 'node',
     permissions => {
 	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
     },
