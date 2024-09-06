@@ -589,6 +589,7 @@ __PACKAGE__->register_method({
 	    { subdir => 'firewall' },
 	    { subdir => 'snapshot' },
 	    { subdir => 'resize' },
+	    { subdir => 'interfaces' }
 	    ];
 
 	return $res;
