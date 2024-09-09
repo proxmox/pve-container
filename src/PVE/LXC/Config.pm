@@ -962,6 +962,12 @@ my $dev_desc = {
 	minimum => 0,
 	description => 'Group ID to be assigned to the device node',
     },
+    'deny-write' => {
+	optional => 1,
+	type => 'boolean',
+	description => 'Deny the container to write to the device',
+	default => 0,
+    },
 };
 
 for (my $i = 0; $i < $MAX_DEVICES; $i++) {
