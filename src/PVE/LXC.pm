@@ -2385,6 +2385,20 @@ sub complete_ctid_running {
     return &$complete_ctid_full(1);
 }
 
+sub complete_storage {
+    my $cfg = PVE::Storage::config();
+    my $ids = $cfg->{ids};
+
+    my $res = [];
+    foreach my $sid (keys %$ids) {
+	next if !PVE::Storage::storage_check_enabled($cfg, $sid, undef, 1);
+	next if !$ids->{$sid}->{content}->{rootdir};
+	push @$res, $sid;
+    }
+
+    return $res;
+}
+
 sub parse_id_maps {
     my ($conf) = @_;
 

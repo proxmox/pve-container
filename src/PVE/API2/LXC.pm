@@ -148,9 +148,9 @@ __PACKAGE__->register_method({
 	    },
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Default Storage.",
+		completion => \&PVE::LXC::complete_storage,
 		default => 'local',
 		optional => 1,
-		completion => \&PVE::Storage::complete_storage_enabled,
 	    }),
 	    force => {
 		optional => 1,
@@ -1582,6 +1582,7 @@ __PACKAGE__->register_method({
             }),
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Target storage for full clone.",
+		completion => \&PVE::LXC::complete_storage,
 		optional => 1,
 	    }),
 	    full => {
@@ -2084,7 +2085,7 @@ __PACKAGE__->register_method({
 	    },
 	    storage => get_standard_option('pve-storage-id', {
 		description => "Target Storage.",
-		completion => \&PVE::Storage::complete_storage_enabled,
+		completion => \&PVE::LXC::complete_storage,
 		optional => 1,
 	    }),
 	    delete => {
