@@ -1,3 +1,24 @@
+pve-container (5.2.0) bookworm; urgency=medium
+
+  * fix #5674: add missing 'proxyto' for LXC interfaces API
+
+  * fedora setup: drop checking for to new version, allowing 41 and newer
+    uncoditionally.
+
+  * backup: warn that tar does not honor exclusion pattern with a trailing
+    slash
+
+  * add 'deny-write' option for device passthrough to make said device
+    read-only
+
+  * api: improve CLI auto-completion of the storage parameter for the 'create'
+    and 'move-volume' commands such that it includes a storage only if it has
+    the 'rootdir' container content type enabled.
+
+  * add auto-completion of the storage parameter for the 'clone' command
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 10 Sep 2024 16:47:03 +0200
+
 pve-container (5.1.12) bookworm; urgency=medium
 
   * backup: log errors from rsync
