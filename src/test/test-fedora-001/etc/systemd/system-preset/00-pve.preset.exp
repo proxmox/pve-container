@@ -1,0 +1,6 @@
+# Added by PVE at create-time for first-boot configuration.
+enable container-getty@.service
+disable getty@.service
+disable sys-kernel-config.mount
+disable sys-kernel-debug.mount
+enable systemd-networkd.service

@@ -1,0 +1,4 @@
+# --- BEGIN PVE ---
+search example.com
+nameserver 127.0.0.1
+# --- END PVE ---
