@@ -651,12 +651,10 @@ sub update_lxc_config {
 	my $major = PVE::Tools::dev_t_major($rdev);
 	my $minor = PVE::Tools::dev_t_minor($rdev);
 	my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
-	my $allow_perms = "r" . $device->{'deny-write'} ? "" : "w";
-	$raw .= "lxc.cgroup2.devices.allow = $device_type_char $major:$minor $allow_perms\n";
+	my $allow_perms = $device->{'deny-write'} ? 'r' : 'rw';
 
-	if ($device->{'deny-write'}) {
-	    $raw .= "lxc.cgroup2.devices.deny = $device_type_char $major:$minor w\n";
-	}
+	$raw .= "lxc.cgroup2.devices.allow = $device_type_char $major:$minor $allow_perms\n";
+	$raw .= "lxc.cgroup2.devices.deny = $device_type_char $major:$minor w\n" if $device->{'deny-write'};
     });
 
     # WARNING: DO NOT REMOVE this without making sure that loop device nodes
