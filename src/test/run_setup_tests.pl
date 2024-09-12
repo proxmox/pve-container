@@ -87,6 +87,7 @@ sub run_test {
 	   /etc/sysconfig/network/ifcfg-eth3
 	   /etc/sysconfig/network/ifroute-eth3
 	   /etc/systemd/system-preset/00-pve.preset
+	   /etc/systemd/network/eth0.network
 	   /etc/init/start-ttys.conf
 	   /etc/init/tty.conf
 	   /etc/init/power-status-changed.conf
