@@ -57,7 +57,7 @@ sub run_test {
 	$lxc_setup->post_create_hook('$5$SALT$PASS','ssh-rsa ABCDEFG ABC@DEF');
 
 	my @testfiles = qw(
-	    /etc/hostname
+	   /etc/hostname
 	   /etc/hosts
 	   /etc/inittab
 	   /etc/locale.conf
