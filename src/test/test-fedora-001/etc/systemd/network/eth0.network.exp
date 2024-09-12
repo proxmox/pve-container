@@ -1,0 +1,7 @@
+[Match]
+Name = eth0
+
+[Network]
+Description = Interface eth0 autoconfigured by PVE
+DHCP = no
+IPv6AcceptRA = true
