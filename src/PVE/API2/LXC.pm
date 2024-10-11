@@ -77,7 +77,7 @@ __PACKAGE__->register_method({
     method => 'GET',
     description => "LXC container index (per node).",
     permissions => {
-	description => "Only list CTs where you have VM.Audit permissons on /vms/<vmid>.",
+	description => "Only list CTs where you have VM.Audit permission on /vms/<vmid>.",
 	user => 'all',
     },
     proxyto => 'node',
@@ -123,7 +123,7 @@ __PACKAGE__->register_method({
     description => "Create or restore a container.",
     permissions => {
 	user => 'all', # check inside
- 	description => "You need 'VM.Allocate' permissions on /vms/{vmid} or on the VM pool /pool/{pool}. " .
+	description => "You need 'VM.Allocate' permission on /vms/{vmid} or on the VM pool /pool/{pool}. " .
 	    "For restore, it is enough if the user has 'VM.Backup' permission and the VM already exists. " .
 	    "You also need 'Datastore.AllocateSpace' permissions on the storage.",
     },

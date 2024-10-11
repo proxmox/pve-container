@@ -607,7 +607,7 @@ my $confdesc = {
 	optional => 1,
 	type => 'string',
 	format => 'pve-volume-id',
-	description => 'Script that will be exectued during various steps in the containers lifetime.',
+	description => 'Script that will be executed during various steps in the containers lifetime.',
     },
     tags => {
 	type => 'string', format => 'pve-tag-list',

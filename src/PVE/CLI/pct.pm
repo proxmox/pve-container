@@ -533,7 +533,7 @@ __PACKAGE__->register_method ({
 		type => 'boolean',
 		optional => 1,
 		default => 0,
-		description => 'Do not actually write changes out to conifg.',
+		description => 'Do not actually write changes to the configuration.',
 	    },
 	},
     },
