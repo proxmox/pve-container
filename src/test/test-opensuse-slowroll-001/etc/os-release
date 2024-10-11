@@ -1,0 +1,16 @@
+NAME="openSUSE Tumbleweed-Slowroll"
+# VERSION="20240901"
+ID="opensuse-slowroll"
+ID_LIKE="opensuse suse"
+VERSION_ID="20240901"
+PRETTY_NAME="openSUSE Tumbleweed-Slowroll"
+ANSI_COLOR="0;32"
+# CPE 2.3 format, boo#1217921
+CPE_NAME="cpe:2.3:o:opensuse:slowroll:20240901:*:*:*:*:*:*:*"
+#CPE 2.2 format
+#CPE_NAME="cpe:/o:opensuse:slowroll:20240901"
+BUG_REPORT_URL="https://bugzilla.opensuse.org"
+SUPPORT_URL="https://bugs.opensuse.org"
+HOME_URL="https://www.opensuse.org"
+DOCUMENTATION_URL="https://en.opensuse.org/openSUSE:Slowroll"
+LOGO="distributor-logo-Slowroll"

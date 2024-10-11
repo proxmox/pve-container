@@ -38,6 +38,7 @@ my $plugins = {
 my $plugin_alias = {
     'opensuse-leap' => 'opensuse',
     'opensuse-tumbleweed' => 'opensuse',
+    'opensuse-slowroll' => 'opensuse',
     arch => 'archlinux',
     sles => 'opensuse',
 };
