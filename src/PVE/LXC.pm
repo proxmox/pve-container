@@ -139,8 +139,29 @@ our $vmstatus_return_properties = {
 	optional => 1,
 	renderer => 'bytes',
     },
+    disk => {
+	description => "Used root image space for the container.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+	minimum => 0,
+    },
     maxdisk => {
 	description => "Root disk size in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    diskread => {
+	description => "The amount of bytes the guest read from it's disks since the process"
+	    ." start in bytes. (Note: This info is not available for all storage types.)",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    diskwrite => {
+	description => "The amount of bytes the guest wrote to it's disks since the process"
+	    ." start in bytes. (Note: This info is not available for all storage types.)",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
@@ -149,6 +170,20 @@ our $vmstatus_return_properties = {
 	description => "Container name.",
 	type => 'string',
 	optional => 1,
+    },
+    netin => {
+	description => "The amount of traffic that was sent to the guest since the process start,"
+	    ." in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
+    netout => {
+	description => "The amount of traffic that was sent from the guest since the process start,"
+	    ." in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
     },
     uptime => {
 	description => "Uptime.",
@@ -170,7 +205,13 @@ our $vmstatus_return_properties = {
 	description => "The current configured tags, if any.",
 	type => 'string',
 	optional => 1,
-    }
+    },
+    template => {
+	description => "Determines if the guest is a template.",
+	type => 'boolean',
+	optional => 1,
+	default => 0,
+    },
 };
 
 sub vmstatus {
