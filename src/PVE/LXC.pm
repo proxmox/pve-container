@@ -140,28 +140,28 @@ our $vmstatus_return_properties = {
 	renderer => 'bytes',
     },
     disk => {
-	description => "Used root image space for the container.",
+	description => "Root disk image space-usage in bytes.",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
 	minimum => 0,
     },
     maxdisk => {
-	description => "Root disk size in bytes.",
+	description => "Root disk image size in bytes.",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
     },
     diskread => {
-	description => "The amount of bytes the guest read from it's disks since the process"
-	    ." start in bytes. (Note: This info is not available for all storage types.)",
+	description => "The amount of bytes the guest read from it's block devices since the guest"
+	    ." was started. (Note: This info is not available for all storage types.)",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
     },
     diskwrite => {
-	description => "The amount of bytes the guest wrote to it's disks since the process"
-	    ." start in bytes. (Note: This info is not available for all storage types.)",
+	description => "The amount of bytes the guest wrote from it's block devices since the guest"
+	    ." was started. (Note: This info is not available for all storage types.)",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
@@ -172,21 +172,21 @@ our $vmstatus_return_properties = {
 	optional => 1,
     },
     netin => {
-	description => "The amount of traffic that was sent to the guest since the process start,"
-	    ." in bytes.",
+	description => "The amount of traffic in bytes that was sent to the guest over the network"
+	    ." since it was started.",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
     },
     netout => {
-	description => "The amount of traffic that was sent from the guest since the process start,"
-	    ." in bytes.",
+	description => "The amount of traffic in bytes that was sent from the guest over the network"
+	    ." since it was started.",
 	type => 'integer',
 	optional => 1,
 	renderer => 'bytes',
     },
     uptime => {
-	description => "Uptime.",
+	description => "Uptime in seconds.",
 	type => 'integer',
 	optional => 1,
 	renderer => 'duration',
