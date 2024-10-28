@@ -228,7 +228,7 @@ sub setup_network {
 	    } elsif ($d->{ip6} eq 'dhcp') {
 		$data .= "DHCPV6C=yes\n";
 	    } else {
-		$data .= "IPV6ADDR=$d->{ip6}\n";
+		$data .= "IPV6ADDR=$d->{ip6}\nIPV6_AUTOCONF=no\n";
 		if (defined($d->{gw6})) {
 		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6) &&
 			!PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)
