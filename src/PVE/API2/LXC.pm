@@ -28,6 +28,7 @@ use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Status;
 use PVE::API2::LXC::Snapshot;
 use PVE::JSONSchema qw(get_standard_option);
+use PVE::SSHInfo;
 use base qw(PVE::RESTHandler);
 
 BEGIN {
@@ -867,20 +868,18 @@ __PACKAGE__->register_method ({
 	$sslcert = PVE::Tools::file_get_contents("/etc/pve/pve-root-ca.pem", 8192)
 	    if !$sslcert;
 
-	my ($remip, $family);
+	my $family;
+	my $remcmd = [];
 
 	if ($node ne PVE::INotify::nodename()) {
-	    ($remip, $family) = PVE::Cluster::remote_node_ip($node);
+	    (undef, $family) = PVE::Cluster::remote_node_ip($node);
+	    my $sshinfo = PVE::SSHInfo::get_ssh_info($node);
+	    $remcmd = PVE::SSHInfo::ssh_info_to_command($sshinfo, '-t');
 	} else {
 	    $family = PVE::Tools::get_host_address_family($node);
 	}
 
 	my $port = PVE::Tools::next_vnc_port($family);
-
-	# NOTE: vncterm VNC traffic is already TLS encrypted,
-	# so we select the fastest chipher here (or 'none'?)
-	my $remcmd = $remip ?
-	    ['/usr/bin/ssh', '-e', 'none', '-t', $remip] : [];
 
 	my $conf = PVE::LXC::Config->load_config($vmid, $node);
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf, -1);
@@ -972,18 +971,18 @@ __PACKAGE__->register_method ({
 
 	my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath);
 
-	my ($remip, $family);
+	my $family;
+	my $remcmd = [];
 
 	if ($node ne 'localhost' && $node ne PVE::INotify::nodename()) {
-	    ($remip, $family) = PVE::Cluster::remote_node_ip($node);
+	    (undef, $family) = PVE::Cluster::remote_node_ip($node);
+	    my $sshinfo = PVE::SSHInfo::get_ssh_info($node);
+	    $remcmd = PVE::SSHInfo::ssh_info_to_command($sshinfo, '-t');
 	} else {
 	    $family = PVE::Tools::get_host_address_family($node);
 	}
 
 	my $port = PVE::Tools::next_vnc_port($family);
-
-	my $remcmd = $remip ?
-	    ['/usr/bin/ssh', '-e', 'none', '-t', $remip, '--'] : [];
 
 	my $conf = PVE::LXC::Config->load_config($vmid, $node);
 	my $concmd = PVE::LXC::get_console_command($vmid, $conf, -1);
