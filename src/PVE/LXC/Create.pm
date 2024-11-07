@@ -59,11 +59,33 @@ sub restore_proxmox_backup_archive {
 	$scfg, $storeid, $cmd, $param, userns_cmd => $userns_cmd);
 }
 
-sub restore_tar_archive {
-    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+my sub restore_tar_archive_command {
+    my ($conf, $opts, $rootdir, $bwlimit) = @_;
 
     my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
+
+    my $cmd = [@$userns_cmd, 'tar', 'xpf', '-', $opts->@*, '--totals',
+               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
+               '-C', $rootdir];
+
+    # skip-old-files doesn't have anything to do with time (old/new), but is
+    # simply -k (annoyingly also called --keep-old-files) without the 'treat
+    # existing files as errors' part... iow. it's bsdtar's interpretation of -k
+    # *sigh*, gnu...
+    push @$cmd, '--skip-old-files';
+    push @$cmd, '--anchored';
+    push @$cmd, '--exclude' , './dev/*';
+
+    if (defined($bwlimit)) {
+	$cmd = [ ['cstream', '-t', $bwlimit*1024], $cmd ];
+    }
+
+    return $cmd;
+}
+
+sub restore_tar_archive {
+    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
 
     my $archive_fh;
     my $tar_input = '<&STDIN';
@@ -92,21 +114,7 @@ sub restore_tar_archive {
 	$tar_input = '<&'.fileno($archive_fh);
     }
 
-    my $cmd = [@$userns_cmd, 'tar', 'xpf', '-', @compression_opt, '--totals',
-               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
-               '-C', $rootdir];
-
-    # skip-old-files doesn't have anything to do with time (old/new), but is
-    # simply -k (annoyingly also called --keep-old-files) without the 'treat
-    # existing files as errors' part... iow. it's bsdtar's interpretation of -k
-    # *sigh*, gnu...
-    push @$cmd, '--skip-old-files';
-    push @$cmd, '--anchored';
-    push @$cmd, '--exclude' , './dev/*';
-
-    if (defined($bwlimit)) {
-	$cmd = [ ['cstream', '-t', $bwlimit*1024], $cmd ];
-    }
+    my $cmd = restore_tar_archive_command($conf, [@compression_opt], $rootdir, $bwlimit);
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
