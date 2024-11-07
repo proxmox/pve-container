@@ -8,6 +8,7 @@ use Fcntl;
 
 use PVE::RPCEnvironment;
 use PVE::Storage::PBSPlugin;
+use PVE::Storage::Plugin;
 use PVE::Storage;
 use PVE::DataCenterConfig;
 use PVE::LXC;
