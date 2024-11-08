@@ -18,6 +18,7 @@ use PVE::LXC::Setup::Gentoo;
 use PVE::LXC::Setup::SUSE;
 use PVE::LXC::Setup::Ubuntu;
 use PVE::LXC::Setup::NixOS;
+use PVE::LXC::Setup::OpenEuler;
 use PVE::LXC::Setup::Unmanaged;
 
 my $plugins = {
@@ -28,6 +29,7 @@ my $plugins = {
     devuan    => 'PVE::LXC::Setup::Devuan',
     fedora    => 'PVE::LXC::Setup::Fedora',
     gentoo    => 'PVE::LXC::Setup::Gentoo',
+    openeuler => 'PVE::LXC::Setup::OpenEuler',
     opensuse  => 'PVE::LXC::Setup::SUSE',
     ubuntu    => 'PVE::LXC::Setup::Ubuntu',
     nixos     => 'PVE::LXC::Setup::NixOS',
@@ -39,6 +41,7 @@ my $plugin_alias = {
     'opensuse-leap' => 'opensuse',
     'opensuse-tumbleweed' => 'opensuse',
     'opensuse-slowroll' => 'opensuse',
+    'openEuler' => 'openeuler',
     arch => 'archlinux',
     sles => 'opensuse',
 };
@@ -80,6 +83,8 @@ my $autodetect_type = sub {
 	return "gentoo";
     } elsif (-d  "$rootdir/nix/store") {
 	return "nixos";
+    } elsif (-f "$rootdir/etc/openEuler-release") {
+	return "openeuler";
     } elsif (-f "$rootdir/etc/os-release") {
 	die "unable to detect OS distribution\n";
     } else {

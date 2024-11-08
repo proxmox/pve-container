@@ -11,6 +11,7 @@ SOURCES=\
     SUSE.pm		\
     Ubuntu.pm		\
     NixOS.pm		\
+    OpenEuler.pm	\
     Unmanaged.pm	\
 
 .PHONY: install
