@@ -1,3 +1,23 @@
+pve-container (5.2.1) bookworm; urgency=medium
+
+  * api status: add some missing descriptions in return schema
+
+  * fix #5761: add the "discard" mount option
+
+  * fix typos on user-visible strings
+
+  * fix #5762: lxc: setup: support `opensuse-slowroll` as OpenSUSE
+    flavor
+
+  * fix #5742: lxc: setup: centos template keep static ipv6 assignment
+
+  * fix #5720: add setup support for openEuler
+
+  * CentOS: disable some systemd units for sysfs debug mounts that
+    cannot work in containers
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 08 Nov 2024 16:00:46 +0100
+
 pve-container (5.2.0) bookworm; urgency=medium
 
   * fix #5674: add missing 'proxyto' for LXC interfaces API
