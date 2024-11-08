@@ -24,6 +24,7 @@ sub template_fixup {
     my ($self, $conf) = @_;
 
     $self->remove_lxc_name_from_etc_hosts();
+    $self->setup_systemd_disable_static_units(['dev-mqueue.mount']);
 }
 
 sub setup_init {

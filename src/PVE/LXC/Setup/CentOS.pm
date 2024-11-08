@@ -121,6 +121,8 @@ sub template_fixup {
     $self->setup_securetty($conf);
 
     $self->remove_lxc_name_from_etc_hosts();
+
+    $self->setup_systemd_disable_static_units();
 }
 
 sub setup_init {

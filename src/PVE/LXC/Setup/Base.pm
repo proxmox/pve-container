@@ -352,6 +352,23 @@ sub setup_systemd_preset {
     );
 }
 
+# some units cannot be disabled via presets because they are static
+# this helper can be called as part of template_fixup to explicitly mask them instead
+sub setup_systemd_disable_static_units {
+    my ($self, $extra_units) = @_;
+
+    # some don't make sense in CTs, child-plugins can add extra units via $extra_preset
+    my $units = [
+	'sys-kernel-config.mount',
+	'sys-kernel-debug.mount',
+    ];
+
+    for my $unit ($units->@*, $extra_units->@*) {
+	$self->ct_symlink('/dev/null', "/etc/systemd/system/$unit")
+	    if !$self->ct_file_exists("/etc/systemd/system/$unit");
+    }
+}
+
 sub setup_securetty {
     my ($self, $conf, @add) = @_;
 
