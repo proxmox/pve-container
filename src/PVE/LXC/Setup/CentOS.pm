@@ -152,7 +152,7 @@ sub set_hostname {
     my $oldname;
     if ($self->ct_file_exists($hostname_fn)) {
 	$oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
-    } else {
+    } elsif ($self->ct_file_exists($sysconfig_network)) {
 	my $data = $self->ct_file_get_contents($sysconfig_network);
 	if ($data =~ m/^HOSTNAME=\s*(\S+)\s*$/m) {
 	    $oldname = $1;

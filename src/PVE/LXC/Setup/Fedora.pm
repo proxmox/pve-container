@@ -65,4 +65,5 @@ sub setup_network {
     $self->SUPER::setup_network($conf) if $setup_sysconfig;
     $self->SUPER::setup_systemd_networkd($conf) if $setup_systemd;
 }
+
 1;
