@@ -1,3 +1,15 @@
+pve-container (5.2.2) bookworm; urgency=medium
+
+  * network config: avoid committing invalid config on hotplug failure, rather
+    try rolling back to previous config
+
+  * setup: add support Ubuntu 24.10 and future 25.04
+
+  * setup centos & derivatives: hostname: only read sysconfig network if
+    exist. This fixes the support for Fedora 41 images.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 19 Nov 2024 14:02:54 +0100
+
 pve-container (5.2.1) bookworm; urgency=medium
 
   * api status: add some missing descriptions in return schema
