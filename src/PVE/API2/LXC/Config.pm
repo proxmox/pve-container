@@ -209,6 +209,9 @@ __PACKAGE__->register_method({
 	    my $running = PVE::LXC::check_running($vmid);
 
 	    my $errors = PVE::LXC::Config->update_pct_config($vmid, $conf, $running, $param, \@delete, \@revert);
+	    # don't write to config if we get any errors – this can result in a broken config
+	    raise_param_exc($errors) if scalar(keys %$errors);
+
 	    PVE::LXC::Config->write_config($vmid, $conf);
 	    $conf = PVE::LXC::Config->load_config($vmid);
 

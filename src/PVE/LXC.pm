@@ -1051,11 +1051,6 @@ sub update_net {
 		    my $oldbridge = $oldnet->{bridge};
 
 		    PVE::Network::tap_unplug($veth);
-		    foreach (qw(bridge tag firewall)) {
-			delete $oldnet->{$_};
-		    }
-		    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($oldnet);
-		    PVE::LXC::Config->write_config($vmid, $conf);
 
 		    if ($have_sdn && $bridge_changed) {
 			eval { PVE::Network::SDN::Vnets::del_ips_from_mac($oldbridge, $oldnet->{hwaddr}, $conf->{hostname}) };
@@ -1066,7 +1061,12 @@ sub update_net {
 		if ($have_sdn && $bridge_changed) {
 		    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
 		}
-		PVE::LXC::net_tap_plug($veth, $newnet);
+		eval { PVE::LXC::net_tap_plug($veth, $newnet) };
+		if ($@) {
+		    my $err = $@;
+		    PVE::LXC::net_tap_plug($veth, $oldnet);
+		    die "$err\n";
+		}
 
 		# This includes the rate:
 		foreach (qw(bridge tag firewall rate link_down)) {
