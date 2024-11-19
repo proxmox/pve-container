@@ -1062,9 +1062,9 @@ sub update_net {
 		    PVE::Network::SDN::Vnets::add_next_free_cidr($newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1);
 		}
 		eval { PVE::LXC::net_tap_plug($veth, $newnet) };
-		if ($@) {
-		    my $err = $@;
-		    PVE::LXC::net_tap_plug($veth, $oldnet);
+		if (my $err = $@) {
+		    eval { PVE::LXC::net_tap_plug($veth, $oldnet) };
+		    warn "restoring old network due to hot-plug failure for $veth failed - $@" if $@;
 		    die "$err\n";
 		}
 
