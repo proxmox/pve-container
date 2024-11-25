@@ -1876,11 +1876,16 @@ sub __mountpoint_mount {
 
     die "unknown snapshot path for '$volid'" if !$storage && defined($snapname);
 
+    my $readonly = $mountpoint->{ro};
     my $optlist = [];
 
     if (my $mountopts = $mountpoint->{mountoptions}) {
 	my @opts = split(/;/, $mountpoint->{mountoptions});
-	push @$optlist, grep { PVE::LXC::Config::is_valid_mount_option($_) } @opts;
+	if ($readonly || defined($snapname)) {
+	    push @$optlist, grep { PVE::LXC::Config::is_valid_ro_mount_option($_) } @opts;
+	} else {
+	    push @$optlist, grep { PVE::LXC::Config::is_valid_mount_option($_) } @opts;
+	}
     }
 
     my $acl = $mountpoint->{acl};
@@ -1891,7 +1896,6 @@ sub __mountpoint_mount {
     }
 
     my $optstring = join(',', @$optlist);
-    my $readonly = $mountpoint->{ro};
 
     my @extra_opts;
     @extra_opts = ('-o', $optstring) if $optstring;

@@ -312,10 +312,16 @@ cfs_register_file('/lxc/', \&parse_pct_config, \&write_pct_config);
 
 
 my $valid_mount_option_re = qr/(discard|lazytime|noatime|nodev|noexec|nosuid)/;
+my $valid_ro_mount_option_re = qr/(nodev|noexec|nosuid)/;
 
 sub is_valid_mount_option {
     my ($option) = @_;
     return $option =~ $valid_mount_option_re;
+}
+
+sub is_valid_ro_mount_option {
+    my ($option) = @_;
+    return $option =~ $valid_ro_mount_option_re;
 }
 
 my $rootfs_desc = {
