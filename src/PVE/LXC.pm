@@ -127,6 +127,12 @@ our $vmstatus_return_properties = {
 	type => 'string',
 	enum => ['stopped', 'running'],
     },
+    mem => {
+	description => "Currently used memory in bytes.",
+	type => 'integer',
+	optional => 1,
+	renderer => 'bytes',
+    },
     maxmem => {
 	description => "Maximum memory in bytes.",
 	type => 'integer',
@@ -190,6 +196,11 @@ our $vmstatus_return_properties = {
 	type => 'integer',
 	optional => 1,
 	renderer => 'duration',
+    },
+    cpu => {
+	description => "Current CPU usage.",
+	type => 'number',
+	optional => 1,
     },
     cpus => {
 	description => "Maximum usable CPUs.",
