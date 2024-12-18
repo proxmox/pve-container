@@ -292,6 +292,8 @@ sub phase1 {
 	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 	    my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
 
+	    # FIXME PVE 9 - why is this even here, can't it just be dropped completely? The storage
+	    # layer already dies if there is no valid transport format.
 	    # TODO move to storage plugin layer?
 	    my $migratable_storages = [
 		'dir',
