@@ -303,6 +303,7 @@ sub phase1 {
 	    if ($remote) {
 		push @$migratable_storages, 'cifs';
 		push @$migratable_storages, 'nfs';
+		push @$migratable_storages, 'rbd';
 	    }
 
 	    die "storage type '$scfg->{type}' not supported\n"
