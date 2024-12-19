@@ -1,3 +1,11 @@
+pve-container (5.2.3) bookworm; urgency=medium
+
+  * vmstatus: document more return types
+
+  * migration: allow rbd storages for remote migration
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 19 Dec 2024 15:16:59 +0100
+
 pve-container (5.2.2) bookworm; urgency=medium
 
   * network config: avoid committing invalid config on hotplug failure, rather
