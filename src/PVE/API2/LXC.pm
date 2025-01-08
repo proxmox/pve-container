@@ -2559,20 +2559,53 @@ __PACKAGE__->register_method({
 		    description => 'The name of the interface',
 		    optional => 0,
 		},
+		# TODO: deprecate on next major release
 		hwaddr => {
 		    type => 'string',
 		    description => 'The MAC address of the interface',
 		    optional => 0,
 		},
+		"hardware-address" => {
+		    type => 'string',
+		    description => 'The MAC address of the interface',
+		    optional => 0,
+		},
+		# TODO: deprecate on next major release
 		inet => {
 		    type => 'string',
 		    description => 'The IPv4 address of the interface',
-		    optional => 1,
+		    optional => 1
 		},
+		# TODO: deprecate on next major release
 		inet6 => {
 		    type => 'string',
 		    description => 'The IPv6 address of the interface',
-		    optional => 1,
+		    optional => 1
+		},
+		"ip-addresses" => {
+		    type => 'array',
+		    description => 'The addresses of the interface',
+		    optional => 0,
+		    items => {
+			type => 'object',
+			properties => {
+			    prefix => {
+				type => 'integer',
+				description => 'IP-Prefix',
+				optional => 1,
+			    },
+			    "ip-address" => {
+				type => 'string',
+				description => 'IP-Address',
+				optional => 1,
+			    },
+			    "ip-address-type" => {
+				type => 'string',
+				description => 'IP-Family',
+				optional => 1,
+			    },
+			}
+		    }
 		},
 	    }
 	},

@@ -1152,10 +1152,25 @@ sub get_interfaces {
     my $res;
     for my $interface ($config->@*) {
 	my $obj = { name => $interface->{ifname} };
+	my $list = [];
 	for my $ip ($interface->{addr_info}->@*) {
+	    # TODO: remove on next major release
 	    $obj->{$ip->{family}} = $ip->{local} . "/" . $ip->{prefixlen};
+
+	    push(
+		@$list, {
+		    'ip-address-type' => $ip->{family},
+		    'ip-address'      => $ip->{local},
+		    'prefix'          => $ip->{prefixlen}
+		}
+	    );
 	}
+	$obj->{'ip-addresses'} = $list;
+	$obj->{'hardware-address'} = $interface->{address};
+
+	# TODO: remove on next major release
 	$obj->{hwaddr} = $interface->{address};
+
 	push @$res, $obj
     }
 
