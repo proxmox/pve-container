@@ -487,7 +487,6 @@ sub cleanup {
     my $conf = PVE::LXC::Config->load_config($vmid);
 
     if ($task->{mode} ne 'suspend') {
-	my $rootdir = $default_mount_point;
 	my $disks = $task->{disks};
 	foreach my $disk (reverse @$disks) {
 	    PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
