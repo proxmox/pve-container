@@ -1474,7 +1474,7 @@ sub check_ct_modify_config_perm {
 		    }
 		} else {
 		    # new container or no features defined
-		    if (scalar(keys %$features) == 1 && $features->{nesting}) {
+		    if (scalar(keys %$features) == 1 && exists($features->{nesting})) {
 			$nesting_changed = 1;
 		    } elsif (scalar(keys %$features) > 0) {
 			$other_changed = 1;
@@ -1482,7 +1482,7 @@ sub check_ct_modify_config_perm {
 		}
 	    } else {
 		my $features = PVE::LXC::Config->parse_features($oldconf->{$opt});
-		if (scalar(keys %$features) == 1 && $features->{nesting}) {
+		if (scalar(keys %$features) == 1 && exists($features->{nesting})) {
 		    $nesting_changed = 1;
 		} elsif (scalar(keys %$features) > 0) {
 		    $other_changed = 1;
