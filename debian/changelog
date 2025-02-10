@@ -4,8 +4,8 @@ pve-container (5.2.4) bookworm; urgency=medium
     connections to pick up the pinned SSH host keys, instead of relying on
     them being in the local root user's known hosts file.
 
-  * api: config: fix permission checks on change-dection for the case when
-    'nesting' feature was explicitily set to zero (disabled).
+  * api: config: fix permission checks on change-detection for the case when
+    'nesting' feature was explicitly set to zero (disabled).
 
  -- Proxmox Support Team <support@proxmox.com>  Mon, 10 Feb 2025 17:00:21 +0100
 
