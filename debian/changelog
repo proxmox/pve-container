@@ -1,3 +1,14 @@
+pve-container (5.2.4) bookworm; urgency=medium
+
+  * vncproxy and termproxy: use common SSH info helpers when proxying
+    connections to pick up the pinned SSH host keys, instead of relying on
+    them being in the local root user's known hosts file.
+
+  * api: config: fix permission checks on change-dection for the case when
+    'nesting' feature was explicitily set to zero (disabled).
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 10 Feb 2025 17:00:21 +0100
+
 pve-container (5.2.3) bookworm; urgency=medium
 
   * vmstatus: document more return types
