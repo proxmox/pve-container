@@ -7,6 +7,7 @@ use File::Path;
 use Fcntl;
 
 use PVE::RPCEnvironment;
+use PVE::RESTEnvironment qw(log_warn);
 use PVE::Storage::PBSPlugin;
 use PVE::Storage::Plugin;
 use PVE::Storage;
@@ -25,6 +26,24 @@ sub restore_archive {
 	my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $storeid);
 	if ($scfg->{type} eq 'pbs') {
 	    return restore_proxmox_backup_archive($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit);
+	}
+	if (PVE::Storage::storage_has_feature($storage_cfg, $storeid, 'backup-provider')) {
+	    my $log_function = sub {
+		my ($log_level, $message) = @_;
+		my $prefix = $log_level eq 'err' ? 'ERROR' : uc($log_level);
+		print "$prefix: $message\n";
+	    };
+	    my $backup_provider =
+		PVE::Storage::new_backup_provider($storage_cfg, $storeid, $log_function);
+	    return restore_external_archive(
+		$backup_provider,
+		$storeid,
+		$volname,
+		$rootdir,
+		$conf,
+		$no_unpack_error,
+		$bwlimit,
+	    );
 	}
     }
 
@@ -127,6 +146,62 @@ sub restore_tar_archive {
     die $err if $err && !$no_unpack_error;
 }
 
+sub restore_external_archive {
+    my ($backup_provider, $storeid, $volname, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+
+    die "refusing to restore privileged container backup from external source\n"
+	if !$conf->{unprivileged};
+
+    my ($mechanism, $vmtype) = $backup_provider->restore_get_mechanism($volname, $storeid);
+    die "cannot restore non-LXC guest of type '$vmtype'\n" if $vmtype ne 'lxc';
+
+    my $info = $backup_provider->restore_container_init($volname, $storeid, {});
+    eval {
+	if ($mechanism eq 'tar') {
+	    my $tar_path = $info->{'tar-path'}
+		or die "did not get path to tar file from backup provider\n";
+	    die "not a regular file '$tar_path'" if !-f $tar_path;
+	    restore_tar_archive($tar_path, $rootdir, $conf, $no_unpack_error, $bwlimit);
+	} elsif ($mechanism eq 'directory') {
+	    my $directory = $info->{'archive-directory'}
+		or die "did not get path to archive directory from backup provider\n";
+	    die "not a directory '$directory'" if !-d $directory;
+
+	    my $create_cmd = [
+		'tar',
+		'cpf',
+		'-',
+		@PVE::Storage::Plugin::COMMON_TAR_FLAGS,
+		"--directory=$directory",
+		'.',
+	    ];
+
+	    my $extract_cmd = restore_tar_archive_command($conf, undef, $rootdir, $bwlimit);
+
+	    my $cmd;
+	    # if there is a bandwidth limit, the command is already a nested array reference
+	    if (ref($extract_cmd) eq 'ARRAY' && ref($extract_cmd->[0]) eq 'ARRAY') {
+		$cmd = [$create_cmd, $extract_cmd->@*];
+	    } else {
+		$cmd = [$create_cmd, $extract_cmd];
+	    }
+
+	    eval { PVE::Tools::run_command($cmd); };
+	    die $@ if $@ && !$no_unpack_error;
+	} else {
+	    die "mechanism '$mechanism' requested by backup provider is not supported for LXCs\n";
+	}
+    };
+    my $err = $@;
+    eval { $backup_provider->restore_container_cleanup($volname, $storeid, {}); };
+    if (my $cleanup_err = $@) {
+	die $cleanup_err if !$err;
+	warn $cleanup_err;
+    }
+    die $err if $err;
+
+}
+
 sub recover_config {
     my ($storage_cfg, $volid, $vmid) = @_;
 
@@ -135,6 +210,8 @@ sub recover_config {
 	my $scfg = PVE::Storage::storage_check_enabled($storage_cfg, $storeid);
 	if ($scfg->{type} eq 'pbs') {
 	    return recover_config_from_proxmox_backup($storage_cfg, $volid, $vmid);
+	} elsif (PVE::Storage::storage_has_feature($storage_cfg, $storeid, 'backup-provider')) {
+	    return recover_config_from_external_backup($storage_cfg, $volid, $vmid);
 	}
     }
 
@@ -209,6 +286,26 @@ sub recover_config_from_tar {
     return wantarray ? ($conf, $mp_param) : $conf;
 }
 
+sub recover_config_from_external_backup {
+    my ($storage_cfg, $volid, $vmid) = @_;
+
+    $vmid //= 0;
+
+    my $raw = PVE::Storage::extract_vzdump_config($storage_cfg, $volid);
+
+    my $conf = PVE::LXC::Config::parse_pct_config("/lxc/${vmid}.conf" , $raw);
+
+    delete $conf->{snapshots};
+
+    my $mp_param = {};
+    PVE::LXC::Config->foreach_volume($conf, sub {
+	my ($ms, $mountpoint) = @_;
+	$mp_param->{$ms} = $conf->{$ms};
+    });
+
+    return wantarray ? ($conf, $mp_param) : $conf;
+}
+
 sub restore_configuration {
     my ($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
 
@@ -217,6 +314,26 @@ sub restore_configuration {
 	my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
 	if ($scfg->{type} eq 'pbs') {
 	    return restore_configuration_from_proxmox_backup($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw);
+	}
+	if (PVE::Storage::storage_has_feature($storage_cfg, $storeid, 'backup-provider')) {
+	    my $log_function = sub {
+		my ($log_level, $message) = @_;
+		my $prefix = $log_level eq 'err' ? 'ERROR' : uc($log_level);
+		print "$prefix: $message\n";
+	    };
+	    my $backup_provider =
+		PVE::Storage::new_backup_provider($storage_cfg, $storeid, $log_function);
+	    return restore_configuration_from_external_backup(
+		$backup_provider,
+		$vmid,
+		$storage_cfg,
+		$archive,
+		$rootdir,
+		$conf,
+		$restricted,
+		$unique,
+		$skip_fw,
+	    );
 	}
     }
     restore_configuration_from_etc_vzdump($vmid, $rootdir, $conf, $restricted, $unique, $skip_fw);
@@ -256,6 +373,38 @@ sub restore_configuration_from_proxmox_backup {
 	    PVE::Storage::PBSPlugin::run_raw_client_cmd($scfg, $storeid, $cmd, $param);
 	}
     }
+}
+
+sub restore_configuration_from_external_backup {
+    my ($backup_provider, $vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
+
+    my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive);
+    my $scfg = PVE::Storage::storage_config($storage_cfg, $storeid);
+
+    my ($vtype, $name, undef, undef, undef, undef, $format) =
+	PVE::Storage::parse_volname($storage_cfg, $archive);
+
+    my $oldconf = recover_config_from_external_backup($storage_cfg, $archive, $vmid);
+
+    sanitize_and_merge_config($conf, $oldconf, $restricted, $unique);
+
+    my $firewall_config =
+	$backup_provider->archive_get_firewall_config($volname, $storeid);
+
+    if ($firewall_config) {
+	my $pve_firewall_dir = '/etc/pve/firewall';
+	my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
+	if ($skip_fw) {
+	    warn "ignoring firewall config from backup archive, lacking API permission to modify firewall.\n";
+	    warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
+		if -e $pct_fwcfg_target;
+	} else {
+	    mkdir $pve_firewall_dir; # make sure the directory exists
+	    PVE::Tools::file_set_contents($pct_fwcfg_target, $firewall_config);
+	}
+    }
+
+    return;
 }
 
 sub sanitize_and_merge_config {
