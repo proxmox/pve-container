@@ -11,6 +11,7 @@ use PVE::Cluster qw(cfs_read_file);
 use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::LXC::Config;
+use PVE::LXC::Namespaces;
 use PVE::LXC;
 use PVE::Storage;
 use PVE::Tools;
@@ -124,6 +125,7 @@ sub prepare {
 
     my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     $task->{userns_cmd} = PVE::LXC::userns_command($id_map);
+    $task->{id_map} = $id_map;
     $task->{root_uid} = $root_uid;
     $task->{root_gid} = $root_gid;
 
@@ -373,7 +375,43 @@ sub archive {
     my $userns_cmd = $task->{userns_cmd};
     my $findexcl = $self->{vzdump}->{findexcl};
 
-    if ($self->{vzdump}->{opts}->{pbs}) {
+    if (my $backup_provider = $self->{vzdump}->{'backup-provider'}) {
+	$self->loginfo("starting external backup via " . $backup_provider->provider_name());
+
+	if (!scalar($task->{id_map}->@*) || $task->{root_uid} == 0 || $task->{root_gid} == 0) {
+	    $self->log("warn", "external backup of privileged container can only be restored as"
+		." unprivileged which might not work in all cases");
+	}
+
+	my $mechanism = $backup_provider->backup_get_mechanism($vmid, 'lxc');
+	die "mechanism '$mechanism' requested by backup provider is not supported for containers\n"
+	    if $mechanism ne 'directory';
+
+	$self->loginfo("using backup mechanism '$mechanism'");
+
+	my $guest_config = PVE::Tools::file_get_contents("$tmpdir/etc/vzdump/pct.conf");
+	my $firewall_file = "$tmpdir/etc/vzdump/pct.fw";
+
+	my $info = {
+	    directory => $snapdir,
+	    sources => [@sources],
+	    'backup-user-id' => $task->{root_uid},
+	};
+	$info->{'firewall-config'} = PVE::Tools::file_get_contents($firewall_file)
+	    if -e $firewall_file;
+	$info->{'bandwidth-limit'} = $opts->{bwlimit} * 1024 if $opts->{bwlimit};
+
+	$backup_provider->backup_container_prepare($vmid, $info);
+
+	if (scalar($task->{id_map}->@*)) {
+	    PVE::LXC::Namespaces::run_in_userns(
+		sub { $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info); },
+		$task->{id_map},
+	    );
+	} else {
+	    $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info);
+	}
+    } elsif ($self->{vzdump}->{opts}->{pbs}) {
 
 	my $param = [];
 	push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
