@@ -5,6 +5,7 @@ SOURCES= \
 	Create.pm \
 	Migrate.pm \
 	Monitor.pm \
+	Namespaces.pm \
 	Setup.pm \
 	Tools.pm
 
