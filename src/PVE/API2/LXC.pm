@@ -40,6 +40,17 @@ BEGIN {
     }
 }
 
+my sub assert_not_restore_from_external {
+    my ($archive, $storage_cfg) = @_;
+
+    my ($storeid, undef) = PVE::Storage::parse_volume_id($archive, 1);
+
+    return if !defined($storeid);
+    return if !PVE::Storage::storage_has_feature($storage_cfg, $storeid, 'backup-provider');
+
+    die "refusing to restore privileged container backup from external source\n";
+}
+
 my $check_storage_access_migrate = sub {
     my ($rpcenv, $authuser, $storecfg, $storage, $node) = @_;
 
@@ -408,6 +419,9 @@ __PACKAGE__->register_method({
 
 			$conf->{unprivileged} = $orig_conf->{unprivileged}
 			    if !defined($unprivileged) && defined($orig_conf->{unprivileged});
+
+			assert_not_restore_from_external($archive, $storage_cfg)
+			    if !$conf->{unprivileged};
 
 			# implicit privileged change is checked here
 			if ($old_conf->{unprivileged} && !$conf->{unprivileged}) {
