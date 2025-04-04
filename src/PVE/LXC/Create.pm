@@ -167,11 +167,15 @@ sub restore_external_archive {
 		or die "did not get path to archive directory from backup provider\n";
 	    die "not a directory '$directory'" if !-d $directory;
 
+	    # Give backup provider more freedom, e.g. mount backed-up mount point volumes
+	    # individually.
+	    my @flags = grep { $_ ne '--one-file-system' } @PVE::Storage::Plugin::COMMON_TAR_FLAGS;
+
 	    my $create_cmd = [
 		'tar',
 		'cpf',
 		'-',
-		@PVE::Storage::Plugin::COMMON_TAR_FLAGS,
+		@flags,
 		"--directory=$directory",
 		'.',
 	    ];
