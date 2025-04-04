@@ -99,11 +99,72 @@ my sub tar_compression_option {
     }
 }
 
+# Basic checks trying to detect issues with a potentially untrusted or bogus tar archive.
+# Just listing the files is already a good check against corruption.
+# 'tar' itself already protects against '..' in component names and strips absolute member names
+# when extracting, so no need to check for those here.
+my sub check_tar_archive {
+    my ($archive) = @_;
+
+    print "checking archive..\n";
+
+    # To resolve links to get to 'sbin/init' would mean keeping track of everything in the archive,
+    # because the target might be ordered first. Check only that 'sbin' exists here.
+    my $found_sbin;
+
+    # Just to detect bogus archives, any valid container filesystem should have more than this.
+    my $required_members = 10;
+    my $member_count = 0;
+
+    my $check_file_list = sub {
+	my ($line) = @_;
+
+	$member_count++;
+
+	# Not always just a single number, e.g. for character devices.
+	my $size_re = qr/\d+(?:,\d+)?/;
+
+	# The date is in ISO 8601 format. The last part contains the potentially quoted file name,
+	# potentially followed by some additional info (e.g. where a link points to).
+	my ($type, $perms, $uid, $gid, $size, $date, $time, $file_info) =
+	    $line =~ m!^([a-zA-Z\-])(\S+)\s+(\d+)/(\d+)\s+($size_re)\s+(\S+)\s+(\S+)\s+(.*)$!;
+	if (!defined($type)) {
+	    print "check tar: unable to parse line: $line\n";
+	    return;
+	}
+
+	die "found multi-volume member in archive\n" if $type eq 'M';
+
+	if (!$found_sbin && (
+	    ($file_info =~ m!^(?:\./)?sbin/$! && $type eq 'd')
+	    || ($file_info =~ m!^(?:\./)?sbin ->! && $type eq 'l')
+	    || ($file_info =~ m!^(?:\./)?sbin link to! && $type eq 'h')
+	)) {
+	    $found_sbin = 1;
+	}
+
+    };
+
+    my $compression_opt = tar_compression_option($archive);
+
+    my $cmd = ['tar', '-tvf', $archive];
+    push $cmd->@*, $compression_opt if $compression_opt;
+    push $cmd->@*, '--numeric-owner';
+
+    PVE::Tools::run_command($cmd, outfunc => $check_file_list);
+
+    die "no 'sbin' directory (or link) found in archive '$archive'\n" if !$found_sbin;
+    die "less than 10 members in archive '$archive'\n" if $member_count < $required_members;
+}
+
 my sub restore_tar_archive_command {
-    my ($conf, $compression_opt, $rootdir, $bwlimit) = @_;
+    my ($conf, $compression_opt, $rootdir, $bwlimit, $untrusted) = @_;
 
     my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
+
+    die "refusing to restore privileged container backup from external source\n"
+	if $untrusted && ($root_uid == 0 || $root_gid == 0);
 
     my $cmd = [@$userns_cmd, 'tar', 'xpf', '-'];
     push $cmd->@*, $compression_opt if $compression_opt;
@@ -127,7 +188,7 @@ my sub restore_tar_archive_command {
 }
 
 sub restore_tar_archive {
-    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit, $untrusted) = @_;
 
     my $archive_fh;
     my $tar_input = '<&STDIN';
@@ -142,7 +203,12 @@ sub restore_tar_archive {
 	$tar_input = '<&'.fileno($archive_fh);
     }
 
-    my $cmd = restore_tar_archive_command($conf, $compression_opt, $rootdir, $bwlimit);
+    if ($untrusted) {
+	die "cannot verify untrusted archive on STDIN\n" if $archive eq '-';
+	check_tar_archive($archive);
+    }
+
+    my $cmd = restore_tar_archive_command($conf, $compression_opt, $rootdir, $bwlimit, $untrusted);
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
@@ -170,7 +236,7 @@ sub restore_external_archive {
 	    my $tar_path = $info->{'tar-path'}
 		or die "did not get path to tar file from backup provider\n";
 	    die "not a regular file '$tar_path'" if !-f $tar_path;
-	    restore_tar_archive($tar_path, $rootdir, $conf, $no_unpack_error, $bwlimit);
+	    restore_tar_archive($tar_path, $rootdir, $conf, $no_unpack_error, $bwlimit, 1);
 	} elsif ($mechanism eq 'directory') {
 	    my $directory = $info->{'archive-directory'}
 		or die "did not get path to archive directory from backup provider\n";
@@ -189,6 +255,7 @@ sub restore_external_archive {
 		'.',
 	    ];
 
+	    # archive is trusted, we created it
 	    my $extract_cmd = restore_tar_archive_command($conf, undef, $rootdir, $bwlimit);
 
 	    my $cmd;
