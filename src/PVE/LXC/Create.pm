@@ -78,15 +78,38 @@ sub restore_proxmox_backup_archive {
 	$scfg, $storeid, $cmd, $param, userns_cmd => $userns_cmd);
 }
 
+my sub tar_compression_option {
+    my ($archive) = @_;
+
+    my %compression_map = (
+	'.gz'  => '-z',
+	'.bz2' => '-j',
+	'.xz'  => '-J',
+	'.lzo'  => '--lzop',
+	'.zst'  => '--zstd',
+    );
+    if ($archive =~ /\.tar(\.[^.]+)?$/) {
+	if (defined($1)) {
+	    die "unrecognized compression format: $1\n" if !defined($compression_map{$1});
+	    return $compression_map{$1};
+	}
+	return;
+    } else {
+	die "file does not look like a template archive: $archive\n";
+    }
+}
+
 my sub restore_tar_archive_command {
-    my ($conf, $opts, $rootdir, $bwlimit) = @_;
+    my ($conf, $compression_opt, $rootdir, $bwlimit) = @_;
 
     my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     my $userns_cmd = PVE::LXC::userns_command($id_map);
 
-    my $cmd = [@$userns_cmd, 'tar', 'xpf', '-', $opts->@*, '--totals',
-               @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
-               '-C', $rootdir];
+    my $cmd = [@$userns_cmd, 'tar', 'xpf', '-'];
+    push $cmd->@*, $compression_opt if $compression_opt;
+    push $cmd->@*, '--totals';
+    push $cmd->@*, @PVE::Storage::Plugin::COMMON_TAR_FLAGS;
+    push $cmd->@*, '-C', $rootdir;
 
     # skip-old-files doesn't have anything to do with time (old/new), but is
     # simply -k (annoyingly also called --keep-old-files) without the 'treat
@@ -108,24 +131,10 @@ sub restore_tar_archive {
 
     my $archive_fh;
     my $tar_input = '<&STDIN';
-    my @compression_opt;
+    my $compression_opt;
     if ($archive ne '-') {
 	# GNU tar refuses to autodetect this... *sigh*
-	my %compression_map = (
-	    '.gz'  => '-z',
-	    '.bz2' => '-j',
-	    '.xz'  => '-J',
-	    '.lzo'  => '--lzop',
-	    '.zst'  => '--zstd',
-	);
-	if ($archive =~ /\.tar(\.[^.]+)?$/) {
-	    if (defined($1)) {
-		die "unrecognized compression format: $1\n" if !defined($compression_map{$1});
-		@compression_opt = $compression_map{$1};
-	    }
-	} else {
-	    die "file does not look like a template archive: $archive\n";
-	}
+	$compression_opt = tar_compression_option($archive);
 	sysopen($archive_fh, $archive, O_RDONLY)
 	    or die "failed to open '$archive': $!\n";
 	my $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
@@ -133,7 +142,7 @@ sub restore_tar_archive {
 	$tar_input = '<&'.fileno($archive_fh);
     }
 
-    my $cmd = restore_tar_archive_command($conf, [@compression_opt], $rootdir, $bwlimit);
+    my $cmd = restore_tar_archive_command($conf, $compression_opt, $rootdir, $bwlimit);
 
     if ($archive eq '-') {
 	print "extracting archive from STDIN\n";
