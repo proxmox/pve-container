@@ -1157,13 +1157,11 @@ sub get_interfaces {
 	    # TODO: remove on next major release
 	    $obj->{$ip->{family}} = $ip->{local} . "/" . $ip->{prefixlen};
 
-	    push(
-		@$list, {
-		    'ip-address-type' => $ip->{family},
-		    'ip-address'      => $ip->{local},
-		    'prefix'          => $ip->{prefixlen}
-		}
-	    );
+	    push @$list, {
+		'ip-address-type' => $ip->{family},
+		'ip-address' => $ip->{local},
+		'prefix' => $ip->{prefixlen}
+	    };
 	}
 	$obj->{'ip-addresses'} = $list;
 	$obj->{'hardware-address'} = $interface->{address};
