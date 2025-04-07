@@ -2574,13 +2574,13 @@ __PACKAGE__->register_method({
 		inet => {
 		    type => 'string',
 		    description => 'The IPv4 address of the interface',
-		    optional => 1
+		    optional => 1,
 		},
 		# TODO: deprecate on next major release
 		inet6 => {
 		    type => 'string',
 		    description => 'The IPv6 address of the interface',
-		    optional => 1
+		    optional => 1,
 		},
 		"ip-addresses" => {
 		    type => 'array',
