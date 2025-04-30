@@ -995,7 +995,7 @@ sub vm_stop_cleanup {
 sub net_tap_plug : prototype($$) {
     my ($iface, $net) = @_;
 
-    if (defined($net->{link_down})) {
+    if ($net->{link_down}) {
 	PVE::Tools::run_command(['/sbin/ip', 'link', 'set', 'dev', $iface, 'down']);
 	# Don't add disconnected interfaces to the bridge, otherwise e.g. applying any network
 	# change (e.g. `ifreload -a`) could (re-)activate it unintentionally.
