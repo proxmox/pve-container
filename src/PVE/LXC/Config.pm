@@ -693,6 +693,7 @@ my $valid_lxc_conf_keys = {
     'lxc.signal.reboot' => 1,
     'lxc.signal.stop' => 1,
     'lxc.init.cmd' => 1,
+    'lxc.init.cwd' => 1,
     'lxc.pty.max' => 1,
     'lxc.console.logfile' => 1,
     'lxc.console.path' => 1,
