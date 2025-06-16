@@ -1,3 +1,12 @@
+pve-container (6.0.0) trixie; urgency=medium
+
+  * re-build for Debian 13 Trixie based Proxmox VE 9 releases.
+
+  * net: do not force network interface down if `link_down` is explicitly set
+    but 0
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 16 Jun 2025 22:54:58 +0200
+
 pve-container (5.2.6) bookworm; urgency=medium
 
   * api: return all active IP addresses of an interface.
