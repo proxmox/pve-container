@@ -11,23 +11,29 @@ sub ovz_config_extract_mem_swap {
 
     $unit = 1 if !$unit;
 
-    my ($mem, $swap) = (int((512*1024*1024 + $unit - 1)/$unit), 0);
+    my ($mem, $swap) = (int((512 * 1024 * 1024 + $unit - 1) / $unit), 0);
 
     my $maxpages = ($res_unlimited / 4096);
 
     if ($veconf->{swappages}) {
-	if ($veconf->{physpages} && $veconf->{physpages}->{lim} &&
-	    ($veconf->{physpages}->{lim} < $maxpages)) {
-	    $mem = int(($veconf->{physpages}->{lim} * 4096 + $unit - 1) / $unit);
-	}
-	if ($veconf->{swappages}->{lim} && ($veconf->{swappages}->{lim} < $maxpages)) {
-	    $swap = int (($veconf->{swappages}->{lim} * 4096 + $unit - 1) / $unit);
-	}
+        if (
+            $veconf->{physpages}
+            && $veconf->{physpages}->{lim}
+            && ($veconf->{physpages}->{lim} < $maxpages)
+        ) {
+            $mem = int(($veconf->{physpages}->{lim} * 4096 + $unit - 1) / $unit);
+        }
+        if ($veconf->{swappages}->{lim} && ($veconf->{swappages}->{lim} < $maxpages)) {
+            $swap = int(($veconf->{swappages}->{lim} * 4096 + $unit - 1) / $unit);
+        }
     } else {
-	if ($veconf->{vmguarpages} && $veconf->{vmguarpages}->{bar} &&
-	    ($veconf->{vmguarpages}->{bar} < $maxpages)) {
-	    $mem = int(($veconf->{vmguarpages}->{bar} * 4096 + $unit - 1) / $unit);
-	}
+        if (
+            $veconf->{vmguarpages}
+            && $veconf->{vmguarpages}->{bar}
+            && ($veconf->{vmguarpages}->{bar} < $maxpages)
+        ) {
+            $mem = int(($veconf->{vmguarpages}->{bar} * 4096 + $unit - 1) / $unit);
+        }
     }
 
     return ($mem, $swap);
@@ -37,7 +43,7 @@ sub parse_res_num_ignore {
     my ($key, $text) = @_;
 
     if ($text =~ m/^(\d+|unlimited)(:.*)?$/) {
-	return { bar => $1 eq 'unlimited' ? $res_unlimited : $1 };
+        return { bar => $1 eq 'unlimited' ? $res_unlimited : $1 };
     }
 
     return undef;
@@ -47,13 +53,13 @@ sub parse_res_num_num {
     my ($key, $text) = @_;
 
     if ($text =~ m/^(\d+|unlimited)(:(\d+|unlimited))?$/) {
-	my $res = { bar => $1 eq 'unlimited' ? $res_unlimited : $1 };
-	if (defined($3)) {
-	    $res->{lim} = $3 eq 'unlimited' ? $res_unlimited : $3;
-	} else {
-	    $res->{lim} = $res->{bar};
-	}
-	return $res;
+        my $res = { bar => $1 eq 'unlimited' ? $res_unlimited : $1 };
+        if (defined($3)) {
+            $res->{lim} = $3 eq 'unlimited' ? $res_unlimited : $3;
+        } else {
+            $res->{lim} = $res->{bar};
+        }
+        return $res;
     }
 
     return undef;
@@ -65,22 +71,22 @@ sub parse_res_bar_limit {
     return $res_unlimited if $text eq 'unlimited';
 
     if ($text =~ m/^(\d+)([TGMKP])?$/i) {
-	my $val = $1;
-	my $mult = $2 ? lc($2) : '';
-	if ($mult eq 'k') {
-	    $val = $val * 1024;
-	} elsif ($mult eq 'm') {
-	    $val = $val * 1024 * 1024;
-	} elsif ($mult eq 'g') {
-	    $val = $val * 1024 * 1024 * 1024;
-	} elsif ($mult eq 't') {
-	    $val = $val * 1024 * 1024 * 1024 * 1024;
-	} elsif ($mult eq 'p') {
-	    $val = $val * 4096;
-	} else {
-	    return $val;
-	}
-	return int($val/$base);
+        my $val = $1;
+        my $mult = $2 ? lc($2) : '';
+        if ($mult eq 'k') {
+            $val = $val * 1024;
+        } elsif ($mult eq 'm') {
+            $val = $val * 1024 * 1024;
+        } elsif ($mult eq 'g') {
+            $val = $val * 1024 * 1024 * 1024;
+        } elsif ($mult eq 't') {
+            $val = $val * 1024 * 1024 * 1024 * 1024;
+        } elsif ($mult eq 'p') {
+            $val = $val * 4096;
+        } else {
+            return $val;
+        }
+        return int($val / $base);
     }
 
     return undef;
@@ -96,7 +102,7 @@ sub parse_res_bytes_bytes {
     my $lim = parse_res_bar_limit($a[1], 1);
 
     if (defined($bar) && defined($lim)) {
-	return { bar => $bar, lim => $lim };
+        return { bar => $bar, lim => $lim };
     }
 
     return undef;
@@ -112,7 +118,7 @@ sub parse_res_block_block {
     my $lim = parse_res_bar_limit($a[1], 1024);
 
     if (defined($bar) && defined($lim)) {
-	return { bar => $bar, lim => $lim };
+        return { bar => $bar, lim => $lim };
     }
 
     return undef;
@@ -128,7 +134,7 @@ sub parse_res_pages_pages {
     my $lim = parse_res_bar_limit($a[1], 4096);
 
     if (defined($bar) && defined($lim)) {
-	return { bar => $bar, lim => $lim };
+        return { bar => $bar, lim => $lim };
     }
 
     return undef;
@@ -142,7 +148,7 @@ sub parse_res_pages_unlimited {
     my $bar = parse_res_bar_limit($a[0], 4096);
 
     if (defined($bar)) {
-	return { bar => $bar, lim => $res_unlimited };
+        return { bar => $bar, lim => $res_unlimited };
     }
 
     return undef;
@@ -156,7 +162,7 @@ sub parse_res_pages_ignore {
     my $bar = parse_res_bar_limit($a[0], 4096);
 
     if (defined($bar)) {
-	return { bar => $bar };
+        return { bar => $bar };
     }
 
     return undef;
@@ -168,10 +174,10 @@ sub parse_res_ignore_pages {
     my @a = split(/:/, $text);
     $a[1] = $a[0] if !defined($a[1]);
 
-    my $lim = parse_res_bar_limit($a[1] , 4096);
+    my $lim = parse_res_bar_limit($a[1], 4096);
 
     if (defined($lim)) {
-	return { bar => 0, lim => $lim };
+        return { bar => 0, lim => $lim };
     }
 
     return undef;
@@ -184,17 +190,17 @@ sub parse_boolean {
     return { value => 0 } if $text =~ m/^(no|false|off|0)$/i;
 
     return undef;
-};
+}
 
 sub parse_integer {
     my ($key, $text) = @_;
 
     if ($text =~ m/^(\d+)$/) {
-	return { value => int($1) };
+        return { value => int($1) };
     }
 
     return undef;
-};
+}
 
 my $ovz_ressources = {
     numproc => \&parse_res_num_ignore,
@@ -268,53 +274,53 @@ my $parse_ovz_config = sub {
     return undef if !defined($raw);
 
     while ($raw && $raw =~ /^(.*?)(\n|$)/mg) {
-	my $line = $1;
+        my $line = $1;
 
-	next if $line =~ m/^\#/;
-	next if $line =~ m/^\s*$/;
+        next if $line =~ m/^\#/;
+        next if $line =~ m/^\s*$/;
 
-	if ($line =~ m/^\s*([A-Z][A-Z0-9_]*)\s*=\s*\"(.*)\"\s*$/i) {
-	    my $name = lc($1);
-	    my $text = $2;
-	    my $parser = $ovz_ressources->{$name};
-	    if (!$parser || !ref($parser)) {
-		$data->{$name}->{value} = $text;
-		next;
-	    } else {
-		if (my $res = &$parser($name, $text)) {
-		    $data->{$name} = $res;
-		    next;
-		}
-	    }
-	}
-	die "unable to parse config line: $line\n";
+        if ($line =~ m/^\s*([A-Z][A-Z0-9_]*)\s*=\s*\"(.*)\"\s*$/i) {
+            my $name = lc($1);
+            my $text = $2;
+            my $parser = $ovz_ressources->{$name};
+            if (!$parser || !ref($parser)) {
+                $data->{$name}->{value} = $text;
+                next;
+            } else {
+                if (my $res = &$parser($name, $text)) {
+                    $data->{$name} = $res;
+                    next;
+                }
+            }
+        }
+        die "unable to parse config line: $line\n";
     }
 
     return $data;
 };
 
 sub convert_ovz {
-   my ($raw) = @_;
+    my ($raw) = @_;
 
-   my $conf = {};
+    my $conf = {};
 
-   my $ovz_conf = &$parse_ovz_config($raw);
+    my $ovz_conf = &$parse_ovz_config($raw);
 
-   my $disksize = $ovz_conf->{'diskspace'}->{'bar'} * 1024;
-   
-   my ($mem, $swap) = ovz_config_extract_mem_swap($ovz_conf, 0);
+    my $disksize = $ovz_conf->{'diskspace'}->{'bar'} * 1024;
 
-   $conf->{memory} = $mem / 1024 / 1024;
+    my ($mem, $swap) = ovz_config_extract_mem_swap($ovz_conf, 0);
 
-   $conf->{swap} = ($swap + $mem) / 1024 / 1024;
+    $conf->{memory} = $mem / 1024 / 1024;
 
-   $conf->{cpuunits} = 1024;
+    $conf->{swap} = ($swap + $mem) / 1024 / 1024;
 
-   $conf->{cpulimit} = $ovz_conf->{cpus}->{value} if $ovz_conf->{cpus};
+    $conf->{cpuunits} = 1024;
 
-   $conf->{hostname} = $ovz_conf->{hostname}->{value};
+    $conf->{cpulimit} = $ovz_conf->{cpus}->{value} if $ovz_conf->{cpus};
 
-   my $mp_param = { rootfs => "local:convertedovz,size=$disksize" };
+    $conf->{hostname} = $ovz_conf->{hostname}->{value};
 
-   return wantarray ? ($conf, $mp_param) : $conf;
+    my $mp_param = { rootfs => "local:convertedovz,size=$disksize" };
+
+    return wantarray ? ($conf, $mp_param) : $conf;
 }

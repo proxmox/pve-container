@@ -33,7 +33,7 @@ sub prepare {
     my ($self, $vmid) = @_;
 
     my $online = $self->{opts}->{online};
-    my $restart= $self->{opts}->{restart};
+    my $restart = $self->{opts}->{restart};
     my $remote = $self->{opts}->{remote};
 
     $self->{storecfg} = PVE::Storage::config();
@@ -45,119 +45,127 @@ sub prepare {
 
     my $running = 0;
     if (PVE::LXC::check_running($vmid)) {
-	die "lxc live migration is currently not implemented\n" if $online;
-	die "running container can only be migrated in restart mode" if !$restart;
-	$running = 1;
+        die "lxc live migration is currently not implemented\n" if $online;
+        die "running container can only be migrated in restart mode" if !$restart;
+        $running = 1;
     }
     $self->{was_running} = $running;
 
     my $storages = {};
-    PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, sub {
-	my ($ms, $mountpoint) = @_;
+    PVE::LXC::Config->foreach_volume_full(
+        $conf,
+        { include_unused => 1 },
+        sub {
+            my ($ms, $mountpoint) = @_;
 
-	my $type = $mountpoint->{type};
-	# skip dev/bind mps when shared
-	if ($type ne 'volume') {
-	    if ($mountpoint->{shared}) {
-		return;
-	    } else {
-		die "cannot migrate local $type mount point '$ms'\n";
-	    }
-	}
+            my $type = $mountpoint->{type};
+            # skip dev/bind mps when shared
+            if ($type ne 'volume') {
+                if ($mountpoint->{shared}) {
+                    return;
+                } else {
+                    die "cannot migrate local $type mount point '$ms'\n";
+                }
+            }
 
-	my $volid = $mountpoint->{volume} or die "missing volume for mount point '$ms'\n";
+            my $volid = $mountpoint->{volume} or die "missing volume for mount point '$ms'\n";
 
-	my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
-	die "can't determine assigned storage for mount point '$ms'\n" if !$storage;
+            my ($storage, $volname) = PVE::Storage::parse_volume_id($volid, 1);
+            die "can't determine assigned storage for mount point '$ms'\n" if !$storage;
 
-	# check if storage is available on both nodes
-	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $storage);
+            # check if storage is available on both nodes
+            my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $storage);
 
-	my $targetsid = $storage;
+            my $targetsid = $storage;
 
-	die "content type 'rootdir' is not available on storage '$storage'\n"
-	    if !$scfg->{content}->{rootdir};
+            die "content type 'rootdir' is not available on storage '$storage'\n"
+                if !$scfg->{content}->{rootdir};
 
-	if ($scfg->{shared} && !$remote) {
-	    # PVE::Storage::activate_storage checks this for non-shared storages
-	    my $plugin = PVE::Storage::Plugin->lookup($scfg->{type});
-	    warn "Used shared storage '$storage' is not online on source node!\n"
-		if !$plugin->check_connection($storage, $scfg);
-	} else {
-	    # unless in restart mode because we shut the container down
-	    die "unable to migrate local mount point '$volid' while CT is running"
-		if $running && !$restart;
+            if ($scfg->{shared} && !$remote) {
+                # PVE::Storage::activate_storage checks this for non-shared storages
+                my $plugin = PVE::Storage::Plugin->lookup($scfg->{type});
+                warn "Used shared storage '$storage' is not online on source node!\n"
+                    if !$plugin->check_connection($storage, $scfg);
+            } else {
+                # unless in restart mode because we shut the container down
+                die "unable to migrate local mount point '$volid' while CT is running"
+                    if $running && !$restart;
 
-	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storage);
-	}
+                $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storage);
+            }
 
-	if (!$remote) {
-	    my $target_scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node});
+            if (!$remote) {
+                my $target_scfg = PVE::Storage::storage_check_enabled(
+                    $self->{storecfg}, $targetsid, $self->{node},
+                );
 
-	    die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
-		if !$target_scfg->{content}->{rootdir};
-	}
+                die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
+                    if !$target_scfg->{content}->{rootdir};
+            }
 
-	$storages->{$targetsid} = 1;
-    });
+            $storages->{$targetsid} = 1;
+        },
+    );
 
     # todo: test if VM uses local resources
 
     if ($remote) {
-	# test & establish websocket connection
-	my $bridges = map_bridges($conf, $self->{opts}->{bridgemap}, 1);
+        # test & establish websocket connection
+        my $bridges = map_bridges($conf, $self->{opts}->{bridgemap}, 1);
 
-	my $remote = $self->{opts}->{remote};
-	my $conn = $remote->{conn};
+        my $remote = $self->{opts}->{remote};
+        my $conn = $remote->{conn};
 
-	my $log = sub {
-	    my ($level, $msg) = @_;
-	    $self->log($level, $msg);
-	};
+        my $log = sub {
+            my ($level, $msg) = @_;
+            $self->log($level, $msg);
+        };
 
-	my $websocket_url = "https://$conn->{host}:$conn->{port}/api2/json/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnelwebsocket";
-	my $url = "/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnel";
+        my $websocket_url =
+            "https://$conn->{host}:$conn->{port}/api2/json/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnelwebsocket";
+        my $url = "/nodes/$self->{node}/lxc/$remote->{vmid}/mtunnel";
 
-	my $tunnel_params = {
-	    url => $websocket_url,
-	};
+        my $tunnel_params = {
+            url => $websocket_url,
+        };
 
-	my $storage_list = join(',', keys %$storages);
-	my $bridge_list = join(',', keys %$bridges);
+        my $storage_list = join(',', keys %$storages);
+        my $bridge_list = join(',', keys %$bridges);
 
-	my $req_params = {
-	    storages => $storage_list,
-	    bridges => $bridge_list,
-	};
+        my $req_params = {
+            storages => $storage_list,
+            bridges => $bridge_list,
+        };
 
-	my $tunnel = PVE::Tunnel::fork_websocket_tunnel($conn, $url, $req_params, $tunnel_params, $log);
-	my $min_version = $tunnel->{version} - $tunnel->{age};
-	$self->log('info', "local WS tunnel version: $WS_TUNNEL_VERSION");
-	$self->log('info', "remote WS tunnel version: $tunnel->{version}");
-	$self->log('info', "minimum required WS tunnel version: $min_version");
-	die "Remote tunnel endpoint not compatible, upgrade required\n"
-	    if $WS_TUNNEL_VERSION < $min_version;
-	 die "Remote tunnel endpoint too old, upgrade required\n"
-	    if $WS_TUNNEL_VERSION > $tunnel->{version};
+        my $tunnel =
+            PVE::Tunnel::fork_websocket_tunnel($conn, $url, $req_params, $tunnel_params, $log);
+        my $min_version = $tunnel->{version} - $tunnel->{age};
+        $self->log('info', "local WS tunnel version: $WS_TUNNEL_VERSION");
+        $self->log('info', "remote WS tunnel version: $tunnel->{version}");
+        $self->log('info', "minimum required WS tunnel version: $min_version");
+        die "Remote tunnel endpoint not compatible, upgrade required\n"
+            if $WS_TUNNEL_VERSION < $min_version;
+        die "Remote tunnel endpoint too old, upgrade required\n"
+            if $WS_TUNNEL_VERSION > $tunnel->{version};
 
-	$self->log('info', "websocket tunnel started\n");
-	$self->{tunnel} = $tunnel;
+        $self->log('info', "websocket tunnel started\n");
+        $self->{tunnel} = $tunnel;
     } else {
-	# test ssh connection
-	my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
-	eval { $self->cmd_quiet($cmd); };
-	die "Can't connect to destination address using public key\n" if $@;
+        # test ssh connection
+        my $cmd = [@{ $self->{rem_ssh} }, '/bin/true'];
+        eval { $self->cmd_quiet($cmd); };
+        die "Can't connect to destination address using public key\n" if $@;
     }
 
     # in restart mode, we shutdown the container before migrating
     if ($restart && $running) {
-	my $timeout = $self->{opts}->{timeout} // 180;
+        my $timeout = $self->{opts}->{timeout} // 180;
 
-	$self->log('info', "shutdown CT $vmid\n");
+        $self->log('info', "shutdown CT $vmid\n");
 
-	PVE::LXC::vm_stop($vmid, 0, $timeout);
+        PVE::LXC::vm_stop($vmid, 0, $timeout);
 
-	$running = 0;
+        $running = 0;
     }
 
     return $running;
@@ -168,14 +176,17 @@ sub phase1 {
 
     my $remote = $self->{opts}->{remote};
 
-    $self->log('info', "starting migration of CT $self->{vmid} to node '$self->{node}' ($self->{nodeip})");
+    $self->log(
+        'info',
+        "starting migration of CT $self->{vmid} to node '$self->{node}' ($self->{nodeip})",
+    );
 
     my $conf = $self->{vmconf};
     $conf->{lock} = 'migrate';
     PVE::LXC::Config->write_config($vmid, $conf);
 
     if ($self->{running}) {
-	$self->log('info', "container is running - using online migration");
+        $self->log('info', "container is running - using online migration");
     }
 
     $self->{volumes} = []; # list of already migrated volumes
@@ -185,157 +196,155 @@ sub phase1 {
     my $path_to_volid = {};
 
     my $log_error = sub {
-	my ($msg, $volid) = @_;
+        my ($msg, $volid) = @_;
 
-	$volhash_errors->{$volid} = $msg if !defined($volhash_errors->{$volid});
-	$abort = 1;
+        $volhash_errors->{$volid} = $msg if !defined($volhash_errors->{$volid});
+        $abort = 1;
     };
 
     my $test_volid = sub {
-	my ($volid, $snapname) = @_;
+        my ($volid, $snapname) = @_;
 
-	return if !$volid;
+        return if !$volid;
 
-	# check if volume exists, might be a pending new one
-	if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
-	    $self->log('info', "volume '$volid' does not exist (pending change?)");
-	    return;
-	}
+        # check if volume exists, might be a pending new one
+        if ($volid =~ $PVE::LXC::NEW_DISK_RE) {
+            $self->log('info', "volume '$volid' does not exist (pending change?)");
+            return;
+        }
 
-	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+        my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
 
-	# check if storage is available on source node
-	my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $sid);
+        # check if storage is available on source node
+        my $scfg = PVE::Storage::storage_check_enabled($self->{storecfg}, $sid);
 
-	my $targetsid = $sid;
+        my $targetsid = $sid;
 
-	if ($scfg->{shared} && !$remote) {
-	    $self->log('info', "volume '$volid' is on shared storage '$sid'")
-		if !$snapname;
-	    return;
-	} else {
-	    $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $sid);
-	}
+        if ($scfg->{shared} && !$remote) {
+            $self->log('info', "volume '$volid' is on shared storage '$sid'")
+                if !$snapname;
+            return;
+        } else {
+            $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $sid);
+        }
 
-	PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node})
-	    if !$remote;
+        PVE::Storage::storage_check_enabled($self->{storecfg}, $targetsid, $self->{node})
+            if !$remote;
 
-	my $bwlimit = $self->get_bwlimit($sid, $targetsid);
+        my $bwlimit = $self->get_bwlimit($sid, $targetsid);
 
-	$volhash->{$volid}->{ref} = defined($snapname) ? 'snapshot' : 'config';
-	$volhash->{$volid}->{snapshots} = 1 if defined($snapname);
-	$volhash->{$volid}->{targetsid} = $targetsid;
-	$volhash->{$volid}->{bwlimit} = $bwlimit;
+        $volhash->{$volid}->{ref} = defined($snapname) ? 'snapshot' : 'config';
+        $volhash->{$volid}->{snapshots} = 1 if defined($snapname);
+        $volhash->{$volid}->{targetsid} = $targetsid;
+        $volhash->{$volid}->{bwlimit} = $bwlimit;
 
-	my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
+        my ($path, $owner) = PVE::Storage::path($self->{storecfg}, $volid);
 
-	die "owned by other guest (owner = $owner)\n"
-	    if !$owner || ($owner != $self->{vmid});
+        die "owned by other guest (owner = $owner)\n"
+            if !$owner || ($owner != $self->{vmid});
 
-	$path_to_volid->{$path}->{$volid} = 1;
+        $path_to_volid->{$path}->{$volid} = 1;
 
-	if (defined($snapname)) {
-	    # we cannot migrate shapshots on local storage
-	    # exceptions: 'zfspool', 'btrfs'
-	    if ($scfg->{type} eq 'zfspool' || $scfg->{type} eq 'btrfs') {
-		return;
-	    }
-	    die "non-migratable snapshot exists\n";
-	}
+        if (defined($snapname)) {
+            # we cannot migrate shapshots on local storage
+            # exceptions: 'zfspool', 'btrfs'
+            if ($scfg->{type} eq 'zfspool' || $scfg->{type} eq 'btrfs') {
+                return;
+            }
+            die "non-migratable snapshot exists\n";
+        }
     };
 
     my $test_mp = sub {
-	my ($ms, $mountpoint, $snapname) = @_;
+        my ($ms, $mountpoint, $snapname) = @_;
 
-	my $volid = $mountpoint->{volume};
-	# already checked in prepare
-	if ($mountpoint->{type} ne 'volume') {
-	    $self->log('info', "ignoring shared '$mountpoint->{type}' mount point '$ms' ('$volid')")
-		if !$snapname;
-	    return;
-	}
+        my $volid = $mountpoint->{volume};
+        # already checked in prepare
+        if ($mountpoint->{type} ne 'volume') {
+            $self->log(
+                'info',
+                "ignoring shared '$mountpoint->{type}' mount point '$ms' ('$volid')",
+            ) if !$snapname;
+            return;
+        }
 
-	eval {
-	    &$test_volid($volid, $snapname);
+        eval {
+            &$test_volid($volid, $snapname);
 
-	    die "remote migration with snapshots not supported yet\n"
-		if $remote && $snapname;
-	};
+            die "remote migration with snapshots not supported yet\n"
+                if $remote && $snapname;
+        };
 
-	&$log_error($@, $volid) if $@;
+        &$log_error($@, $volid) if $@;
     };
 
     # first all volumes referenced in snapshots
-    foreach my $snapname (keys %{$conf->{snapshots}}) {
-	&$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
-	    if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
-	PVE::LXC::Config->foreach_volume($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
+    foreach my $snapname (keys %{ $conf->{snapshots} }) {
+        &$test_volid($conf->{snapshots}->{$snapname}->{'vmstate'}, 0, undef)
+            if defined($conf->{snapshots}->{$snapname}->{'vmstate'});
+        PVE::LXC::Config->foreach_volume($conf->{snapshots}->{$snapname}, $test_mp, $snapname);
     }
 
     # then all pending volumes
     if (defined($conf->{pending}) && $conf->{pending}->%*) {
-	PVE::LXC::Config->foreach_volume($conf->{pending}, $test_mp);
+        PVE::LXC::Config->foreach_volume($conf->{pending}, $test_mp);
     }
 
     # finally all current volumes
     PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, $test_mp);
 
     for my $path (keys %$path_to_volid) {
-	my @volids = keys $path_to_volid->{$path}->%*;
-	die "detected not supported aliased volumes: '" . join("', '", @volids) . "'\n"
-	    if (scalar @volids > 1);
+        my @volids = keys $path_to_volid->{$path}->%*;
+        die "detected not supported aliased volumes: '" . join("', '", @volids) . "'\n"
+            if (scalar @volids > 1);
     }
 
     # additional checks for local storage
     foreach my $volid (keys %$volhash) {
-	eval {
-	    my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
-	    my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
+        eval {
+            my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
+            my $scfg = PVE::Storage::storage_config($self->{storecfg}, $sid);
 
-	    # TODO move to storage plugin layer?
-	    my $migratable_storages = [
-		'dir',
-		'zfspool',
-		'lvmthin',
-		'lvm',
-		'btrfs',
-	    ];
-	    if ($remote) {
-		push @$migratable_storages, 'cifs';
-		push @$migratable_storages, 'nfs';
-		push @$migratable_storages, 'rbd';
-	    }
+            # TODO move to storage plugin layer?
+            my $migratable_storages = [
+                'dir', 'zfspool', 'lvmthin', 'lvm', 'btrfs',
+            ];
+            if ($remote) {
+                push @$migratable_storages, 'cifs';
+                push @$migratable_storages, 'nfs';
+                push @$migratable_storages, 'rbd';
+            }
 
-	    die "storage type '$scfg->{type}' not supported\n"
-		if !grep { $_ eq $scfg->{type} } @$migratable_storages;
+            die "storage type '$scfg->{type}' not supported\n"
+                if !grep { $_ eq $scfg->{type} } @$migratable_storages;
 
-	    # image is a linked clone on local storage, se we can't migrate.
-	    if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
-		die "clone of '$basename'";
-	    }
-	};
-	&$log_error($@, $volid) if $@;
+            # image is a linked clone on local storage, se we can't migrate.
+            if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
+                die "clone of '$basename'";
+            }
+        };
+        &$log_error($@, $volid) if $@;
     }
 
     foreach my $volid (sort keys %$volhash) {
-	my $ref = $volhash->{$volid}->{ref};
-	if ($ref eq 'storage') {
-	    $self->log('info', "found local volume '$volid' (via storage)\n");
-	} elsif ($ref eq 'config') {
-	    $self->log('info', "found local volume '$volid' (in current VM config)\n");
-	} elsif ($ref eq 'snapshot') {
-	    $self->log('info', "found local volume '$volid' (referenced by snapshot(s))\n");
-	} else {
-	    $self->log('info', "found local volume '$volid'\n");
-	}
+        my $ref = $volhash->{$volid}->{ref};
+        if ($ref eq 'storage') {
+            $self->log('info', "found local volume '$volid' (via storage)\n");
+        } elsif ($ref eq 'config') {
+            $self->log('info', "found local volume '$volid' (in current VM config)\n");
+        } elsif ($ref eq 'snapshot') {
+            $self->log('info', "found local volume '$volid' (referenced by snapshot(s))\n");
+        } else {
+            $self->log('info', "found local volume '$volid'\n");
+        }
     }
 
     foreach my $volid (sort keys %$volhash_errors) {
-	$self->log('warn', "can't migrate local volume '$volid': $volhash_errors->{$volid}");
+        $self->log('warn', "can't migrate local volume '$volid': $volhash_errors->{$volid}");
     }
 
     if ($abort) {
-	die "can't migrate CT - check log\n";
+        die "can't migrate CT - check log\n";
     }
 
     my $rep_volumes;
@@ -343,78 +352,79 @@ sub phase1 {
     my $rep_cfg = PVE::ReplicationConfig->new();
 
     if ($remote) {
-	die "cannot remote-migrate replicated VM\n"
-	    if $rep_cfg->check_for_existing_jobs($vmid, 1);
+        die "cannot remote-migrate replicated VM\n"
+            if $rep_cfg->check_for_existing_jobs($vmid, 1);
     } elsif (my $jobcfg = $rep_cfg->find_local_replication_job($vmid, $self->{node})) {
-	die "can't live migrate VM with replicated volumes\n" if $self->{running};
-	my $start_time = time();
-	my $logfunc = sub { my ($msg) = @_;  $self->log('info', $msg); };
-	$rep_volumes = PVE::Replication::run_replication(
-	    'PVE::LXC::Config', $jobcfg, $start_time, $start_time, $logfunc);
+        die "can't live migrate VM with replicated volumes\n" if $self->{running};
+        my $start_time = time();
+        my $logfunc = sub { my ($msg) = @_; $self->log('info', $msg); };
+        $rep_volumes = PVE::Replication::run_replication(
+            'PVE::LXC::Config', $jobcfg, $start_time, $start_time, $logfunc,
+        );
     }
 
     my $opts = $self->{opts};
     foreach my $volid (keys %$volhash) {
-	next if $rep_volumes->{$volid};
-	push @{$self->{volumes}}, $volid;
+        next if $rep_volumes->{$volid};
+        push @{ $self->{volumes} }, $volid;
 
-	# JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
-	my $bwlimit = $volhash->{$volid}->{bwlimit};
-	$bwlimit = $bwlimit * 1024 if defined($bwlimit);
+        # JSONSchema and get_bandwidth_limit use kbps - storage_migrate bps
+        my $bwlimit = $volhash->{$volid}->{bwlimit};
+        $bwlimit = $bwlimit * 1024 if defined($bwlimit);
 
-	my $targetsid = $volhash->{$volid}->{targetsid};
+        my $targetsid = $volhash->{$volid}->{targetsid};
 
-	my $new_volid = eval {
-	    if ($remote) {
-		my $log = sub {
-		    my ($level, $msg) = @_;
-		    $self->log($level, $msg);
-		};
+        my $new_volid = eval {
+            if ($remote) {
+                my $log = sub {
+                    my ($level, $msg) = @_;
+                    $self->log($level, $msg);
+                };
 
-		return PVE::StorageTunnel::storage_migrate(
-		    $self->{tunnel},
-		    $self->{storecfg},
-		    $volid,
-		    $self->{vmid},
-		    $remote->{vmid},
-		    $volhash->{$volid},
-		    $log,
-		);
-	    } else {
-		my $storage_migrate_opts = {
-		    'ratelimit_bps' => $bwlimit,
-		    'insecure' => $opts->{migration_type} eq 'insecure',
-		    'with_snapshots' => $volhash->{$volid}->{snapshots},
-		    'allow_rename' => 1,
-		};
+                return PVE::StorageTunnel::storage_migrate(
+                    $self->{tunnel},
+                    $self->{storecfg},
+                    $volid,
+                    $self->{vmid},
+                    $remote->{vmid},
+                    $volhash->{$volid},
+                    $log,
+                );
+            } else {
+                my $storage_migrate_opts = {
+                    'ratelimit_bps' => $bwlimit,
+                    'insecure' => $opts->{migration_type} eq 'insecure',
+                    'with_snapshots' => $volhash->{$volid}->{snapshots},
+                    'allow_rename' => 1,
+                };
 
-		my $logfunc = sub { $self->log('info', $_[0]); };
-		return PVE::Storage::storage_migrate(
-		    $self->{storecfg},
-		    $volid,
-		    $self->{ssh_info},
-		    $targetsid,
-		    $storage_migrate_opts,
-		    $logfunc,
-		);
-	    }
-	};
+                my $logfunc = sub { $self->log('info', $_[0]); };
+                return PVE::Storage::storage_migrate(
+                    $self->{storecfg},
+                    $volid,
+                    $self->{ssh_info},
+                    $targetsid,
+                    $storage_migrate_opts,
+                    $logfunc,
+                );
+            }
+        };
 
-	if (my $err = $@) {
-	    die "storage migration for '$volid' to storage '$targetsid' failed - $err\n";
-	}
+        if (my $err = $@) {
+            die "storage migration for '$volid' to storage '$targetsid' failed - $err\n";
+        }
 
-	$self->{volume_map}->{$volid} = $new_volid;
-	$self->log('info', "volume '$volid' is '$new_volid' on the target\n");
+        $self->{volume_map}->{$volid} = $new_volid;
+        $self->log('info', "volume '$volid' is '$new_volid' on the target\n");
 
-	eval { PVE::Storage::deactivate_volumes($self->{storecfg}, [$volid]); };
-	if (my $err = $@) {
-	    $self->log('warn', $err);
-	}
+        eval { PVE::Storage::deactivate_volumes($self->{storecfg}, [$volid]); };
+        if (my $err = $@) {
+            $self->log('warn', $err);
+        }
     }
 
     if ($self->{running}) {
-	die "implement me";
+        die "implement me";
     }
 
     # make sure everything on (shared) storage is unmounted
@@ -428,35 +438,35 @@ sub phase1 {
     PVE::Storage::deactivate_volumes($self->{storecfg}, $vollist);
 
     if ($remote) {
-	my $remote_conf = PVE::LXC::Config->load_config($vmid);
-	PVE::LXC::Config->update_volume_ids($remote_conf, $self->{volume_map});
+        my $remote_conf = PVE::LXC::Config->load_config($vmid);
+        PVE::LXC::Config->update_volume_ids($remote_conf, $self->{volume_map});
 
-	my $bridges = map_bridges($remote_conf, $self->{opts}->{bridgemap});
-	for my $target (keys $bridges->%*) {
-	    for my $nic (keys $bridges->{$target}->%*) {
-		$self->log('info', "mapped: $nic from $bridges->{$target}->{$nic} to $target");
-	    }
-	}
-	my $conf_str = PVE::LXC::Config::write_pct_config("remote", $remote_conf);
+        my $bridges = map_bridges($remote_conf, $self->{opts}->{bridgemap});
+        for my $target (keys $bridges->%*) {
+            for my $nic (keys $bridges->{$target}->%*) {
+                $self->log('info', "mapped: $nic from $bridges->{$target}->{$nic} to $target");
+            }
+        }
+        my $conf_str = PVE::LXC::Config::write_pct_config("remote", $remote_conf);
 
-	# TODO expose in PVE::Firewall?
-	my $vm_fw_conf_path = "/etc/pve/firewall/$vmid.fw";
-	my $fw_conf_str;
-	$fw_conf_str = PVE::Tools::file_get_contents($vm_fw_conf_path)
-	    if -e $vm_fw_conf_path;
-	my $params = {
-	    conf => $conf_str,
-	    'firewall-config' => $fw_conf_str,
-	};
+        # TODO expose in PVE::Firewall?
+        my $vm_fw_conf_path = "/etc/pve/firewall/$vmid.fw";
+        my $fw_conf_str;
+        $fw_conf_str = PVE::Tools::file_get_contents($vm_fw_conf_path)
+            if -e $vm_fw_conf_path;
+        my $params = {
+            conf => $conf_str,
+            'firewall-config' => $fw_conf_str,
+        };
 
-	PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'config', $params);
+        PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'config', $params);
     } else {
-	# transfer replication state before moving config
-	$self->transfer_replication_state() if $rep_volumes;
-	PVE::LXC::Config->update_volume_ids($conf, $self->{volume_map});
-	PVE::LXC::Config->write_config($vmid, $conf);
-	PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
-	$self->switch_replication_job_target() if $rep_volumes;
+        # transfer replication state before moving config
+        $self->transfer_replication_state() if $rep_volumes;
+        PVE::LXC::Config->update_volume_ids($conf, $self->{volume_map});
+        PVE::LXC::Config->write_config($vmid, $conf);
+        PVE::LXC::Config->move_config_to_node($vmid, $self->{node});
+        $self->switch_replication_job_target() if $rep_volumes;
     }
     $self->{conf_migrated} = 1;
 }
@@ -467,19 +477,19 @@ sub phase1_cleanup {
     $self->log('info', "aborting phase 1 - cleanup resources");
 
     if ($self->{volumes}) {
-	foreach my $volid (@{$self->{volumes}}) {
-	    if (my $mapped_volume = $self->{volume_map}->{$volid}) {
-		$volid = $mapped_volume;
-	    }
-	    $self->log('err', "found stale volume copy '$volid' on node '$self->{node}'");
-	    # fixme: try to remove ?
-	}
+        foreach my $volid (@{ $self->{volumes} }) {
+            if (my $mapped_volume = $self->{volume_map}->{$volid}) {
+                $volid = $mapped_volume;
+            }
+            $self->log('err', "found stale volume copy '$volid' on node '$self->{node}'");
+            # fixme: try to remove ?
+        }
     }
 
     if ($self->{opts}->{remote}) {
-	# cleans up remote volumes
-	PVE::Tunnel::finish_tunnel($self->{tunnel}, 1);
-	delete $self->{tunnel};
+        # cleans up remote volumes
+        PVE::Tunnel::finish_tunnel($self->{tunnel}, 1);
+        delete $self->{tunnel};
     }
 }
 
@@ -493,12 +503,12 @@ sub phase3 {
 
     # destroy local copies
     foreach my $volid (@$volids) {
-	eval { PVE::Storage::vdisk_free($self->{storecfg}, $volid); };
-	if (my $err = $@) {
-	    $self->log('err', "removing local copy of '$volid' failed - $err");
-	    $self->{errors} = 1;
-	    last if $err =~ /^interrupted by signal$/;
-	}
+        eval { PVE::Storage::vdisk_free($self->{storecfg}, $volid); };
+        if (my $err = $@) {
+            $self->log('err', "removing local copy of '$volid' failed - $err");
+            $self->{errors} = 1;
+            last if $err =~ /^interrupted by signal$/;
+        }
     }
 }
 
@@ -508,44 +518,44 @@ sub final_cleanup {
     $self->log('info', "start final cleanup");
 
     if (!$self->{conf_migrated}) {
-	eval { PVE::LXC::Config->remove_lock($vmid, 'migrate'); };
-	if (my $err = $@) {
-	    $self->log('err', $err);
-	}
-	# in restart mode, we start the container on the source node on migration error
-	if ($self->{opts}->{restart} && $self->{was_running}) {
-	    $self->log('info', "start container on source node");
-	    my $skiplock = 1;
-	    PVE::LXC::vm_start($vmid, $self->{vmconf}, $skiplock);
-	}
+        eval { PVE::LXC::Config->remove_lock($vmid, 'migrate'); };
+        if (my $err = $@) {
+            $self->log('err', $err);
+        }
+        # in restart mode, we start the container on the source node on migration error
+        if ($self->{opts}->{restart} && $self->{was_running}) {
+            $self->log('info', "start container on source node");
+            my $skiplock = 1;
+            PVE::LXC::vm_start($vmid, $self->{vmconf}, $skiplock);
+        }
     } elsif ($self->{opts}->{remote}) {
-	eval { PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'unlock') };
-	$self->log('err', "Failed to clear migrate lock - $@\n") if $@;
+        eval { PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'unlock') };
+        $self->log('err', "Failed to clear migrate lock - $@\n") if $@;
 
-	if ($self->{opts}->{restart} && $self->{was_running}) {
-	    $self->log('info', "start container on target node");
-	    PVE::Tunnel::write_tunnel($self->{tunnel}, 60, 'start');
-	}
-	if ($self->{opts}->{delete}) {
-	    PVE::LXC::destroy_lxc_container(
-		PVE::Storage::config(),
-		$vmid,
-		PVE::LXC::Config->load_config($vmid),
-		undef,
-		0,
-	    );
-	}
-	PVE::Tunnel::finish_tunnel($self->{tunnel});
+        if ($self->{opts}->{restart} && $self->{was_running}) {
+            $self->log('info', "start container on target node");
+            PVE::Tunnel::write_tunnel($self->{tunnel}, 60, 'start');
+        }
+        if ($self->{opts}->{delete}) {
+            PVE::LXC::destroy_lxc_container(
+                PVE::Storage::config(),
+                $vmid,
+                PVE::LXC::Config->load_config($vmid),
+                undef,
+                0,
+            );
+        }
+        PVE::Tunnel::finish_tunnel($self->{tunnel});
     } else {
-	my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'unlock', $vmid ];
-	$self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");
+        my $cmd = [@{ $self->{rem_ssh} }, 'pct', 'unlock', $vmid];
+        $self->cmd_logerr($cmd, errmsg => "failed to clear migrate lock");
 
-	# in restart mode, we start the container on the target node after migration
-	if ($self->{opts}->{restart} && $self->{was_running}) {
-	    $self->log('info', "start container on target node");
-	    my $cmd = [ @{$self->{rem_ssh}}, 'pct', 'start', $vmid];
-	    $self->cmd($cmd);
-	}
+        # in restart mode, we start the container on the target node after migration
+        if ($self->{opts}->{restart} && $self->{was_running}) {
+            $self->log('info', "start container on target node");
+            my $cmd = [@{ $self->{rem_ssh} }, 'pct', 'start', $vmid];
+            $self->cmd($cmd);
+        }
     }
 }
 
@@ -555,19 +565,19 @@ sub map_bridges {
     my $bridges = {};
 
     foreach my $opt (keys %$conf) {
-	next if $opt !~ m/^net\d+$/;
+        next if $opt !~ m/^net\d+$/;
 
-	next if !$conf->{$opt};
-	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
-	next if !$d || !$d->{bridge};
+        next if !$conf->{$opt};
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+        next if !$d || !$d->{bridge};
 
-	my $target_bridge = PVE::JSONSchema::map_id($map, $d->{bridge});
-	$bridges->{$target_bridge}->{$opt} = $d->{bridge};
+        my $target_bridge = PVE::JSONSchema::map_id($map, $d->{bridge});
+        $bridges->{$target_bridge}->{$opt} = $d->{bridge};
 
-	next if $scan_only;
+        next if $scan_only;
 
-	$d->{bridge} = $target_bridge;
-	$conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
+        $d->{bridge} = $target_bridge;
+        $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
     }
 
     return $bridges;

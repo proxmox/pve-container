@@ -16,7 +16,6 @@ use PVE::LXC::Command;
 use PVE::CGroup;
 use base('PVE::CGroup');
 
-
 # Get a subdirectory (without the cgroup mount point) for a controller.
 #
 # If `$controller` is `undef`, get the unified (cgroupv2) path.
@@ -37,14 +36,12 @@ sub get_subdir {
     return $path if defined $path;
 
     $path = PVE::LXC::Command::get_cgroup_path(
-	$self->{vmid},
-	$controller,
-	$limiting,
+        $self->{vmid}, $controller, $limiting,
     ) or return undef;
 
     # untaint:
     if ($path =~ /\.\./) {
-	die "lxc returned suspicious path: '$path'\n";
+        die "lxc returned suspicious path: '$path'\n";
     }
     ($path) = ($path =~ /^(.*)$/s);
 

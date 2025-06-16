@@ -18,25 +18,25 @@ sub new {
 
     # map to Debian version, we sometimes check that
     my $version_map = {
-	'jessie' => 8, # Devuan 1.0
-	'ascii' => 9, # Devuan 2.0
-	'ascii/ceres' => 9,
-	'beowulf' => 10, # Devuan 3.0
-	'beowulf/ceres' => 10,
-	'chimaera' => 11, # Devuan 4.0
-	'chimaera/ceres' => 11,
-	'daedalus' => 12,
-	'daedalus/ceres' => 12,
-	'excalibur' => 13,
-	'excalibur/ceres' => 13,
+        'jessie' => 8, # Devuan 1.0
+        'ascii' => 9, # Devuan 2.0
+        'ascii/ceres' => 9,
+        'beowulf' => 10, # Devuan 3.0
+        'beowulf/ceres' => 10,
+        'chimaera' => 11, # Devuan 4.0
+        'chimaera/ceres' => 11,
+        'daedalus' => 12,
+        'daedalus/ceres' => 12,
+        'excalibur' => 13,
+        'excalibur/ceres' => 13,
     };
     die "unsupported Devuan version '$version'\n" if !exists($version_map->{$version});
 
     my $self = {
-	conf => $conf,
-	rootdir => $rootdir,
-	version => $version_map->{$version},
-	devuan_version => $version,
+        conf => $conf,
+        rootdir => $rootdir,
+        version => $version_map->{$version},
+        devuan_version => $version,
     };
 
     $conf->{ostype} = "devuan";

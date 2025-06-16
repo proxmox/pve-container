@@ -16,20 +16,21 @@ my $rootdir = "./tmproot";
 my $destdir = "/mnt";
 
 my $sharedir = "/tmpshare";
-my $a        = "/tmpshare/a";
-my $ab       = "/tmpshare/a/b";
-my $abc      = "/tmpshare/a/b/c";
-my $sym      = "/tmpshare/sym";
-my $tmp      = "/tmpshare/tmp";
+my $a = "/tmpshare/a";
+my $ab = "/tmpshare/a/b";
+my $abc = "/tmpshare/a/b/c";
+my $sym = "/tmpshare/sym";
+my $tmp = "/tmpshare/tmp";
 
 my $secret = "/secret";
 
-END { cleanup(); };
+END { cleanup(); }
+
 sub cleanup {
     my $ignore_error;
-    File::Path::rmtree("$pwd/$rootdir", {error => \$ignore_error});
-    File::Path::rmtree("$pwd/$sharedir", {error => \$ignore_error});
-    File::Path::rmtree("$pwd/$secret", {error => \$ignore_error});
+    File::Path::rmtree("$pwd/$rootdir", { error => \$ignore_error });
+    File::Path::rmtree("$pwd/$sharedir", { error => \$ignore_error });
+    File::Path::rmtree("$pwd/$secret", { error => \$ignore_error });
 }
 
 sub setup {
@@ -62,26 +63,26 @@ sub bindmount {
     my $srcdh = PVE::LXC::__bindmount_prepare('.', $from);
 
     if ($inject) {
-	if ($restore) {
-	    rename(".$inject", ".$tmp")
-		or die "failed to move directory: $!\n";
-	} else {
-	    File::Path::rmtree(".$inject");
-	}
-	symlink("$pwd/$secret", ".$inject")
-	    or die "failed to create symlink\n";
-	File::Path::mkpath(".$from");
+        if ($restore) {
+            rename(".$inject", ".$tmp")
+                or die "failed to move directory: $!\n";
+        } else {
+            File::Path::rmtree(".$inject");
+        }
+        symlink("$pwd/$secret", ".$inject")
+            or die "failed to create symlink\n";
+        File::Path::mkpath(".$from");
     }
     eval {
-	PVE::LXC::__bindmount_do(".$from", $mpath, $inject_write ? 0 : $ro);
+        PVE::LXC::__bindmount_do(".$from", $mpath, $inject_write ? 0 : $ro);
 
-	if ($restore) {
-	    unlink(".$inject") or die "failed to restore path: $!\n";
-	    rename(".$tmp", ".$inject") or die "failed to restore path: $!\n";
-	}
+        if ($restore) {
+            unlink(".$inject") or die "failed to restore path: $!\n";
+            rename(".$tmp", ".$inject") or die "failed to restore path: $!\n";
+        }
 
-	PVE::LXC::__bindmount_verify($srcdh, $parentfd, $last, $ro)
-	    or die "bindmount verification failed\n";
+        PVE::LXC::__bindmount_verify($srcdh, $parentfd, $last, $ro)
+            or die "bindmount verification failed\n";
     };
     my $err = $@;
     system('umount', $mpath);

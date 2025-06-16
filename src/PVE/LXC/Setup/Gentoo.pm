@@ -15,9 +15,9 @@ sub new {
     my $version = PVE::Tools::file_read_firstline("$rootdir/etc/gentoo-release");
     die "unable to read version info\n" if !defined($version);
     if ($version =~ /^gentoo base system release (.*)$/i) {
-	$version = $1;
+        $version = $1;
     } else {
-	die "unrecognized gentoo version: $version\n";
+        die "unrecognized gentoo version: $version\n";
     }
 
     my $self = { conf => $conf, rootdir => $rootdir, version => 0 };
@@ -43,19 +43,19 @@ sub setup_init {
     my ($self, $conf) = @_;
 
     my $filename = "/etc/inittab";
-    my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
+    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
     my $inittab = $self->ct_file_get_contents($filename);
 
     my @lines = grep {
-	    # remove getty lines
-	    !/^\s*c?\d+:\d*:[^:]*:.*getty/
+        # remove getty lines
+        !/^\s*c?\d+:\d*:[^:]*:.*getty/
     } split(/\n/, $inittab);
 
     $inittab = join("\n", @lines) . "\n";
 
     for (my $id = 1; $id <= $ttycount; $id++) {
-	next if $id == 7; # reserved for X11
-	$inittab .= "$id\::respawn:/sbin/agetty 38400 tty$id\n";
+        next if $id == 7; # reserved for X11
+        $inittab .= "$id\::respawn:/sbin/agetty 38400 tty$id\n";
     }
 
     $self->ct_file_set_contents($filename, $inittab);
@@ -82,68 +82,68 @@ sub setup_network {
     my $filename = "/etc/conf.d/net";
 
     foreach my $k (keys %$conf) {
-	next if $k !~ m/^net(\d+)$/;
-	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	my $name = $d->{name};
-	next if !$name;
+        next if $k !~ m/^net(\d+)$/;
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        my $name = $d->{name};
+        next if !$name;
 
-	my $has_ipv4 = 0;
-	my $has_ipv6 = 0;
+        my $has_ipv4 = 0;
+        my $has_ipv6 = 0;
 
-	my $config = '';
-	my $routes = '';
+        my $config = '';
+        my $routes = '';
 
-	if (defined(my $ip = $d->{ip})) {
-	    if ($ip eq 'dhcp') {
-		#$modules{dhclient} = 1; # Well, we could...
-		$config .= "dhcp\n";
-		$up{$name} = 1;
-	    } elsif ($ip ne 'manual') {
-		$has_ipv4 = 1;
-		$config .= "$ip\n";
-		$up{$name} = 1;
-	    }
-	}
-	if (defined(my $gw = $d->{gw})) {
-	    if ($has_ipv4 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip}, 4)) {
-		$routes .= "-host $gw dev $name\n";
-	    }
-	    $routes .= "default gw $gw\n";
-	    $up{$name} = 1;
-	}
+        if (defined(my $ip = $d->{ip})) {
+            if ($ip eq 'dhcp') {
+                #$modules{dhclient} = 1; # Well, we could...
+                $config .= "dhcp\n";
+                $up{$name} = 1;
+            } elsif ($ip ne 'manual') {
+                $has_ipv4 = 1;
+                $config .= "$ip\n";
+                $up{$name} = 1;
+            }
+        }
+        if (defined(my $gw = $d->{gw})) {
+            if ($has_ipv4 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip}, 4)) {
+                $routes .= "-host $gw dev $name\n";
+            }
+            $routes .= "default gw $gw\n";
+            $up{$name} = 1;
+        }
 
-	if (defined(my $ip = $d->{ip6})) {
-	    if ($ip eq 'dhcp') {
-		# FIXME: The default templates seem to only ship busybox' udhcp
-		# client which means we're in the same boat as alpine linux.
-		# They also don't provide dhcpv6-only at all - for THAT however
-		# there are patches from way back in 2013 (bug#450326 on
-		# gentoo.org's netifrc)... but whatever, # that's only 10 years
-		# after the RFC3315 release (DHCPv6).
-		#
-		# So no dhcpv6(-only) setups here for now.
+        if (defined(my $ip = $d->{ip6})) {
+            if ($ip eq 'dhcp') {
+                # FIXME: The default templates seem to only ship busybox' udhcp
+                # client which means we're in the same boat as alpine linux.
+                # They also don't provide dhcpv6-only at all - for THAT however
+                # there are patches from way back in 2013 (bug#450326 on
+                # gentoo.org's netifrc)... but whatever, # that's only 10 years
+                # after the RFC3315 release (DHCPv6).
+                #
+                # So no dhcpv6(-only) setups here for now.
 
-		#$modules{dhclientv6} = 1;
-		#$config .= "dhcpv6\n";
-		#$up{$name} = 1;
-	    } elsif ($ip ne 'manual') {
-		$has_ipv6 = 1;
-		$config .= "$ip\n";
-		$up{$name} = 1;
-	    }
-	}
-	if (defined(my $gw = $d->{gw6})) {
-	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 4)) {
-		$routes .= "-6 -host $gw dev $name\n";
-	    }
-	    $routes .= "-6 default gw $gw\n";
-	    $up{$name} = 1;
-	}
+                #$modules{dhclientv6} = 1;
+                #$config .= "dhcpv6\n";
+                #$up{$name} = 1;
+            } elsif ($ip ne 'manual') {
+                $has_ipv6 = 1;
+                $config .= "$ip\n";
+                $up{$name} = 1;
+            }
+        }
+        if (defined(my $gw = $d->{gw6})) {
+            if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 4)) {
+                $routes .= "-6 -host $gw dev $name\n";
+            }
+            $routes .= "-6 default gw $gw\n";
+            $up{$name} = 1;
+        }
 
-	chomp $config;
-	chomp $routes;
-	$data .= "config_$name=\"$config\"\n" if $config;
-	$data .= "routes_$name=\"$routes\"\n" if $routes;
+        chomp $config;
+        chomp $routes;
+        $data .= "config_$name=\"$config\"\n" if $config;
+        $data .= "routes_$name=\"$routes\"\n" if $routes;
     }
 
     $data = "modules=\"\$modules " . join(' ', sort keys %modules) . "\"\n" . $data;
@@ -152,7 +152,7 @@ sub setup_network {
     $self->ct_modify_file($filename, $data, replace => 1);
 
     foreach my $iface (keys %up) {
-	$self->ct_symlink("net.lo", "/etc/init.d/net.$iface");
+        $self->ct_symlink("net.lo", "/etc/init.d/net.$iface");
     }
 }
 
@@ -168,12 +168,12 @@ sub set_hostname {
     my $oldname = 'localhost';
     my $fh = $self->ct_open_file_read($hostname_fn);
     while (defined(my $line = <$fh>)) {
-	chomp $line;
-	next if $line =~ /^\s*(#.*)?$/;
-	if ($line =~ /^\s*hostname=("[^"]*"|'[^']*'|\S*)\s*$/) {
-	    $oldname = $1;
-	    last;
-	}
+        chomp $line;
+        next if $line =~ /^\s*(#.*)?$/;
+        if ($line =~ /^\s*hostname=("[^"]*"|'[^']*'|\S*)\s*$/) {
+            $oldname = $1;
+            last;
+        }
     }
     $fh->close();
 

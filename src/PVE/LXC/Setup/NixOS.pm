@@ -48,7 +48,7 @@ sub detect_architecture {
     open(my $fh, '<', $init_path) or die "open '$init_path' failed: $!\n";
 
     if (<$fh> =~ /^#! ?(\S*)/) {
-	return PVE::LXC::Tools::detect_elf_architecture($1);
+        return PVE::LXC::Tools::detect_elf_architecture($1);
     }
 
     die "could not find a shell\n";

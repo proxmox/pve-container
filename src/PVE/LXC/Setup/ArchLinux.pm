@@ -36,11 +36,11 @@ sub setup_init {
     my ($self, $conf) = @_;
 
     $self->setup_systemd_preset({
-	# ArchLinux doesn't come with any particular predefined and enabled
-	# networking, so it probably makes sense to do the equivalent of
-	# 'systemctl enable systemd-networkd', since that's what we're configuring
-	# in setup_network
-	'systemd-networkd.service' => 1
+        # ArchLinux doesn't come with any particular predefined and enabled
+        # networking, so it probably makes sense to do the equivalent of
+        # 'systemctl enable systemd-networkd', since that's what we're configuring
+        # in setup_network
+        'systemd-networkd.service' => 1,
     });
 
     $self->setup_container_getty_service($conf);

@@ -26,18 +26,28 @@ my $rsync_vm = sub {
 
     my $disks = $task->{disks};
     my $from = $disks->[0]->{dir};
-    $self->loginfo ("starting $text sync $from to $to");
+    $self->loginfo("starting $text sync $from to $to");
 
     my $opts = $self->{vzdump}->{opts};
 
     my @xattr = $task->{no_xattrs} ? () : ('-X', '-A');
 
-    my $rsync = ['rsync', '--stats', '-h', @xattr, '--numeric-ids',
-                 '-aH', '--delete', '--no-whole-file',
-                 '--sparse', '--one-file-system', '--relative'];
+    my $rsync = [
+        'rsync',
+        '--stats',
+        '-h',
+        @xattr,
+        '--numeric-ids',
+        '-aH',
+        '--delete',
+        '--no-whole-file',
+        '--sparse',
+        '--one-file-system',
+        '--relative',
+    ];
     push @$rsync, "--bwlimit=$opts->{bwlimit}" if $opts->{bwlimit};
-    push @$rsync, map { "--exclude=$_" } @{$self->{vzdump}->{findexcl}};
-    push @$rsync, map { "--exclude=$_" } @{$task->{exclude_dirs}};
+    push @$rsync, map { "--exclude=$_" } @{ $self->{vzdump}->{findexcl} };
+    push @$rsync, map { "--exclude=$_" } @{ $task->{exclude_dirs} };
 
     # See the rsync(1) manpage for --relative in conjunction with /./ in paths.
     # This is the only way to have exclude-dirs work together with the
@@ -49,22 +59,22 @@ my $rsync_vm = sub {
     # relative to the rootdir, while rsync treats them as relative to the
     # source dir.
     foreach my $disk (@$disks) {
-	push @$rsync, "$from/.$disk->{mp}";
+        push @$rsync, "$from/.$disk->{mp}";
     }
 
     my $transferred = '';
     my $outfunc = sub {
-	return if $_[0] !~ /^Total transferred file size: (.+)$/;
-	$transferred = $1;
+        return if $_[0] !~ /^Total transferred file size: (.+)$/;
+        $transferred = $1;
     };
 
     my $errfunc = sub { $self->logerr($_[0]); };
 
     my $starttime = time();
     PVE::Tools::run_command([@$rsync, $to], outfunc => $outfunc, errfunc => $errfunc);
-    my $delay = time () - $starttime;
+    my $delay = time() - $starttime;
 
-    $self->loginfo ("$text sync finished - transferred $transferred in ${delay}s");
+    $self->loginfo("$text sync finished - transferred $transferred in ${delay}s");
 };
 
 sub new {
@@ -98,13 +108,17 @@ sub vm_status {
 my $check_mountpoint_empty = sub {
     my ($mountpoint) = @_;
 
-    die "mount point '$mountpoint' is not a directory\n" if ! -d $mountpoint;
+    die "mount point '$mountpoint' is not a directory\n" if !-d $mountpoint;
 
-    PVE::Tools::dir_glob_foreach($mountpoint, qr/.*/, sub {
-	my $entry = shift;
-	return if $entry eq '.' || $entry eq '..';
-	die "mount point '$mountpoint' not empty\n";
-    });
+    PVE::Tools::dir_glob_foreach(
+        $mountpoint,
+        qr/.*/,
+        sub {
+            my $entry = shift;
+            return if $entry eq '.' || $entry eq '..';
+            die "mount point '$mountpoint' not empty\n";
+        },
+    );
 };
 
 sub prepare {
@@ -114,7 +128,7 @@ sub prepare {
     my $storage_cfg = $self->{storecfg};
 
     $self->loginfo("CT Name: $conf->{hostname}")
-	if defined($conf->{hostname});
+        if defined($conf->{hostname});
 
     my $running = PVE::LXC::check_running($vmid);
 
@@ -134,75 +148,78 @@ sub prepare {
     my $backup_volumes = PVE::LXC::Config->get_backup_volumes($conf);
 
     for my $volume (@{$backup_volumes}) {
-	my $name = $volume->{key};
-	my $included = $volume->{included};
-	my $volume_config = $volume->{volume_config};
+        my $name = $volume->{key};
+        my $included = $volume->{included};
+        my $volume_config = $volume->{volume_config};
 
-	my $volid = $volume_config->{volume};
-	my $mount = $volume_config->{mp};
+        my $volid = $volume_config->{volume};
+        my $mount = $volume_config->{mp};
 
-	next if !$volid || !$mount;
+        next if !$volid || !$mount;
 
-	if (!$included) {
-	    my $type = $volume_config->{type};
-	    push @$exclude_dirs, $mount;
-	    $self->loginfo("excluding $type mount point $name ('$mount') from backup ($volume->{reason})");
-	    next;
-	}
+        if (!$included) {
+            my $type = $volume_config->{type};
+            push @$exclude_dirs, $mount;
+            $self->loginfo(
+                "excluding $type mount point $name ('$mount') from backup ($volume->{reason})");
+            next;
+        }
 
-	$volume_config->{name} = $name;
+        $volume_config->{name} = $name;
 
-	# immutable raw base images need RO mount
-	if ($conf->{template} && !defined($volume_config->{ro})) {
-	    $volume_config->{ro} = 1;
-	}
+        # immutable raw base images need RO mount
+        if ($conf->{template} && !defined($volume_config->{ro})) {
+            $volume_config->{ro} = 1;
+        }
 
-	$self->loginfo("including mount point $name ('$mount') in backup");
-	push @$disks, $volume_config;
-	push @$volids, $volid if $included;
+        $self->loginfo("including mount point $name ('$mount') in backup");
+        push @$disks, $volume_config;
+        push @$volids, $volid if $included;
     }
 
     if ($mode eq 'snapshot') {
-	if (!PVE::LXC::Config->has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {
-	    die "mode failure - some volumes do not support snapshots\n";
-	}
+        if (!PVE::LXC::Config->has_feature('snapshot', $conf, $storage_cfg, undef, undef, 1)) {
+            die "mode failure - some volumes do not support snapshots\n";
+        }
 
+        if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
+            $self->loginfo("found old vzdump snapshot (force removal)");
+            PVE::LXC::Config->lock_config(
+                $vmid,
+                sub {
+                    $self->unlock_vm($vmid);
+                    PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 1);
+                    $self->lock_vm($vmid);
+                },
+            );
+        }
 
-	if ($conf->{snapshots} && $conf->{snapshots}->{vzdump}) {
-	    $self->loginfo("found old vzdump snapshot (force removal)");
-	    PVE::LXC::Config->lock_config($vmid, sub {
-		$self->unlock_vm($vmid);
-		PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 1);
-		$self->lock_vm($vmid);
-	    });
-	}
+        my $rootdir = $default_mount_point;
+        mkpath $rootdir;
+        &$check_mountpoint_empty($rootdir);
 
-	my $rootdir = $default_mount_point;
-	mkpath $rootdir;
-	&$check_mountpoint_empty($rootdir);
-
-	# set snapshot_count (freezes CT if snapshot_count > 1)
-	$task->{snapshot_count} = scalar(@$volids);
+        # set snapshot_count (freezes CT if snapshot_count > 1)
+        $task->{snapshot_count} = scalar(@$volids);
     } elsif ($mode eq 'stop') {
-	my $rootdir = $default_mount_point;
-	mkpath $rootdir;
-	&$check_mountpoint_empty($rootdir);
+        my $rootdir = $default_mount_point;
+        mkpath $rootdir;
+        &$check_mountpoint_empty($rootdir);
     } elsif ($mode eq 'suspend') {
-	my $pid = PVE::LXC::find_lxc_pid($vmid);
-	foreach my $disk (@$disks) {
-	    $disk->{dir} = "/proc/$pid/root$disk->{mp}";
-	}
-	$task->{snapdir} = $task->{tmpdir};
+        my $pid = PVE::LXC::find_lxc_pid($vmid);
+        foreach my $disk (@$disks) {
+            $disk->{dir} = "/proc/$pid/root$disk->{mp}";
+        }
+        $task->{snapdir} = $task->{tmpdir};
     } else {
-	unlock_vm($self, $vmid);
-	die "unknown mode '$mode'\n"; # should not happen
+        unlock_vm($self, $vmid);
+        die "unknown mode '$mode'\n"; # should not happen
     }
 
     if ($mode ne 'suspend') {
-	# If we perform mount operations, let's unshare the mount namespace
-	# to not influence the running host.
-	PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
-	PVE::Tools::run_command(['mount', '--make-rslave', '/']);
+        # If we perform mount operations, let's unshare the mount namespace
+        # to not influence the running host.
+        PVE::Tools::unshare(PVE::Tools::CLONE_NEWNS);
+        PVE::Tools::run_command(['mount', '--make-rslave', '/']);
     }
 }
 
@@ -215,7 +232,7 @@ sub lock_vm {
 sub unlock_vm {
     my ($self, $vmid) = @_;
 
-    PVE::LXC::Config->remove_lock($vmid, 'backup')
+    PVE::LXC::Config->remove_lock($vmid, 'backup');
 }
 
 sub snapshot {
@@ -224,17 +241,20 @@ sub snapshot {
     $self->loginfo("create storage snapshot 'vzdump'");
 
     # todo: freeze/unfreeze if we have more than one volid
-    PVE::LXC::Config->lock_config($vmid, sub {
-	$self->unlock_vm($vmid);
-	PVE::LXC::Config->snapshot_create($vmid, 'vzdump', 0, "vzdump backup snapshot");
-	$self->lock_vm($vmid);
-    });
+    PVE::LXC::Config->lock_config(
+        $vmid,
+        sub {
+            $self->unlock_vm($vmid);
+            PVE::LXC::Config->snapshot_create($vmid, 'vzdump', 0, "vzdump backup snapshot");
+            $self->lock_vm($vmid);
+        },
+    );
     $task->{cleanup}->{remove_snapshot} = 1;
 
     # reload config
     my $conf = $self->{vmlist}->{$vmid} = PVE::LXC::Config->load_config($vmid);
     die "unable to read vzdump snapshot config - internal error"
-	if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
+        if !($conf->{snapshots} && $conf->{snapshots}->{vzdump});
 
     my $disks = $task->{disks};
     my $volids = $task->{volids};
@@ -244,8 +264,10 @@ sub snapshot {
 
     PVE::Storage::activate_volumes($storage_cfg, $volids, 'vzdump');
     foreach my $disk (@$disks) {
-	$disk->{dir} = "${rootdir}$disk->{mp}";
-	PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, 'vzdump', $task->{root_uid}, $task->{root_gid});
+        $disk->{dir} = "${rootdir}$disk->{mp}";
+        PVE::LXC::mountpoint_mount(
+            $disk, $rootdir, $storage_cfg, 'vzdump', $task->{root_uid}, $task->{root_gid},
+        );
     }
 
     $task->{snapdir} = $rootdir;
@@ -255,13 +277,12 @@ sub copy_data_phase1 {
     my ($self, $task) = @_;
 
     if (my $mntinfo = PVE::VZDump::get_mount_info($task->{snapdir})) {
-	if ($mntinfo->{fstype} =~ /^nfs4?/) {
-	    $self->loginfo(
-		 "temporary directory is on NFS, disabling xattr and acl"
-		." support, consider configuring a local tmpdir via"
-		." /etc/vzdump.conf\n");
-	    $task->{no_xattrs} = 1;
-	}
+        if ($mntinfo->{fstype} =~ /^nfs4?/) {
+            $self->loginfo("temporary directory is on NFS, disabling xattr and acl"
+                . " support, consider configuring a local tmpdir via"
+                . " /etc/vzdump.conf\n");
+            $task->{no_xattrs} = 1;
+        }
     }
 
     $self->$rsync_vm($task, $task->{snapdir}, "first");
@@ -316,23 +337,26 @@ sub assemble {
 
     mkpath "$tmpdir/etc/vzdump/";
 
-    PVE::Tools::file_set_contents("$tmpdir/etc/vzdump/pct.conf", PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf));
+    PVE::Tools::file_set_contents(
+        "$tmpdir/etc/vzdump/pct.conf",
+        PVE::LXC::Config::write_pct_config("/lxc/$vmid.conf", $conf),
+    );
 
-    my $firewall ="/etc/pve/firewall/$vmid.fw";
+    my $firewall = "/etc/pve/firewall/$vmid.fw";
     my $fwconftmp = "$tmpdir/etc/vzdump/pct.fw";
 
     if ($self->{vzdump}->{opts}->{pbs}) {
-	# fixme: do not store pct.conf and fw.conf into $tmpdir
-	if (-e  $firewall) {
-	    PVE::Tools::file_copy($firewall, $fwconftmp);
-	}
+        # fixme: do not store pct.conf and fw.conf into $tmpdir
+        if (-e $firewall) {
+            PVE::Tools::file_copy($firewall, $fwconftmp);
+        }
     } else {
-	if (-e  $firewall) {
-	    PVE::Tools::file_copy($firewall, $fwconftmp);
-	} else {
-	    PVE::Tools::file_set_contents($fwconftmp, '');
-	}
-	$task->{fw} = 1;
+        if (-e $firewall) {
+            PVE::Tools::file_copy($firewall, $fwconftmp);
+        } else {
+            PVE::Tools::file_set_contents($fwconftmp, '');
+        }
+        $task->{fw} = 1;
     }
 }
 
@@ -343,29 +367,31 @@ sub archive {
     my @sources;
 
     if ($task->{mode} eq 'stop') {
-	my $storage_cfg = $self->{storecfg};
+        my $storage_cfg = $self->{storecfg};
 
-	PVE::Storage::activate_volumes($storage_cfg, $task->{volids});
+        PVE::Storage::activate_volumes($storage_cfg, $task->{volids});
 
-	my $rootdir = $default_mount_point;
-	foreach my $disk (@$disks) {
-	    $disk->{dir} = "${rootdir}$disk->{mp}";
-	    PVE::LXC::mountpoint_mount($disk, $rootdir, $storage_cfg, undef, $task->{root_uid}, $task->{root_gid});
-	    # add every enabled mountpoint (since we use --one-file-system)
-	    # mp already starts with a / so we only need to add the dot
-	    push @sources, ".$disk->{mp}";
-	}
-	$task->{snapdir} = $rootdir;
+        my $rootdir = $default_mount_point;
+        foreach my $disk (@$disks) {
+            $disk->{dir} = "${rootdir}$disk->{mp}";
+            PVE::LXC::mountpoint_mount(
+                $disk, $rootdir, $storage_cfg, undef, $task->{root_uid}, $task->{root_gid},
+            );
+            # add every enabled mountpoint (since we use --one-file-system)
+            # mp already starts with a / so we only need to add the dot
+            push @sources, ".$disk->{mp}";
+        }
+        $task->{snapdir} = $rootdir;
     } elsif ($task->{mode} eq 'snapshot') {
-	# mounting the vzdump snapshots and setting $snapdir is already done,
-	# but we need to include all mountpoints here!
-	foreach my $disk (@$disks) {
-	    push @sources, ".$disk->{mp}";
-	}
+        # mounting the vzdump snapshots and setting $snapdir is already done,
+        # but we need to include all mountpoints here!
+        foreach my $disk (@$disks) {
+            push @sources, ".$disk->{mp}";
+        }
     } else {
-	# the data was rsynced to a temporary location, only use '.' to avoid
-	# having mountpoints duplicated
-	push @sources, '.';
+        # the data was rsynced to a temporary location, only use '.' to avoid
+        # having mountpoints duplicated
+        push @sources, '.';
     }
 
     my $opts = $self->{vzdump}->{opts};
@@ -376,145 +402,162 @@ sub archive {
     my $findexcl = $self->{vzdump}->{findexcl};
 
     if (my $backup_provider = $self->{vzdump}->{'backup-provider'}) {
-	$self->loginfo("starting external backup via " . $backup_provider->provider_name());
+        $self->loginfo("starting external backup via " . $backup_provider->provider_name());
 
-	if (!scalar($task->{id_map}->@*) || $task->{root_uid} == 0 || $task->{root_gid} == 0) {
-	    $self->log("warn", "external backup of privileged container can only be restored as"
-		." unprivileged which might not work in all cases");
-	}
+        if (!scalar($task->{id_map}->@*) || $task->{root_uid} == 0 || $task->{root_gid} == 0) {
+            $self->log(
+                "warn",
+                "external backup of privileged container can only be restored as"
+                    . " unprivileged which might not work in all cases",
+            );
+        }
 
-	my $mechanism = $backup_provider->backup_get_mechanism($vmid, 'lxc');
-	die "mechanism '$mechanism' requested by backup provider is not supported for containers\n"
-	    if $mechanism ne 'directory';
+        my $mechanism = $backup_provider->backup_get_mechanism($vmid, 'lxc');
+        die "mechanism '$mechanism' requested by backup provider is not supported for containers\n"
+            if $mechanism ne 'directory';
 
-	$self->loginfo("using backup mechanism '$mechanism'");
+        $self->loginfo("using backup mechanism '$mechanism'");
 
-	my $guest_config = PVE::Tools::file_get_contents("$tmpdir/etc/vzdump/pct.conf");
-	my $firewall_file = "$tmpdir/etc/vzdump/pct.fw";
+        my $guest_config = PVE::Tools::file_get_contents("$tmpdir/etc/vzdump/pct.conf");
+        my $firewall_file = "$tmpdir/etc/vzdump/pct.fw";
 
-	my $info = {
-	    directory => $snapdir,
-	    sources => [@sources],
-	    'backup-user-id' => $task->{root_uid},
-	};
-	$info->{'firewall-config'} = PVE::Tools::file_get_contents($firewall_file)
-	    if -e $firewall_file;
-	$info->{'bandwidth-limit'} = $opts->{bwlimit} * 1024 if $opts->{bwlimit};
+        my $info = {
+            directory => $snapdir,
+            sources => [@sources],
+            'backup-user-id' => $task->{root_uid},
+        };
+        $info->{'firewall-config'} = PVE::Tools::file_get_contents($firewall_file)
+            if -e $firewall_file;
+        $info->{'bandwidth-limit'} = $opts->{bwlimit} * 1024 if $opts->{bwlimit};
 
-	$backup_provider->backup_container_prepare($vmid, $info);
+        $backup_provider->backup_container_prepare($vmid, $info);
 
-	if (scalar($task->{id_map}->@*)) {
-	    PVE::LXC::Namespaces::run_in_userns(
-		sub { $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info); },
-		$task->{id_map},
-	    );
-	} else {
-	    $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info);
-	}
+        if (scalar($task->{id_map}->@*)) {
+            PVE::LXC::Namespaces::run_in_userns(
+                sub {
+                    $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info);
+                },
+                $task->{id_map},
+            );
+        } else {
+            $backup_provider->backup_container($vmid, $guest_config, $findexcl, $info);
+        }
     } elsif ($self->{vzdump}->{opts}->{pbs}) {
 
-	my $param = [];
-	push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
+        my $param = [];
+        push @$param, "pct.conf:$tmpdir/etc/vzdump/pct.conf";
 
-	my $fw_conf = "$tmpdir/etc/vzdump/pct.fw";
-	if (-f $fw_conf) {
-	    push @$param, "fw.conf:$fw_conf";
-	}
+        my $fw_conf = "$tmpdir/etc/vzdump/pct.fw";
+        if (-f $fw_conf) {
+            push @$param, "fw.conf:$fw_conf";
+        }
 
-	my $rootdir = $snapdir;
-	push @$param, "root.pxar:$rootdir";
+        my $rootdir = $snapdir;
+        push @$param, "root.pxar:$rootdir";
 
-	foreach my $disk (@sources) {
-	    push @$param, '--include-dev', "$snapdir/$disk";
-	}
+        foreach my $disk (@sources) {
+            push @$param, '--include-dev', "$snapdir/$disk";
+        }
 
-	push @$param, '--skip-lost-and-found' if $userns_cmd;
-	push @$param, map { "--exclude=$_" } @$findexcl;
+        push @$param, '--skip-lost-and-found' if $userns_cmd;
+        push @$param, map { "--exclude=$_" } @$findexcl;
 
-	push @$param, '--backup-type', 'ct';
-	push @$param, '--backup-id', $vmid;
-	push @$param, '--backup-time', $task->{backup_time};
-	push @$param, '--change-detection-mode', $opts->{"pbs-change-detection-mode"}
-	    if $opts->{"pbs-change-detection-mode"};
+        push @$param, '--backup-type', 'ct';
+        push @$param, '--backup-id', $vmid;
+        push @$param, '--backup-time', $task->{backup_time};
+        push @$param, '--change-detection-mode', $opts->{"pbs-change-detection-mode"}
+            if $opts->{"pbs-change-detection-mode"};
 
-	if (my $entries_max = $opts->{"performance"}->{"pbs-entries-max"}) {
-	    push $param->@*, '--entries-max', $entries_max;
-	    $self->loginfo(
-		"set max number of entries in memory for file-based backups to $entries_max");
-	}
+        if (my $entries_max = $opts->{"performance"}->{"pbs-entries-max"}) {
+            push $param->@*, '--entries-max', $entries_max;
+            $self->loginfo(
+                "set max number of entries in memory for file-based backups to $entries_max");
+        }
 
-	my @storage = ($opts->{scfg}, $opts->{storage});
+        my @storage = ($opts->{scfg}, $opts->{storage});
 
-	my $logfunc = sub { my $line = shift; $self->loginfo($line) };
-	PVE::Storage::PBSPlugin::run_raw_client_cmd(@storage, 'backup', $param,
-	    logfunc => $logfunc, userns_cmd => $userns_cmd);
+        my $logfunc = sub { my $line = shift; $self->loginfo($line) };
+        PVE::Storage::PBSPlugin::run_raw_client_cmd(
+            @storage, 'backup', $param,
+            logfunc => $logfunc,
+            userns_cmd => $userns_cmd,
+        );
 
-	# FIXME: move to a pve-common helper, storage has a similar one
-	my $time_iso8601 = strftime('%FT%TZ', gmtime($task->{backup_time}));
-	my $snapshot_id = "ct/$vmid/$time_iso8601";
-	my $res = eval { PVE::Storage::PBSPlugin::run_client_cmd(@storage, 'files', [$snapshot_id]) } // [];
-	$task->{size} = 0;
-	$task->{size} += $_->{size} for @$res;
+        # FIXME: move to a pve-common helper, storage has a similar one
+        my $time_iso8601 = strftime('%FT%TZ', gmtime($task->{backup_time}));
+        my $snapshot_id = "ct/$vmid/$time_iso8601";
+        my $res =
+            eval { PVE::Storage::PBSPlugin::run_client_cmd(@storage, 'files', [$snapshot_id]) }
+            // [];
+        $task->{size} = 0;
+        $task->{size} += $_->{size} for @$res;
 
     } else {
 
-	my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
-		   @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
-		   '--one-file-system', '--warning=no-file-ignored'];
+        my $tar = [
+            @$userns_cmd,
+            'tar',
+            'cpf',
+            '-',
+            '--totals',
+            @PVE::Storage::Plugin::COMMON_TAR_FLAGS,
+            '--one-file-system',
+            '--warning=no-file-ignored',
+        ];
 
-	# note: --remove-files does not work because we do not
-	# backup all files (filters). tar complains:
-	# Cannot rmdir: Directory not empty
-	# we disable this optimization for now
-	#if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
-	#       push @$tar, "--remove-files"; # try to save space
-	#}
+        # note: --remove-files does not work because we do not
+        # backup all files (filters). tar complains:
+        # Cannot rmdir: Directory not empty
+        # we disable this optimization for now
+        #if ($snapdir eq $task->{tmpdir} && $snapdir =~ m|^$opts->{dumpdir}/|) {
+        #       push @$tar, "--remove-files"; # try to save space
+        #}
 
-	# The directory parameter can give an alternative directory as source.
-	# the second parameter gives the structure in the tar.
-	push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
-	push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
-	push @$tar, "--directory=$snapdir";
+        # The directory parameter can give an alternative directory as source.
+        # the second parameter gives the structure in the tar.
+        push @$tar, "--directory=$tmpdir", './etc/vzdump/pct.conf';
+        push @$tar, "./etc/vzdump/pct.fw" if $task->{fw};
+        push @$tar, "--directory=$snapdir";
 
-	my @findexcl_no_anchored = ();
-	my @findexcl_anchored = ();
-	foreach my $pattern (@{$findexcl}) {
-	    if ($pattern !~ m|^/|) {
-		push @findexcl_no_anchored, $pattern;
-	    } else {
-		push @findexcl_anchored, $pattern;
-	    }
+        my @findexcl_no_anchored = ();
+        my @findexcl_anchored = ();
+        foreach my $pattern (@{$findexcl}) {
+            if ($pattern !~ m|^/|) {
+                push @findexcl_no_anchored, $pattern;
+            } else {
+                push @findexcl_anchored, $pattern;
+            }
 
-	    # NOTE rsync and proxmox-backup-client will match directories, but not files when there
-	    # is a trailing slash, tar won't match either. For suspend mode, rsync already did the
-	    # exclusion, so no need to warn.
-	    # TODO PVE 9 - consider matching "$pattern*" and "$pattern.*" in this case, which will
-	    # only include the empty directory to more closely align the behavior between different
-	    # modes. Don't forget to update the docs!
-	    $self->log("warn", "tar does not match exclusion with a trailing slash '$pattern'")
-		if $pattern =~ m|/$| && $task->{mode} ne 'suspend';
+            # NOTE rsync and proxmox-backup-client will match directories, but not files when there
+            # is a trailing slash, tar won't match either. For suspend mode, rsync already did the
+            # exclusion, so no need to warn.
+            # TODO PVE 9 - consider matching "$pattern*" and "$pattern.*" in this case, which will
+            # only include the empty directory to more closely align the behavior between different
+            # modes. Don't forget to update the docs!
+            $self->log("warn", "tar does not match exclusion with a trailing slash '$pattern'")
+                if $pattern =~ m|/$| && $task->{mode} ne 'suspend';
         }
 
-	push @$tar, '--no-anchored';
-	push @$tar, '--exclude=lost+found' if $userns_cmd;
-	push @$tar, map { "--exclude=$_" } @findexcl_no_anchored;
+        push @$tar, '--no-anchored';
+        push @$tar, '--exclude=lost+found' if $userns_cmd;
+        push @$tar, map { "--exclude=$_" } @findexcl_no_anchored;
 
-	push @$tar, '--anchored';
-	push @$tar, map { "--exclude=.$_" } @findexcl_anchored;
+        push @$tar, '--anchored';
+        push @$tar, map { "--exclude=.$_" } @findexcl_anchored;
 
-	push @$tar, @sources;
+        push @$tar, @sources;
 
-	my $cmd = [ $tar ];
+        my $cmd = [$tar];
 
-	my $bwl = $opts->{bwlimit}*1024; # bandwidth limit for cstream
-	push @$cmd, [ 'cstream', '-t', $bwl ] if $opts->{bwlimit};
-	push @$cmd, [ split(/\s+/, $comp) ] if $comp;
+        my $bwl = $opts->{bwlimit} * 1024; # bandwidth limit for cstream
+        push @$cmd, ['cstream', '-t', $bwl] if $opts->{bwlimit};
+        push @$cmd, [split(/\s+/, $comp)] if $comp;
 
-	if ($opts->{stdout}) {
-	    $self->cmd($cmd, output => ">&" . fileno($opts->{stdout}));
-	} else {
-	    push @{$cmd->[-1]}, \(">" . PVE::Tools::shellquote($filename));
-	    $self->cmd($cmd);
+        if ($opts->{stdout}) {
+            $self->cmd($cmd, output => ">&" . fileno($opts->{stdout}));
+        } else {
+            push @{ $cmd->[-1] }, \(">" . PVE::Tools::shellquote($filename));
+            $self->cmd($cmd);
         }
     }
 }
@@ -525,31 +568,31 @@ sub cleanup {
     my $conf = PVE::LXC::Config->load_config($vmid);
 
     if ($task->{mode} ne 'suspend') {
-	my $disks = $task->{disks};
-	foreach my $disk (reverse @$disks) {
-	    PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
-	}
+        my $disks = $task->{disks};
+        foreach my $disk (reverse @$disks) {
+            PVE::Tools::run_command(['umount', '-l', '-d', $disk->{dir}]) if $disk->{dir};
+        }
     }
 
     if ($task->{cleanup}->{remove_snapshot}) {
-	my $lock_obtained;
-	my $do_delete = sub {
-	    $lock_obtained = 1;
-	    $self->loginfo("cleanup temporary 'vzdump' snapshot");
-	    PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
-	};
+        my $lock_obtained;
+        my $do_delete = sub {
+            $lock_obtained = 1;
+            $self->loginfo("cleanup temporary 'vzdump' snapshot");
+            PVE::LXC::Config->snapshot_delete($vmid, 'vzdump', 0);
+        };
 
-	eval {
-	    eval { PVE::GuestHelpers::guest_migration_lock($vmid, 1, $do_delete); };
-	    if (my $err = $@) {
-		die $err if $lock_obtained;
+        eval {
+            eval { PVE::GuestHelpers::guest_migration_lock($vmid, 1, $do_delete); };
+            if (my $err = $@) {
+                die $err if $lock_obtained;
 
-		$self->loginfo("waiting for active replication or other operation..");
-		PVE::GuestHelpers::guest_migration_lock($vmid, 600, $do_delete);
-	    }
-	};
-	# will be cleaned up by next backup run anyway
-	warn "snapshot 'vzdump' was not (fully) removed - $@" if $@;
+                $self->loginfo("waiting for active replication or other operation..");
+                PVE::GuestHelpers::guest_migration_lock($vmid, 600, $do_delete);
+            }
+        };
+        # will be cleaned up by next backup run anyway
+        warn "snapshot 'vzdump' was not (fully) removed - $@" if $@;
     }
 }
 

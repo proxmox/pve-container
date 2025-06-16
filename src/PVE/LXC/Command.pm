@@ -32,12 +32,12 @@ my sub _get_command_socket($) {
     my ($vmid) = @_;
 
     my $sock = IO::Socket::UNIX->new(
-	Type => SOCK_STREAM(),
-	Peer => "\0/var/lib/lxc/$vmid/command",
+        Type => SOCK_STREAM(),
+        Peer => "\0/var/lib/lxc/$vmid/command",
     );
     if (!defined($sock)) {
-	return undef if $!{ECONNREFUSED};
-	die "failed to connect to command socket: $!\n";
+        return undef if $!{ECONNREFUSED};
+        die "failed to connect to command socket: $!\n";
     }
 
     # The documentation for this talks more about the receiving end, and it
@@ -84,19 +84,17 @@ my sub _unpack_lxc_cmd_rsp($) {
 # Send a complete packet:
 my sub _do_send($$) {
     my ($sock, $data) = @_;
-    my $sent = send($sock, $data, 0)
-	// die "failed to send to command socket: $!\n";
-    die "short write on command socket ($sent != ".length($data).")\n"
-	if $sent != length($data);
+    my $sent = send($sock, $data, 0) // die "failed to send to command socket: $!\n";
+    die "short write on command socket ($sent != " . length($data) . ")\n"
+        if $sent != length($data);
 }
 
 # Receive a complete packet:
 my sub _do_recv($\$$) {
     my ($sock, $scalar, $len) = @_;
-    my $got = recv($sock, $$scalar, $len, 0)
-	// die "failed to read from command socket: $!\n";
-    die "short read on command socket ($len != ".length($$scalar).")\n"
-	if length($$scalar) != $len;
+    my $got = recv($sock, $$scalar, $len, 0) // die "failed to read from command socket: $!\n";
+    die "short read on command socket ($len != " . length($$scalar) . ")\n"
+        if length($$scalar) != $len;
 }
 
 # Receive a response from an lxc command socket.
@@ -113,11 +111,11 @@ my sub _recv_response($) {
     my ($res, $datalen) = _unpack_lxc_cmd_rsp($buf);
     my $data;
     _do_recv($socket, $data, $datalen)
-	if $datalen > 0;
+        if $datalen > 0;
 
     if ($res < 0) {
-	$! = -$res;
-	die "command failed: $!\n";
+        $! = -$res;
+        die "command failed: $!\n";
     }
 
     return wantarray ? ($res, $data) : $data;
@@ -133,7 +131,7 @@ sub raw_command_transaction($$;$) {
     my $req = _lxc_cmd_req($cmd, length($data));
     _do_send($socket, $req);
     if (length($data) > 0) {
-	_do_send($socket, $data);
+        _do_send($socket, $data);
     }
 
     return _recv_response($socket);
@@ -151,7 +149,7 @@ sub simple_command($$;$) {
     my ($vmid, $cmd, $data) = @_;
 
     my $socket = _get_command_socket($vmid)
-	or return undef;
+        or return undef;
     return raw_command_transaction($socket, $cmd, $data);
 }
 
@@ -165,20 +163,18 @@ sub get_cgroup_path($;$$) {
 
     # subsystem name must be a zero-terminated C string.
     my ($res, $data) = simple_command(
-	$vmid,
-	$limiting ? LXC_CMD_GET_LIMITING_CGROUP : LXC_CMD_GET_CGROUP,
-	defined($subsystem) && pack('Z*', $subsystem),
+        $vmid,
+        $limiting ? LXC_CMD_GET_LIMITING_CGROUP : LXC_CMD_GET_CGROUP,
+        defined($subsystem) && pack('Z*', $subsystem),
     );
     if (!defined($res) && defined($subsystem)) {
-	# If the container was started with an older lxc the above command
-	# failed as it does not have an LXC_CMD_GET_LIMITING_CGROUP command
-	# yet. Instead, we had this as an additional parameter in the subsystem
-	# name.
-	($res, $data) = simple_command(
-	    $vmid,
-	    LXC_CMD_GET_CGROUP,
-	    pack('Z*C', $subsystem, 1),
-	);
+        # If the container was started with an older lxc the above command
+        # failed as it does not have an LXC_CMD_GET_LIMITING_CGROUP command
+        # yet. Instead, we had this as an additional parameter in the subsystem
+        # name.
+        ($res, $data) = simple_command(
+            $vmid, LXC_CMD_GET_CGROUP, pack('Z*C', $subsystem, 1),
+        );
     }
     return undef if !defined $res;
 
@@ -191,7 +187,7 @@ sub freeze($$) {
     my ($vmid, $timeout) = @_;
 
     my ($res, undef) =
-	simple_command($vmid, LXC_CMD_FREEZE, pack('l!', $timeout));
+        simple_command($vmid, LXC_CMD_FREEZE, pack('l!', $timeout));
 
     return $res;
 }
@@ -201,7 +197,7 @@ sub unfreeze($$) {
     my ($vmid, $timeout) = @_;
 
     my ($res, undef) =
-	simple_command($vmid, LXC_CMD_UNFREEZE, pack('l!', $timeout));
+        simple_command($vmid, LXC_CMD_UNFREEZE, pack('l!', $timeout));
 
     return $res;
 }

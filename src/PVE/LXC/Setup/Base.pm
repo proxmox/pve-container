@@ -36,24 +36,24 @@ sub lookup_dns_conf {
     my $searchdomains = $conf->{searchdomain};
 
     if ($conf->{'testmode'}) {
-	$nameserver //= '8.8.8.8 8.8.8.9';
-	$searchdomains //= 'proxmox.com';
+        $nameserver //= '8.8.8.8 8.8.8.9';
+        $searchdomains //= 'proxmox.com';
     }
 
     my $host_resolv_conf = $self->{host_resolv_conf};
 
     if (!defined($nameserver)) {
-	my @list = ();
-	foreach my $k ("dns1", "dns2", "dns3") {
-	    if (my $ns = $host_resolv_conf->{$k}) {
-		push @list, $ns;
-	    }
-	}
-	$nameserver = join(' ', @list);
+        my @list = ();
+        foreach my $k ("dns1", "dns2", "dns3") {
+            if (my $ns = $host_resolv_conf->{$k}) {
+                push @list, $ns;
+            }
+        }
+        $nameserver = join(' ', @list);
     }
 
     if (!defined($searchdomains)) {
-	$searchdomains = $host_resolv_conf->{search};
+        $searchdomains = $host_resolv_conf->{search};
     }
 
     return ($searchdomains, $nameserver);
@@ -69,14 +69,14 @@ sub update_etc_hosts {
 
     my $all_names = '';
     if ($newname =~ /\./) {
-	$all_names .= "$newname $namepart";
+        $all_names .= "$newname $namepart";
     } else {
-	foreach my $domain (PVE::Tools::split_list($searchdomains)) {
-	    $all_names .= ' ' if $all_names;
-	    $all_names .= "$newname.$domain";
-	}
-	$all_names .= ' ' if $all_names;
-	$all_names .= $newname;
+        foreach my $domain (PVE::Tools::split_list($searchdomains)) {
+            $all_names .= ' ' if $all_names;
+            $all_names .= "$newname.$domain";
+        }
+        $all_names .= ' ' if $all_names;
+        $all_names .= $newname;
     }
 
     # Prepare section:
@@ -85,23 +85,23 @@ sub update_etc_hosts {
     my $lo4 = "127.0.0.1 localhost.localnet localhost\n";
     my $lo6 = "::1 localhost.localnet localhost\n";
     if ($self->ct_file_exists($hosts_fn)) {
-	my $data = $self->ct_file_get_contents($hosts_fn);
-	# don't take localhost entries within our hosts sections into account
-	$data = remove_pve_sections($data);
+        my $data = $self->ct_file_get_contents($hosts_fn);
+        # don't take localhost entries within our hosts sections into account
+        $data = remove_pve_sections($data);
 
-	# check for existing localhost entries
-	$section .= $lo4 if $data !~ /^\h*127\.0\.0\.1\h+/m;
-	$section .= $lo6 if $data !~ /^\h*::1\h+/m;
+        # check for existing localhost entries
+        $section .= $lo4 if $data !~ /^\h*127\.0\.0\.1\h+/m;
+        $section .= $lo6 if $data !~ /^\h*::1\h+/m;
     } else {
-	$section .= $lo4 . $lo6;
+        $section .= $lo4 . $lo6;
     }
 
     if (defined($hostip)) {
-	$section .= "$hostip $all_names\n";
+        $section .= "$hostip $all_names\n";
     } elsif ($namepart ne 'localhost') {
-	$section .= "127.0.1.1 $all_names\n";
+        $section .= "127.0.1.1 $all_names\n";
     } else {
-	$section .= "127.0.1.1 $namepart\n";
+        $section .= "127.0.1.1 $namepart\n";
     }
 
     $self->ct_modify_file($hosts_fn, $section);
@@ -117,14 +117,14 @@ sub set_dns {
     my ($self, $conf) = @_;
 
     my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
-    
+
     my $data = '';
 
     $data .= "search " . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
-	if $searchdomains;
+        if $searchdomains;
 
-    foreach my $ns ( PVE::Tools::split_list($nameserver)) {
-	$data .= "nameserver $ns\n";
+    foreach my $ns (PVE::Tools::split_list($nameserver)) {
+        $data .= "nameserver $ns\n";
     }
 
     $self->ct_modify_file("/etc/resolv.conf", $data, replace => 1);
@@ -132,13 +132,13 @@ sub set_dns {
 
 sub set_hostname {
     my ($self, $conf) = @_;
-    
+
     my $hostname = $conf->{hostname} || 'localhost';
 
     my $namepart = ($hostname =~ s/\..*$//r);
 
     my $hostname_fn = "/etc/hostname";
-    
+
     my $oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
@@ -147,20 +147,20 @@ sub set_hostname {
     my ($searchdomains) = $self->lookup_dns_conf($conf);
 
     $self->update_etc_hosts($hostip, $oldname, $hostname, $searchdomains);
-    
+
     $self->ct_file_set_contents($hostname_fn, "$namepart\n");
 }
 
 sub setup_network {
     my ($self, $conf) = @_;
 
-    die "please implement this inside subclass"
+    die "please implement this inside subclass";
 }
 
 sub setup_init {
     my ($self, $conf) = @_;
 
-    die "please implement this inside subclass"
+    die "please implement this inside subclass";
 }
 
 # A few distros as well as unprivileged containers cannot deal with the
@@ -173,8 +173,10 @@ sub devttydir {
 sub fixup_old_getty {
     my ($self) = @_;
 
-    my $sd_dir_rel = $self->ct_is_executable("/lib/systemd/systemd") ?
-	"/lib/systemd/system" : "/usr/lib/systemd/system";
+    my $sd_dir_rel =
+        $self->ct_is_executable("/lib/systemd/systemd")
+        ? "/lib/systemd/system"
+        : "/usr/lib/systemd/system";
 
     my $sd_getty_service_rel = "$sd_dir_rel/getty\@.service";
     return if !$self->ct_file_exists($sd_getty_service_rel);
@@ -185,22 +187,24 @@ sub fixup_old_getty {
     # systemd on CenoOS 7.1 is too old (version 205), so there is no
     # container-getty service
     if (!$self->ct_file_exists($sd_container_getty_service_rel)) {
-	if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
-	    $self->ct_file_set_contents($sd_getty_service_rel, $raw);
-	}
+        if ($raw =~ s!^ConditionPathExists=/dev/tty0$!ConditionPathExists=/dev/tty!m) {
+            $self->ct_file_set_contents($sd_getty_service_rel, $raw);
+        }
     } else {
-	# undo above change (in case someone updated systemd)
-	if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
-	    $self->ct_file_set_contents($sd_getty_service_rel, $raw);
-	}
+        # undo above change (in case someone updated systemd)
+        if ($raw =~ s!^ConditionPathExists=/dev/tty$!ConditionPathExists=/dev/tty0!m) {
+            $self->ct_file_set_contents($sd_getty_service_rel, $raw);
+        }
     }
 }
 
 sub setup_container_getty_service {
     my ($self, $conf) = @_;
 
-    my $sd_dir = $self->ct_is_executable("/lib/systemd/systemd") ?
-	"/lib/systemd/system" : "/usr/lib/systemd/system";
+    my $sd_dir =
+        $self->ct_is_executable("/lib/systemd/systemd")
+        ? "/lib/systemd/system"
+        : "/usr/lib/systemd/system";
 
     # prefer container-getty.service shipped by newer systemd versions
     # fallback to getty.service and just return if that doesn't exists either..
@@ -209,32 +213,32 @@ sub setup_container_getty_service {
     my $instance_base = $template_base;
 
     if (!$self->ct_file_exists($template_path)) {
-	$template_base = "getty\@";
-	$template_path = "${template_base}.service";
-	$instance_base = "{$template_base}tty";
-	return if !$self->ct_file_exists($template_path);
+        $template_base = "getty\@";
+        $template_path = "${template_base}.service";
+        $instance_base = "{$template_base}tty";
+        return if !$self->ct_file_exists($template_path);
     }
 
     my $raw = $self->ct_file_get_contents($template_path);
     my $ttyname = $self->devttydir($conf) . 'tty%I';
     if ($raw =~ s@pts/%I|lxc/tty%I@$ttyname@g) {
-	$self->ct_file_set_contents($template_path, $raw);
+        $self->ct_file_set_contents($template_path, $raw);
     }
 
     my $getty_target_fn = "/etc/systemd/system/getty.target.wants/";
     my $ttycount = PVE::LXC::Config->get_tty_count($conf);
 
     for (my $i = 1; $i < 7; $i++) {
-	# ensure that not two gettys are using the same tty!
-	$self->ct_unlink("$getty_target_fn/getty\@tty$i.service");
-	$self->ct_unlink("$getty_target_fn/container-getty\@$i.service");
+        # ensure that not two gettys are using the same tty!
+        $self->ct_unlink("$getty_target_fn/getty\@tty$i.service");
+        $self->ct_unlink("$getty_target_fn/container-getty\@$i.service");
 
-	# re-enable only those requested
-	if ($i <= $ttycount) {
-	    my $tty_service = "${instance_base}${i}.service";
+        # re-enable only those requested
+        if ($i <= $ttycount) {
+            my $tty_service = "${instance_base}${i}.service";
 
-	    $self->ct_symlink($template_path, "$getty_target_fn/$tty_service");
-	}
+            $self->ct_symlink($template_path, "$getty_target_fn/$tty_service");
+        }
     }
 
     # ensure getty.target is not masked
@@ -245,13 +249,13 @@ sub setup_systemd_networkd {
     my ($self, $conf) = @_;
 
     foreach my $k (keys %$conf) {
-	next if $k !~ m/^net(\d+)$/;
-	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	next if !$d->{name};
+        next if $k !~ m/^net(\d+)$/;
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        next if !$d->{name};
 
-	my $filename = "/etc/systemd/network/$d->{name}.network";
+        my $filename = "/etc/systemd/network/$d->{name}.network";
 
-	my $data = <<"DATA";
+        my $data = <<"DATA";
 [Match]
 Name = $d->{name}
 
@@ -259,54 +263,57 @@ Name = $d->{name}
 Description = Interface $d->{name} autoconfigured by PVE
 DATA
 
-	my $routes = '';
-	my ($has_ipv4, $has_ipv6);
+        my $routes = '';
+        my ($has_ipv4, $has_ipv6);
 
-	# DHCP bitflags:
-	my @DHCPMODES = ('no', 'ipv4', 'ipv6', 'yes');
-	my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
-	my $dhcp = $NONE;
-	my $accept_ra = 'false';
+        # DHCP bitflags:
+        my @DHCPMODES = ('no', 'ipv4', 'ipv6', 'yes');
+        my ($NONE, $DHCP4, $DHCP6, $BOTH) = (0, 1, 2, 3);
+        my $dhcp = $NONE;
+        my $accept_ra = 'false';
 
-	if (defined(my $ip = $d->{ip})) {
-	    if ($ip eq 'dhcp') {
-		$dhcp |= $DHCP4;
-	    } elsif ($ip ne 'manual') {
-		$has_ipv4 = 1;
-		$data .= "Address = $ip\n";
-	    }
-	}
-	if (defined(my $gw = $d->{gw})) {
-	    $data .= "Gateway = $gw\n";
-	    if ($has_ipv4 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip}, 4)) {
-		$routes .= "\n[Route]\nDestination = $gw/32\nScope = link\n";
-	    }
-	}
+        if (defined(my $ip = $d->{ip})) {
+            if ($ip eq 'dhcp') {
+                $dhcp |= $DHCP4;
+            } elsif ($ip ne 'manual') {
+                $has_ipv4 = 1;
+                $data .= "Address = $ip\n";
+            }
+        }
+        if (defined(my $gw = $d->{gw})) {
+            $data .= "Gateway = $gw\n";
+            if ($has_ipv4 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip}, 4)) {
+                $routes .= "\n[Route]\nDestination = $gw/32\nScope = link\n";
+            }
+        }
 
-	if (defined(my $ip = $d->{ip6})) {
-	    if ($ip eq 'dhcp') {
-		$dhcp |= $DHCP6;
-	    } elsif ($ip eq 'auto') {
-		$accept_ra = 'true';
-	    } elsif ($ip ne 'manual') {
-		$has_ipv6 = 1;
-		$data .= "Address = $ip\n";
-	    }
-	}
-	if (defined(my $gw = $d->{gw6})) {
-	    $accept_ra = 'false';
-	    $data .= "Gateway = $gw\n";
-	    if ($has_ipv6 && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6) &&
-		!PVE::Network::is_ip_in_cidr($gw, 'fe80::/10', 6)) {
-		$routes .= "\n[Route]\nDestination = $gw/128\nScope = link\n";
-	    }
-	}
+        if (defined(my $ip = $d->{ip6})) {
+            if ($ip eq 'dhcp') {
+                $dhcp |= $DHCP6;
+            } elsif ($ip eq 'auto') {
+                $accept_ra = 'true';
+            } elsif ($ip ne 'manual') {
+                $has_ipv6 = 1;
+                $data .= "Address = $ip\n";
+            }
+        }
+        if (defined(my $gw = $d->{gw6})) {
+            $accept_ra = 'false';
+            $data .= "Gateway = $gw\n";
+            if (
+                $has_ipv6
+                && !PVE::Network::is_ip_in_cidr($gw, $d->{ip6}, 6)
+                && !PVE::Network::is_ip_in_cidr($gw, 'fe80::/10', 6)
+            ) {
+                $routes .= "\n[Route]\nDestination = $gw/128\nScope = link\n";
+            }
+        }
 
-	$data .= "DHCP = $DHCPMODES[$dhcp]\n";
-	$data .= "IPv6AcceptRA = $accept_ra\n";
-	$data .= $routes if $routes;
+        $data .= "DHCP = $DHCPMODES[$dhcp]\n";
+        $data .= "IPv6AcceptRA = $accept_ra\n";
+        $data .= $routes if $routes;
 
-	$self->ct_file_set_contents($filename, $data);
+        $self->ct_file_set_contents($filename, $data);
     }
 }
 
@@ -324,31 +331,30 @@ sub setup_systemd_preset {
 
     # some don't make sense in CTs, child-plugins can still override through extra_presets
     my $preset = {
-	'sys-kernel-config.mount' => 0,
-	'sys-kernel-debug.mount' => 0,
-	# NOTE: some older distro releases (e.g., centos 7.0) had no container-getty, which itself
-	# is not an issue for presets, but disabling getty@ then could cause issues.
-	'getty@.service' => 0,
-	'container-getty@.service' => 1,
+        'sys-kernel-config.mount' => 0,
+        'sys-kernel-debug.mount' => 0,
+        # NOTE: some older distro releases (e.g., centos 7.0) had no container-getty, which itself
+        # is not an issue for presets, but disabling getty@ then could cause issues.
+        'getty@.service' => 0,
+        'container-getty@.service' => 1,
     };
 
     if (defined($extra_preset)) {
-	$preset->{$_} = $extra_preset->{$_} for keys $extra_preset->%*;
+        $preset->{$_} = $extra_preset->{$_} for keys $extra_preset->%*;
     }
 
     my $preset_data = "# Added by PVE at create-time for first-boot configuration.\n";
     for my $service (sort keys %$preset) {
-	if ($preset->{$service}) {
-	    $preset_data .= "enable $service\n";
-	} else {
-	    $preset_data .= "disable $service\n";
-	}
+        if ($preset->{$service}) {
+            $preset_data .= "enable $service\n";
+        } else {
+            $preset_data .= "disable $service\n";
+        }
     }
 
     $self->ct_mkdir('/etc/systemd/system-preset', 0755);
     $self->ct_file_set_contents(
-	'/etc/systemd/system-preset/00-pve.preset',
-	$preset_data,
+        '/etc/systemd/system-preset/00-pve.preset', $preset_data,
     );
 }
 
@@ -359,13 +365,12 @@ sub setup_systemd_disable_static_units {
 
     # some don't make sense in CTs, child-plugins can add extra units via $extra_preset
     my $units = [
-	'sys-kernel-config.mount',
-	'sys-kernel-debug.mount',
+        'sys-kernel-config.mount', 'sys-kernel-debug.mount',
     ];
 
     for my $unit ($units->@*, $extra_units->@*) {
-	$self->ct_symlink('/dev/null', "/etc/systemd/system/$unit")
-	    if !$self->ct_file_exists("/etc/systemd/system/$unit");
+        $self->ct_symlink('/dev/null', "/etc/systemd/system/$unit")
+            if !$self->ct_file_exists("/etc/systemd/system/$unit");
     }
 }
 
@@ -377,61 +382,62 @@ sub setup_securetty {
     return if !$self->ct_file_exists($filename);
 
     if (!scalar(@add)) {
-	@add = qw(console tty1 tty2 tty3 tty4);
-	if (my $dir = $self->devttydir($conf)) {
-	    @add = map { "${dir}$_" } @add;
-	}
+        @add = qw(console tty1 tty2 tty3 tty4);
+        if (my $dir = $self->devttydir($conf)) {
+            @add = map { "${dir}$_" } @add;
+        }
     }
 
     my $data = $self->ct_file_get_contents($filename);
-    chomp $data; $data .= "\n";
+    chomp $data;
+    $data .= "\n";
     foreach my $dev (@add) {
-	if ($data !~ m!^\Q$dev\E\s*$!m) {
-	    $data .= "$dev\n"; 
-	}
+        if ($data !~ m!^\Q$dev\E\s*$!m) {
+            $data .= "$dev\n";
+        }
     }
     $self->ct_file_set_contents($filename, $data);
 }
 
-my $replacepw  = sub {
+my $replacepw = sub {
     my ($self, $file, $user, $epw, $shadow) = @_;
 
     my $tmpfile = "$file.$$";
 
-    eval  {
-	my $src = $self->ct_open_file_read($file) ||
-	    die "unable to open file '$file' - $!";
+    eval {
+        my $src = $self->ct_open_file_read($file)
+            || die "unable to open file '$file' - $!";
 
-	my $st = $self->ct_stat($src) ||
-	    die "unable to stat file - $!";
+        my $st = $self->ct_stat($src)
+            || die "unable to stat file - $!";
 
-	my $dst = $self->ct_open_file_write($tmpfile) ||
-	    die "unable to open file '$tmpfile' - $!";
+        my $dst = $self->ct_open_file_write($tmpfile)
+            || die "unable to open file '$tmpfile' - $!";
 
-	# copy owner and permissions
-	chmod $st->mode, $dst;
-	chown $st->uid, $st->gid, $dst;
+        # copy owner and permissions
+        chmod $st->mode, $dst;
+        chown $st->uid, $st->gid, $dst;
 
-	my $last_change = int(time()/(60*60*24));
+        my $last_change = int(time() / (60 * 60 * 24));
 
-	while (defined (my $line = <$src>)) {
-	    if ($shadow) {
-		$line =~ s/^${user}:[^:]*:[^:]*:/${user}:${epw}:${last_change}:/;
-	    } else {
-		$line =~ s/^${user}:[^:]*:/${user}:${epw}:/;
-	    }
-	    print $dst $line;
-	}
+        while (defined(my $line = <$src>)) {
+            if ($shadow) {
+                $line =~ s/^${user}:[^:]*:[^:]*:/${user}:${epw}:${last_change}:/;
+            } else {
+                $line =~ s/^${user}:[^:]*:/${user}:${epw}:/;
+            }
+            print $dst $line;
+        }
 
-	$src->close() || die "close '$file' failed - $!\n";
-	$dst->close() || die "close '$tmpfile' failed - $!\n";
+        $src->close() || die "close '$file' failed - $!\n";
+        $dst->close() || die "close '$tmpfile' failed - $!\n";
     };
     if (my $err = $@) {
-	$self->ct_unlink($tmpfile);
+        $self->ct_unlink($tmpfile);
     } else {
-	$self->ct_rename($tmpfile, $file);
-	$self->ct_unlink($tmpfile); # in case rename fails
-    }	
+        $self->ct_rename($tmpfile, $file);
+        $self->ct_unlink($tmpfile); # in case rename fails
+    }
 };
 
 sub set_user_password {
@@ -442,21 +448,21 @@ sub set_user_password {
     return if !$self->ct_file_exists($pwfile);
 
     my $shadow = "/etc/shadow";
-    
+
     if (defined($opt_password)) {
-	if ($opt_password !~ m/^\$(?:1|2[axy]?|5|6)\$[a-zA-Z0-9.\/]{1,16}\$[a-zA-Z0-9.\/]+$/) {
-	    my $time = substr (Digest::SHA::sha1_base64 (time), 0, 8);
-	    $opt_password = crypt(encode("utf8", $opt_password), "\$6\$$time\$");
-	};
+        if ($opt_password !~ m/^\$(?:1|2[axy]?|5|6)\$[a-zA-Z0-9.\/]{1,16}\$[a-zA-Z0-9.\/]+$/) {
+            my $time = substr(Digest::SHA::sha1_base64(time), 0, 8);
+            $opt_password = crypt(encode("utf8", $opt_password), "\$6\$$time\$");
+        }
     } else {
-	$opt_password = '*';
+        $opt_password = '*';
     }
-    
+
     if ($self->ct_file_exists($shadow)) {
-	&$replacepw ($self, $shadow, $user, $opt_password, 1);
-	&$replacepw ($self, $pwfile, $user, 'x');
+        &$replacepw($self, $shadow, $user, $opt_password, 1);
+        &$replacepw($self, $pwfile, $user, 'x');
     } else {
-	&$replacepw ($self, $pwfile, $user, $opt_password);
+        &$replacepw($self, $pwfile, $user, $opt_password);
     }
 }
 
@@ -464,9 +470,9 @@ my $parse_home_dir = sub {
     my ($self, $passwdfile, $user) = @_;
 
     my $fh = $self->ct_open_file_read($passwdfile);
-    while (defined (my $line = <$fh>)) {
-	return $2
-	    if $line =~ m/^${user}:([^:]*:){4}([^:]*):/;
+    while (defined(my $line = <$fh>)) {
+        return $2
+            if $line =~ m/^${user}:([^:]*:){4}([^:]*):/;
     }
 };
 
@@ -477,13 +483,13 @@ sub set_user_authorized_ssh_keys {
     my $home = $user eq "root" ? "/root/" : "/home/$user/";
 
     $home = &$parse_home_dir($self, $passwd, $user)
-	if $self->ct_file_exists($passwd);
+        if $self->ct_file_exists($passwd);
 
     die "home directory '$home' of $user does not exist!"
-	if ! ($self->ct_is_directory($home) || $self->ct_is_symlink($home));
+        if !($self->ct_is_directory($home) || $self->ct_is_symlink($home));
 
     $self->ct_mkdir("$home/.ssh", 0700)
-	if ! $self->ct_is_directory("$home/.ssh");
+        if !$self->ct_is_directory("$home/.ssh");
 
     $self->ct_modify_file("$home/.ssh/authorized_keys", $ssh_keys, perms => 0700);
 }
@@ -493,29 +499,33 @@ my $randomize_crontab = sub {
 
     my @files;
     # Note: dir_glob_foreach() untaints filenames!
-    PVE::Tools::dir_glob_foreach("/etc/cron.d", qr/[A-Z\-\_a-z0-9]+/, sub {
-	my ($name) = @_;
-	push @files, "/etc/cron.d/$name";
-    });
+    PVE::Tools::dir_glob_foreach(
+        "/etc/cron.d",
+        qr/[A-Z\-\_a-z0-9]+/,
+        sub {
+            my ($name) = @_;
+            push @files, "/etc/cron.d/$name";
+        },
+    );
 
     my $crontab_fn = "/etc/crontab";
     unshift @files, $crontab_fn if $self->ct_file_exists($crontab_fn);
-    
+
     foreach my $filename (@files) {
-	my $data = $self->ct_file_get_contents($filename);
- 	my $new = '';
-	foreach my $line (split(/\n/, $data)) {
-	    # we only randomize minutes for root crontab entries
-	    if ($line =~ m/^\d+(\s+\S+\s+\S+\s+\S+\s+\S+\s+root\s+\S.*)$/) {
-		my $rest = $1;
-		my $min = int(rand()*59);
-		$new .= "$min$rest\n";
-	    } else {
-		$new .= "$line\n";
-	    }
-	}
-	$self->ct_file_set_contents($filename, $new);
-   }
+        my $data = $self->ct_file_get_contents($filename);
+        my $new = '';
+        foreach my $line (split(/\n/, $data)) {
+            # we only randomize minutes for root crontab entries
+            if ($line =~ m/^\d+(\s+\S+\s+\S+\s+\S+\s+\S+\s+root\s+\S.*)$/) {
+                my $rest = $1;
+                my $min = int(rand() * 59);
+                $new .= "$min$rest\n";
+            } else {
+                $new .= "$line\n";
+            }
+        }
+        $self->ct_file_set_contents($filename, $new);
+    }
 };
 
 sub set_timezone {
@@ -528,23 +538,23 @@ sub set_timezone {
     my $tz_path = "/usr/share/zoneinfo/$zoneinfo";
 
     if ($zoneinfo eq 'host') {
-	$tz_path = $self->{host_localtime};
+        $tz_path = $self->{host_localtime};
     }
 
     if ($self->ct_file_exists($tz_path)) {
-	if (abs_path('/etc/localtime') ne $tz_path) {
-	    my $tmpfile = "localtime.$$.new.tmpfile";
-	    $self->ct_symlink($tz_path, $tmpfile);
-	    $self->ct_rename($tmpfile, "/etc/localtime");
-	}
+        if (abs_path('/etc/localtime') ne $tz_path) {
+            my $tmpfile = "localtime.$$.new.tmpfile";
+            $self->ct_symlink($tz_path, $tmpfile);
+            $self->ct_rename($tmpfile, "/etc/localtime");
+        }
 
-	# not all distributions have /etc/timezone
-	if ($self->ct_file_exists('/etc/timezone')) {
-	    my $contents = $zoneinfo eq 'host' ? $self->{host_timezone} : $zoneinfo;
-	    $self->ct_file_set_contents('/etc/timezone', "$contents\n");
-	}
+        # not all distributions have /etc/timezone
+        if ($self->ct_file_exists('/etc/timezone')) {
+            my $contents = $zoneinfo eq 'host' ? $self->{host_timezone} : $zoneinfo;
+            $self->ct_file_set_contents('/etc/timezone', "$contents\n");
+        }
     } else {
-	warn "container does not have $tz_path, timezone can not be modified\n";
+        warn "container does not have $tz_path, timezone can not be modified\n";
     }
 }
 
@@ -552,7 +562,7 @@ sub clear_machine_id {
     my ($self, $conf, $clone) = @_;
 
     my $uses_systemd = $self->ct_is_executable("/lib/systemd/systemd")
-	|| $self->ct_is_executable("/usr/lib/systemd/systemd");
+        || $self->ct_is_executable("/usr/lib/systemd/systemd");
 
     my $dbus_machine_id_path = "/var/lib/dbus/machine-id";
     my $machine_id_path = "/etc/machine-id";
@@ -560,25 +570,25 @@ sub clear_machine_id {
     my $machine_id_existed = $self->ct_file_exists($machine_id_path);
 
     if (
-	$self->ct_file_exists($dbus_machine_id_path)
-	&& !$self->ct_is_symlink($dbus_machine_id_path)
-	&& $uses_systemd
+        $self->ct_file_exists($dbus_machine_id_path)
+        && !$self->ct_is_symlink($dbus_machine_id_path)
+        && $uses_systemd
     ) {
         $self->ct_unlink($dbus_machine_id_path);
     }
 
     if ($machine_id_existed) {
-	# truncate exiting ones on clone to avoid FirstBoot condition. admins can override this by
-	# removing the machine-id file or setting it to uninitialized before creating a template, or
-	# cloning a guest - as per machine-id(5) man page. TODO: add explicit switch to API?
-	if ($clone) {
-	    my $old_machine_id = $self->ct_file_read_firstline($machine_id_path) // '';
-	    if ($uses_systemd && $old_machine_id ne 'uninitialized') {
-		$self->ct_file_set_contents($machine_id_path, "\n") if $uses_systemd;
-	    }
-	} else {
-	    $self->ct_unlink($machine_id_path);
-	}
+        # truncate exiting ones on clone to avoid FirstBoot condition. admins can override this by
+        # removing the machine-id file or setting it to uninitialized before creating a template, or
+        # cloning a guest - as per machine-id(5) man page. TODO: add explicit switch to API?
+        if ($clone) {
+            my $old_machine_id = $self->ct_file_read_firstline($machine_id_path) // '';
+            if ($uses_systemd && $old_machine_id ne 'uninitialized') {
+                $self->ct_file_set_contents($machine_id_path, "\n") if $uses_systemd;
+            }
+        } else {
+            $self->ct_unlink($machine_id_path);
+        }
     }
 }
 
@@ -589,14 +599,14 @@ sub get_systemd_version {
 
     my $version = undef;
     PVE::Tools::run_command(
-	['objdump', '-p', $self->{rootdir}.$init],
-	outfunc => sub {
-	    my $line = shift;
-	    if ($line =~ /libsystemd-shared-(\d+)(?:[-.][a-zA-Z0-9]+)*\.so:?$/) {
-		$version = $1;
-	    }
-	},
-	errmsg => "objdump on $init failed",
+        ['objdump', '-p', $self->{rootdir} . $init],
+        outfunc => sub {
+            my $line = shift;
+            if ($line =~ /libsystemd-shared-(\d+)(?:[-.][a-zA-Z0-9]+)*\.so:?$/) {
+                $version = $1;
+            }
+        },
+        errmsg => "objdump on $init failed",
     );
 
     return $version;
@@ -609,13 +619,13 @@ sub unified_cgroupv2_support {
     # systemd is installed as symlink to /sbin/init
     # assume non-systemd init will run with unified cgroupv2
     if (!defined($init) || $init !~ m@/systemd$@) {
-	return 1;
+        return 1;
     }
 
     # systemd version 232 (e.g. debian stretch) supports the unified hierarchy
     my $sdver = $self->get_systemd_version($init);
     if (!defined($sdver) || $sdver < 232) {
-	return 0;
+        return 0;
     }
 
     return 1;
@@ -626,7 +636,7 @@ sub get_ct_init_path {
 
     my $init_path = "/sbin/init";
     if ($self->ct_is_symlink($init_path)) {
-	$init_path = $self->ct_readlink_recursive($init_path);
+        $init_path = $self->ct_readlink_recursive($init_path);
     }
     return $init_path;
 }
@@ -635,10 +645,10 @@ sub ssh_host_key_types_to_generate {
     my ($self) = @_;
 
     return {
-	rsa => 'ssh_host_rsa_key',
-	dsa => 'ssh_host_dsa_key',
-	ecdsa => 'ssh_host_ecdsa_key',
-	ed25519 => 'ssh_host_ed25519_key',
+        rsa => 'ssh_host_rsa_key',
+        dsa => 'ssh_host_dsa_key',
+        ecdsa => 'ssh_host_ecdsa_key',
+        ed25519 => 'ssh_host_ed25519_key',
     };
 }
 
@@ -715,17 +725,17 @@ sub ct_mkdir {
     my ($self, $file, $mask) = @_;
     # mkdir goes by parameter count - an `undef' mode acts like a mode of 0000
     if (defined($mask)) {
-	return CORE::mkdir($file, $mask) && $self->ct_reset_ownership($file);
+        return CORE::mkdir($file, $mask) && $self->ct_reset_ownership($file);
     } else {
-	return CORE::mkdir($file) && $self->ct_reset_ownership($file);
+        return CORE::mkdir($file) && $self->ct_reset_ownership($file);
     }
 }
 
 sub ct_unlink {
     my ($self, @files) = @_;
     foreach my $file (@files) {
-	next if $self->ct_is_file_ignored($file);
-	CORE::unlink($file);
+        next if $self->ct_is_file_ignored($file);
+        CORE::unlink($file);
     }
 }
 
@@ -755,8 +765,8 @@ sub ct_make_path {
 
     my $opts = {};
     if (defined($self->{id_map})) {
-	$opts->{owner} = $self->{root_uid};
-	$opts->{group} = $self->{root_gid};
+        $opts->{owner} = $self->{root_uid};
+        $opts->{group} = $self->{root_gid};
     }
     File::Path::make_path(@_, $opts);
 }
@@ -765,12 +775,12 @@ sub ct_symlink {
     my ($self, $old, $new) = @_;
     return if $self->ct_is_file_ignored($new);
     if (CORE::symlink($old, $new)) {
-	if (defined($self->{id_map})) {
-	    POSIX::lchown($self->{root_uid}, $self->{root_gid}, $new);
-	}
-	return 1;
+        if (defined($self->{id_map})) {
+            POSIX::lchown($self->{root_uid}, $self->{root_gid}, $new);
+        }
+        return 1;
     } else {
-	return 0;
+        return 0;
     }
 }
 
@@ -784,10 +794,10 @@ sub ct_readlink_recursive {
 
     my $res = $name;
     for (my $i = 0; $self->ct_is_symlink($res); $i++) {
-	# arbitrary limit, but should be enough for all for our management relevant things
-	die "maximal link depth of 10 for resolving '$name' reached, abort\n" if $i >= 10;
-	$res = $self->ct_readlink($res);
-	$res = abs_path($res);
+        # arbitrary limit, but should be enough for all for our management relevant things
+        die "maximal link depth of 10 for resolving '$name' reached, abort\n" if $i >= 10;
+        $res = $self->ct_readlink($res);
+        $res = abs_path($res);
     }
     return $res;
 }
@@ -809,7 +819,7 @@ sub ct_is_symlink {
 
 sub ct_is_executable {
     my ($self, $file) = @_;
-    return -x $file
+    return -x $file;
 }
 
 sub ct_stat {
@@ -846,53 +856,56 @@ sub ct_modify_file {
     $data .= "\n" if $data && $data !~ /\n$/;
 
     if (!$self->ct_file_exists($file)) {
-	$self->ct_file_set_contents($file, $head.$data.$tail, $perms) if $data;
-	return;
+        $self->ct_file_set_contents($file, $head . $data . $tail, $perms) if $data;
+        return;
     }
 
     my $old = $self->ct_file_get_contents($file);
     my @lines = split(/\n/, $old);
 
     my ($beg, $end);
-    foreach my $i (0..(@lines-1)) {
-	my $line = $lines[$i];
-	$beg = $i if !defined($beg) &&
-	    $line =~ /^#\s*---\s*BEGIN\s*PVE\s*/;
-	$end = $i if !defined($end) && defined($beg) &&
-	    $line =~ /^#\s*---\s*END\s*PVE\s*/i;
-	last if defined($beg) && defined($end);
+    foreach my $i (0 .. (@lines - 1)) {
+        my $line = $lines[$i];
+        $beg = $i
+            if !defined($beg)
+            && $line =~ /^#\s*---\s*BEGIN\s*PVE\s*/;
+        $end = $i
+            if !defined($end)
+            && defined($beg)
+            && $line =~ /^#\s*---\s*END\s*PVE\s*/i;
+        last if defined($beg) && defined($end);
     }
 
     if (defined($beg) && defined($end)) {
-	# Found a section
-	if ($data) {
-	    chomp $tail;
-	    splice @lines, $beg, $end-$beg+1, $head.$data.$tail;
-	} else {
-	    if ($beg == 0 && $end == (@lines-1)) {
-		$self->ct_unlink($file) if $options{delete};
-		return;
-	    }
-	    splice @lines, $beg, $end-$beg+1, $head.$data.$tail;
-	}
-	$self->ct_file_set_contents($file, join("\n", @lines) . "\n");
+        # Found a section
+        if ($data) {
+            chomp $tail;
+            splice @lines, $beg, $end - $beg + 1, $head . $data . $tail;
+        } else {
+            if ($beg == 0 && $end == (@lines - 1)) {
+                $self->ct_unlink($file) if $options{delete};
+                return;
+            }
+            splice @lines, $beg, $end - $beg + 1, $head . $data . $tail;
+        }
+        $self->ct_file_set_contents($file, join("\n", @lines) . "\n");
     } elsif ($data) {
-	# No section found
-	my $content = join("\n", @lines);
-	chomp $content;
-	if (!$content && !$data && $options{delete}) {
-	    $self->ct_unlink($file);
-	    return;
-	}
-	$content .= "\n";
-	$data = $head.$data.$tail;
-	if ($options{replace}) {
-	    $self->ct_file_set_contents($file, $data, $perms);
-	} elsif ($options{prepend}) {
-	    $self->ct_file_set_contents($file, $data . $content, $perms);
-	} else { # append
-	    $self->ct_file_set_contents($file, $content . $data, $perms);
-	}
+        # No section found
+        my $content = join("\n", @lines);
+        chomp $content;
+        if (!$content && !$data && $options{delete}) {
+            $self->ct_unlink($file);
+            return;
+        }
+        $content .= "\n";
+        $data = $head . $data . $tail;
+        if ($options{replace}) {
+            $self->ct_file_set_contents($file, $data, $perms);
+        } elsif ($options{prepend}) {
+            $self->ct_file_set_contents($file, $data . $content, $perms);
+        } else { # append
+            $self->ct_file_set_contents($file, $content . $data, $perms);
+        }
     }
 }
 
@@ -913,12 +926,12 @@ sub remove_pve_sections {
 sub remove_lxc_name_from_etc_hosts {
     my ($self) = @_;
 
-    return if ! -e '/etc/hosts';
+    return if !-e '/etc/hosts';
 
     my $hosts = $self->ct_file_get_contents('/etc/hosts');
     my @lines = grep { !/^127.0.1.1\s+LXC_NAME$/ } split(/\n/, $hosts);
 
-    $hosts = join("\n", @lines). "\n";
+    $hosts = join("\n", @lines) . "\n";
 
     $self->ct_file_set_contents('/etc/hosts', $hosts);
 }

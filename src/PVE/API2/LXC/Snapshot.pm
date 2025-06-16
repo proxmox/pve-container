@@ -25,80 +25,83 @@ __PACKAGE__->register_method({
     method => 'GET',
     description => "List all snapshots.",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Audit' ]],
+        check => ['perm', '/vms/{vmid}', ['VM.Audit']],
     },
     proxyto => 'node',
     protected => 1, # lxc pid files are only readable by root
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-	    node => get_standard_option('pve-node'),
-	},
+        additionalProperties => 0,
+        properties => {
+            vmid =>
+                get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+            node => get_standard_option('pve-node'),
+        },
     },
     returns => {
-	type => 'array',
-	items => {
-	    type => "object",
-	    properties => {
-		name => {
-		    description => "Snapshot identifier. Value 'current' identifies the current VM.",
-		    type => 'string',
-		},
-		description => {
-		    description => "Snapshot description.",
-		    type => 'string',
-		},
-		snaptime => {
-		    description => "Snapshot creation time",
-		    type => 'integer',
-		    renderer => 'timestamp',
-		    optional => 1,
-		},
-		parent => {
-		    description => "Parent snapshot identifier.",
-		    type => 'string',
-		    optional => 1,
-		},
-	    },
-	},
-	links => [ { rel => 'child', href => "{name}" } ],
+        type => 'array',
+        items => {
+            type => "object",
+            properties => {
+                name => {
+                    description =>
+                        "Snapshot identifier. Value 'current' identifies the current VM.",
+                    type => 'string',
+                },
+                description => {
+                    description => "Snapshot description.",
+                    type => 'string',
+                },
+                snaptime => {
+                    description => "Snapshot creation time",
+                    type => 'integer',
+                    renderer => 'timestamp',
+                    optional => 1,
+                },
+                parent => {
+                    description => "Parent snapshot identifier.",
+                    type => 'string',
+                    optional => 1,
+                },
+            },
+        },
+        links => [{ rel => 'child', href => "{name}" }],
     },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $vmid = $param->{vmid};
+        my $vmid = $param->{vmid};
 
-	my $conf = PVE::LXC::Config->load_config($vmid);
-	my $snaphash = $conf->{snapshots} || {};
+        my $conf = PVE::LXC::Config->load_config($vmid);
+        my $snaphash = $conf->{snapshots} || {};
 
-	my $res = [];
+        my $res = [];
 
-	foreach my $name (keys %$snaphash) {
-	    my $d = $snaphash->{$name};
-	    my $item = {
-		name => $name,
-		snaptime => $d->{snaptime} || 0,
-		description => $d->{description} || '',
-	    };
-	    $item->{parent} = $d->{parent} if defined($d->{parent});
-	    $item->{snapstate} = $d->{snapstate} if $d->{snapstate};
-	    push @$res, $item;
-	}
+        foreach my $name (keys %$snaphash) {
+            my $d = $snaphash->{$name};
+            my $item = {
+                name => $name,
+                snaptime => $d->{snaptime} || 0,
+                description => $d->{description} || '',
+            };
+            $item->{parent} = $d->{parent} if defined($d->{parent});
+            $item->{snapstate} = $d->{snapstate} if $d->{snapstate};
+            push @$res, $item;
+        }
 
-	my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
-	my $current = {
-	    name => 'current',
-	    digest => $conf->{digest},
-	    running => $running,
-	    description => "You are here!",
-	};
-	$current->{parent} = $conf->{parent} if defined($conf->{parent});
+        my $running = PVE::LXC::check_running($vmid) ? 1 : 0;
+        my $current = {
+            name => 'current',
+            digest => $conf->{digest},
+            running => $running,
+            description => "You are here!",
+        };
+        $current->{parent} = $conf->{parent} if defined($conf->{parent});
 
-	push @$res, $current;
+        push @$res, $current;
 
-	return $res;
-    }});
+        return $res;
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'snapshot',
@@ -108,56 +111,58 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Snapshot a container.",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+        check => ['perm', '/vms/{vmid}', ['VM.Snapshot']],
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-	    snapname => get_standard_option('pve-snapshot-name'),
-#	    vmstate => {
-#		optional => 1,
-#		type => 'boolean',
-#		description => "Save the vmstate",
-#	    },
-	    description => {
-		optional => 1,
-		type => 'string',
-		description => "A textual description or comment.",
-	    },
-	},
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid =>
+                get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+            snapname => get_standard_option('pve-snapshot-name'),
+            #	    vmstate => {
+            #		optional => 1,
+            #		type => 'boolean',
+            #		description => "Save the vmstate",
+            #	    },
+            description => {
+                optional => 1,
+                type => 'string',
+                description => "A textual description or comment.",
+            },
+        },
     },
     returns => {
-	type => 'string',
-	description => "the task ID.",
+        type => 'string',
+        description => "the task ID.",
     },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $rpcenv = PVE::RPCEnvironment::get();
+        my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
+        my $authuser = $rpcenv->get_user();
 
-	my $node = extract_param($param, 'node');
+        my $node = extract_param($param, 'node');
 
-	my $vmid = extract_param($param, 'vmid');
+        my $vmid = extract_param($param, 'vmid');
 
-	my $snapname = extract_param($param, 'snapname');
+        my $snapname = extract_param($param, 'snapname');
 
-	die "unable to use snapshot name 'current' (reserved name)\n"
-	    if $snapname eq 'current';
+        die "unable to use snapshot name 'current' (reserved name)\n"
+            if $snapname eq 'current';
 
-	die "unable to use snapshot name 'vzdump' (reserved name)\n"
-	    if $snapname eq 'vzdump';
+        die "unable to use snapshot name 'vzdump' (reserved name)\n"
+            if $snapname eq 'vzdump';
 
-	my $realcmd = sub {
-	    PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
-	    PVE::LXC::Config->snapshot_create($vmid, $snapname, 0, $param->{description});
-	};
+        my $realcmd = sub {
+            PVE::Cluster::log_msg('info', $authuser, "snapshot container $vmid: $snapname");
+            PVE::LXC::Config->snapshot_create($vmid, $snapname, 0, $param->{description});
+        };
 
-	return $rpcenv->fork_worker('vzsnapshot', $vmid, $authuser, $realcmd);
-    }});
+        return $rpcenv->fork_worker('vzsnapshot', $vmid, $authuser, $realcmd);
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'delsnapshot',
@@ -167,59 +172,61 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Delete a LXC snapshot.",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+        check => ['perm', '/vms/{vmid}', ['VM.Snapshot']],
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-snapshot-name'),
-	    force => {
-		optional => 1,
-		type => 'boolean',
-		description => "For removal from config file, even if removing disk snapshots fails.",
-	    },
-	},
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+            snapname => get_standard_option('pve-snapshot-name'),
+            force => {
+                optional => 1,
+                type => 'boolean',
+                description =>
+                    "For removal from config file, even if removing disk snapshots fails.",
+            },
+        },
     },
     returns => {
-	type => 'string',
-	description => "the task ID.",
+        type => 'string',
+        description => "the task ID.",
     },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $rpcenv = PVE::RPCEnvironment::get();
+        my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
+        my $authuser = $rpcenv->get_user();
 
-	my $node = extract_param($param, 'node');
+        my $node = extract_param($param, 'node');
 
-	my $vmid = extract_param($param, 'vmid');
+        my $vmid = extract_param($param, 'vmid');
 
-	my $snapname = extract_param($param, 'snapname');
+        my $snapname = extract_param($param, 'snapname');
 
-	my $lock_obtained;
-	my $do_delete = sub {
-	    $lock_obtained = 1;
-	    PVE::Cluster::log_msg('info', $authuser, "delete snapshot VM $vmid: $snapname");
-	    PVE::LXC::Config->snapshot_delete($vmid, $snapname, $param->{force});
-	};
+        my $lock_obtained;
+        my $do_delete = sub {
+            $lock_obtained = 1;
+            PVE::Cluster::log_msg('info', $authuser, "delete snapshot VM $vmid: $snapname");
+            PVE::LXC::Config->snapshot_delete($vmid, $snapname, $param->{force});
+        };
 
-	my $realcmd = sub {
-	    if ($param->{force}) {
-		$do_delete->();
-	    } else {
-		eval { PVE::GuestHelpers::guest_migration_lock($vmid, 10, $do_delete); };
-		if (my $err = $@) {
-		    die $err if $lock_obtained;
-		    die "Failed to obtain guest migration lock - replication running?\n";
-		}
-	    }
-	};
+        my $realcmd = sub {
+            if ($param->{force}) {
+                $do_delete->();
+            } else {
+                eval { PVE::GuestHelpers::guest_migration_lock($vmid, 10, $do_delete); };
+                if (my $err = $@) {
+                    die $err if $lock_obtained;
+                    die "Failed to obtain guest migration lock - replication running?\n";
+                }
+            }
+        };
 
-	return $rpcenv->fork_worker('vzdelsnapshot', $vmid, $authuser, $realcmd);
-    }});
+        return $rpcenv->fork_worker('vzdelsnapshot', $vmid, $authuser, $realcmd);
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'snapshot_cmd_idx',
@@ -227,34 +234,35 @@ __PACKAGE__->register_method({
     description => '',
     method => 'GET',
     permissions => {
-	user => 'all',
+        user => 'all',
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    vmid => get_standard_option('pve-vmid'),
-	    node => get_standard_option('pve-node'),
-	    snapname => get_standard_option('pve-snapshot-name'),
-	},
+        additionalProperties => 0,
+        properties => {
+            vmid => get_standard_option('pve-vmid'),
+            node => get_standard_option('pve-node'),
+            snapname => get_standard_option('pve-snapshot-name'),
+        },
     },
     returns => {
-	type => 'array',
-	items => {
-	    type => "object",
-	    properties => {},
-	},
-	links => [ { rel => 'child', href => "{cmd}" } ],
+        type => 'array',
+        items => {
+            type => "object",
+            properties => {},
+        },
+        links => [{ rel => 'child', href => "{cmd}" }],
     },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $res = [];
+        my $res = [];
 
-	push @$res, { cmd => 'rollback' };
-	push @$res, { cmd => 'config' };
+        push @$res, { cmd => 'rollback' };
+        push @$res, { cmd => 'config' };
 
-	return $res;
-    }});
+        return $res;
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'rollback',
@@ -264,55 +272,57 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Rollback LXC state to specified snapshot.",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot', 'VM.Snapshot.Rollback' ], any => 1],
+        check => ['perm', '/vms/{vmid}', ['VM.Snapshot', 'VM.Snapshot.Rollback'], any => 1],
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-snapshot-name'),
-	    start => {
-		type => 'boolean',
-		description => "Whether the container should get started after rolling back successfully",
-		optional => 1,
-		default => 0,
-	    },
-	},
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+            snapname => get_standard_option('pve-snapshot-name'),
+            start => {
+                type => 'boolean',
+                description =>
+                    "Whether the container should get started after rolling back successfully",
+                optional => 1,
+                default => 0,
+            },
+        },
     },
     returns => {
-	type => 'string',
-	description => "the task ID.",
+        type => 'string',
+        description => "the task ID.",
     },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $rpcenv = PVE::RPCEnvironment::get();
+        my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
+        my $authuser = $rpcenv->get_user();
 
-	my $node = extract_param($param, 'node');
+        my $node = extract_param($param, 'node');
 
-	my $vmid = extract_param($param, 'vmid');
+        my $vmid = extract_param($param, 'vmid');
 
-	my $snapname = extract_param($param, 'snapname');
+        my $snapname = extract_param($param, 'snapname');
 
-	my $realcmd = sub {
-	    PVE::Cluster::log_msg('info', $authuser, "rollback snapshot LXC $vmid: $snapname");
-	    PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
+        my $realcmd = sub {
+            PVE::Cluster::log_msg('info', $authuser, "rollback snapshot LXC $vmid: $snapname");
+            PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 
-	    if ($param->{start}) {
-		PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node })
-	    }
-	};
+            if ($param->{start}) {
+                PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node });
+            }
+        };
 
-	my $worker = sub {
-	    # hold migration lock, this makes sure that nobody create replication snapshots
-	    return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $realcmd);
-	};
+        my $worker = sub {
+            # hold migration lock, this makes sure that nobody create replication snapshots
+            return PVE::GuestHelpers::guest_migration_lock($vmid, 10, $realcmd);
+        };
 
-	return $rpcenv->fork_worker('vzrollback', $vmid, $authuser, $worker);
-    }});
+        return $rpcenv->fork_worker('vzrollback', $vmid, $authuser, $worker);
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'update_snapshot_config',
@@ -322,53 +332,54 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Update snapshot metadata.",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot' ]],
+        check => ['perm', '/vms/{vmid}', ['VM.Snapshot']],
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-snapshot-name'),
-	    description => {
-		optional => 1,
-		type => 'string',
-		description => "A textual description or comment.",
-	    },
-	},
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+            snapname => get_standard_option('pve-snapshot-name'),
+            description => {
+                optional => 1,
+                type => 'string',
+                description => "A textual description or comment.",
+            },
+        },
     },
     returns => { type => 'null' },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $rpcenv = PVE::RPCEnvironment::get();
+        my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
+        my $authuser = $rpcenv->get_user();
 
-	my $vmid = extract_param($param, 'vmid');
+        my $vmid = extract_param($param, 'vmid');
 
-	my $snapname = extract_param($param, 'snapname');
+        my $snapname = extract_param($param, 'snapname');
 
-	return undef if !defined($param->{description});
+        return undef if !defined($param->{description});
 
-	my $updatefn =  sub {
+        my $updatefn = sub {
 
-	    my $conf = PVE::LXC::Config->load_config($vmid);
-	    PVE::LXC::Config->check_lock($conf);
+            my $conf = PVE::LXC::Config->load_config($vmid);
+            PVE::LXC::Config->check_lock($conf);
 
-	    my $snap = $conf->{snapshots}->{$snapname};
+            my $snap = $conf->{snapshots}->{$snapname};
 
-	    die "snapshot '$snapname' does not exist\n" if !defined($snap);
+            die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-	    $snap->{description} = $param->{description} if defined($param->{description});
+            $snap->{description} = $param->{description} if defined($param->{description});
 
-	    PVE::LXC::Config->write_config($vmid, $conf, 1);
-	};
+            PVE::LXC::Config->write_config($vmid, $conf, 1);
+        };
 
-	PVE::LXC::Config->lock_config($vmid, $updatefn);
+        PVE::LXC::Config->lock_config($vmid, $updatefn);
 
-	return undef;
-    }});
+        return undef;
+    },
+});
 
 __PACKAGE__->register_method({
     name => 'get_snapshot_config',
@@ -377,37 +388,39 @@ __PACKAGE__->register_method({
     proxyto => 'node',
     description => "Get snapshot configuration",
     permissions => {
-	check => ['perm', '/vms/{vmid}', [ 'VM.Snapshot', 'VM.Snapshot.Rollback', 'VM.Audit' ], any => 1],
+        check =>
+            ['perm', '/vms/{vmid}', ['VM.Snapshot', 'VM.Snapshot.Rollback', 'VM.Audit'], any => 1],
     },
     parameters => {
-	additionalProperties => 0,
-	properties => {
-	    node => get_standard_option('pve-node'),
-	    vmid => get_standard_option('pve-vmid'),
-	    snapname => get_standard_option('pve-snapshot-name'),
-	},
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid => get_standard_option('pve-vmid'),
+            snapname => get_standard_option('pve-snapshot-name'),
+        },
     },
     returns => { type => "object" },
     code => sub {
-	my ($param) = @_;
+        my ($param) = @_;
 
-	my $rpcenv = PVE::RPCEnvironment::get();
+        my $rpcenv = PVE::RPCEnvironment::get();
 
-	my $authuser = $rpcenv->get_user();
+        my $authuser = $rpcenv->get_user();
 
-	my $vmid = extract_param($param, 'vmid');
+        my $vmid = extract_param($param, 'vmid');
 
-	my $snapname = extract_param($param, 'snapname');
+        my $snapname = extract_param($param, 'snapname');
 
-	my $conf = PVE::LXC::Config->load_config($vmid);
+        my $conf = PVE::LXC::Config->load_config($vmid);
 
-	my $snap = $conf->{snapshots}->{$snapname};
+        my $snap = $conf->{snapshots}->{$snapname};
 
-	die "snapshot '$snapname' does not exist\n" if !defined($snap);
+        die "snapshot '$snapname' does not exist\n" if !defined($snap);
 
-	delete $snap->{lxc};
-	
-	return $snap;
-    }});
+        delete $snap->{lxc};
+
+        return $snap;
+    },
+});
 
 1;

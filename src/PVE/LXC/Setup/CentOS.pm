@@ -22,9 +22,9 @@ sub new {
     my $version;
 
     if (($release =~ m/release\s+(\d+\.\d+)(\.\d+)?/) || ($release =~ m/release\s+(\d+)/)) {
-	if ($1 >= 5 && $1 < 10) {
-	    $version = $1;
-	}
+        if ($1 >= 5 && $1 < 10) {
+            $version = $1;
+        }
     }
 
     die "unsupported centos release '$release'\n" if !$version;
@@ -51,7 +51,7 @@ instance \$TTY
 exec /sbin/mingetty --nohangup \$TTY
 usage 'tty TTY=/dev/ttyX  - where X is console id'
 __EOD__
-    
+
 my $start_ttys_conf = <<__EOD__;
 #
 # This service starts the configured number of gettys.
@@ -85,37 +85,38 @@ sub template_fixup {
     my ($self, $conf) = @_;
 
     if ($self->{version} < 7) {
-	# re-create emissing files for tty
+        # re-create emissing files for tty
 
-	$self->ct_make_path('/etc/init');
+        $self->ct_make_path('/etc/init');
 
-	my $filename = "/etc/init/tty.conf";
-	if ($self->ct_file_exists($filename)) {
-	    my $data = $self->ct_file_get_contents($filename);
-	    $data =~ s|^(exec /sbin/mingetty)(?!.*--nohangup) (.*)$|$1 --nohangup $2|gm;
-	    $self->ct_file_set_contents($filename, $data);
-	} else {
-	    $self->ct_file_set_contents($filename, $tty_conf);
-	}
+        my $filename = "/etc/init/tty.conf";
+        if ($self->ct_file_exists($filename)) {
+            my $data = $self->ct_file_get_contents($filename);
+            $data =~ s|^(exec /sbin/mingetty)(?!.*--nohangup) (.*)$|$1 --nohangup $2|gm;
+            $self->ct_file_set_contents($filename, $data);
+        } else {
+            $self->ct_file_set_contents($filename, $tty_conf);
+        }
 
-	$filename = "/etc/init/start-ttys.conf";
-	$self->ct_file_set_contents($filename, $start_ttys_conf)
-	    if ! $self->ct_file_exists($filename);
+        $filename = "/etc/init/start-ttys.conf";
+        $self->ct_file_set_contents($filename, $start_ttys_conf)
+            if !$self->ct_file_exists($filename);
 
-	$filename = "/etc/init/power-status-changed.conf";
-	$self->ct_file_set_contents($filename, $power_status_changed_conf)
-	    if ! $self->ct_file_exists($filename);
+        $filename = "/etc/init/power-status-changed.conf";
+        $self->ct_file_set_contents($filename, $power_status_changed_conf)
+            if !$self->ct_file_exists($filename);
 
-	# do not start udevd
-	$filename = "/etc/rc.d/rc.sysinit";
-	my $data = $self->ct_file_get_contents($filename);
-	$data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
-	$self->ct_file_set_contents($filename, $data);
+        # do not start udevd
+        $filename = "/etc/rc.d/rc.sysinit";
+        my $data = $self->ct_file_get_contents($filename);
+        $data =~ s!^(/sbin/start_udev.*)$!#$1!gm;
+        $self->ct_file_set_contents($filename, $data);
     }
 
     # temporary fix for systemd-firstboot as else it prompts for this option on a unconnected tty forever,
     # making it seem like the CT hangs
-    $self->ct_file_set_contents('/etc/locale.conf', "LANG=C.utf8") if !$self->ct_file_exists('/etc/locale.conf');
+    $self->ct_file_set_contents('/etc/locale.conf', "LANG=C.utf8")
+        if !$self->ct_file_exists('/etc/locale.conf');
 
     # always call so root can login, if /etc/securetty doesn't exists it's a no-op
     $self->setup_securetty($conf);
@@ -128,7 +129,7 @@ sub template_fixup {
 sub setup_init {
     my ($self, $conf) = @_;
 
-     # edit/etc/securetty
+    # edit/etc/securetty
 
     $self->fixup_old_getty();
 
@@ -136,7 +137,7 @@ sub setup_init {
 
     # older versions might not be able to cope with our relative modern preset default
     if ($self->{version} >= 8) {
-	$self->setup_systemd_preset(); # this only affects the first-boot (if no /etc/machine-id exists)
+        $self->setup_systemd_preset(); # this only affects the first-boot (if no /etc/machine-id exists)
     }
 }
 
@@ -151,12 +152,12 @@ sub set_hostname {
 
     my $oldname;
     if ($self->ct_file_exists($hostname_fn)) {
-	$oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
+        $oldname = $self->ct_file_read_firstline($hostname_fn) || 'localhost';
     } elsif ($self->ct_file_exists($sysconfig_network)) {
-	my $data = $self->ct_file_get_contents($sysconfig_network);
-	if ($data =~ m/^HOSTNAME=\s*(\S+)\s*$/m) {
-	    $oldname = $1;
-	}
+        my $data = $self->ct_file_get_contents($sysconfig_network);
+        if ($data =~ m/^HOSTNAME=\s*(\S+)\s*$/m) {
+            $oldname = $1;
+        }
     }
 
     my ($ipv4, $ipv6) = PVE::LXC::get_primary_ips($conf);
@@ -170,11 +171,11 @@ sub set_hostname {
     $self->ct_file_set_contents($hostname_fn, "$hostname\n");
 
     if ($self->ct_file_exists($sysconfig_network)) {
-	my $data = $self->ct_file_get_contents($sysconfig_network);
-	if ($data !~ s/^HOSTNAME=\h*(\S+)\h*$/HOSTNAME=$hostname/m) {
-	    $data .= "HOSTNAME=$hostname\n";
-	}
-	$self->ct_file_set_contents($sysconfig_network, $data);
+        my $data = $self->ct_file_get_contents($sysconfig_network);
+        if ($data !~ s/^HOSTNAME=\h*(\S+)\h*$/HOSTNAME=$hostname/m) {
+            $data .= "HOSTNAME=$hostname\n";
+        }
+        $self->ct_file_set_contents($sysconfig_network, $data);
     }
 }
 
@@ -188,91 +189,93 @@ sub setup_network {
     my ($has_ipv4, $has_ipv6);
 
     foreach my $k (keys %$conf) {
-	next if $k !~ m/^net(\d+)$/;
-	my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	next if !$d->{name};
-	$has_ipv4 = 1 if defined($d->{ip});
-	$has_ipv6 = 1 if defined($d->{ip6});
+        next if $k !~ m/^net(\d+)$/;
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        next if !$d->{name};
+        $has_ipv4 = 1 if defined($d->{ip});
+        $has_ipv6 = 1 if defined($d->{ip6});
 
-	my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
-	my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
-	my $route6file = "/etc/sysconfig/network-scripts/route6-$d->{name}";
-	my $routes = '';
-	my $routes6 = '';
+        my $filename = "/etc/sysconfig/network-scripts/ifcfg-$d->{name}";
+        my $routefile = "/etc/sysconfig/network-scripts/route-$d->{name}";
+        my $route6file = "/etc/sysconfig/network-scripts/route6-$d->{name}";
+        my $routes = '';
+        my $routes6 = '';
 
-	my $header = "DEVICE=$d->{name}\nONBOOT=yes\nUUID=" . UUID::uuid() ."\n";
-	my $data = '';
-	my $bootproto = '';
+        my $header = "DEVICE=$d->{name}\nONBOOT=yes\nUUID=" . UUID::uuid() . "\n";
+        my $data = '';
+        my $bootproto = '';
 
-	if ($d->{ip} && $d->{ip} ne 'manual') {
-	    if ($d->{ip} eq 'dhcp') {
-		$bootproto = 'dhcp';
-	    } else {
-		$bootproto = 'none';
-		my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
-		$data .= "IPADDR=$ipinfo->{address}\n";
-		$data .= "NETMASK=$ipinfo->{netmask}\n";
-		if (defined($d->{gw})) {
-		    $data .= "GATEWAY=$d->{gw}\n";
-		    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
-			$routes .= "$d->{gw} dev $d->{name}\n";
-			$routes .= "default via $d->{gw} dev $d->{name}\n";
-		    }
-		}
-	    }
-	}
+        if ($d->{ip} && $d->{ip} ne 'manual') {
+            if ($d->{ip} eq 'dhcp') {
+                $bootproto = 'dhcp';
+            } else {
+                $bootproto = 'none';
+                my $ipinfo = PVE::LXC::parse_ipv4_cidr($d->{ip});
+                $data .= "IPADDR=$ipinfo->{address}\n";
+                $data .= "NETMASK=$ipinfo->{netmask}\n";
+                if (defined($d->{gw})) {
+                    $data .= "GATEWAY=$d->{gw}\n";
+                    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
+                        $routes .= "$d->{gw} dev $d->{name}\n";
+                        $routes .= "default via $d->{gw} dev $d->{name}\n";
+                    }
+                }
+            }
+        }
 
-	if ($d->{ip6} && $d->{ip6} ne 'manual') {
-	    $bootproto = 'none' if !$bootproto;
-	    $data .= "IPV6INIT=yes\n";
-	    if ($d->{ip6} eq 'auto') {
-		$data .= "IPV6_AUTOCONF=yes\n";
-	    } elsif ($d->{ip6} eq 'dhcp') {
-		$data .= "DHCPV6C=yes\n";
-	    } else {
-		$data .= "IPV6ADDR=$d->{ip6}\nIPV6_AUTOCONF=no\n";
-		if (defined($d->{gw6})) {
-		    if (!PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6) &&
-			!PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)
-		    ) {
-			$routes6 .= "$d->{gw6} dev $d->{name}\n";
-			$routes6 .= "default via $d->{gw6} dev $d->{name}\n";
-		    } else {
-			$data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
-		    }
-		}
-	    }
-	}
+        if ($d->{ip6} && $d->{ip6} ne 'manual') {
+            $bootproto = 'none' if !$bootproto;
+            $data .= "IPV6INIT=yes\n";
+            if ($d->{ip6} eq 'auto') {
+                $data .= "IPV6_AUTOCONF=yes\n";
+            } elsif ($d->{ip6} eq 'dhcp') {
+                $data .= "DHCPV6C=yes\n";
+            } else {
+                $data .= "IPV6ADDR=$d->{ip6}\nIPV6_AUTOCONF=no\n";
+                if (defined($d->{gw6})) {
+                    if (
+                        !PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)
+                        && !PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)
+                    ) {
+                        $routes6 .= "$d->{gw6} dev $d->{name}\n";
+                        $routes6 .= "default via $d->{gw6} dev $d->{name}\n";
+                    } else {
+                        $data .= "IPV6_DEFAULTGW=$d->{gw6}\n";
+                    }
+                }
+            }
+        }
 
-	my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
-	my @nameservers = PVE::Tools::split_list($nameserver);
+        my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
+        my @nameservers = PVE::Tools::split_list($nameserver);
 
-	for my $i (0 .. $#nameservers) {
-	    $data .= "DNS".($i+1)."=$nameservers[$i]\n";
-	}
-	$data .= "DOMAIN=".join(' ', PVE::Tools::split_list($searchdomains))."\n" if $searchdomains;
+        for my $i (0 .. $#nameservers) {
+            $data .= "DNS" . ($i + 1) . "=$nameservers[$i]\n";
+        }
+        $data .= "DOMAIN=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+            if $searchdomains;
 
-	next unless $data || $bootproto;
-	$header .= "BOOTPROTO=$bootproto\n";
-	$self->ct_file_set_contents($filename, $header . $data);
-	$self->ct_modify_file($routefile, $routes, delete => 1, prepend => 1);
-	$self->ct_modify_file($route6file, $routes6, delete => 1, prepend => 1);
+        next unless $data || $bootproto;
+        $header .= "BOOTPROTO=$bootproto\n";
+        $self->ct_file_set_contents($filename, $header . $data);
+        $self->ct_modify_file($routefile, $routes, delete => 1, prepend => 1);
+        $self->ct_modify_file($route6file, $routes6, delete => 1, prepend => 1);
     }
 
     my $sysconfig_network = "/etc/sysconfig/network";
     if ($self->ct_file_exists($sysconfig_network)) {
-	my $data = $self->ct_file_get_contents($sysconfig_network);
-	if ($has_ipv4) {
-	    if ($data !~ s/(NETWORKING)=\S+/$1=yes/) {
-		$data .= "NETWORKING=yes\n";
-	    }
-	}
-	if ($has_ipv6) {
-	    if ($data !~ s/(NETWORKING_IPV6)=\S+/$1=yes/) {
-		$data .= "NETWORKING_IPV6=yes\n";
-	    }
-	}
-	$self->ct_file_set_contents($sysconfig_network, $data);
+        my $data = $self->ct_file_get_contents($sysconfig_network);
+        if ($has_ipv4) {
+            if ($data !~ s/(NETWORKING)=\S+/$1=yes/) {
+                $data .= "NETWORKING=yes\n";
+            }
+        }
+        if ($has_ipv6) {
+            if ($data !~ s/(NETWORKING_IPV6)=\S+/$1=yes/) {
+                $data .= "NETWORKING_IPV6=yes\n";
+            }
+        }
+        $self->ct_file_set_contents($sysconfig_network, $data);
     }
 }
 

@@ -50,18 +50,18 @@ sub setup_init {
     my $filename = "/etc/inittab";
     return if !$self->ct_file_exists($filename);
 
-    my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
+    my $ttycount = PVE::LXC::Config->get_tty_count($conf);
     my $inittab = $self->ct_file_get_contents($filename);
 
     my @lines = grep {
-	!/^\s*tty\d+:\d*:[^:]*:.*getty/ # remove getty lines
+        !/^\s*tty\d+:\d*:[^:]*:.*getty/ # remove getty lines
     } split(/\n/, $inittab);
 
     $inittab = join("\n", @lines) . "\n";
 
     for (my $id = 1; $id <= $ttycount; $id++) {
-	next if $id == 7; # reserved for X11
-	$inittab .= "tty$id\::respawn:/sbin/getty 38400 tty$id\n";
+        next if $id == 7; # reserved for X11
+        $inittab .= "tty$id\::respawn:/sbin/getty 38400 tty$id\n";
     }
 
     $self->ct_file_set_contents($filename, $inittab);
@@ -85,18 +85,18 @@ sub setup_network {
     my $newconf = {};
     my $networks = {};
     foreach my $k (keys %$conf) {
-	my $value = $conf->{$k};
-	$newconf->{$k} = $value;
-	next if $k !~ m/^net(\d+)$/;
+        my $value = $conf->{$k};
+        $newconf->{$k} = $value;
+        next if $k !~ m/^net(\d+)$/;
 
-	my $netstring = $value;
-	# check for dhcp6:
-	my $d = PVE::LXC::Config->parse_lxc_network($netstring);
-	if (defined($d->{ip6}) && ($d->{ip6} eq 'dhcp' || $d->{ip6} eq 'auto')) {
-	    $d->{ip6} = 'manual';
-	    $netstring = PVE::LXC::Config->print_lxc_network($d);
-	}
-	$newconf->{$k} = $netstring;
+        my $netstring = $value;
+        # check for dhcp6:
+        my $d = PVE::LXC::Config->parse_lxc_network($netstring);
+        if (defined($d->{ip6}) && ($d->{ip6} eq 'dhcp' || $d->{ip6} eq 'auto')) {
+            $d->{ip6} = 'manual';
+            $netstring = PVE::LXC::Config->print_lxc_network($d);
+        }
+        $newconf->{$k} = $netstring;
     }
 
     PVE::LXC::Setup::Debian::setup_network($self, $newconf);

@@ -22,17 +22,17 @@ use PVE::LXC::Setup::OpenEuler;
 use PVE::LXC::Setup::Unmanaged;
 
 my $plugins = {
-    alpine    => 'PVE::LXC::Setup::Alpine',
+    alpine => 'PVE::LXC::Setup::Alpine',
     archlinux => 'PVE::LXC::Setup::ArchLinux',
-    centos    => 'PVE::LXC::Setup::CentOS',
-    debian    => 'PVE::LXC::Setup::Debian',
-    devuan    => 'PVE::LXC::Setup::Devuan',
-    fedora    => 'PVE::LXC::Setup::Fedora',
-    gentoo    => 'PVE::LXC::Setup::Gentoo',
+    centos => 'PVE::LXC::Setup::CentOS',
+    debian => 'PVE::LXC::Setup::Debian',
+    devuan => 'PVE::LXC::Setup::Devuan',
+    fedora => 'PVE::LXC::Setup::Fedora',
+    gentoo => 'PVE::LXC::Setup::Gentoo',
     openeuler => 'PVE::LXC::Setup::OpenEuler',
-    opensuse  => 'PVE::LXC::Setup::SUSE',
-    ubuntu    => 'PVE::LXC::Setup::Ubuntu',
-    nixos     => 'PVE::LXC::Setup::NixOS',
+    opensuse => 'PVE::LXC::Setup::SUSE',
+    ubuntu => 'PVE::LXC::Setup::Ubuntu',
+    nixos => 'PVE::LXC::Setup::NixOS',
     unmanaged => 'PVE::LXC::Setup::Unmanaged',
 };
 
@@ -50,46 +50,47 @@ my $autodetect_type = sub {
     my ($self, $rootdir, $os_release) = @_;
 
     if (my $id = $os_release->{ID}) {
-	return $id if $plugins->{$id};
-	return $plugin_alias->{$id} if $plugin_alias->{$id};
-	warn "unknown ID '$id' in /etc/os-release file, trying fallback detection\n";
+        return $id if $plugins->{$id};
+        return $plugin_alias->{$id} if $plugin_alias->{$id};
+        warn "unknown ID '$id' in /etc/os-release file, trying fallback detection\n";
     }
 
     # fallback compatibility checks
 
     my $lsb_fn = "$rootdir/etc/lsb-release";
     if (-f $lsb_fn) {
-	my $data =  PVE::Tools::file_get_contents($lsb_fn);
-	if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
-	    return 'ubuntu';
-	}
+        my $data = PVE::Tools::file_get_contents($lsb_fn);
+        if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
+            return 'ubuntu';
+        }
     }
 
     if (-f "$rootdir/etc/debian_version") {
-	return "debian";
+        return "debian";
     } elsif (-f "$rootdir/etc/devuan_version") {
-	return "devuan";
-    } elsif (-f  "$rootdir/etc/SuSE-brand" || -f "$rootdir/etc/SuSE-release") {
-	return "opensuse";
-    } elsif (-f  "$rootdir/etc/fedora-release") {
-	return "fedora";
-    } elsif (-f  "$rootdir/etc/centos-release" || -f "$rootdir/etc/redhat-release") {
-	return "centos";
-    } elsif (-f  "$rootdir/etc/arch-release") {
-	return "archlinux";
-    } elsif (-f  "$rootdir/etc/alpine-release") {
-	return "alpine";
-    } elsif (-f  "$rootdir/etc/gentoo-release") {
-	return "gentoo";
-    } elsif (-d  "$rootdir/nix/store") {
-	return "nixos";
+        return "devuan";
+    } elsif (-f "$rootdir/etc/SuSE-brand" || -f "$rootdir/etc/SuSE-release") {
+        return "opensuse";
+    } elsif (-f "$rootdir/etc/fedora-release") {
+        return "fedora";
+    } elsif (-f "$rootdir/etc/centos-release" || -f "$rootdir/etc/redhat-release") {
+        return "centos";
+    } elsif (-f "$rootdir/etc/arch-release") {
+        return "archlinux";
+    } elsif (-f "$rootdir/etc/alpine-release") {
+        return "alpine";
+    } elsif (-f "$rootdir/etc/gentoo-release") {
+        return "gentoo";
+    } elsif (-d "$rootdir/nix/store") {
+        return "nixos";
     } elsif (-f "$rootdir/etc/openEuler-release") {
-	return "openeuler";
+        return "openeuler";
     } elsif (-f "$rootdir/etc/os-release") {
-	die "unable to detect OS distribution\n";
+        die "unable to detect OS distribution\n";
     } else {
-	warn "/etc/os-release file not found and autodetection failed, falling back to 'unmanaged'\n";
-	return "unmanaged";
+        warn
+            "/etc/os-release file not found and autodetection failed, falling back to 'unmanaged'\n";
+        return "unmanaged";
     }
 };
 
@@ -98,22 +99,22 @@ sub new {
 
     die "no root directory\n" if !$rootdir || $rootdir eq '/';
 
-    my $self = bless { conf => $conf, rootdir => $rootdir}, $class;
+    my $self = bless { conf => $conf, rootdir => $rootdir }, $class;
 
     my $os_release = $self->get_ct_os_release();
 
     if ($conf->{ostype} && $conf->{ostype} eq 'unmanaged') {
-	$type = 'unmanaged';
+        $type = 'unmanaged';
     } elsif (!defined($type)) {
-	# try to autodetect type
-	$type = &$autodetect_type($self, $rootdir, $os_release);
-	my $expected_type = $conf->{ostype} || $type;
+        # try to autodetect type
+        $type = &$autodetect_type($self, $rootdir, $os_release);
+        my $expected_type = $conf->{ostype} || $type;
 
-	if ($type ne $expected_type) {
-	    warn "WARNING: /etc not present in CT, is the rootfs mounted?\n"
-		if ! -e "$rootdir/etc";
-	    warn "got unexpected ostype ($type != $expected_type)\n"
-	}
+        if ($type ne $expected_type) {
+            warn "WARNING: /etc not present in CT, is the rootfs mounted?\n"
+                if !-e "$rootdir/etc";
+            warn "got unexpected ostype ($type != $expected_type)\n";
+        }
     }
 
     my $plugin_class = $plugins->{$type} || die "no such OS type '$type'\n";
@@ -132,27 +133,29 @@ sub new {
     # pass on user namespace information:
     my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
     if (@$id_map) {
-	$plugin->{id_map} = $id_map;
-	$plugin->{root_uid} = $root_uid;
-	$plugin->{root_gid} = $root_gid;
+        $plugin->{id_map} = $id_map;
+        $plugin->{root_uid} = $root_uid;
+        $plugin->{root_gid} = $root_gid;
     }
 
     # if arch is unset, we try to autodetect it
     if (!defined($conf->{arch})) {
-	my $arch = eval { $self->protected_call(sub { $plugin->detect_architecture() }) };
+        my $arch = eval {
+            $self->protected_call(sub { $plugin->detect_architecture() });
+        };
 
-	if (my $err = $@) {
-	    warn "Architecture detection failed: $err" if $err;
-	}
+        if (my $err = $@) {
+            warn "Architecture detection failed: $err" if $err;
+        }
 
-	if (!defined($arch)) {
-	    $arch = 'amd64';
-	    print "Falling back to $arch.\nUse `pct set VMID --arch ARCH` to change.\n";
-	} else {
-	    print "Detected container architecture: $arch\n";
-	}
+        if (!defined($arch)) {
+            $arch = 'amd64';
+            print "Falling back to $arch.\nUse `pct set VMID --arch ARCH` to change.\n";
+        } else {
+            print "Detected container architecture: $arch\n";
+        }
 
-	$conf->{arch} = $arch;
+        $conf->{arch} = $arch;
     }
 
     return $self;
@@ -171,31 +174,31 @@ sub protected_call {
     die "fork failed: $!\n" if !defined($child);
 
     if (!$child) {
-	close($res_in);
-	# avoid recursive forks
-	$self->{in_chroot} = 1;
-	eval {
-	    my $rootdir = $self->{rootdir};
-	    chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
-	    chdir('/') or die "failed to change to root directory\n";
-	    my $res = $sub->();
-	    if (defined($res)) {
-		print {$res_out} "$res";
-		$res_out->flush();
-	    }
-	};
-	if (my $err = $@) {
-	    warn $err;
-	    POSIX::_exit(1);
-	}
-	POSIX::_exit(0);
+        close($res_in);
+        # avoid recursive forks
+        $self->{in_chroot} = 1;
+        eval {
+            my $rootdir = $self->{rootdir};
+            chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
+            chdir('/') or die "failed to change to root directory\n";
+            my $res = $sub->();
+            if (defined($res)) {
+                print {$res_out} "$res";
+                $res_out->flush();
+            }
+        };
+        if (my $err = $@) {
+            warn $err;
+            POSIX::_exit(1);
+        }
+        POSIX::_exit(0);
     }
     close($res_out);
     my $result = do { local $/ = undef; <$res_in> };
-    while (waitpid($child, 0) != $child) {}
+    while (waitpid($child, 0) != $child) { }
     if ($? != 0) {
-	my $method = (caller(1))[3];
-	die "error in setup task $method\n";
+        my $method = (caller(1))[3];
+        die "error in setup task $method\n";
     }
     return $result;
 }
@@ -240,14 +243,16 @@ my sub generate_ssh_key { # create temporary key in hosts' /run, then read and u
 
     my $key_id = '';
     my $keygen_outfunc = sub {
-	if ($_[0] =~ m/^((?:[0-9a-f]{2}:)+[0-9a-f]{2}|SHA256:[0-9a-z+\/]{43})\s+\Q$comment\E$/i) {
-	    $key_id = $_[0];
-	}
+        if (
+            $_[0] =~ m/^((?:[0-9a-f]{2}:)+[0-9a-f]{2}|SHA256:[0-9a-z+\/]{43})\s+\Q$comment\E$/i
+        ) {
+            $key_id = $_[0];
+        }
     };
     my $file = "/run/pve/.tmp$$.$type";
     PVE::Tools::run_command(
-	['ssh-keygen', '-f', $file, '-t', $type, '-N', '', '-E', 'sha256', '-C', $comment],
-	outfunc => $keygen_outfunc,
+        ['ssh-keygen', '-f', $file, '-t', $type, '-N', '', '-E', 'sha256', '-C', $comment],
+        outfunc => $keygen_outfunc,
     );
     my ($private) = (PVE::Tools::file_get_contents($file) =~ /^(.*)$/sg); # untaint
     my ($public) = (PVE::Tools::file_get_contents("$file.pub") =~ /^(.*)$/sg); # untaint
@@ -263,25 +268,26 @@ sub rewrite_ssh_host_keys {
 
     my $keynames = $plugin->ssh_host_key_types_to_generate();
 
-    return if ! -d "$self->{rootdir}/etc/ssh" || !$keynames || !scalar(keys $keynames->%*);
+    return if !-d "$self->{rootdir}/etc/ssh" || !$keynames || !scalar(keys $keynames->%*);
 
     my $hostname = $self->{conf}->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
 
     my $keyfiles = [];
     for my $keytype (keys $keynames->%*) {
-	my $basename = $keynames->{$keytype};
-	print "Creating SSH host key '$basename' - this may take some time ...\n";
-	my ($id, $private, $public) = generate_ssh_key($keytype, "root\@$hostname");
-	print "done: $id\n";
+        my $basename = $keynames->{$keytype};
+        print "Creating SSH host key '$basename' - this may take some time ...\n";
+        my ($id, $private, $public) = generate_ssh_key($keytype, "root\@$hostname");
+        print "done: $id\n";
 
-	push $keyfiles->@*, ["/etc/ssh/$basename", $private, 0600], ["/etc/ssh/$basename.pub", $public, 0644];
+        push $keyfiles->@*, ["/etc/ssh/$basename", $private, 0600],
+            ["/etc/ssh/$basename.pub", $public, 0644];
     }
 
     $self->protected_call(sub { # write them now all to the CTs rootfs at once
-	for my $file ($keyfiles->@*) {
-	    $plugin->ct_file_set_contents($file->@*);
-	}
+        for my $file ($keyfiles->@*) {
+            $plugin->ct_file_set_contents($file->@*);
+        }
     });
 }
 
@@ -301,7 +307,7 @@ sub post_create_hook {
     my ($self, $root_password, $ssh_keys) = @_;
 
     $self->protected_call(sub {
-	$self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
+        $self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
     });
     $self->rewrite_ssh_host_keys();
 }
@@ -327,19 +333,19 @@ my $parse_os_release = sub {
     my ($data) = @_;
     my $variables = {};
     while (defined($data) && $data =~ /^(.+)$/gm) {
-	next if $1 !~ /^\s*([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/;
-	my ($var, $content) = ($1, $2);
-	chomp $content;
+        next if $1 !~ /^\s*([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$/;
+        my ($var, $content) = ($1, $2);
+        chomp $content;
 
-	if ($content =~ /^'([^']*)'/) {
-	    $variables->{$var} = $1;
-	} elsif ($content =~ /^"((?:[^"\\]|\\.)*)"/) {
-	    my $s = $1;
-	    $s =~ s/(\\["'`nt\$\\])/"\"$1\""/eeg;
-	    $variables->{$var} = $s;
-	} elsif ($content =~ /^([A-Za-z0-9]*)/) {
-	    $variables->{$var} = $1;
-	}
+        if ($content =~ /^'([^']*)'/) {
+            $variables->{$var} = $1;
+        } elsif ($content =~ /^"((?:[^"\\]|\\.)*)"/) {
+            my $s = $1;
+            $s =~ s/(\\["'`nt\$\\])/"\"$1\""/eeg;
+            $variables->{$var} = $s;
+        } elsif ($content =~ /^([A-Za-z0-9]*)/) {
+            $variables->{$var} = $1;
+        }
     }
     return $variables;
 };
@@ -348,12 +354,12 @@ sub get_ct_os_release {
     my ($self) = @_;
 
     my $data = $self->protected_call(sub {
-	if (-f '/etc/os-release') {
-	    return PVE::Tools::file_get_contents('/etc/os-release');
-	} elsif (-f '/usr/lib/os-release') {
-	    return PVE::Tools::file_get_contents('/usr/lib/os-release');
-	}
-	return undef;
+        if (-f '/etc/os-release') {
+            return PVE::Tools::file_get_contents('/etc/os-release');
+        } elsif (-f '/usr/lib/os-release') {
+            return PVE::Tools::file_get_contents('/usr/lib/os-release');
+        }
+        return undef;
     });
 
     return &$parse_os_release($data);
@@ -364,7 +370,7 @@ sub get_ct_init_path {
     my ($self) = @_;
 
     my $init = $self->protected_call(sub {
-	return $self->{plugin}->get_ct_init_path();
+        return $self->{plugin}->get_ct_init_path();
     });
 
     return $init;

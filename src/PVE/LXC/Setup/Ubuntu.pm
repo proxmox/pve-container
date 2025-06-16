@@ -47,13 +47,13 @@ sub new {
 
     my $version;
     if ($lsbinfo =~ m/^DISTRIB_RELEASE=(\d+\.\d+)$/mi) {
-	$version = $1;
+        $version = $1;
     }
 
     die "unable to read version info\n" if !defined($version);
 
     die "unsupported Ubuntu version '$version'\n"
-	if !$known_versions->{$version};
+        if !$known_versions->{$version};
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
@@ -68,31 +68,35 @@ sub template_fixup {
     my $version = $self->{version};
 
     if ($version >= '17.10' && $version < '23.04') {
-	# enable systemd-networkd
-	$self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
-	$self->ct_mkdir('/etc/systemd/system/socket.target.wants');
-	$self->ct_symlink('/lib/systemd/system/systemd-networkd.service',
-			  '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service');
-	$self->ct_symlink('/lib/systemd/system/systemd-networkd.socket',
-			  '/etc/systemd/system/socket.target.wants/systemd-networkd.socket');
+        # enable systemd-networkd
+        $self->ct_mkdir('/etc/systemd/system/multi-user.target.wants');
+        $self->ct_mkdir('/etc/systemd/system/socket.target.wants');
+        $self->ct_symlink(
+            '/lib/systemd/system/systemd-networkd.service',
+            '/etc/systemd/system/multi-user.target.wants/systemd-networkd.service',
+        );
+        $self->ct_symlink(
+            '/lib/systemd/system/systemd-networkd.socket',
+            '/etc/systemd/system/socket.target.wants/systemd-networkd.socket',
+        );
     }
 
     if ($version >= '17.10') {
-	# unlink default netplan lxc config
-	$self->ct_unlink('/etc/netplan/10-lxc.yaml');
+        # unlink default netplan lxc config
+        $self->ct_unlink('/etc/netplan/10-lxc.yaml');
     }
 
     if ($version eq '15.04' || $version eq '15.10' || $version eq '16.04') {
-	# edit /etc/securetty (enable login on console)
-	$self->setup_securetty($conf, qw(pts/0));
+        # edit /etc/securetty (enable login on console)
+        $self->setup_securetty($conf, qw(pts/0));
     }
 
     if ($version eq '12.04') {
-	# suppress log level output for udev
-	my $filename = '/etc/udev/udev.conf';
-	my $data = $self->ct_file_get_contents($filename);
-	$data =~ s/=\"err\"/=0/m;
-	$self->ct_file_set_contents($filename, $data);
+        # suppress log level output for udev
+        my $filename = '/etc/udev/udev.conf';
+        my $data = $self->ct_file_get_contents($filename);
+        $data =~ s/=\"err\"/=0/m;
+        $self->ct_file_set_contents($filename, $data);
     }
 }
 
@@ -102,7 +106,7 @@ sub setup_init {
     my $version = $self->{version};
 
     if ($version >= '23.04') {
-	$self->setup_systemd_preset({ 'systemd-networkd.service' => 1 });
+        $self->setup_systemd_preset({ 'systemd-networkd.service' => 1 });
     }
 
     if ($version >= '16.10') {
@@ -110,11 +114,11 @@ sub setup_init {
     }
 
     if ($version eq '12.04' || $version eq '14.04') {
-	my $ttycount =  PVE::LXC::Config->get_tty_count($conf);
-	for (my $i = 1; $i < 7; $i++) {
-	    my $filename = "/etc/init/tty$i.conf";
-	    if ($i <= $ttycount) {
-		my $tty_conf = <<__EOD__;
+        my $ttycount = PVE::LXC::Config->get_tty_count($conf);
+        for (my $i = 1; $i < 7; $i++) {
+            my $filename = "/etc/init/tty$i.conf";
+            if ($i <= $ttycount) {
+                my $tty_conf = <<__EOD__;
 # tty$i - getty
 #
 # This service maintains a getty on tty$i from the point the system is
@@ -131,12 +135,12 @@ respawn
 exec /sbin/getty -8 38400 tty$i
 __EOD__
                 $self->ct_file_set_contents($filename, $tty_conf);
-	    } else {
-		for (my $i = $ttycount + 1; $i < 7; $i++) {
-		    $self->ct_unlink($filename);
-		}
-	    }
-	}
+            } else {
+                for (my $i = $ttycount + 1; $i < 7; $i++) {
+                    $self->ct_unlink($filename);
+                }
+            }
+        }
     }
 }
 
@@ -144,9 +148,9 @@ sub setup_network {
     my ($self, $conf) = @_;
 
     if ($self->{version} >= '17.10') {
-	$self->setup_systemd_networkd($conf);
+        $self->setup_systemd_networkd($conf);
     } else {
-	$self->SUPER::setup_network($conf);
+        $self->SUPER::setup_network($conf);
     }
 }
 
