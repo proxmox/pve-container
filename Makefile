@@ -13,6 +13,7 @@ all: $(DEB)
 .PHONY: tidy
 tidy:
 	git ls-files ':*.p[ml]'| xargs -n4 -P0 proxmox-perltidy
+	cd src; proxmox-perltidy lxc-pve-autodev-hook lxc-pve-poststop-hook lxc-pve-prestart-hook lxcnetaddbr pct pve-container-stop-wrapper
 
 .PHONY: dinstall
 dinstall: $(DEB)

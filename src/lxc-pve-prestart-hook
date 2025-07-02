@@ -29,191 +29,198 @@ eval {
 };
 
 my $WARNFD;
+
 sub log_warn {
     my ($vmid, $message) = @_;
 
     if (!defined($WARNFD)) {
-	open($WARNFD, '>', "/run/pve/ct-${vmid}.warnings");
+        open($WARNFD, '>', "/run/pve/ct-${vmid}.warnings");
     }
     print $WARNFD "$message\n";
 }
 
-PVE::LXC::Tools::lxc_hook('pre-start', 'lxc', sub {
-    my ($vmid, $vars, undef, undef) = @_;
+PVE::LXC::Tools::lxc_hook(
+    'pre-start',
+    'lxc',
+    sub {
+        my ($vmid, $vars, undef, undef) = @_;
 
-    my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
-    my $skiplock = -e $skiplock_flag_fn;
-    unlink $skiplock_flag_fn if $skiplock;
+        my $skiplock_flag_fn = "/run/lxc/skiplock-$vmid";
+        my $skiplock = -e $skiplock_flag_fn;
+        unlink $skiplock_flag_fn if $skiplock;
 
-    PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
+        PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
 
-    PVE::RESTEnvironment->setup_default_cli_env();
+        PVE::RESTEnvironment->setup_default_cli_env();
 
-    return undef if ! -f PVE::LXC::Config->config_file($vmid);
+        return undef if !-f PVE::LXC::Config->config_file($vmid);
 
-    my $conf = PVE::LXC::Config->load_config($vmid);
-    if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
-	PVE::LXC::Config->check_lock($conf);
-    }
+        my $conf = PVE::LXC::Config->load_config($vmid);
+        if (!$skiplock && !PVE::LXC::Config->has_lock($conf, 'mounted')) {
+            PVE::LXC::Config->check_lock($conf);
+        }
 
-    cleanup_cgroups($vmid);
+        cleanup_cgroups($vmid);
 
-    my $storage_cfg = PVE::Storage::config();
+        my $storage_cfg = PVE::Storage::config();
 
-    my $rootdir = $vars->{ROOTFS_PATH};
+        my $rootdir = $vars->{ROOTFS_PATH};
 
-    # Delete any leftover reboot-trigger file
-    unlink("/var/lib/lxc/$vmid/reboot");
+        # Delete any leftover reboot-trigger file
+        unlink("/var/lib/lxc/$vmid/reboot");
 
-    # Delete the old device list file
-    # in case it was left over from a previous version of pve-container.
-    unlink("/var/lib/lxc/$vmid/devices");
+        # Delete the old device list file
+        # in case it was left over from a previous version of pve-container.
+        unlink("/var/lib/lxc/$vmid/devices");
 
-    my $devices = [];
+        my $devices = [];
 
-    my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
+        my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
 
-    # Unmount first when the user mounted the container with "pct mount".
-    eval {
-	PVE::Tools::run_command(['umount', '--recursive', $rootdir], outfunc => sub {}, errfunc => sub {});
-    };
+        # Unmount first when the user mounted the container with "pct mount".
+        eval {
+            PVE::Tools::run_command(
+                ['umount', '--recursive', $rootdir],
+                outfunc => sub { },
+                errfunc => sub { },
+            );
+        };
 
-    my $rootdir_fd = undef;
-    my $setup_mountpoint = sub {
-	my ($opt, $mountpoint) = @_;
+        my $rootdir_fd = undef;
+        my $setup_mountpoint = sub {
+            my ($opt, $mountpoint) = @_;
 
-	my $dir = PVE::LXC::get_staging_mount_path($opt);
-	my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
-	    $mountpoint,
-	    $dir,
-	    $storage_cfg,
-	    undef,
-	    $root_uid,
-	    $root_gid,
-	);
+            my $dir = PVE::LXC::get_staging_mount_path($opt);
+            my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
+                $mountpoint, $dir, $storage_cfg, undef, $root_uid, $root_gid,
+            );
 
-	my ($dest_dir, $dest_base_fd);
-	if ($rootdir_fd) {
-	    # Mount relative to the rootdir fd.
-	    $dest_base_fd = $rootdir_fd;
-	    $dest_dir = './' . $mountpoint->{mp};
-	} else {
-	    # Assert that 'rootfs' is the first one:
-	    die "foreach_mount() error\n" if $opt ne 'rootfs';
+            my ($dest_dir, $dest_base_fd);
+            if ($rootdir_fd) {
+                # Mount relative to the rootdir fd.
+                $dest_base_fd = $rootdir_fd;
+                $dest_dir = './' . $mountpoint->{mp};
+            } else {
+                # Assert that 'rootfs' is the first one:
+                die "foreach_mount() error\n" if $opt ne 'rootfs';
 
-	    # Mount the rootfs absolutely.
-	    # $rootdir is not controlled by the container, so this is fine.
-	    sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
-		or die "failed to open '.': $!\n";
-	    $dest_dir = $rootdir;
-	}
+                # Mount the rootfs absolutely.
+                # $rootdir is not controlled by the container, so this is fine.
+                sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
+                    or die "failed to open '.': $!\n";
+                $dest_dir = $rootdir;
+            }
 
-	PVE::LXC::mountpoint_insert_staged(
-	    $mount_fd,
-	    $dest_base_fd,
-	    $dest_dir,
-	    $opt,
-	    $root_uid,
-	    $root_gid,
-	);
+            PVE::LXC::mountpoint_insert_staged(
+                $mount_fd, $dest_base_fd, $dest_dir, $opt, $root_uid, $root_gid,
+            );
 
-	# From now on we mount inside our rootfs:
-	if (!$rootdir_fd) {
-	    $rootdir_fd = $mount_fd;
-	}
+            # From now on we mount inside our rootfs:
+            if (!$rootdir_fd) {
+                $rootdir_fd = $mount_fd;
+            }
 
-	push @$devices, $dev if $dev && $mountpoint->{quota};
-    };
+            push @$devices, $dev if $dev && $mountpoint->{quota};
+        };
 
-    PVE::LXC::Config->foreach_volume($conf, $setup_mountpoint);
+        PVE::LXC::Config->foreach_volume($conf, $setup_mountpoint);
 
-    # Device passthrough
-    my $passthrough_devices = [];
+        # Device passthrough
+        my $passthrough_devices = [];
 
-    my $passthrough_dir = "/var/lib/lxc/$vmid/passthrough";
-    File::Path::make_path($passthrough_dir);
-    PVE::Tools::mount("none", $passthrough_dir, "tmpfs", 0, "size=8k")
-        or die ("Could not mount tmpfs for device passthrough at $passthrough_dir: $!");
+        my $passthrough_dir = "/var/lib/lxc/$vmid/passthrough";
+        File::Path::make_path($passthrough_dir);
+        PVE::Tools::mount("none", $passthrough_dir, "tmpfs", 0, "size=8k")
+            or die("Could not mount tmpfs for device passthrough at $passthrough_dir: $!");
 
-    my $setup_passthrough_device = sub {
-	my ($key, $device) = @_;
+        my $setup_passthrough_device = sub {
+            my ($key, $device) = @_;
 
-	my $absolute_path = $device->{path};
-	my ($mode, $rdev) = (stat($absolute_path))[2, 6];
+            my $absolute_path = $device->{path};
+            my ($mode, $rdev) = (stat($absolute_path))[2, 6];
 
-	die "Could not get mode or device ID of $absolute_path\n"
-	    if (!defined($mode) || !defined($rdev));
+            die "Could not get mode or device ID of $absolute_path\n"
+                if (!defined($mode) || !defined($rdev));
 
-	my $passthrough_device_path = $passthrough_dir . $absolute_path;
-	File::Path::make_path(dirname($passthrough_device_path));
-	PVE::Tools::mknod($passthrough_device_path, $mode, $rdev)
-	    or die("failed to mknod $passthrough_device_path: $!\n");
+            my $passthrough_device_path = $passthrough_dir . $absolute_path;
+            File::Path::make_path(dirname($passthrough_device_path));
+            PVE::Tools::mknod($passthrough_device_path, $mode, $rdev)
+                or die("failed to mknod $passthrough_device_path: $!\n");
 
-	# Use chmod because umask could mess with the access mode on mknod
-	my $passthrough_mode = 0660;
-	$passthrough_mode = oct($device->{mode}) if defined($device->{mode});
-	chmod $passthrough_mode, $passthrough_device_path
-	    or die "failed to chmod $passthrough_mode $passthrough_device_path: $!\n";
+            # Use chmod because umask could mess with the access mode on mknod
+            my $passthrough_mode = 0660;
+            $passthrough_mode = oct($device->{mode}) if defined($device->{mode});
+            chmod $passthrough_mode, $passthrough_device_path
+                or die "failed to chmod $passthrough_mode $passthrough_device_path: $!\n";
 
-	# Set uid and gid of the device node
-	my $uid = 0;
-	my $gid = 0;
-	$uid = $device->{uid} if defined($device->{uid});
-	$gid = $device->{gid} if defined($device->{gid});
-	$uid = PVE::LXC::map_ct_uid_to_host($uid, $id_map);
-	$gid = PVE::LXC::map_ct_gid_to_host($gid, $id_map);
-	chown $uid, $gid, $passthrough_device_path
-	    or die("failed to chown $uid:$gid $passthrough_device_path: $!\n");
+            # Set uid and gid of the device node
+            my $uid = 0;
+            my $gid = 0;
+            $uid = $device->{uid} if defined($device->{uid});
+            $gid = $device->{gid} if defined($device->{gid});
+            $uid = PVE::LXC::map_ct_uid_to_host($uid, $id_map);
+            $gid = PVE::LXC::map_ct_gid_to_host($gid, $id_map);
+            chown $uid, $gid, $passthrough_device_path
+                or die("failed to chown $uid:$gid $passthrough_device_path: $!\n");
 
-	push @$passthrough_devices, [$absolute_path, $mode, $rdev];
-    };
+            push @$passthrough_devices, [$absolute_path, $mode, $rdev];
+        };
 
-    PVE::LXC::Config->foreach_passthrough_device($conf, $setup_passthrough_device);
+        PVE::LXC::Config->foreach_passthrough_device($conf, $setup_passthrough_device);
 
-    my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
-    $lxc_setup->pre_start_hook();
+        my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
+        $lxc_setup->pre_start_hook();
 
-    if (PVE::CGroup::cgroup_mode() == 2) {
-	if (!$lxc_setup->unified_cgroupv2_support()) {
-	    log_warn($vmid, "old systemd (< v232) detected, container won't run in a pure cgroupv2"
-		." environment! Please see documentation -> container -> cgroup version.");
-	    syslog('err', "CT $vmid does not support running in a pure cgroupv2 environment\n");
-	}
-    }
+        if (PVE::CGroup::cgroup_mode() == 2) {
+            if (!$lxc_setup->unified_cgroupv2_support()) {
+                log_warn(
+                    $vmid,
+                    "old systemd (< v232) detected, container won't run in a pure cgroupv2"
+                        . " environment! Please see documentation -> container -> cgroup version.",
+                );
+                syslog(
+                    'err',
+                    "CT $vmid does not support running in a pure cgroupv2 environment\n",
+                );
+            }
+        }
 
-    if (@$devices) {
-	my $devlist = '';
-	foreach my $dev (@$devices) {
-	    my ($mode, $rdev) = (stat($dev))[2,6];
-	    next if !$mode || !S_ISBLK($mode) || !$rdev;
-	    my $major = PVE::Tools::dev_t_major($rdev);
-	    my $minor = PVE::Tools::dev_t_minor($rdev);
-	    $devlist .= "b:$major:$minor:$dev\n";
-	}
-	PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/mounts", $devlist);
-    }
+        if (@$devices) {
+            my $devlist = '';
+            foreach my $dev (@$devices) {
+                my ($mode, $rdev) = (stat($dev))[2, 6];
+                next if !$mode || !S_ISBLK($mode) || !$rdev;
+                my $major = PVE::Tools::dev_t_major($rdev);
+                my $minor = PVE::Tools::dev_t_minor($rdev);
+                $devlist .= "b:$major:$minor:$dev\n";
+            }
+            PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/mounts", $devlist);
+        }
 
-    if (@$passthrough_devices) {
-	my $devlist = '';
-	for my $dev (@$passthrough_devices) {
-	    my ($path, $mode, $rdev) = @$dev;
-	    my $major = PVE::Tools::dev_t_major($rdev);
-	    my $minor = PVE::Tools::dev_t_minor($rdev);
-	    my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
-	    $devlist .= "$device_type_char:$major:$minor:$path\n";
-	}
-	PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/devices", $devlist);
-    }
+        if (@$passthrough_devices) {
+            my $devlist = '';
+            for my $dev (@$passthrough_devices) {
+                my ($path, $mode, $rdev) = @$dev;
+                my $major = PVE::Tools::dev_t_major($rdev);
+                my $minor = PVE::Tools::dev_t_minor($rdev);
+                my $device_type_char = S_ISBLK($mode) ? 'b' : 'c';
+                $devlist .= "$device_type_char:$major:$minor:$path\n";
+            }
+            PVE::Tools::file_set_contents("/var/lib/lxc/$vmid/passthrough/devices", $devlist);
+        }
 
-    if ($have_sdn) {
-	for my $k (keys %$conf) {
-	    next if $k !~ /^net(\d+)/;
-	    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	    next if $net->{type} ne 'veth';
-	    PVE::Network::SDN::Vnets::add_dhcp_mapping($net->{bridge}, $net->{hwaddr}, $vmid, $conf->{hostname});
-	}
-    }
-});
+        if ($have_sdn) {
+            for my $k (keys %$conf) {
+                next if $k !~ /^net(\d+)/;
+                my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+                next if $net->{type} ne 'veth';
+                PVE::Network::SDN::Vnets::add_dhcp_mapping(
+                    $net->{bridge}, $net->{hwaddr}, $vmid, $conf->{hostname},
+                );
+            }
+        }
+    },
+);
 
 # Leftover cgroups prevent lxc from starting without any useful information
 # showing up in the journal, it is also often unable to properly clean them up
@@ -222,22 +229,22 @@ sub cleanup_cgroups($) {
     my ($vmid) = @_;
 
     if (PVE::CGroup::cgroup_mode() == 2) {
-	rmdir_recursive("/sys/fs/cgroup/lxc/$vmid");
-	rmdir_recursive("/sys/fs/cgroup/lxc.monitor/$vmid");
+        rmdir_recursive("/sys/fs/cgroup/lxc/$vmid");
+        rmdir_recursive("/sys/fs/cgroup/lxc.monitor/$vmid");
     } else {
-	my ($v1, $v2) = PVE::CGroup::get_cgroup_controllers();
+        my ($v1, $v2) = PVE::CGroup::get_cgroup_controllers();
 
-	my @controllers_cgv1 = keys %$v1;
-	foreach my $controller (@controllers_cgv1) {
-	    $controller =~ s/^name=//; # `name=systemd` is mounted just as `systemd`
-	    rmdir_recursive("/sys/fs/cgroup/$controller/lxc/$vmid");
-	    rmdir_recursive("/sys/fs/cgroup/$controller/lxc.monitor/$vmid");
-	}
+        my @controllers_cgv1 = keys %$v1;
+        foreach my $controller (@controllers_cgv1) {
+            $controller =~ s/^name=//; # `name=systemd` is mounted just as `systemd`
+            rmdir_recursive("/sys/fs/cgroup/$controller/lxc/$vmid");
+            rmdir_recursive("/sys/fs/cgroup/$controller/lxc.monitor/$vmid");
+        }
 
-	if ($v2) {
-	    rmdir_recursive("/sys/fs/cgroup/unified/lxc/$vmid");
-	    rmdir_recursive("/sys/fs/cgroup/unified/lxc.monitor/$vmid");
-	}
+        if ($v2) {
+            rmdir_recursive("/sys/fs/cgroup/unified/lxc/$vmid");
+            rmdir_recursive("/sys/fs/cgroup/unified/lxc.monitor/$vmid");
+        }
     }
 }
 
@@ -248,15 +255,15 @@ sub rmdir_recursive {
 
     my $dh;
     if (!opendir($dh, $path)) {
-	return if $!{ENOENT};
-	die "failed to open directory '$path': $!\n";
+        return if $!{ENOENT};
+        die "failed to open directory '$path': $!\n";
     }
 
     while (defined(my $entry = readdir($dh))) {
-	next if $entry eq '.' || $entry eq '..';
-	my $next = "$path/$entry";
-	next if ! -d $next;
-	rmdir_recursive($next);
+        next if $entry eq '.' || $entry eq '..';
+        my $next = "$path/$entry";
+        next if !-d $next;
+        rmdir_recursive($next);
     }
 
     rmdir($path) or die "failed to remove directory '$path': $!\n";
