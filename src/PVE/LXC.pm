@@ -18,7 +18,7 @@ use PVE::AccessControl;
 use PVE::CGroup;
 use PVE::CpuSet;
 use PVE::Exception qw(raise_perm_exc);
-use PVE::Firewall;
+use PVE::Firewall::Helpers;
 use PVE::GuestHelpers qw(check_vnet_access safe_string_ne safe_num_ne safe_boolean_ne);
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
@@ -1026,8 +1026,7 @@ sub net_tap_plug : prototype($$) {
     my ($bridge, $tag, $trunks, $rate, $hwaddr) =
         $net->@{ 'bridge', 'tag', 'trunks', 'rate', 'hwaddr' };
 
-    # The nftable-based implementation from the newer proxmox-firewall does not requires FW bridges
-    my $create_firewall_bridges = $net->{firewall} && !PVE::Firewall::is_nftables();
+    my $create_firewall_bridges = $net->{firewall} && PVE::Firewall::Helpers::needs_fwbr($bridge);
 
     if ($have_sdn) {
         PVE::Network::SDN::Zones::tap_plug(
