@@ -1,3 +1,11 @@
+pve-container (5.2.7) bookworm; urgency=medium
+
+  * net: do not force network interface down if `link_down` is 0
+
+  * net: use pve-firewall helper for deciding whether to create fw bridges
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 02 Jul 2025 15:40:13 +0200
+
 pve-container (5.2.6) bookworm; urgency=medium
 
   * api: return all active IP addresses of an interface.
