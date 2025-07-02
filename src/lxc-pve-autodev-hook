@@ -10,49 +10,66 @@ use File::Path;
 use PVE::LXC::Tools;
 use PVE::Tools qw(MS_BIND);
 
-PVE::LXC::Tools::lxc_hook('autodev', 'lxc', sub {
-    my ($vmid, $vars, undef, undef) = @_;
+PVE::LXC::Tools::lxc_hook(
+    'autodev',
+    'lxc',
+    sub {
+        my ($vmid, $vars, undef, undef) = @_;
 
-    my $root = $vars->{ROOTFS_MOUNT};
+        my $root = $vars->{ROOTFS_MOUNT};
 
-    PVE::LXC::Tools::for_current_passthrough_devices($vmid, sub {
-	my ($type, $major, $minor, $dev) = @_;
+        PVE::LXC::Tools::for_current_passthrough_devices(
+            $vmid,
+            sub {
+                my ($type, $major, $minor, $dev) = @_;
 
-	my $rel_devpath = "/dev/$dev";
-	my $rel_dir = dirname($rel_devpath);
-	File::Path::mkpath("$root/$rel_dir");
-	PVE::Tools::mknod("$root/dev/$dev", S_IFREG, 0)
-	    or die("Could not mknod $root/dev/$dev: $!\n");
+                my $rel_devpath = "/dev/$dev";
+                my $rel_dir = dirname($rel_devpath);
+                File::Path::mkpath("$root/$rel_dir");
+                PVE::Tools::mknod("$root/dev/$dev", S_IFREG, 0)
+                    or die("Could not mknod $root/dev/$dev: $!\n");
 
-	PVE::Tools::mount("/var/lib/lxc/$vmid/passthrough/dev/$dev", "$root/dev/$dev", 0, MS_BIND, 0)
-	    or die("Bind mount of device $dev into container failed: $!\n");
-    });
+                PVE::Tools::mount(
+                    "/var/lib/lxc/$vmid/passthrough/dev/$dev",
+                    "$root/dev/$dev",
+                    0,
+                    MS_BIND,
+                    0,
+                ) or die("Bind mount of device $dev into container failed: $!\n");
+            },
+        );
 
-    PVE::LXC::Tools::for_current_passthrough_mounts($vmid, sub {
-	my ($type, $major, $minor, $dev) = @_;
+        PVE::LXC::Tools::for_current_passthrough_mounts(
+            $vmid,
+            sub {
+                my ($type, $major, $minor, $dev) = @_;
 
-	my $rel_devpath = "/dev/$dev";
-	my $rel_dir = dirname($rel_devpath);
-	File::Path::mkpath("$root/$rel_dir");
+                my $rel_devpath = "/dev/$dev";
+                my $rel_dir = dirname($rel_devpath);
+                File::Path::mkpath("$root/$rel_dir");
 
-	PVE::Tools::run_command(['mknod', '-m', '666', "$root/dev/$dev",
-				 $type, $major, $minor]);
+                PVE::Tools::run_command([
+                    'mknod', '-m', '666', "$root/dev/$dev", $type, $major, $minor,
+                ]);
 
-	if ($dev =~ /^dm-\d+$/) {
-	    File::Path::mkpath("$root/dev/mapper");
-	    my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
-	    chomp $mapped_name;
-	    symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
-	}
+                if ($dev =~ /^dm-\d+$/) {
+                    File::Path::mkpath("$root/dev/mapper");
+                    my $mapped_name = PVE::Tools::file_get_contents("/sys/block/$dev/dm/name");
+                    chomp $mapped_name;
+                    symlink("/dev/$dev", "$root/dev/mapper/$mapped_name");
+                }
 
-	my $cgbase = "/sys/fs/cgroup/devices/lxc/$vmid";
-	my $limitpath = "$cgbase/devices.allow";
-	my $nspath = "$cgbase/ns/devices.allow";
-	if (!PVE::LXC::Tools::cgroup_do_write($limitpath, "$type $major:$minor rwm")) {
-	    warn "failed to allow access to device $dev ($major:$minor)\n";
-	}
-	if (!PVE::LXC::Tools::cgroup_do_write($nspath, "$type $major:$minor rwm")) {
-	    warn "failed to allow access to device $dev ($major:$minor) inside the namespace\n";
-	}
-    });
-});
+                my $cgbase = "/sys/fs/cgroup/devices/lxc/$vmid";
+                my $limitpath = "$cgbase/devices.allow";
+                my $nspath = "$cgbase/ns/devices.allow";
+                if (!PVE::LXC::Tools::cgroup_do_write($limitpath, "$type $major:$minor rwm")) {
+                    warn "failed to allow access to device $dev ($major:$minor)\n";
+                }
+                if (!PVE::LXC::Tools::cgroup_do_write($nspath, "$type $major:$minor rwm")) {
+                    warn
+                        "failed to allow access to device $dev ($major:$minor) inside the namespace\n";
+                }
+            },
+        );
+    },
+);

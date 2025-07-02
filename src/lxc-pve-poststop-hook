@@ -16,77 +16,78 @@ use PVE::RESTEnvironment;
 use PVE::Storage;
 use PVE::Tools;
 
-PVE::LXC::Tools::lxc_hook('post-stop', 'lxc', sub {
-    my ($vmid, $vars, undef, undef) = @_;
+PVE::LXC::Tools::lxc_hook(
+    'post-stop',
+    'lxc',
+    sub {
+        my ($vmid, $vars, undef, undef) = @_;
 
-    return undef if ! -f PVE::LXC::Config->config_file($vmid);
+        return undef if !-f PVE::LXC::Config->config_file($vmid);
 
-    PVE::RESTEnvironment->setup_default_cli_env();
+        PVE::RESTEnvironment->setup_default_cli_env();
 
-    my $conf = PVE::LXC::Config->load_config($vmid);
+        my $conf = PVE::LXC::Config->load_config($vmid);
 
-    my $storage_cfg = PVE::Storage::config();
+        my $storage_cfg = PVE::Storage::config();
 
-    PVE::Tools::run_command(['umount', '--recursive', '--', $vars->{ROOTFS_PATH}]);
-    my $staging_dir = PVE::LXC::get_staging_tempfs();
-    if (my $dh = IO::Dir->new($staging_dir)) {
-	while (defined(my $dir = $dh->read)) {
-	    next if $dir eq '.' || $dir eq '..';
-	    eval {
-		PVE::Tools::run_command(['umount', '--', "$staging_dir/$dir"]);
-	    };
-	    warn $@ if $@;
-	}
-    }
+        PVE::Tools::run_command(['umount', '--recursive', '--', $vars->{ROOTFS_PATH}]);
+        my $staging_dir = PVE::LXC::get_staging_tempfs();
+        if (my $dh = IO::Dir->new($staging_dir)) {
+            while (defined(my $dir = $dh->read)) {
+                next if $dir eq '.' || $dir eq '..';
+                eval { PVE::Tools::run_command(['umount', '--', "$staging_dir/$dir"]); };
+                warn $@ if $@;
+            }
+        }
 
-    PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
+        PVE::LXC::vm_stop_cleanup($storage_cfg, $vmid, $conf);
 
-    # Because netlink is not a reliable protocol it can happen that lxc's
-    # link-deletion messages get lost (or end up being too early?)
-    for my $k (keys %$conf) {
-	next if $k !~ /^net(\d+)/;
-	my $ind = $1;
-	my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-	next if $net->{type} ne 'veth';
-	# veth_delete tests with '-d /sys/class/net/$name' before running the command
-	PVE::Network::veth_delete("veth${vmid}i$ind");
-    }
+        # Because netlink is not a reliable protocol it can happen that lxc's
+        # link-deletion messages get lost (or end up being too early?)
+        for my $k (keys %$conf) {
+            next if $k !~ /^net(\d+)/;
+            my $ind = $1;
+            my $net = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+            next if $net->{type} ne 'veth';
+            # veth_delete tests with '-d /sys/class/net/$name' before running the command
+            PVE::Network::veth_delete("veth${vmid}i$ind");
+        }
 
-    my $config_updated = 0;
-    if ($conf->{pending}) {
-	eval {
-	    PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
-	    PVE::LXC::Config->write_config($vmid, $conf);
-	};
-	warn "$@" if $@;
-	PVE::LXC::update_lxc_config($vmid, $conf);
-	$config_updated = 1;
-    }
+        my $config_updated = 0;
+        if ($conf->{pending}) {
+            eval {
+                PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
+                PVE::LXC::Config->write_config($vmid, $conf);
+            };
+            warn "$@" if $@;
+            PVE::LXC::update_lxc_config($vmid, $conf);
+            $config_updated = 1;
+        }
 
+        my $target = $vars->{TARGET};
+        if ($target && $target eq 'reboot') {
+            # In order to make sure hot-plugged config changes aren't reverted
+            # to what the monitor initially loaded we need to stop the container
+            # and restart it.
+            # Update the config and queue a restart of the pve-container@$vmid
+            # task, note that we must not block because we're part of the
+            # service cgroup systemd waits for to die before issuing the new
+            # lxc-start command.
+            PVE::LXC::update_lxc_config($vmid, $conf) if !$config_updated;
+            # Tell the post-stop hook we want to be restarted.
+            open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
+                or die "failed to create reboot trigger file: $!\n";
+            close($fh);
 
-    my $target = $vars->{TARGET};
-    if ($target && $target eq 'reboot') {
-	# In order to make sure hot-plugged config changes aren't reverted
-	# to what the monitor initially loaded we need to stop the container
-	# and restart it.
-	# Update the config and queue a restart of the pve-container@$vmid
-	# task, note that we must not block because we're part of the
-	# service cgroup systemd waits for to die before issuing the new
-	# lxc-start command.
-	PVE::LXC::update_lxc_config($vmid, $conf) if !$config_updated;
-	# Tell the post-stop hook we want to be restarted.
-	open(my $fh, '>', "/var/lib/lxc/$vmid/reboot")
-	    or die "failed to create reboot trigger file: $!\n";
-	close($fh);
+            # activate all volumes of the container in case pending changes added
+            # a not yet activated volume
+            my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
+            PVE::Storage::activate_volumes($storage_cfg, $vollist);
 
-	# activate all volumes of the container in case pending changes added
-	# a not yet activated volume
-	my $vollist = PVE::LXC::Config->get_vm_volumes($conf);
-	PVE::Storage::activate_volumes($storage_cfg, $vollist);
+            # cause lxc to stop instead of rebooting
+            exit(1);
+        }
 
-	# cause lxc to stop instead of rebooting
-	exit(1);
-    }
-
-    PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-stop');
-});
+        PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-stop');
+    },
+);
