@@ -1,3 +1,13 @@
+pve-container (6.0.1) trixie; urgency=medium
+
+  * config: whitelist lxc.init.cwd
+
+  * adopt perltidy also for executables without perl extension
+
+  * net: use new needs_fwbr helper
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 03 Jul 2025 14:41:23 +0200
+
 pve-container (6.0.0) trixie; urgency=medium
 
   * re-build for Debian 13 Trixie based Proxmox VE 9 releases.
