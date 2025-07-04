@@ -646,7 +646,6 @@ sub ssh_host_key_types_to_generate {
 
     return {
         rsa => 'ssh_host_rsa_key',
-        dsa => 'ssh_host_dsa_key',
         ecdsa => 'ssh_host_ecdsa_key',
         ed25519 => 'ssh_host_ed25519_key',
     };
