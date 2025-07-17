@@ -1,3 +1,9 @@
+pve-container (6.0.2) trixie; urgency=medium
+
+  * setup: remove deprecated DSA from ssh host key generation.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 17 Jul 2025 02:31:05 +0200
+
 pve-container (6.0.1) trixie; urgency=medium
 
   * config: whitelist lxc.init.cwd
