@@ -1,3 +1,12 @@
+pve-container (5.3.0) bookworm; urgency=medium
+
+  * setup: map 'rocky' and 'almalinux' os-release IDs to 'centos'.
+
+  * setup: remove deprecated DSA from ssh host key generation in a fresh
+    container.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 20 Jul 2025 18:38:36 +0200
+
 pve-container (5.2.7) bookworm; urgency=medium
 
   * net: do not force network interface down if `link_down` is 0
