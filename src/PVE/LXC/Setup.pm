@@ -44,6 +44,8 @@ my $plugin_alias = {
     'openEuler' => 'openeuler',
     arch => 'archlinux',
     sles => 'opensuse',
+    rocky => 'centos',
+    almalinux => 'centos',
 };
 
 my $autodetect_type = sub {
