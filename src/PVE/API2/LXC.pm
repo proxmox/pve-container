@@ -1998,7 +1998,8 @@ __PACKAGE__->register_method({
                     $mp->{volume} = $newvolid;
 
                     $update_conf->(
-                        $opt, PVE::LXC::Config->print_ct_mountpoint($mp, $opt eq 'rootfs'),
+                        $opt,
+                        PVE::LXC::Config->print_ct_mountpoint($mp, $opt eq 'rootfs'),
                     );
                 }
 
