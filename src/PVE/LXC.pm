@@ -592,6 +592,11 @@ sub make_apparmor_config {
     # code to figure out whether we should warn the user:
 
     my $raw = "lxc.apparmor.profile = generated\n";
+
+    # We use abi/4.0 which has its own mqueue class which governs access to /dev/mqueue now.
+    # This is currently not default in lxc's profile, so we enable it explicitly.
+    $raw .= "lxc.apparmor.raw = allow mqueue,\n";
+
     my @profile_uses;
 
     if ($features->{fuse}) {
