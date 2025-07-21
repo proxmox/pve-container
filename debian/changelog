@@ -1,3 +1,12 @@
+pve-container (6.0.3) trixie; urgency=medium
+
+  * fix #6538: apparmor: allow mqueue access for apparmor's 4.0 abi.
+
+  * setup: map 'rocky' and 'almalinux' os-release IDs to 'centos' early to
+    avoid unnecessary fallback detection.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 21 Jul 2025 17:13:19 +0200
+
 pve-container (6.0.2) trixie; urgency=medium
 
   * setup: remove deprecated DSA from ssh host key generation.
