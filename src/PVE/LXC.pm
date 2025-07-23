@@ -535,7 +535,15 @@ sub make_seccomp_config {
             die "'mknod' feature requested, but kernel too old (found $kernel, required >= 5.3)\n";
         }
 
-        $raw_conf .= "lxc.seccomp.notify.proxy = unix:/run/pve/lxc-syscalld.sock\n";
+        # TODO PVE 10 - always use new socket path
+        my $old_socket_path = '/run/pve/lxc-syscalld.sock';
+        my $new_socket_path = '/run/pve-lxc-syscalld/socket';
+
+        if (!-e $new_socket_path && -e $old_socket_path && !-l $old_socket_path) {
+            $raw_conf .= "lxc.seccomp.notify.proxy = unix:$old_socket_path\n";
+        } else {
+            $raw_conf .= "lxc.seccomp.notify.proxy = unix:$new_socket_path\n";
+        }
         $raw_conf .= "lxc.seccomp.notify.cookie = $vmid\n";
 
         $rules->{mknod} = [
