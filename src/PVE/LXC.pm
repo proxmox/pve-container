@@ -228,6 +228,32 @@ our $vmstatus_return_properties = {
         optional => 1,
         default => 0,
     },
+    pressurecpusome => {
+        description => "CPU Some pressure average over the last 10 seconds.",
+        type => 'number',
+        optional => 1,
+    },
+    pressureiosome => {
+        description => "IO Some pressure average over the last 10 seconds.",
+        type => 'number',
+        optional => 1,
+    },
+    pressureiofull => {
+        description => "IO Full pressure average over the last 10 seconds.",
+        type => 'number',
+        optional => 1,
+    },
+    pressurememorysome => {
+        description => "Memory Some pressure average over the last 10 seconds.",
+        type => 'number',
+        optional => 1,
+    },
+    pressurememoryfull => {
+        description => "Memory Full pressure average over the last 10 seconds.",
+        type => 'number',
+        optional => 1,
+    },
+
 };
 
 sub vmstatus {
@@ -329,6 +355,14 @@ sub vmstatus {
             $d->{diskread} = 0;
             $d->{diskwrite} = 0;
         }
+
+        my $pressures = PVE::ProcFSTools::read_cgroup_pressure("lxc/${vmid}");
+        $d->{pressurecpusome} = $pressures->{cpu}{some}{avg10};
+        $d->{pressurecpufull} = $pressures->{cpu}{full}{avg10};
+        $d->{pressureiosome} = $pressures->{io}{some}{avg10};
+        $d->{pressureiofull} = $pressures->{io}{full}{avg10};
+        $d->{pressurememorysome} = $pressures->{memory}{some}{avg10};
+        $d->{pressurememoryfull} = $pressures->{memory}{full}{avg10};
 
         if (defined(my $cpu = $cgroups->get_cpu_stat())) {
             # Total time (in milliseconds) used up by the cpu.
