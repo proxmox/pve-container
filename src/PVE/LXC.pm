@@ -5,7 +5,7 @@ use warnings;
 
 use Cwd qw();
 use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
-use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY :mode);
+use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY O_CREAT :mode);
 use File::Basename;
 use File::Path;
 use File::Spec;
@@ -2180,6 +2180,88 @@ my $enter_mnt_ns_and_change_aa_profile = sub {
     close($aa_fd)
         or die "failed to change apparmor profile (close() failed): $!\n";
 };
+
+sub device_passthrough_hotplug : prototype($$$) {
+    my ($vmid, $conf, $dev) = @_;
+
+    my ($mode, $rdev) = PVE::LXC::Tools::get_device_mode_and_rdev($dev->{path});
+    my $device_type = S_ISBLK($mode) ? 'b' : 'c';
+    my $major = PVE::Tools::dev_t_major($rdev);
+    my $minor = PVE::Tools::dev_t_minor($rdev);
+
+    # We do the rest in a fork with an unshared mount namespace:
+    #  -) change our apparmor profile to 'pve-container-mounthotplug', which is '/usr/bin/lxc-start'
+    #     with move_mount privileges on every mount.
+    #  -) create the device node, then grab it, create a file to bind mount the device node onto in
+    #     the container, switch to the container mount namespace, and move_mount the device node.
+
+    PVE::Tools::run_fork(sub {
+        # Pin the container pid longer, we also need to get its monitor/parent:
+        my ($ct_pid, $ct_pidfd) = open_lxc_pid($vmid)
+            or die "failed to open pidfd of container $vmid\'s init process\n";
+
+        my ($monitor_pid, $monitor_pidfd) = open_ppid($ct_pid)
+            or die "failed to open pidfd of container $vmid\'s monitor process\n";
+
+        my $ct_mnt_ns = $get_container_namespace->($vmid, $ct_pid, 'mnt');
+        my $ct_user_ns = $get_container_namespace->($vmid, $ct_pid, 'user');
+        my $monitor_mnt_ns = $get_container_namespace->($vmid, $monitor_pid, 'mnt');
+
+        # Enter monitor mount namespace and switch to 'pve-container-mounthotplug' apparmor profile.
+        $enter_mnt_ns_and_change_aa_profile->(
+            $monitor_mnt_ns, "pve-container-mounthotplug", undef,
+        );
+
+        my $id_map = (PVE::LXC::parse_id_maps($conf))[0];
+        my $passthrough_device_path = create_passthrough_device_node(
+            "/var/lib/lxc/$vmid/passthrough",
+            $dev, $mode, $rdev, $id_map,
+        );
+
+        my $srcfh = PVE::Tools::open_tree(
+            &AT_FDCWD,
+            $passthrough_device_path,
+            &OPEN_TREE_CLOEXEC | &OPEN_TREE_CLONE,
+        ) or die "open_tree() on passthrough device node failed: $!\n";
+
+        if ($conf->{unprivileged}) {
+            PVE::Tools::setns(fileno($ct_user_ns), PVE::Tools::CLONE_NEWUSER)
+                or die "failed to enter user namespace of container $vmid: $!\n";
+
+            POSIX::setuid(0);
+            POSIX::setgid(0);
+        }
+
+        # Create a regular file in the container to bind mount the device node onto.
+        my $device_path = "/proc/$ct_pid/root$dev->{path}";
+        File::Path::make_path(dirname($device_path));
+        sysopen(my $dstfh, $device_path, O_CREAT)
+            or die "failed to create '$device_path': $!\n";
+
+        # Enter the container mount namespace
+        PVE::Tools::setns(fileno($ct_mnt_ns), PVE::Tools::CLONE_NEWNS);
+        chdir('/')
+            or die "failed to change directory within the container's mount namespace: $!\n";
+
+        # Bind mount the device node into the container
+        PVE::Tools::move_mount(
+            fileno($srcfh),
+            '',
+            fileno($dstfh),
+            '',
+            &MOVE_MOUNT_F_EMPTY_PATH | &MOVE_MOUNT_T_EMPTY_PATH,
+        ) or die "move_mount failed: $!\n";
+    });
+
+    # Allow or deny device access with cgroup2
+    run_command(["lxc-cgroup", "-n", $vmid, "devices.deny", "$device_type $major:$minor w"])
+        if ($dev->{'deny-write'});
+
+    my $allow_perms = $dev->{'deny-write'} ? 'r' : 'rw';
+    run_command([
+        "lxc-cgroup", "-n", $vmid, "devices.allow", "$device_type $major:$minor $allow_perms",
+    ]);
+}
 
 sub mountpoint_hotplug : prototype($$$$$) {
     my ($vmid, $conf, $opt, $mp, $storage_cfg) = @_;

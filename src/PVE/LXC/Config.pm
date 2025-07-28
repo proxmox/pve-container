@@ -1613,6 +1613,13 @@ sub vmconfig_hotplug_pending {
                 $class->apply_pending_mountpoint($vmid, $conf, $opt, $storecfg, 1);
                 # apply_pending_mountpoint modifies the value if it creates a new disk
                 $value = $conf->{pending}->{$opt};
+            } elsif ($opt =~ m/^dev(\d+)$/) {
+                if (exists($conf->{$opt})) {
+                    die "skip\n"; # don't try to hotplug over existing dev
+                }
+
+                $class->apply_pending_device_passthrough($vmid, $conf, $opt, 1);
+                $value = $conf->{pending}->{$opt};
             } else {
                 die "skip\n"; # skip non-hotpluggable
             }
@@ -1731,6 +1738,18 @@ my $rescan_volume = sub {
     eval { $mp->{size} = PVE::Storage::volume_size_info($storecfg, $mp->{volume}, 5); };
     warn "Could not rescan volume size - $@\n" if $@;
 };
+
+sub apply_pending_device_passthrough {
+    my ($class, $vmid, $conf, $opt, $running) = @_;
+
+    my $dev = $class->parse_device($conf->{pending}->{$opt});
+    my $old = $conf->{$opt};
+    if ($running) {
+        die "skip\n" if defined($old); # TODO: editing a device passthrough
+        PVE::LXC::device_passthrough_hotplug($vmid, $conf, $dev);
+        $conf->{pending}->{$opt} = $class->print_device($dev);
+    }
+}
 
 sub apply_pending_mountpoint {
     my ($class, $vmid, $conf, $opt, $storecfg, $running) = @_;
