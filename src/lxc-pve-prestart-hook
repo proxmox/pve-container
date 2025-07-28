@@ -142,26 +142,13 @@ PVE::LXC::Tools::lxc_hook(
             die "Could not get mode or device ID of $absolute_path\n"
                 if (!defined($mode) || !defined($rdev));
 
-            my $passthrough_device_path = $passthrough_dir . $absolute_path;
-            File::Path::make_path(dirname($passthrough_device_path));
-            PVE::Tools::mknod($passthrough_device_path, $mode, $rdev)
-                or die("failed to mknod $passthrough_device_path: $!\n");
-
-            # Use chmod because umask could mess with the access mode on mknod
-            my $passthrough_mode = 0660;
-            $passthrough_mode = oct($device->{mode}) if defined($device->{mode});
-            chmod $passthrough_mode, $passthrough_device_path
-                or die "failed to chmod $passthrough_mode $passthrough_device_path: $!\n";
-
-            # Set uid and gid of the device node
-            my $uid = 0;
-            my $gid = 0;
-            $uid = $device->{uid} if defined($device->{uid});
-            $gid = $device->{gid} if defined($device->{gid});
-            $uid = PVE::LXC::map_ct_uid_to_host($uid, $id_map);
-            $gid = PVE::LXC::map_ct_gid_to_host($gid, $id_map);
-            chown $uid, $gid, $passthrough_device_path
-                or die("failed to chown $uid:$gid $passthrough_device_path: $!\n");
+            PVE::LXC::create_passthrough_device_node(
+                $passthrough_dir,
+                $device,
+                $mode,
+                $rdev,
+                $id_map,
+            );
 
             push @$passthrough_devices, [$absolute_path, $mode, $rdev];
         };

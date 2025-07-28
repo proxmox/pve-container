@@ -6,6 +6,7 @@ use warnings;
 use Cwd qw();
 use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
 use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY :mode);
+use File::Basename;
 use File::Path;
 use File::Spec;
 use IO::Poll qw(POLLIN POLLHUP);
@@ -1748,6 +1749,32 @@ sub run_with_loopdev {
     PVE::Tools::run_command(['losetup', '-d', $device]);
     die $err if $err;
     return $device;
+}
+
+sub create_passthrough_device_node($$$$$) {
+    my ($passthrough_dir, $device, $mode, $rdev, $id_map) = @_;
+
+    my $passthrough_device_path = $passthrough_dir . $device->{path};
+    File::Path::make_path(dirname($passthrough_device_path));
+    PVE::Tools::mknod($passthrough_device_path, $mode, $rdev)
+        or die("failed to mknod $passthrough_device_path: $!\n");
+
+    # Use chmod because umask could mess with the access mode on mknod
+    my $passthrough_mode = 0660;
+    $passthrough_mode = oct($device->{mode}) if defined($device->{mode});
+    chmod $passthrough_mode, $passthrough_device_path
+        or die "failed to chmod $passthrough_mode $passthrough_device_path: $!\n";
+
+    my $uid = 0;
+    my $gid = 0;
+    $uid = $device->{uid} if defined($device->{uid});
+    $gid = $device->{gid} if defined($device->{gid});
+    $uid = PVE::LXC::map_ct_uid_to_host($uid, $id_map);
+    $gid = PVE::LXC::map_ct_gid_to_host($gid, $id_map);
+    chown $uid, $gid, $passthrough_device_path
+        or die("failed to chown $uid:$gid $passthrough_device_path: $!\n");
+
+    return $passthrough_device_path;
 }
 
 # In scalar mode: returns a file handle to the deepest directory node.
