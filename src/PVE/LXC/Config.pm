@@ -1435,6 +1435,12 @@ sub print_volume {
     return $class->print_ct_mountpoint($volume, $key eq 'rootfs');
 }
 
+sub print_device {
+    my ($class, $info) = @_;
+
+    return PVE::JSONSchema::print_property_string($info, $dev_desc);
+}
+
 sub volid_key {
     my ($class) = @_;
 
