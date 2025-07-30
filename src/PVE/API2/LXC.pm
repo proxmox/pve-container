@@ -1403,6 +1403,147 @@ __PACKAGE__->register_method({
 });
 
 __PACKAGE__->register_method({
+    name => 'migrate_vm_precondition',
+    path => '{vmid}/migrate',
+    method => 'GET',
+    protected => 1,
+    proxyto => 'node',
+    description => "Get preconditions for migration.",
+    permissions => {
+        check => ['perm', '/vms/{vmid}', ['VM.Migrate']],
+    },
+    parameters => {
+        additionalProperties => 0,
+        properties => {
+            node => get_standard_option('pve-node'),
+            vmid =>
+                get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+            target => get_standard_option(
+                'pve-node',
+                {
+                    description => "Target node.",
+                    completion => \&PVE::Cluster::complete_migration_target,
+                    optional => 1,
+                },
+            ),
+        },
+    },
+    returns => {
+        type => "object",
+        properties => {
+            running => {
+                type => 'boolean',
+                description => "Determines if the container is running.",
+            },
+            'allowed-nodes' => {
+                type => 'array',
+                items => {
+                    type => 'string',
+                    description => "An allowed node",
+                },
+                optional => 1,
+                description => "List of nodes allowed for migration.",
+            },
+            'not-allowed-nodes' => {
+                type => 'object',
+                optional => 1,
+                properties => {
+                    'blocking-ha-resources' => {
+                        description => "HA resources, which are blocking the"
+                            . " container from being migrated to the node.",
+                        type => 'array',
+                        optional => 1,
+                        items => {
+                            description => "A blocking HA resource",
+                            type => 'object',
+                            properties => {
+                                sid => {
+                                    type => 'string',
+                                    description => "The blocking HA resource id",
+                                },
+                                cause => {
+                                    type => 'string',
+                                    description => "The reason why the HA"
+                                        . " resource is blocking the migration.",
+                                    enum => ['resource-affinity'],
+                                },
+                            },
+                        },
+                    },
+                },
+                description => "List of not allowed nodes with additional information.",
+            },
+            'comigrated-ha-resources' => {
+                description => "HA resources, which will be migrated to the"
+                    . " same target node as the container, because these are in"
+                    . " positive affinity with the container.",
+                type => 'array',
+                optional => 1,
+                items => {
+                    type => 'string',
+                    description => "A comigrated HA resource",
+                },
+            },
+        },
+    },
+    code => sub {
+        my ($param) = @_;
+
+        my $rpcenv = PVE::RPCEnvironment::get();
+
+        my $authuser = $rpcenv->get_user();
+
+        PVE::Cluster::check_cfs_quorum();
+
+        my $res = {};
+
+        my $vmid = extract_param($param, 'vmid');
+        my $target = extract_param($param, 'target');
+        my $localnode = PVE::INotify::nodename();
+
+        # test if VM exists
+        my $vmconf = PVE::LXC::Config->load_config($vmid);
+        my $storecfg = PVE::Storage::config();
+
+        # try to detect errors early
+        PVE::LXC::Config->check_lock($vmconf);
+
+        $res->{running} = PVE::LXC::check_running($vmid) ? 1 : 0;
+
+        $res->{'allowed-nodes'} = [];
+        $res->{'not-allowed-nodes'} = {};
+
+        my $comigrated_ha_resources = {};
+        my $blocking_ha_resources_by_node = {};
+
+        if (PVE::HA::Config::vm_is_ha_managed($vmid)) {
+            ($comigrated_ha_resources, $blocking_ha_resources_by_node) =
+                PVE::HA::Config::get_resource_motion_info("ct:$vmid");
+        }
+
+        my $nodelist = PVE::Cluster::get_nodelist();
+        for my $node ($nodelist->@*) {
+            next if $node eq $localnode;
+
+            # extracting blocking resources for current node
+            if (my $blocking_ha_resources = $blocking_ha_resources_by_node->{$node}) {
+                $res->{'not-allowed-nodes'}->{$node}->{'blocking-ha-resources'} =
+                    $blocking_ha_resources;
+            }
+
+            # if nothing came up, add it to the allowed nodes
+            if (!defined($res->{'not-allowed-nodes'}->{$node})) {
+                push $res->{'allowed-nodes'}->@*, $node;
+            }
+        }
+
+        $res->{'comigrated-ha-resources'} = $comigrated_ha_resources;
+
+        return $res;
+    },
+});
+
+__PACKAGE__->register_method({
     name => 'migrate_vm',
     path => '{vmid}/migrate',
     method => 'POST',
