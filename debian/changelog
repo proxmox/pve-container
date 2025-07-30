@@ -1,3 +1,15 @@
+pve-container (6.0.6) trixie; urgency=medium
+
+  * api: create CT: default to unprivileged containers.
+
+  * create/restore: require Sys.Modify for privileged containers except for
+    in-place restore where both the current and the backed-up config are
+    already privileged.
+
+  * migration: require Sys.Modify for incoming privileged containers.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 31 Jul 2025 01:59:09 +0200
+
 pve-container (6.0.5) trixie; urgency=medium
 
   * seccomp config: adapt to new lxc-syscalld runtime directory with fallback
