@@ -1,3 +1,12 @@
+pve-container (6.0.4) trixie; urgency=medium
+
+  * fix #6573: allow userns creation when nesting is enabled
+
+  * implement device hotplug. Note that currently hot-unplug or editing a
+    existing device is not yet supported.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 30 Jul 2025 13:00:51 +0200
+
 pve-container (6.0.3) trixie; urgency=medium
 
   * fix #6538: apparmor: allow mqueue access for apparmor's 4.0 abi.
