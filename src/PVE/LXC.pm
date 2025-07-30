@@ -595,6 +595,7 @@ sub make_apparmor_config {
 
     # We use abi/4.0 which has its own mqueue class which governs access to /dev/mqueue now.
     # This is currently not default in lxc's profile, so we enable it explicitly.
+    # FIXME: once lxc's profiles are based on abi/4.0 this should not be required.
     $raw .= "lxc.apparmor.raw = allow mqueue,\n";
 
     my @profile_uses;
@@ -612,6 +613,8 @@ sub make_apparmor_config {
     if ($features->{nesting}) {
         push @profile_uses, 'features:nesting';
         $raw .= "lxc.apparmor.allow_nesting = 1\n";
+        # FIXME: once lxc's profiles are based on abi/4.0 this should not be required.
+        $raw .= "lxc.apparmor.raw = allow userns,\n";
     } else {
         # In the default profile in /etc/apparmor.d we patch this in because
         # otherwise a container can for example run `chown` on /sys, breaking
