@@ -1,3 +1,10 @@
+pve-container (6.0.5) trixie; urgency=medium
+
+  * seccomp config: adapt to new lxc-syscalld runtime directory with fallback
+    to previous path.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 30 Jul 2025 13:49:26 +0200
+
 pve-container (6.0.4) trixie; urgency=medium
 
   * fix #6573: allow userns creation when nesting is enabled
