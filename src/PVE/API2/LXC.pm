@@ -252,6 +252,8 @@ __PACKAGE__->register_method({
 
         if ($restore) {
             # fixme: limit allowed parameters
+        } else {
+            $unprivileged = 1 if !defined($unprivileged);
         }
 
         my $force = extract_param($param, 'force');
