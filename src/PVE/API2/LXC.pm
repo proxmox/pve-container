@@ -139,7 +139,8 @@ __PACKAGE__->register_method({
         description =>
             "You need 'VM.Allocate' permission on /vms/{vmid} or on the VM pool /pool/{pool}. "
             . "For restore, it is enough if the user has 'VM.Backup' permission and the VM already exists. "
-            . "You also need 'Datastore.AllocateSpace' permissions on the storage.",
+            . "You also need 'Datastore.AllocateSpace' permissions on the storage. "
+            . "For privileged containers, 'Sys.Modify' permissions on '/' are required.",
     },
     protected => 1,
     proxyto => 'node',
@@ -254,6 +255,7 @@ __PACKAGE__->register_method({
             # fixme: limit allowed parameters
         } else {
             $unprivileged = 1 if !defined($unprivileged);
+            $rpcenv->check($authuser, '/', ['Sys.Modify']) if !$unprivileged;
         }
 
         my $force = extract_param($param, 'force');
@@ -289,12 +291,11 @@ __PACKAGE__->register_method({
             # since the user is lacking permission to configure the container's FW
             $skip_fw_config_restore = 1;
 
-            # error out if a user tries to change from unprivileged to privileged
+            # error out if a user tries to change from unprivileged to privileged without required privileges
             # explicit change is checked here, implicit is checked down below or happening in root-only paths
             my $conf = PVE::LXC::Config->load_config($vmid);
             if ($conf->{unprivileged} && defined($unprivileged) && !$unprivileged) {
-                raise_perm_exc(
-                    "cannot change from unprivileged to privileged without VM.Allocate");
+                $rpcenv->check($authuser, '/', ['Sys.Modify']);
             }
         } else {
             raise_perm_exc();
@@ -442,9 +443,12 @@ __PACKAGE__->register_method({
                         assert_not_restore_from_external($archive, $storage_cfg)
                             if !$conf->{unprivileged};
 
-                        # implicit privileged change is checked here
-                        if ($old_conf->{unprivileged} && !$conf->{unprivileged}) {
-                            $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Allocate']);
+                        # implicit privileged change, or creating a new privileged container is checked here
+                        if (
+                            (!$same_container_exists || $old_conf->{unprivileged})
+                            && !$conf->{unprivileged}
+                        ) {
+                            $rpcenv->check($authuser, '/', ['Sys.Modify']);
                         }
                     }
                 }
