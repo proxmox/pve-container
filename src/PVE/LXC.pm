@@ -357,12 +357,12 @@ sub vmstatus {
         }
 
         my $pressures = PVE::ProcFSTools::read_cgroup_pressure("lxc/${vmid}");
-        $d->{pressurecpusome} = $pressures->{cpu}{some}{avg10};
-        $d->{pressurecpufull} = $pressures->{cpu}{full}{avg10};
-        $d->{pressureiosome} = $pressures->{io}{some}{avg10};
-        $d->{pressureiofull} = $pressures->{io}{full}{avg10};
-        $d->{pressurememorysome} = $pressures->{memory}{some}{avg10};
-        $d->{pressurememoryfull} = $pressures->{memory}{full}{avg10};
+        $d->{pressurecpusome} = $pressures->{cpu}->{some}->{avg10};
+        $d->{pressurecpufull} = $pressures->{cpu}->{full}->{avg10};
+        $d->{pressureiosome} = $pressures->{io}->{some}->{avg10};
+        $d->{pressureiofull} = $pressures->{io}->{full}->{avg10};
+        $d->{pressurememorysome} = $pressures->{memory}->{some}->{avg10};
+        $d->{pressurememoryfull} = $pressures->{memory}->{full}->{avg10};
 
         if (defined(my $cpu = $cgroups->get_cpu_stat())) {
             # Total time (in milliseconds) used up by the cpu.
