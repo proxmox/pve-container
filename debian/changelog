@@ -1,3 +1,9 @@
+pve-container (6.0.8) trixie; urgency=medium
+
+  * api: introduce migration preconditions api endpoint.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 31 Jul 2025 11:37:55 +0200
+
 pve-container (6.0.7) trixie; urgency=medium
 
   * metrics: add pressure stall information to status
