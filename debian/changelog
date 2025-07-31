@@ -1,3 +1,12 @@
+pve-container (6.0.7) trixie; urgency=medium
+
+  * metrics: add pressure stall information to status
+
+  * RRD metrics: use new pve-storage-9.0 format RRD file location, if it
+    exists.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 31 Jul 2025 04:46:48 +0200
+
 pve-container (6.0.6) trixie; urgency=medium
 
   * api: create CT: default to unprivileged containers.
