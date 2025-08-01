@@ -1,3 +1,13 @@
+pve-container (6.0.9) trixie; urgency=medium
+
+  * api: migration checks: fix default value for "comigrated" HA
+    resources.
+
+  * api: migration checks: rename return prop to dependent-ha-resources and
+    improve description.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 01 Aug 2025 18:38:46 +0200
+
 pve-container (6.0.8) trixie; urgency=medium
 
   * api: introduce migration preconditions api endpoint.
