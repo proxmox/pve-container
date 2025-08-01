@@ -1473,15 +1473,15 @@ __PACKAGE__->register_method({
                 },
                 description => "List of not allowed nodes with additional information.",
             },
-            'comigrated-ha-resources' => {
-                description => "HA resources, which will be migrated to the"
-                    . " same target node as the container, because these are in"
-                    . " positive affinity with the container.",
+            'dependent-ha-resources' => {
+                description => "HA resources, which will be migrated to the same target node as"
+                    . " the VM, because these are in positive affinity with the VM.",
                 type => 'array',
                 optional => 1,
                 items => {
                     type => 'string',
-                    description => "A comigrated HA resource",
+                    description => "The '<ty>:<id>' resource IDs of a HA resource with a"
+                        . " positive affinity rule to this CT.",
                 },
             },
         },
@@ -1513,12 +1513,13 @@ __PACKAGE__->register_method({
         $res->{'allowed-nodes'} = [];
         $res->{'not-allowed-nodes'} = {};
 
-        my $comigrated_ha_resources = [];
         my $blocking_ha_resources_by_node = {};
 
         if (PVE::HA::Config::vm_is_ha_managed($vmid)) {
-            ($comigrated_ha_resources, $blocking_ha_resources_by_node) =
+            (my $dependent_ha_resource, $blocking_ha_resources_by_node) =
                 PVE::HA::Config::get_resource_motion_info("ct:$vmid");
+
+            $res->{'dependent-ha-resources'} = $dependent_ha_resource // [];
         }
 
         my $nodelist = PVE::Cluster::get_nodelist();
@@ -1536,8 +1537,6 @@ __PACKAGE__->register_method({
                 push $res->{'allowed-nodes'}->@*, $node;
             }
         }
-
-        $res->{'comigrated-ha-resources'} = $comigrated_ha_resources;
 
         return $res;
     },
