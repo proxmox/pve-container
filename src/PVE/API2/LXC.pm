@@ -1513,7 +1513,7 @@ __PACKAGE__->register_method({
         $res->{'allowed-nodes'} = [];
         $res->{'not-allowed-nodes'} = {};
 
-        my $comigrated_ha_resources = {};
+        my $comigrated_ha_resources = [];
         my $blocking_ha_resources_by_node = {};
 
         if (PVE::HA::Config::vm_is_ha_managed($vmid)) {
