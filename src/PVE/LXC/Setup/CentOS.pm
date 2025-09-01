@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use UUID;
+use Net::IP;
 
 use PVE::Tools;
 use PVE::Network;
@@ -19,21 +20,28 @@ sub new {
     my $release = PVE::Tools::file_read_firstline("$rootdir/etc/redhat-release");
     die "unable to read version info\n" if !defined($release);
 
-    my $version;
+    my $version = get_centos_version($release);
 
-    if (($release =~ m/release\s+(\d+\.\d+)(\.\d+)?/) || ($release =~ m/release\s+(\d+)/)) {
-        if ($1 >= 5 && $1 < 10) {
-            $version = $1;
-        }
+    # check compatibility
+    if (!($version >= 5 && $version < 11)) {
+        die "unsupported centos version '$version'\n";
     }
-
-    die "unsupported centos release '$release'\n" if !$version;
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
     $conf->{ostype} = "centos";
 
     return bless $self, $class;
+}
+
+sub get_centos_version {
+    my ($release) = @_;
+
+    if (($release =~ m/release\s+(\d+\.\d+)(\.\d+)?/) || ($release =~ m/release\s+(\d+)/)) {
+        return $1;
+    }
+
+    die "unable to parse centos version '$release'\n";
 }
 
 my $tty_conf = <<__EOD__;
@@ -180,6 +188,92 @@ sub set_hostname {
 }
 
 sub setup_network {
+    my ($self, $conf) = @_;
+
+    my $release = $self->ct_file_get_contents('/etc/redhat-release');
+    my $version = get_centos_version($release);
+
+    if ($version >= 10) {
+        # Use NetworkManager files
+        setup_netork_with_networkmanager($self, $conf)
+    } else {
+        # Use network-scripts files
+        setup_netork_with_network_scripts($self, $conf)
+    }
+}
+
+sub setup_netork_with_networkmanager {
+    my ($self, $conf) = @_;
+
+    $self->ct_make_path('/etc/NetworkManager/system-connections');
+
+    foreach my $k (keys %$conf) {
+        next if $k !~ m/^net(\d+)$/;
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        next if !$d->{name};
+
+        my $filename = "/etc/NetworkManager/system-connections/$d->{name}.nmconnection";
+
+        my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
+        my @nameservers = PVE::Tools::split_list($nameserver);
+        my @nameserversv4 = grep {
+            my $ip = Net::IP->new($_);
+            $ip && $ip->version == 4;
+        } @nameservers;
+        my @nameserversv6 = grep {
+            my $ip = Net::IP->new($_);
+            $ip && $ip->version == 6;
+        } @nameservers;
+
+
+        my $header = "[connection]\nid=$d->{name}\nuuid=" . UUID::uuid() . "\ntype=ethernet\ninterface-name=$d->{name}\n";
+        my $data = '';
+
+        if ($d->{ip} && $d->{ip} ne 'manual') {
+            $data .= "[ipv4]\n";
+            if ($d->{ip} eq 'dhcp') {
+                $data .= "method=auto\n";
+            } else {
+                $data .= "method=manual\n";
+                $data .= "addresses=$d->{ip}\n";
+                if (defined($d->{gw})) {
+                    $data .= "gateway=$d->{gw}\n";
+                    if (!PVE::Network::is_ip_in_cidr($d->{gw}, $d->{ip}, 4)) {
+                        $data .= "routes=$d->{gw}\n";
+                    }
+                }
+            }
+            $data .= "dns=" . join(',', @nameserversv4) . "\n" if @nameserversv4;
+            $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv4 && $searchdomains;
+        }
+
+        if ($d->{ip6} && $d->{ip6} ne 'manual') {
+            $data .= "[ipv6]\n";
+            if ($d->{ip6} eq 'auto' || $d->{ip6} eq 'dhcp') {
+                $data .= "method=auto\n";
+            } else {
+                $data .= "method=manual\naddress=$d->{ip6}\n";
+                if (defined($d->{gw6})) {
+                    if (
+                        !PVE::Network::is_ip_in_cidr($d->{gw6}, $d->{ip6}, 6)
+                        && !PVE::Network::is_ip_in_cidr($d->{gw6}, 'fe80::/10', 6)
+                    ) {
+                        $data .= "routes=$d->{gw6}\n";
+                    } else {
+                        $data .= "gateway=$d->{gw6}\n";
+                    }
+                }
+            }
+            $data .= "dns=" . join(',', @nameserversv6) . "\n" if @nameserversv6;
+            $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv6 && $searchdomains;
+        }
+
+        next unless $data;
+        $self->ct_file_set_contents($filename, $header . $data, 0600);
+    }
+}
+
+sub setup_netork_with_network_scripts {
     my ($self, $conf) = @_;
 
     my ($gw, $gw6);
