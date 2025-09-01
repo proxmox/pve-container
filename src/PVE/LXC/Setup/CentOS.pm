@@ -229,8 +229,8 @@ sub setup_netork_with_networkmanager {
         my $header = "[connection]\nid=$d->{name}\nuuid=" . UUID::uuid() . "\ntype=ethernet\ninterface-name=$d->{name}\n";
         my $data = '';
 
+        $data .= "[ipv4]\n";
         if ($d->{ip} && $d->{ip} ne 'manual') {
-            $data .= "[ipv4]\n";
             if ($d->{ip} eq 'dhcp') {
                 $data .= "method=auto\n";
             } else {
@@ -245,10 +245,12 @@ sub setup_netork_with_networkmanager {
             }
             $data .= "dns=" . join(',', @nameserversv4) . "\n" if @nameserversv4;
             $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv4 && $searchdomains;
-        }
+        } else {
+                $data .= "method=disabled\n";
+	}
 
+        $data .= "[ipv6]\n";
         if ($d->{ip6} && $d->{ip6} ne 'manual') {
-            $data .= "[ipv6]\n";
             if ($d->{ip6} eq 'auto' || $d->{ip6} eq 'dhcp') {
                 $data .= "method=auto\n";
             } else {
@@ -266,7 +268,9 @@ sub setup_netork_with_networkmanager {
             }
             $data .= "dns=" . join(',', @nameserversv6) . "\n" if @nameserversv6;
             $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv6 && $searchdomains;
-        }
+        } else {
+                $data .= "method=disabled\n";
+	}
 
         next unless $data;
         $self->ct_file_set_contents($filename, $header . $data, 0600);

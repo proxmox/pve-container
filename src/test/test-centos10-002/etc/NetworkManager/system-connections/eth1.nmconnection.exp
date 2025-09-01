@@ -3,6 +3,8 @@ id=eth1
 uuid=00000000-0000-0000-0000-000000000000
 type=ethernet
 interface-name=eth1
+[ipv4]
+method=disabled
 [ipv6]
 method=manual
 address=fc00::1/64

@@ -7,3 +7,5 @@ interface-name=eth0
 method=auto
 dns=127.0.0.1
 dns-search=example.com
+[ipv6]
+method=disabled
