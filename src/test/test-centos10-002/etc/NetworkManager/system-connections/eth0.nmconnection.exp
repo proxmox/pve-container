@@ -1,0 +1,12 @@
+[connection]
+id=eth0
+uuid=00000000-0000-0000-0000-000000000000
+type=ethernet
+interface-name=eth0
+[ipv4]
+method=manual
+addresses=10.0.0.100/32
+gateway=11.0.0.1
+routes=11.0.0.1
+dns=127.0.0.1
+dns-search=example.com

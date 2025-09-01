@@ -1,0 +1,5 @@
+# --- BEGIN PVE ---
+127.0.0.1 localhost.localnet localhost
+::1 localhost.localnet localhost
+10.0.0.100 test1.example.com test1
+# --- END PVE ---

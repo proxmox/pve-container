@@ -65,6 +65,10 @@ sub run_test {
             /etc/resolv.conf
             /etc/passwd
             /etc/shadow
+            /etc/NetworkManager/system-connections/eth0.nmconnection
+            /etc/NetworkManager/system-connections/eth1.nmconnection
+            /etc/NetworkManager/system-connections/eth2.nmconnection
+            /etc/NetworkManager/system-connections/eth3.nmconnection
             /etc/sysconfig/network
             /etc/sysconfig/network-scripts/ifcfg-eth0
             /etc/sysconfig/network-scripts/route-eth0

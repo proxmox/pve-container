@@ -1,0 +1,4 @@
+hostname: test1
+net0: bridge=vmbr0,name=eth0,ip=dhcp
+searchdomain: example.com
+nameserver: 127.0.0.1

@@ -1,0 +1,10 @@
+[connection]
+id=eth2
+uuid=00000000-0000-0000-0000-000000000000
+type=ethernet
+interface-name=eth2
+[ipv4]
+method=manual
+addresses=192.168.0.1/24
+dns=127.0.0.1
+dns-search=example.com

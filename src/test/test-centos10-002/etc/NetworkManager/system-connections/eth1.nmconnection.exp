@@ -1,0 +1,9 @@
+[connection]
+id=eth1
+uuid=00000000-0000-0000-0000-000000000000
+type=ethernet
+interface-name=eth1
+[ipv6]
+method=manual
+address=fc00::1/64
+routes=fc00:1::ff
