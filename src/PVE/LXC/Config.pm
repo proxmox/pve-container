@@ -648,9 +648,10 @@ my $confdesc = {
     unprivileged => {
         optional => 1,
         type => 'boolean',
-        description => "Makes the container run as unprivileged user. For creation, the default is"
-            ." 1. For restore, the default is the value from the backup. (Should not be modified"
-            ." manually.)",
+        description =>
+            "Makes the container run as unprivileged user. For creation, the default is"
+            . " 1. For restore, the default is the value from the backup. (Should not be modified"
+            . " manually.)",
         default => 0,
     },
     features => {
