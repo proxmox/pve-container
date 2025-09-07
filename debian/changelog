@@ -1,3 +1,14 @@
+pve-container (5.3.1) bookworm; urgency=medium
+
+  * setup: accept underscore when trying to parse the systemd version of a
+    container.
+
+  * setup: debian: increase upper supported version limit from <= 13 to < 15
+    to ensure all points releases of Debian 13 and future Debian 14 get
+    accepted.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 07 Sep 2025 16:58:45 +0200
+
 pve-container (5.3.0) bookworm; urgency=medium
 
   * setup: map 'rocky' and 'almalinux' os-release IDs to 'centos'.
