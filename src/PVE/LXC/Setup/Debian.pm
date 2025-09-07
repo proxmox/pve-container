@@ -36,7 +36,7 @@ sub new {
 
     $version = $1;
 
-    die "unsupported debian version '$version'\n" if !($version >= 4 && $version <= 13);
+    die "unsupported debian version '$version'\n" if !($version >= 4 && $version < 15);
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
