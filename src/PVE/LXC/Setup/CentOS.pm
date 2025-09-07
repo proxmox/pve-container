@@ -194,15 +194,14 @@ sub setup_network {
     my $version = get_centos_version($release);
 
     if ($version >= 10) {
-        # Use NetworkManager files
-        setup_netork_with_networkmanager($self, $conf)
+        # With CentOS/AlmaLinux/... 10 the support for network scripts got dropped.
+        setup_network_with_networkmanager($self, $conf);
     } else {
-        # Use network-scripts files
-        setup_netork_with_network_scripts($self, $conf)
+        setup_netork_with_network_scripts($self, $conf);
     }
 }
 
-sub setup_netork_with_networkmanager {
+sub setup_network_with_networkmanager {
     my ($self, $conf) = @_;
 
     $self->ct_make_path('/etc/NetworkManager/system-connections');
@@ -215,18 +214,19 @@ sub setup_netork_with_networkmanager {
         my $filename = "/etc/NetworkManager/system-connections/$d->{name}.nmconnection";
 
         my ($searchdomains, $nameserver) = $self->lookup_dns_conf($conf);
-        my @nameservers = PVE::Tools::split_list($nameserver);
-        my @nameserversv4 = grep {
+        my @name_servers = PVE::Tools::split_list($nameserver);
+        my @name_servers_v4 = grep {
             my $ip = Net::IP->new($_);
             $ip && $ip->version == 4;
-        } @nameservers;
-        my @nameserversv6 = grep {
+        } @name_servers;
+        my @name_servers_v6 = grep {
             my $ip = Net::IP->new($_);
             $ip && $ip->version == 6;
-        } @nameservers;
+        } @name_servers;
 
+        my $header = "[connection]\nid=$d->{name}\nuuid=" . UUID::uuid() . "\n";
+        $header .= "type=ethernet\ninterface-name=$d->{name}\n";
 
-        my $header = "[connection]\nid=$d->{name}\nuuid=" . UUID::uuid() . "\ntype=ethernet\ninterface-name=$d->{name}\n";
         my $data = '';
 
         $data .= "[ipv4]\n";
@@ -243,11 +243,14 @@ sub setup_netork_with_networkmanager {
                     }
                 }
             }
-            $data .= "dns=" . join(',', @nameserversv4) . "\n" if @nameserversv4;
-            $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv4 && $searchdomains;
+            if (@name_servers_v4) {
+                $data .= "dns=" . join(',', @name_servers_v4) . "\n";
+                $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+                    if $searchdomains;
+            }
         } else {
-                $data .= "method=disabled\n";
-	}
+            $data .= "method=disabled\n";
+        }
 
         $data .= "[ipv6]\n";
         if ($d->{ip6} && $d->{ip6} ne 'manual') {
@@ -266,13 +269,17 @@ sub setup_netork_with_networkmanager {
                     }
                 }
             }
-            $data .= "dns=" . join(',', @nameserversv6) . "\n" if @nameserversv6;
-            $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n" if @nameserversv6 && $searchdomains;
+            if (@name_servers_v6) {
+                $data .= "dns=" . join(',', @name_servers_v6) . "\n";
+                $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+                    if $searchdomains;
+            }
         } else {
-                $data .= "method=disabled\n";
-	}
+            $data .= "method=disabled\n";
+        }
 
-        next unless $data;
+        next if length($data) == 0;
+
         $self->ct_file_set_contents($filename, $header . $data, 0600);
     }
 }
