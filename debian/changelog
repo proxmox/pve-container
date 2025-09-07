@@ -1,3 +1,22 @@
+pve-container (6.0.10) trixie; urgency=medium
+
+  * config schema: update description for 'unprivileged' option to correctly
+    describe that it's now the default since Proxmox VE 9 and also describe
+    the behavior on restoration.
+
+  * api: rrd: fix creation of legacy PNG graphs, while Proxmox VE itself does
+    not uses them since a while, the API still exists and is used by our users
+    or integrators and it was not deprecated yet.
+
+  * setup: accept underscore when trying to parse the systemd version of a
+    container.
+
+  * setup: debian: increase upper supported version limit from <= 13 to < 15
+    to ensure all points releases of Debian 13 and future Debian 14 get
+    accepted.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 07 Sep 2025 16:38:29 +0200
+
 pve-container (6.0.9) trixie; urgency=medium
 
   * api: migration checks: fix default value for "comigrated" HA
