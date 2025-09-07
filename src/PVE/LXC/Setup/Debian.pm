@@ -27,6 +27,7 @@ sub new {
         'bookworm/sid' => 12,
         'trixie/sid' => 13,
         'forky/sid' => 14,
+        'duke/sid' => 15,
         'kali-rolling' => 12,
     };
     $version = $version_map->{$version} if exists($version_map->{$version});
