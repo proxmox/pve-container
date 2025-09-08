@@ -117,6 +117,48 @@ sub setup_init {
     setup_inittab($self, $conf);
 }
 
+my $snakeoil_unit = <<__EOD__;
+[Unit]
+Description="Regenerate pre-generated snakeoil certificate and key-pair once"
+ConditionPathExists=/etc/ssl/certs/ssl-cert-snakeoil.pem
+ConditionFirstBoot=yes
+Wants=first-boot-complete.target
+Before=first-boot-complete.target
+
+[Service]
+Type=oneshot
+ExecStart=make-ssl-cert -f generate-default-snakeoil
+__EOD__
+
+sub snakeoil_fixup {
+    my ($self, $conf) = @_;
+
+    # Debian templates that have `ssl-cert` pre-installed contain a
+    # certificate and key pair that we need to regenerate on first
+    # boot
+
+    my $snakeoil_key = '/etc/ssl/private/ssl-cert-snakeoil.key';
+    if ($self->ct_file_exists($snakeoil_key)) {
+        my $systemd = $self->ct_readlink('/sbin/init');
+        if (defined($systemd) && $systemd =~ m@/systemd$@) {
+            my $unit_name = 'proxmox-regenerate-snakeoil.service';
+            my $unit_path = "/etc/systemd/system/$unit_name";
+            print "Setting up '$unit_name' to regenerate snakeoil certificate..\n";
+            $self->ct_file_set_contents($unit_path, $snakeoil_unit);
+            $self->ct_make_path('/etc/systemd/system/first-boot-complete.target.wants');
+            $self->ct_symlink(
+                $unit_path,
+                "/etc/systemd/system/first-boot-complete.target.wants/$unit_name",
+            );
+        } else {
+            warn "Template contains pre-generated snakeoil certificate!\n";
+            warn "Run `make-ssl-cert generate-default-snakeoil -f` to regenerate it!\n";
+        }
+        # prevent accidental key usage if warning above is ignored or regeneration fails!
+        $self->ct_unlink($snakeoil_key);
+    }
+}
+
 sub remove_gateway_scripts {
     my ($attr) = @_;
     my $length = scalar(@$attr);
