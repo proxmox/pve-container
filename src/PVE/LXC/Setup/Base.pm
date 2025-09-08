@@ -107,6 +107,12 @@ sub update_etc_hosts {
     $self->ct_modify_file($hosts_fn, $section);
 }
 
+sub snakeoil_fixup {
+    my ($self, $conf) = @_;
+
+    # do nothing by default
+}
+
 sub template_fixup {
     my ($self, $conf) = @_;
 
@@ -682,6 +688,7 @@ sub post_create_hook {
     my ($self, $conf, $root_password, $ssh_keys) = @_;
 
     $self->clear_machine_id($conf);
+    $self->snakeoil_fixup($conf);
     $self->template_fixup($conf);
 
     &$randomize_crontab($self, $conf);
