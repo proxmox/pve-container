@@ -1,3 +1,10 @@
+pve-container (5.3.2) bookworm; urgency=medium
+
+  * setup: debian: regenerate snakeoil certificate and keypair for newly
+    created CTs.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 10 Sep 2025 21:43:46 +0200
+
 pve-container (5.3.1) bookworm; urgency=medium
 
   * setup: accept underscore when trying to parse the systemd version of a
