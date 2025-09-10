@@ -1,3 +1,10 @@
+pve-container (6.0.11) trixie; urgency=medium
+
+  * setup: debian: regenerate snakeoil certificate and keypair for newly
+    created CTs.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 10 Sep 2025 21:40:34 +0200
+
 pve-container (6.0.10) trixie; urgency=medium
 
   * config schema: update description for 'unprivileged' option to correctly
