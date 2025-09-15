@@ -6,11 +6,18 @@ use warnings;
 use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
 use PVE::Network;
+use PVE::RESTEnvironment qw(log_warn);
+
 use File::Path;
 
 use PVE::LXC::Setup::Base;
 
 use base qw(PVE::LXC::Setup::Base);
+
+use constant {
+    DEBIAN_MINIMUM_RELEASE => 4, # *HARD* limit, throws error if undershot.
+    DEBIAN_MAXIMUM_RELEASE => 14, # *SOFT* limit, only warns if exceeded.
+};
 
 sub new {
     my ($class, $conf, $rootdir) = @_;
@@ -35,9 +42,16 @@ sub new {
     die "unable to parse version info '$version'\n"
         if $version !~ m/^(\d+(\.\d+)?)(\.\d+)?/;
 
-    $version = $1;
+    $version = int($1);
 
-    die "unsupported debian version '$version'\n" if !($version >= 4 && $version < 15);
+    die "Container Debian version '$version' is to old\n" if $version < DEBIAN_MINIMUM_RELEASE;
+
+    if ($version >= (DEBIAN_MAXIMUM_RELEASE + 1)) { # also allow all MAX.X point releases.
+        log_warn("The container's Debian version '$version' is newer than the tested version '"
+            . DEBIAN_MAXIMUM_RELEASE
+            . "'. While everything may work fine, full compatibility cannot be guaranteed."
+            . " Please check for PVE system updates.\n");
+    }
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
