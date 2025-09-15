@@ -1,3 +1,12 @@
+pve-container (5.3.3) bookworm; urgency=medium
+
+  * setup: Ubuntu: record support for future 25.10 and 26.04 LTS release.
+
+  * setup: Ubuntu, Debian: do not throw a hard error if version is unknown but
+    recent enough, only log a task warning about potential incompatibility.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 15 Sep 2025 18:32:38 +0200
+
 pve-container (5.3.2) bookworm; urgency=medium
 
   * setup: debian: regenerate snakeoil certificate and keypair for newly
