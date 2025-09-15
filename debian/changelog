@@ -1,3 +1,10 @@
+pve-container (6.0.13) trixie; urgency=medium
+
+  * setup: switch network configuration from network-scripts to NetworkManager
+    for RHEL 10 and derivatives like CentOS Stream, AlmaLinux and Rocky Linux.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 15 Sep 2025 19:24:30 +0200
+
 pve-container (6.0.12) trixie; urgency=medium
 
   * setup: Ubuntu: record support for future 25.10 and 26.04 LTS release.
