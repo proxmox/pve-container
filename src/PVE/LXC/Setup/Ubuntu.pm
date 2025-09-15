@@ -12,9 +12,11 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
+    '26.04' => 1, # r LTS
+    '25.10' => 1, # questing
     '25.04' => 1, # plucky
     '24.10' => 1, # oracular
-    '24.04' => 1, # noble
+    '24.04' => 1, # noble LTS
     '23.10' => 1, # mantic
     '23.04' => 1, # lunar
     '22.10' => 1, # kinetic
