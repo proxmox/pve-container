@@ -5,6 +5,8 @@ use warnings;
 
 use PVE::Tools;
 use PVE::LXC;
+use PVE::RESTEnvironment qw(log_warn);
+
 use File::Path;
 
 use PVE::LXC::Setup::Debian;
@@ -31,6 +33,7 @@ my $known_versions = {
     '18.04' => 1, # bionic LTS
     '17.10' => 1, # artful
     '17.04' => 1, # zesty
+    # TODO: actively drop below entries that ship with systemd, as their version is to old for CGv2
     '16.10' => 1, # yakkety
     '16.04' => 1, # xenial LTS
     '15.10' => 1, # wily
@@ -54,8 +57,19 @@ sub new {
 
     die "unable to read version info\n" if !defined($version);
 
-    die "unsupported Ubuntu version '$version'\n"
-        if !$known_versions->{$version};
+    if ($known_versions->{$version}) {
+        # OK, fully known version.
+    } elsif ($version =~ /^(\d+)\.(\d+)$/) {
+        my ($major, $minor) = (int($1), int($2));
+        # cannot support 16.10 or older, their systemd is not cgroupv2 ready
+        die "unsupported ancient Ubuntu version '$version'\n" if $major < 17;
+
+        log_warn("The container's Ubuntu version '$version' is not in the known version list."
+            . " As it's newer than the minimum supported version it's likely to work OK, but full"
+            . " compatibility cannot be guaranteed. Please check for PVE system updates.\n");
+    } else {
+        die "unsupported and unexpected Ubuntu version '$version'\n";
+    }
 
     my $self = { conf => $conf, rootdir => $rootdir, version => $version };
 
