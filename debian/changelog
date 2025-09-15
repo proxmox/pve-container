@@ -1,3 +1,12 @@
+pve-container (6.0.12) trixie; urgency=medium
+
+  * setup: Ubuntu: record support for future 25.10 and 26.04 LTS release.
+
+  * setup: Ubuntu, Debian: do not throw a hard error if version is unknown but
+    recent enough, only log a task warning about potential incompatibility.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 15 Sep 2025 18:19:04 +0200
+
 pve-container (6.0.11) trixie; urgency=medium
 
   * setup: debian: regenerate snakeoil certificate and keypair for newly
