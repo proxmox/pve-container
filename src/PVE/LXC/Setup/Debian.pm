@@ -44,7 +44,7 @@ sub new {
 
     $version = int($1);
 
-    die "Container Debian version '$version' is to old\n" if $version < DEBIAN_MINIMUM_RELEASE;
+    die "Container Debian version '$version' is too old\n" if $version < DEBIAN_MINIMUM_RELEASE;
 
     if ($version >= (DEBIAN_MAXIMUM_RELEASE + 1)) { # also allow all MAX.X point releases.
         log_warn("The container's Debian version '$version' is newer than the tested version '"

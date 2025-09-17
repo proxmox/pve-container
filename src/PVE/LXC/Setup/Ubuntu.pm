@@ -33,7 +33,7 @@ my $known_versions = {
     '18.04' => 1, # bionic LTS
     '17.10' => 1, # artful
     '17.04' => 1, # zesty
-    # TODO: actively drop below entries that ship with systemd, as their version is to old for CGv2
+    # TODO: actively drop below entries that ship with systemd, as their version is too old for CGv2
     '16.10' => 1, # yakkety
     '16.04' => 1, # xenial LTS
     '15.10' => 1, # wily
