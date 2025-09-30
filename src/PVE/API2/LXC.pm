@@ -893,7 +893,7 @@ __PACKAGE__->register_method({
                 PVE::VZDump::Plugin::remove_vmid_from_backup_jobs($vmid);
 
                 if ($ha_managed) {
-                    PVE::HA::Config::delete_service_from_config("ct:$vmid");
+                    PVE::HA::Config::delete_service_from_config("ct:$vmid", $param->{purge});
                     print "NOTE: removed CT $vmid from HA resource configuration.\n";
                 }
             }
