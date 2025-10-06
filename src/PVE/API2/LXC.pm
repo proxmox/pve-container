@@ -218,6 +218,12 @@ __PACKAGE__->register_method({
                 default => 0,
                 description => "Start the CT after its creation finished successfully.",
             },
+            'ha-managed' => {
+                optional => 1,
+                type => 'boolean',
+                default => 0,
+                description => "Add the CT as a HA resource after it was created.",
+            },
         }),
     },
     returns => {
@@ -236,6 +242,7 @@ __PACKAGE__->register_method({
         my $ignore_unpack_errors = extract_param($param, 'ignore-unpack-errors');
         my $bwlimit = extract_param($param, 'bwlimit');
         my $start_after_create = extract_param($param, 'start');
+        my $ha_managed = extract_param($param, 'ha-managed');
 
         my $basecfg_fn = PVE::LXC::Config->config_file($vmid);
         my $same_container_exists = -f $basecfg_fn;
@@ -615,6 +622,15 @@ __PACKAGE__->register_method({
                 die $err;
             } elsif ($start_after_create) {
                 PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node });
+            }
+
+            if ($ha_managed) {
+                print "Add as HA resource\n";
+                my $state = $start_after_create ? 'started' : 'stopped';
+                eval {
+                    PVE::API2::HA::Resources->create({ sid => "ct:$vmid", state => $state });
+                };
+                warn $@ if $@;
             }
         };
 
