@@ -1662,6 +1662,7 @@ sub check_bridge_access {
 
     my $net = PVE::LXC::Config->parse_lxc_network($raw);
     my ($bridge, $tag, $trunks) = $net->@{ 'bridge', 'tag', 'trunks' };
+    next if !defined($bridge); # no vnet to check for
     check_vnet_access($rpcenv, $authuser, $bridge, $tag, $trunks);
 
     return 1;
