@@ -19,9 +19,11 @@ use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::ReplicationConfig;
+use PVE::RS::OCI;
 use PVE::LXC;
 use PVE::LXC::Create;
 use PVE::LXC::Migrate;
+use PVE::LXC::Namespaces;
 use PVE::GuestHelpers;
 use PVE::VZDump::Plugin;
 use PVE::API2::LXC::Config;
@@ -536,19 +538,91 @@ __PACKAGE__->register_method({
 
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
+                    my $archivepath = '-';
+                    $archivepath = PVE::Storage::abs_filesystem_path($storage_cfg, $archive)
+                        if ($archive ne '-');
                     $bwlimit = PVE::Storage::get_bandwidth_limit(
                         'restore', [keys %used_storages], $bwlimit,
                     );
-                    print "restoring '$archive' now..\n"
-                        if $restore && $archive ne '-';
-                    PVE::LXC::Create::restore_archive(
-                        $storage_cfg,
-                        $archive,
-                        $rootdir,
-                        $conf,
-                        $ignore_unpack_errors,
-                        $bwlimit,
-                    );
+                    my $is_oci = 0;
+
+                    if ($restore && $archive ne '-') {
+                        print "restoring '$archive' now..\n";
+                    } elsif ($archivepath =~ /\.tar$/) {
+                        # Check whether archive is an OCI image
+                        my ($has_oci_layout, $has_index_json, $has_blobs) = (0, 0, 0);
+                        PVE::Tools::run_command(
+                            ['tar', '-tf', $archivepath],
+                            outfunc => sub {
+                                my $line = shift;
+                                $has_oci_layout = 1 if $line eq 'oci-layout';
+                                $has_index_json = 1 if $line eq 'index.json';
+                                $has_blobs = 1 if $line =~ /^blobs\//m;
+                            },
+                        );
+
+                        $is_oci = 1 if $has_oci_layout && $has_index_json && $has_blobs;
+                    }
+
+                    if ($is_oci) {
+                        # Extract the OCI image
+                        my ($id_map, undef, undef) = PVE::LXC::parse_id_maps($conf);
+                        my $oci_config = PVE::LXC::Namespaces::run_in_userns(
+                            sub {
+                                PVE::RS::OCI::parse_and_extract_image($archivepath, $rootdir);
+                            },
+                            $id_map,
+                        );
+
+                        # Set the entrypoint and arguments if specified by the OCI image
+                        my @init_cmd = ();
+                        push(@init_cmd, @{ $oci_config->{Entrypoint} })
+                            if $oci_config->{Entrypoint};
+                        push(@init_cmd, @{ $oci_config->{Cmd} }) if $oci_config->{Cmd};
+                        if (@init_cmd) {
+                            my $init_cmd_str = shift(@init_cmd);
+                            if (@init_cmd) {
+                                $init_cmd_str .= ' ';
+                                $init_cmd_str .= join(
+                                    ' ',
+                                    map {
+                                        my $s = $_;
+                                        $s =~ s/"/\\"/g;
+                                        qq{"$_"}
+                                    } @init_cmd,
+                                );
+                            }
+                            if ($init_cmd_str ne '/sbin/init') {
+                                push @{ $conf->{lxc} }, ['lxc.init.cmd', $init_cmd_str];
+
+                                # An entrypoint other than /sbin/init breaks the tty console mode.
+                                # This is fixed by setting cmode: console
+                                $conf->{cmode} = 'console';
+                            }
+                        }
+
+                        push @{ $conf->{lxc} }, ['lxc.init.cwd', $oci_config->{WorkingDir}]
+                            if ($oci_config->{WorkingDir});
+
+                        if (my $envs = $oci_config->{Env}) {
+                            for my $env (@{$envs}) {
+                                push @{ $conf->{lxc} }, ['lxc.environment.runtime', $env];
+                            }
+                        }
+
+                        my $stop_signal = $oci_config->{StopSignal} // "SIGTERM";
+                        push @{ $conf->{lxc} }, ['lxc.signal.halt', $stop_signal];
+                    } else {
+                        # Not an OCI image, so restore it as an LXC image instead
+                        PVE::LXC::Create::restore_archive(
+                            $storage_cfg,
+                            $archive,
+                            $rootdir,
+                            $conf,
+                            $ignore_unpack_errors,
+                            $bwlimit,
+                        );
+                    }
 
                     if ($restore) {
                         print "merging backed-up and given configuration..\n";
