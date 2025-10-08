@@ -487,6 +487,7 @@ sub setup_network {
             "auto lo\niface lo inet loopback\n" . "iface lo inet6 loopback\n\n" . $interfaces;
     }
 
+    $self->ct_make_path('/etc/network');
     $self->ct_file_set_contents($filename, $interfaces);
 }
 
