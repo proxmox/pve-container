@@ -886,6 +886,21 @@ sub update_lxc_config {
         if ($lxc_major >= 4) {
             $raw .= "lxc.net.$ind.script.up = /usr/share/lxc/lxcnetaddbr\n";
         }
+
+        if ((!defined($d->{link_down}) || $d->{link_down} != 1) && $conf->{ipmanagehost}) {
+            if (defined($d->{ip})) {
+                die "$k: DHCP is not supported with a custom entrypoint\n" if $d->{ip} eq 'dhcp';
+                $raw .= "lxc.net.$ind.ipv4.address = $d->{ip}\n" if $d->{ip} ne 'manual';
+            }
+            $raw .= "lxc.net.$ind.ipv4.gateway = $d->{gw}\n" if defined($d->{gw});
+            if (defined($d->{ip6})) {
+                die "$k: DHCPv6 and SLAAC are not supported with a custom entrypoint\n"
+                    if $d->{ip6} =~ /^(auto|dhcp)$/;
+                $raw .= "lxc.net.$ind.ipv6.address = $d->{ip6}\n" if $d->{ip6} ne 'manual';
+            }
+            $raw .= "lxc.net.$ind.ipv6.gateway = $d->{gw6}\n" if defined($d->{gw6});
+            $raw .= "lxc.net.$ind.flags = up\n";
+        }
     }
 
     my $had_cpuset = 0;

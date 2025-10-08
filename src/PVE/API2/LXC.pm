@@ -598,6 +598,10 @@ __PACKAGE__->register_method({
                                 # An entrypoint other than /sbin/init breaks the tty console mode.
                                 # This is fixed by setting cmode: console
                                 $conf->{cmode} = 'console';
+
+                                # Manage the IP configuration for the container. A container with a
+                                # custom entrypoint likely lacks internal network management.
+                                $conf->{ipmanagehost} = 1;
                             }
                         }
 

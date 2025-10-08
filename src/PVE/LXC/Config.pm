@@ -594,6 +594,12 @@ my $confdesc = {
             . " This is saved as comment inside the configuration file.",
         maxLength => 1024 * 8,
     },
+    ipmanagehost => {
+        type => 'boolean',
+        description =>
+            "Whether this interface's IP configuration should be managed by the host.",
+        optional => 1,
+    },
     searchdomain => {
         optional => 1,
         type => 'string',
@@ -1288,6 +1294,14 @@ sub update_pct_config {
                 my $bridge_mtu = PVE::Network::read_bridge_mtu($res->{bridge});
                 die "$opt: MTU size '$mtu' is bigger than bridge MTU '$bridge_mtu'\n"
                     if ($mtu > $bridge_mtu);
+            }
+
+            if ((!defined($res->{link_down}) || $res->{link_down} != 1) && $conf->{ipmanagehost}) {
+                die "$opt: DHCP is not supported with a custom entrypoint\n"
+                    if defined($res->{ip}) && $res->{ip} eq 'dhcp';
+
+                die "$opt: DHCPv6 and SLAAC are not supported with a custom entrypoint\n"
+                    if defined($res->{ip6}) && $res->{ip6} =~ /^(auto|dhcp)$/;
             }
         } elsif ($opt =~ m/^dev(\d+)$/) {
             my $device = $class->parse_device($value);
