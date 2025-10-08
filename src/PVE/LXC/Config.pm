@@ -736,6 +736,8 @@ my $valid_lxc_conf_keys = {
     'lxc.start.order' => 1,
     'lxc.group' => 1,
     'lxc.environment' => 1,
+    'lxc.environment.runtime' => 1,
+    'lxc.environment.hooks' => 1,
 
     # All these are namespaced via CLONE_NEWIPC (see namespaces(7)).
     'lxc.sysctl.fs.mqueue' => 1,
