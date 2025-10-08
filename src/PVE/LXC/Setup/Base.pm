@@ -320,6 +320,7 @@ DATA
         $data .= "IPv6AcceptRA = $accept_ra\n";
         $data .= $routes if $routes;
 
+        $self->ct_make_path('/etc/systemd/network');
         $self->ct_file_set_contents($filename, $data);
     }
 }
@@ -359,7 +360,7 @@ sub setup_systemd_preset {
         }
     }
 
-    $self->ct_mkdir('/etc/systemd/system-preset', 0755);
+    $self->ct_make_path('/etc/systemd/system-preset');
     $self->ct_file_set_contents(
         '/etc/systemd/system-preset/00-pve.preset', $preset_data,
     );
