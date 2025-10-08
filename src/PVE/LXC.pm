@@ -888,15 +888,12 @@ sub update_lxc_config {
         }
 
         if ((!defined($d->{link_down}) || $d->{link_down} != 1) && $conf->{ipmanagehost}) {
-            if (defined($d->{ip})) {
-                die "$k: DHCP is not supported with a custom entrypoint\n" if $d->{ip} eq 'dhcp';
-                $raw .= "lxc.net.$ind.ipv4.address = $d->{ip}\n" if $d->{ip} ne 'manual';
-            }
+            $raw .= "lxc.net.$ind.ipv4.address = $d->{ip}\n"
+                if defined($d->{ip}) && $d->{ip} !~ /^(dhcp|manual)$/;
             $raw .= "lxc.net.$ind.ipv4.gateway = $d->{gw}\n" if defined($d->{gw});
             if (defined($d->{ip6})) {
-                die "$k: DHCPv6 and SLAAC are not supported with a custom entrypoint\n"
-                    if $d->{ip6} =~ /^(auto|dhcp)$/;
-                $raw .= "lxc.net.$ind.ipv6.address = $d->{ip6}\n" if $d->{ip6} ne 'manual';
+                die "$k: SLAAC is not supported with ipmanagehost\n" if $d->{ip6} eq 'auto';
+                $raw .= "lxc.net.$ind.ipv6.address = $d->{ip6}\n" if $d->{ip6} !~ /^(dhcp|manual)$/;
             }
             $raw .= "lxc.net.$ind.ipv6.gateway = $d->{gw6}\n" if defined($d->{gw6});
             $raw .= "lxc.net.$ind.flags = up\n";
@@ -1079,6 +1076,8 @@ sub vm_stop_cleanup {
         PVE::Storage::deactivate_volumes($storage_cfg, $vollist);
     };
     warn $@ if $@; # avoid errors - just warn
+
+    kill_dhclients($vmid, '*') if $conf->{ipmanagehost};
 }
 
 sub net_tap_plug : prototype($$) {
@@ -1310,6 +1309,52 @@ sub get_interfaces {
     return $res;
 }
 
+sub manage_dhclient {
+    my ($action, $vmid, $ipversion, $eth, $rootdir) = @_;
+
+    File::Path::make_path("/var/lib/lxc/$vmid/hook") if $action eq 'start';
+    my $pidfile = "/var/lib/lxc/$vmid/hook/dhclient$ipversion-$eth.pid";
+    my $leasefile = "/var/lib/lxc/$vmid/hook/dhclient$ipversion-$eth.leases";
+    my $scriptfile = '/usr/share/lxc/hooks/dhclient-script';
+    PVE::Tools::run_command([
+        'lxc-attach',
+        '-n',
+        $vmid,
+        '-s',
+        'NETWORK|UTSNAME',
+        '--',
+        'aa-exec',
+        '-p',
+        'unconfined', # FIXME: use a profile that confines writes to /var/lib/lxc/$vmid and rootfs
+        '/sbin/dhclient',
+        $action eq 'start' ? '-1' : '-r',
+        "-$ipversion",
+        '-pf',
+        $pidfile,
+        '-lf',
+        $leasefile,
+        '-e',
+        "ROOTFS=$rootdir",
+        '-sf',
+        $scriptfile,
+        $eth,
+    ]);
+}
+
+sub kill_dhclients {
+    my ($vmid, $eth) = @_;
+
+    foreach my $pidfile (glob("/var/lib/lxc/$vmid/hook/dhclient*-$eth.pid")) {
+        my $pid = eval { file_get_contents($pidfile) };
+        if (!$@) {
+            chomp $pid;
+            next if $pid !~ /^(\d+)$/;
+            kill 9, $1;
+            unlink($pidfile);
+        }
+    }
+}
+
 sub update_ipconfig {
     my ($vmid, $conf, $opt, $eth, $newnet, $rootdir) = @_;
 
@@ -1346,11 +1391,21 @@ sub update_ipconfig {
 
         # step 1: add new IP, if this fails we cancel
         my $is_real_ip = ($newip && $newip !~ /^(?:auto|dhcp|manual)$/);
-        if ($change_ip && $is_real_ip) {
-            eval { &$ipcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
-            if (my $err = $@) {
-                warn $err;
-                return;
+        if ($change_ip) {
+            if ($conf->{ipmanagehost}) {
+                if ($newip && $newip eq 'dhcp') {
+                    manage_dhclient('start', $vmid, $ipversion, $eth, $rootdir);
+                } elsif ($oldip && $oldip eq 'dhcp') {
+                    manage_dhclient('stop', $vmid, $ipversion, $eth, $rootdir);
+                }
+            }
+
+            if ($is_real_ip) {
+                eval { &$ipcmd($family_opt, 'addr', 'add', $newip, 'dev', $eth); };
+                if (my $err = $@) {
+                    warn $err;
+                    return;
+                }
             }
         }
 
@@ -3001,6 +3056,30 @@ sub vm_start {
         die $err;
     }
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-start');
+
+    if ($conf->{ipmanagehost}) {
+        my @dhcpv4_interfaces = ();
+        my @dhcpv6_interfaces = ();
+        foreach my $k (sort keys %$conf) {
+            next if $k !~ m/^net(\d+)$/;
+            my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+            push @dhcpv4_interfaces, $d->{name} if $d->{ip} && $d->{ip} eq 'dhcp';
+            push @dhcpv6_interfaces, $d->{name} if $d->{ip6} && $d->{ip6} eq 'dhcp';
+        }
+
+        my ($pid, $pidfd) = PVE::LXC::open_lxc_pid($vmid);
+        my $rootdir = "/proc/$pid/root";
+
+        foreach my $eth (@dhcpv4_interfaces) {
+            eval { manage_dhclient('start', $vmid, 4, $eth, $rootdir) };
+            PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
+        }
+
+        foreach my $eth (@dhcpv6_interfaces) {
+            eval { manage_dhclient('start', $vmid, 6, $eth, $rootdir) };
+            PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
+        }
+    }
 
     return;
 }

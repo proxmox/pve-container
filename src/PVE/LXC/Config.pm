@@ -1296,12 +1296,13 @@ sub update_pct_config {
                     if ($mtu > $bridge_mtu);
             }
 
-            if ((!defined($res->{link_down}) || $res->{link_down} != 1) && $conf->{ipmanagehost}) {
-                die "$opt: DHCP is not supported with a custom entrypoint\n"
-                    if defined($res->{ip}) && $res->{ip} eq 'dhcp';
-
-                die "$opt: DHCPv6 and SLAAC are not supported with a custom entrypoint\n"
-                    if defined($res->{ip6}) && $res->{ip6} =~ /^(auto|dhcp)$/;
+            if (
+                (!defined($res->{link_down}) || $res->{link_down} != 1)
+                && $conf->{ipmanagehost}
+                && defined($res->{ip6})
+                && $res->{ip6} eq 'auto'
+            ) {
+                die "$opt: SLAAC is not supported with ipmanagehost\n";
             }
         } elsif ($opt =~ m/^dev(\d+)$/) {
             my $device = $class->parse_device($value);
@@ -1586,9 +1587,11 @@ sub vmconfig_hotplug_pending {
                 $cgroup->change_cpu_shares(undef);
             } elsif ($opt =~ m/^net(\d)$/) {
                 my $netid = $1;
+                my $net = parse_lxc_network($conf->{$opt});
+                PVE::LXC::kill_dhclients($vmid, $net->{name}) if $conf->{ipmanagehost};
+
                 PVE::Network::veth_delete("veth${vmid}i$netid");
                 if ($have_sdn) {
-                    my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
                     print "delete ips from $opt\n";
                     eval {
                         PVE::Network::SDN::Vnets::del_ips_from_mac(
