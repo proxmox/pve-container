@@ -593,7 +593,7 @@ __PACKAGE__->register_method({
                                 );
                             }
                             if ($init_cmd_str ne '/sbin/init') {
-                                push @{ $conf->{lxc} }, ['lxc.init.cmd', $init_cmd_str];
+                                $conf->{entrypoint} = $init_cmd_str;
 
                                 # An entrypoint other than /sbin/init breaks the tty console mode.
                                 # This is fixed by setting cmode: console

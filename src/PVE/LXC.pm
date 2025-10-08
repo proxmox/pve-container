@@ -862,6 +862,8 @@ sub update_lxc_config {
 
     $raw .= "lxc.rootfs.path = $dir/rootfs\n";
 
+    $raw .= "lxc.init.cmd = $conf->{entrypoint}\n" if defined($conf->{entrypoint});
+
     foreach my $k (sort keys %$conf) {
         next if $k !~ m/^net(\d+)$/;
         my $ind = $1;

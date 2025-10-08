@@ -638,6 +638,12 @@ my $confdesc = {
         enum => ['shell', 'console', 'tty'],
         default => 'tty',
     },
+    entrypoint => {
+        optional => 1,
+        type => 'string',
+        description => "Absolute path from container rootfs to the binary to use as init.",
+        default => '/sbin/init',
+    },
     protection => {
         optional => 1,
         type => 'boolean',
@@ -1860,6 +1866,12 @@ sub get_cmode {
     my ($class, $conf) = @_;
 
     return $conf->{cmode} // $confdesc->{cmode}->{default};
+}
+
+sub get_entrypoint {
+    my ($class, $conf) = @_;
+
+    return $conf->{entrypoint} // $confdesc->{entrypoint}->{default};
 }
 
 sub valid_volume_keys {
