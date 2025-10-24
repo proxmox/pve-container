@@ -445,7 +445,7 @@ my $features_desc = {
         description => "Allow nesting."
             . " Best used with unprivileged containers with additional id mapping."
             . " Note that this will expose procfs and sysfs contents of the host"
-            . " to the guest.",
+            . " to the guest. This is also required by systemd to isolate services.",
     },
     keyctl => {
         optional => 1,
