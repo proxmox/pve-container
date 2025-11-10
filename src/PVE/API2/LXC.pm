@@ -652,9 +652,7 @@ __PACKAGE__->register_method({
             if ($ha_managed) {
                 print "Add as HA resource\n";
                 my $state = $start_after_create ? 'started' : 'stopped';
-                eval {
-                    PVE::API2::HA::Resources->create({ sid => "ct:$vmid", state => $state });
-                };
+                eval { run_command(['ha-manager', 'add', "ct:$vmid", '--state', $state]); };
                 warn $@ if $@;
             }
         };
