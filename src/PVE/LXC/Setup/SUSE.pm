@@ -21,7 +21,7 @@ sub new {
             # OK
         } elsif ($ostype eq 'sles' && $major == 12) {
             # OK - shares base with LEAP (42)
-        } elsif ($major == 15) {
+        } elsif ($major == 15 || $major == 16) {
             # OK for SLES and openSUSE Leap, see: https://lwn.net/Articles/720924/
         } else {
             die "unsupported suse release '$version'\n";
