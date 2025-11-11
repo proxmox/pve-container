@@ -296,6 +296,7 @@ DATA
         if (defined(my $ip = $d->{ip6})) {
             if ($ip eq 'dhcp') {
                 $dhcp |= $DHCP6;
+                $accept_ra = 'true';
             } elsif ($ip eq 'auto') {
                 $accept_ra = 'true';
             } elsif ($ip ne 'manual') {
