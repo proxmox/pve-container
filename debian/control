@@ -23,6 +23,7 @@ Priority: optional
 Architecture: all
 Depends: binutils,
          file,
+         isc-dhcp-client,
          libpve-access-control (>= 8.0.0~),
          libpve-cluster-perl,
          libpve-common-perl (>= 8.1.0),
