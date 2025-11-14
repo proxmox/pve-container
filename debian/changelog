@@ -1,3 +1,23 @@
+pve-container (6.0.14) trixie; urgency=medium
+
+  * api: create/store: allow adding CT as HA resource after creation.
+
+  * fix #6897: document that systemd requires nesting.
+
+  * fix #6731: setup/suse: add support for openSUSE Leap 16.0.
+
+  * fix #5538: network: enable `accept_ra` (router advertisement) option for
+    DHCPv6 configurations.
+
+  * api: fix overly zealous permission check for guest net device without
+    bridge.
+
+  * status: rrd metrics: use fixed pve-vm-9.0 format path.
+
+  * fix #6613: relay purge param to HA stack when destroying a container.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 14 Nov 2025 21:54:30 +0100
+
 pve-container (6.0.13) trixie; urgency=medium
 
   * setup: switch network configuration from network-scripts to NetworkManager
