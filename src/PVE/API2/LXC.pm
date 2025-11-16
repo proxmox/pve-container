@@ -548,24 +548,12 @@ __PACKAGE__->register_method({
                     $bwlimit = PVE::Storage::get_bandwidth_limit(
                         'restore', [keys %used_storages], $bwlimit,
                     );
-                    my $is_oci = 0;
 
+                    my $is_oci = 0;
                     if ($restore && $archive ne '-') {
                         print "restoring '$archive' now..\n";
                     } elsif ($archivepath =~ /\.tar$/) {
-                        # Check whether archive is an OCI image
-                        my ($has_oci_layout, $has_index_json, $has_blobs) = (0, 0, 0);
-                        PVE::Tools::run_command(
-                            ['tar', '-tf', $archivepath],
-                            outfunc => sub {
-                                my $line = shift;
-                                $has_oci_layout = 1 if $line eq 'oci-layout';
-                                $has_index_json = 1 if $line eq 'index.json';
-                                $has_blobs = 1 if $line =~ /^blobs\//m;
-                            },
-                        );
-
-                        $is_oci = 1 if $has_oci_layout && $has_index_json && $has_blobs;
+                        $is_oci = PVE::LXC::archive_is_oci_format($archivepath);
                     }
 
                     if ($is_oci) {

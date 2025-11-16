@@ -2801,6 +2801,23 @@ sub rescan {
     }
 }
 
+sub archive_is_oci_format {
+    my ($tar_file) = @_;
+
+    my ($has_oci_layout, $has_index_json, $has_blobs) = (0, 0, 0);
+    PVE::Tools::run_command(
+        ['tar', '-tf', $tar_file],
+        outfunc => sub {
+            my $line = shift;
+            $has_oci_layout = 1 if $line eq 'oci-layout';
+            $has_index_json = 1 if $line eq 'index.json';
+            $has_blobs = 1 if $line =~ /^blobs\//m;
+        },
+    );
+
+    return $has_oci_layout && $has_index_json && $has_blobs;
+}
+
 # bash completion helper
 
 sub complete_os_templates {
