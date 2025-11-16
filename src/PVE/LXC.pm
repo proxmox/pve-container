@@ -901,6 +901,12 @@ sub update_lxc_config {
         }
     }
 
+    if (my $env = $conf->{env}) {
+        for my $variable (split(/\0+/, $env)) {
+            $raw .= "lxc.environment.runtime = $variable\n";
+        }
+    }
+
     my $had_cpuset = 0;
     if (my $lxcconf = $conf->{lxc}) {
         foreach my $entry (@$lxcconf) {

@@ -621,9 +621,7 @@ __PACKAGE__->register_method({
                             if ($oci_config->{WorkingDir});
 
                         if (my $envs = $oci_config->{Env}) {
-                            for my $env (@{$envs}) {
-                                push @{ $conf->{lxc} }, ['lxc.environment.runtime', $env];
-                            }
+                            $conf->{env} = join("\0", $envs->@*);
                         }
 
                         my $stop_signal = $oci_config->{StopSignal} // "SIGTERM";
@@ -3273,6 +3271,8 @@ __PACKAGE__->register_method({
                     delete $new_conf->{snapshots};
                     delete $new_conf->{parent};
                     delete $new_conf->{pending};
+                    # FIXME: allow lxc.environment.runtime and some other keys that only affect the
+                    # CT internally!
                     delete $new_conf->{lxc};
 
                     PVE::LXC::Config->remove_lock($state->{vmid}, 'create');

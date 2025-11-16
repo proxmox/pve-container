@@ -666,6 +666,13 @@ my $confdesc = {
         format => $features_desc,
         description => "Allow containers access to advanced features.",
     },
+    env => {
+        type => 'string',
+        description => 'The container runtime environment as NUL-separated list.'
+            . ' Replaces any lxc.environment.runtime entries in the config.',
+        optional => 1,
+        pattern => qr/(?:\w+=[^\0]+)(?:\0\w+=[^\0]+)*/,
+    },
     hookscript => {
         optional => 1,
         type => 'string',
@@ -1123,10 +1130,15 @@ sub parse_pct_config {
         }
 
         if ($line =~ m/^(lxc\.[a-z0-9_\-\.]+)(:|\s*=)\s*(.*?)\s*$/) {
-            my $key = $1;
-            my $value = $3;
+            my ($key, $value) = ($1, $3);
             my $validity = is_valid_lxc_conf_key($vmid, $key);
-            if ($validity eq 1) {
+            if ($key eq 'lxc.environment.runtime') {
+                if (!defined($conf->{env})) {
+                    $conf->{env} = "$value";
+                } else {
+                    $conf->{env} .= "\0$value";
+                }
+            } elsif ($validity eq 1) {
                 push @{ $conf->{lxc} }, [$key, $value];
             } elsif (my $errmsg = $validity) {
                 $handle_error->("vm $vmid - $key: $errmsg\n");
@@ -1199,6 +1211,7 @@ sub write_pct_config {
                 || $key eq 'pending'
                 || $key eq 'snapshots'
                 || $key eq 'snapname'
+                || $key eq 'env'
                 || $key eq 'lxc';
             my $value = $conf->{$key};
             die "detected invalid newline inside property '$key'\n"
@@ -1206,9 +1219,16 @@ sub write_pct_config {
             $raw .= "$key: $value\n";
         }
 
+        if (my $env = $conf->{env}) {
+            for my $variable (split(/\0+/, $env)) {
+                $raw .= "lxc.environment.runtime: $variable\n";
+            }
+        }
+
         if (my $lxcconf = $conf->{lxc}) {
             foreach my $entry (@$lxcconf) {
                 my ($k, $v) = @$entry;
+                next if $k eq 'lxc.environment.runtime'; # handled above separately
                 $raw .= "$k: $v\n";
             }
         }
