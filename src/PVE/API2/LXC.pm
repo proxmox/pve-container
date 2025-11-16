@@ -567,40 +567,28 @@ __PACKAGE__->register_method({
                         );
 
                         # Set the entrypoint and arguments if specified by the OCI image
-                        my @init_cmd = ();
-                        push(@init_cmd, @{ $oci_config->{Entrypoint} })
+                        my $init_cmd = [];
+                        push($init_cmd->@*, $oci_config->{Entrypoint}->@*)
                             if $oci_config->{Entrypoint};
-                        push(@init_cmd, @{ $oci_config->{Cmd} }) if $oci_config->{Cmd};
-                        if (@init_cmd) {
-                            my $init_cmd_str = shift(@init_cmd);
-                            if (@init_cmd) {
-                                $init_cmd_str .= ' ';
-                                $init_cmd_str .= join(
-                                    ' ',
-                                    map {
-                                        my $s = $_;
-                                        $s =~ s/"/\\"/g;
-                                        qq{"$_"}
-                                    } @init_cmd,
-                                );
-                            }
-                            if ($init_cmd_str ne '/sbin/init') {
-                                # TODO: what about this being set through the API to override it?
-                                $conf->{entrypoint} = $init_cmd_str;
+                        push($init_cmd->@*, $oci_config->{Cmd}->@*) if $oci_config->{Cmd};
 
-                                # An entrypoint other than /sbin/init breaks the tty console mode.
-                                # This is fixed by setting cmode: console
-                                $conf->{cmode} = 'console';
+                        if ($init_cmd->@* && $init_cmd->[0] ne '/sbin/init') {
+                            my $init_cmd_str = PVE::Tools::cmd2string($init_cmd);
+                            # TODO: what about this being set through the API to override it?
+                            $conf->{entrypoint} = $init_cmd_str;
 
-                                # A container with a custom entrypoint likely lacks internal network
-                                # management, so default to managing that by the PVE host.
-                                for my $opt (keys $conf->%*) {
-                                    next if $opt !~ /^net\d+$/;
-                                    my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
-                                    if (!defined($d->{'host-managed'})) {
-                                        $d->{'host-managed'} = 1;
-                                        $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
-                                    }
+                            # An entrypoint other than /sbin/init breaks the tty console mode.
+                            # This is fixed by setting cmode: console
+                            $conf->{cmode} = 'console';
+
+                            # A container with a custom entrypoint likely lacks internal network
+                            # management, so default to managing that by the PVE host.
+                            for my $opt (keys $conf->%*) {
+                                next if $opt !~ /^net\d+$/;
+                                my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+                                if (!defined($d->{'host-managed'})) {
+                                    $d->{'host-managed'} = 1;
+                                    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
                                 }
                             }
                         }
