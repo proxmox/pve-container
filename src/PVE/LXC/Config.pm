@@ -824,8 +824,9 @@ our $netconf_desc = {
     hwaddr => get_standard_option(
         'mac-addr',
         {
-            description =>
-                'The interface MAC address. This is dynamically allocated by default, but you can set that statically if needed, for example to always have the same link-local IPv6 address. (lxc.network.hwaddr)',
+            description => 'The interface MAC address. This is dynamically allocated by'
+                . ' default, but you can set that statically if needed, for example to always'
+                . ' have the same link-local IPv6 address. (lxc.network.hwaddr)',
         },
     ),
     mtu => {
