@@ -2859,6 +2859,7 @@ sub merge_oci_conf_into_pct_conf {
             next if $opt !~ /^net\d+$/;
             my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
             if (!defined($d->{'host-managed'})) {
+                print "Auto-Enabling host-managed network for network device $opt.\n";
                 $d->{'host-managed'} = 1;
                 $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
             }
