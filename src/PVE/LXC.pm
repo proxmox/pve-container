@@ -1344,13 +1344,17 @@ sub manage_dhclient {
 sub kill_dhclients {
     my ($vmid, $eth) = @_;
 
-    foreach my $pidfile (glob("/var/lib/lxc/$vmid/hook/dhclient*-$eth.pid")) {
+    # NOTE: kills all known managed DHCP clients of a CT if no if is passed
+    $eth = '*' if !defined($eth);
+
+    for my $pidfile (glob("/var/lib/lxc/$vmid/hook/dhclient*-$eth.pid")) {
         my $pid = eval { file_get_contents($pidfile) };
         if (!$@) {
             chomp $pid;
             next if $pid !~ /^(\d+)$/;
             kill 9, $1;
-            unlink($pidfile);
+            # TODO: what about waitpit? or is this collected by systemd directly?
+            unlink($pidfile) or $!{ENOENT} or warn "failed to unlink PID file '$pidfile' - $!\n";
         }
     }
 }
