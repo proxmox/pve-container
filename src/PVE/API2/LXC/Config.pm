@@ -75,11 +75,14 @@ __PACKAGE__->register_method({
     code => sub {
         my ($param) = @_;
 
-        raise_param_exc({
-            snapshot => "cannot use 'snapshot' parameter with 'current'",
-            current => "cannot use 'snapshot' parameter with 'current'",
-        })
-            if ($param->{snapshot} && $param->{current});
+        if ($param->{snapshot} && $param->{current}) {
+            raise_param_exc({
+                snapshot => "cannot use 'snapshot' parameter with 'current'",
+                current => "cannot use 'snapshot' parameter with 'current'",
+            });
+        }
+
+        my $vmid = $param->{vmid};
 
         my $conf;
         if ($param->{snapshot}) {
