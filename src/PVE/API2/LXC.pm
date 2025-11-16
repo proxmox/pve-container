@@ -5,6 +5,7 @@ use warnings;
 
 use IO::Socket::UNIX;
 use Socket qw(SOCK_STREAM);
+use JSON;
 
 use PVE::AccessControl;
 use PVE::Cluster qw(cfs_read_file);
