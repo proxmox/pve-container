@@ -1,3 +1,28 @@
+pve-container (6.0.15) trixie; urgency=medium
+
+  * add support to configure the runtime environment of a container. This
+    allows one to pass data down for basic configuration to the main init
+    process of a container.
+
+  * add initial support for enabling host-managed network for DHCP on
+    container network devices. With that flag enabled, the container itself
+    does not need to have any network management stack available anymore, as
+    a DHCP client from the host will be started in the network namespace of
+    the container on start to acquire a lease and setup network without any
+    interaction required from the container.
+
+  * add initial support to setup containers from archives in the OCI image
+    format (somewhat standardised "docker" images).
+    Application container work best if they are stateless, or can be
+    configured through the environment. If not, you might need to adapt the
+    container before you can use it. This can be either done in the OCI image
+    archive itself, or by mounting the container after creation, for example
+    with `pct mount VMID`. While the underlying implementation reuses the
+    battle tested Proxmox VE container toolkit as much as possible, the
+    integration itself can be currently considered a tech preview.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sun, 16 Nov 2025 22:21:58 +0100
+
 pve-container (6.0.14) trixie; urgency=medium
 
   * api: create/store: allow adding CT as HA resource after creation.
