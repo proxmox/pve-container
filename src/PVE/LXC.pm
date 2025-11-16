@@ -2818,6 +2818,20 @@ sub archive_is_oci_format {
     return $has_oci_layout && $has_index_json && $has_blobs;
 }
 
+sub extract_oci_config {
+    my ($tar_file, $rootdir, $conf) = @_;
+
+    my ($id_map, undef, undef) = parse_id_maps($conf);
+    my $oci_config = PVE::LXC::Namespaces::run_in_userns(
+        sub {
+            PVE::RS::OCI::parse_and_extract_image($tar_file, $rootdir);
+        },
+        $id_map,
+    );
+
+    return $oci_config;
+}
+
 # bash completion helper
 
 sub complete_os_templates {
