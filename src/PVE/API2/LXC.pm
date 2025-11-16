@@ -557,6 +557,7 @@ __PACKAGE__->register_method({
                     }
 
                     if ($is_oci) {
+                        print "Detected OCI archive\n";
                         # Extract the OCI image
                         my ($id_map, undef, undef) = PVE::LXC::parse_id_maps($conf);
                         my $oci_config = PVE::LXC::Namespaces::run_in_userns(
