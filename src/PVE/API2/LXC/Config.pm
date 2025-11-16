@@ -75,6 +75,9 @@ __PACKAGE__->register_method({
     code => sub {
         my ($param) = @_;
 
+        my $rpcenv = PVE::RPCEnvironment::get();
+        my $authuser = $rpcenv->get_user();
+
         if ($param->{snapshot} && $param->{current}) {
             raise_param_exc({
                 snapshot => "cannot use 'snapshot' parameter with 'current'",
@@ -86,10 +89,12 @@ __PACKAGE__->register_method({
 
         my $conf;
         if ($param->{snapshot}) {
-            $conf = PVE::LXC::Config->load_snapshot_config($param->{vmid}, $param->{snapshot});
+            $conf = PVE::LXC::Config->load_snapshot_config($vmid, $param->{snapshot});
         } else {
-            $conf = PVE::LXC::Config->load_current_config($param->{vmid}, $param->{current});
+            $conf = PVE::LXC::Config->load_current_config($vmid, $param->{current});
         }
+
+        $conf = PVE::LXC::delete_read_restricted_options($rpcenv, $authuser, $vmid, $conf);
 
         return $conf;
     },

@@ -1636,6 +1636,37 @@ sub template_create {
     PVE::LXC::Config->write_config($vmid, $conf);
 }
 
+# This is mostly for options that might not be always OK to see for, e.g. VM.Audit users.
+# Editing for them should restricted already granulary in check_ct_modify_config_perm!
+my $options_with_restricted_read = {
+    env => 'VM.Config.Options',
+};
+
+# NOTE: this modifies the $conf reference directly, clone up-front if you want to safe this $conf
+# again to avoid loosing values!
+sub delete_read_restricted_options {
+    my ($rpcenv, $authuser, $vmid, $conf, $pool) = @_;
+
+    for my ($restricted_key, $required_priv) ($options_with_restricted_read->%*) {
+        my $has_no_access = 0;
+        if (exists($conf->{$restricted_key})) {
+            if (!$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], 1)) {
+                $has_no_access = 1;
+                delete $conf->{$restricted_key};
+            }
+        }
+        if (exists($conf->{pending}) && exists($conf->{pending}->{$restricted_key})) {
+            if (
+                $has_no_access
+                || !$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], 1)
+            ) {
+                delete $conf->{pending}->{$restricted_key};
+            }
+        }
+    }
+    return $conf;
+}
+
 sub check_ct_modify_config_perm {
     my ($rpcenv, $authuser, $vmid, $pool, $oldconf, $newconf, $delete, $unprivileged) = @_;
 

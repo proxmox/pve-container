@@ -2990,7 +2990,13 @@ __PACKAGE__->register_method({
     code => sub {
         my ($param) = @_;
 
+        my $rpcenv = PVE::RPCEnvironment::get();
+        my $authuser = $rpcenv->get_user();
+
         my $conf = PVE::LXC::Config->load_config($param->{vmid});
+
+        $conf =
+            PVE::LXC::delete_read_restricted_options($rpcenv, $authuser, $param->{vmid}, $conf);
 
         my $pending_delete_hash =
             PVE::LXC::Config->parse_pending_delete($conf->{pending}->{delete});
