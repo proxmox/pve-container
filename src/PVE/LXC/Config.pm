@@ -594,12 +594,6 @@ my $confdesc = {
             . " This is saved as comment inside the configuration file.",
         maxLength => 1024 * 8,
     },
-    ipmanagehost => {
-        type => 'boolean',
-        description =>
-            "Whether this interface's IP configuration should be managed by the host.",
-        optional => 1,
-    },
     searchdomain => {
         optional => 1,
         type => 'string',
@@ -907,6 +901,12 @@ our $netconf_desc = {
     link_down => {
         type => 'boolean',
         description => 'Whether this interface should be disconnected (like pulling the plug).',
+        optional => 1,
+    },
+    'host-managed' => {
+        type => 'boolean',
+        description =>
+            "Whether this interface's IP configuration should be managed by the host.",
         optional => 1,
     },
 };
@@ -1298,11 +1298,11 @@ sub update_pct_config {
 
             if (
                 (!defined($res->{link_down}) || $res->{link_down} != 1)
-                && $conf->{ipmanagehost}
+                && $res->{'host-managed'}
                 && defined($res->{ip6})
                 && $res->{ip6} eq 'auto'
             ) {
-                die "$opt: SLAAC is not supported with ipmanagehost\n";
+                die "$opt: SLAAC is not supported for host-managed network configuration.\n";
             }
         } elsif ($opt =~ m/^dev(\d+)$/) {
             my $device = $class->parse_device($value);
@@ -1588,7 +1588,7 @@ sub vmconfig_hotplug_pending {
             } elsif ($opt =~ m/^net(\d)$/) {
                 my $netid = $1;
                 my $net = parse_lxc_network($conf->{$opt});
-                PVE::LXC::kill_dhclients($vmid, $net->{name}) if $conf->{ipmanagehost};
+                PVE::LXC::kill_dhclients($vmid, $net->{name}) if $net->{'host-managed'};
 
                 PVE::Network::veth_delete("veth${vmid}i$netid");
                 if ($have_sdn) {

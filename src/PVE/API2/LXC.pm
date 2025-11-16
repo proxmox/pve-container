@@ -593,15 +593,23 @@ __PACKAGE__->register_method({
                                 );
                             }
                             if ($init_cmd_str ne '/sbin/init') {
+                                # TODO: what about this being set through the API to override it?
                                 $conf->{entrypoint} = $init_cmd_str;
 
                                 # An entrypoint other than /sbin/init breaks the tty console mode.
                                 # This is fixed by setting cmode: console
                                 $conf->{cmode} = 'console';
 
-                                # Manage the IP configuration for the container. A container with a
-                                # custom entrypoint likely lacks internal network management.
-                                $conf->{ipmanagehost} = 1;
+                                # A container with a custom entrypoint likely lacks internal network
+                                # management, so default to managing that by the PVE host.
+                                for my $opt (keys $conf->%*) {
+                                    next if $opt !~ /^net\d+$/;
+                                    my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
+                                    if (!defined($d->{'host-managed'})) {
+                                        $d->{'host-managed'} = 1;
+                                        $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
+                                    }
+                                }
                             }
                         }
 

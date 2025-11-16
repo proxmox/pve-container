@@ -887,12 +887,13 @@ sub update_lxc_config {
             $raw .= "lxc.net.$ind.script.up = /usr/share/lxc/lxcnetaddbr\n";
         }
 
-        if ((!defined($d->{link_down}) || $d->{link_down} != 1) && $conf->{ipmanagehost}) {
+        if ((!defined($d->{link_down}) || $d->{link_down} != 1) && $d->{'host-managed'}) {
             $raw .= "lxc.net.$ind.ipv4.address = $d->{ip}\n"
                 if defined($d->{ip}) && $d->{ip} !~ /^(dhcp|manual)$/;
             $raw .= "lxc.net.$ind.ipv4.gateway = $d->{gw}\n" if defined($d->{gw});
             if (defined($d->{ip6})) {
-                die "$k: SLAAC is not supported with ipmanagehost\n" if $d->{ip6} eq 'auto';
+                die "$k: SLAAC is not supported for host-managed network configuration\n"
+                    if $d->{ip6} eq 'auto';
                 $raw .= "lxc.net.$ind.ipv6.address = $d->{ip6}\n" if $d->{ip6} !~ /^(dhcp|manual)$/;
             }
             $raw .= "lxc.net.$ind.ipv6.gateway = $d->{gw6}\n" if defined($d->{gw6});
@@ -1077,7 +1078,7 @@ sub vm_stop_cleanup {
     };
     warn $@ if $@; # avoid errors - just warn
 
-    kill_dhclients($vmid, '*') if $conf->{ipmanagehost};
+    kill_dhclients($vmid);
 }
 
 sub net_tap_plug : prototype($$) {
@@ -1396,12 +1397,11 @@ sub update_ipconfig {
         # step 1: add new IP, if this fails we cancel
         my $is_real_ip = ($newip && $newip !~ /^(?:auto|dhcp|manual)$/);
         if ($change_ip) {
-            if ($conf->{ipmanagehost}) {
-                if ($newip && $newip eq 'dhcp') {
-                    manage_dhclient('start', $vmid, $ipversion, $eth, $rootdir);
-                } elsif ($oldip && $oldip eq 'dhcp') {
-                    manage_dhclient('stop', $vmid, $ipversion, $eth, $rootdir);
-                }
+            if ($newnet->{'host-managed'} && $newip && $newip eq 'dhcp') {
+                manage_dhclient('start', $vmid, $ipversion, $eth, $rootdir);
+            }
+            if ($optdata->{'host-managed'} && $oldip && $oldip eq 'dhcp') {
+                manage_dhclient('stop', $vmid, $ipversion, $eth, $rootdir);
             }
 
             if ($is_real_ip) {
@@ -1411,6 +1411,8 @@ sub update_ipconfig {
                     return;
                 }
             }
+        } elsif ($optdata->{'host-managed'} && !$newnet->{'host-managed'}) {
+            manage_dhclient('stop', $vmid, $ipversion, $eth, $rootdir);
         }
 
         # step 2: replace gateway
@@ -3061,28 +3063,29 @@ sub vm_start {
     }
     PVE::GuestHelpers::exec_hookscript($conf, $vmid, 'post-start');
 
-    if ($conf->{ipmanagehost}) {
-        my @dhcpv4_interfaces = ();
-        my @dhcpv6_interfaces = ();
-        foreach my $k (sort keys %$conf) {
-            next if $k !~ m/^net(\d+)$/;
-            my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
-            push @dhcpv4_interfaces, $d->{name} if $d->{ip} && $d->{ip} eq 'dhcp';
-            push @dhcpv6_interfaces, $d->{name} if $d->{ip6} && $d->{ip6} eq 'dhcp';
-        }
+    my @managed_dhcpv4_interfaces = ();
+    my @managed_dhcpv6_interfaces = ();
+    foreach my $k (sort keys %$conf) {
+        next if $k !~ m/^net(\d+)$/;
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
 
-        my ($pid, $pidfd) = PVE::LXC::open_lxc_pid($vmid);
-        my $rootdir = "/proc/$pid/root";
+        next if !$d->{'host-managed'};
 
-        foreach my $eth (@dhcpv4_interfaces) {
-            eval { manage_dhclient('start', $vmid, 4, $eth, $rootdir) };
-            PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
-        }
+        push @managed_dhcpv4_interfaces, $d->{name} if $d->{ip} && $d->{ip} eq 'dhcp';
+        push @managed_dhcpv6_interfaces, $d->{name} if $d->{ip6} && $d->{ip6} eq 'dhcp';
+    }
 
-        foreach my $eth (@dhcpv6_interfaces) {
-            eval { manage_dhclient('start', $vmid, 6, $eth, $rootdir) };
-            PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
-        }
+    my ($pid, $pidfd) = PVE::LXC::open_lxc_pid($vmid);
+    my $rootdir = "/proc/$pid/root";
+
+    for my $eth (@managed_dhcpv4_interfaces) {
+        eval { manage_dhclient('start', $vmid, 4, $eth, $rootdir) };
+        PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
+    }
+
+    for my $eth (@managed_dhcpv6_interfaces) {
+        eval { manage_dhclient('start', $vmid, 6, $eth, $rootdir) };
+        PVE::RESTEnvironment::log_warn("DHCP failed - $@") if $@;
     }
 
     return;
