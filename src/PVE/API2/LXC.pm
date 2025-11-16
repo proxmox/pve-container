@@ -560,42 +560,9 @@ __PACKAGE__->register_method({
                         print "Detected OCI archive\n";
                         my $oci_config = PVE::LXC::extract_oci_config($archivepath, $rootdir, $conf);
 
-                        # Set the entrypoint and arguments if specified by the OCI image
-                        my $init_cmd = [];
-                        push($init_cmd->@*, $oci_config->{Entrypoint}->@*)
-                            if $oci_config->{Entrypoint};
-                        push($init_cmd->@*, $oci_config->{Cmd}->@*) if $oci_config->{Cmd};
+                        # This method does the main part of the preparing a CT to run a OCI archive.
+                        PVE::LXC::merge_oci_conf_into_pct_conf($oci_config, $conf);
 
-                        if ($init_cmd->@* && $init_cmd->[0] ne '/sbin/init') {
-                            my $init_cmd_str = PVE::Tools::cmd2string($init_cmd);
-                            # TODO: what about this being set through the API to override it?
-                            $conf->{entrypoint} = $init_cmd_str;
-
-                            # An entrypoint other than /sbin/init breaks the tty console mode.
-                            # This is fixed by setting cmode: console
-                            $conf->{cmode} = 'console';
-
-                            # A container with a custom entrypoint likely lacks internal network
-                            # management, so default to managing that by the PVE host.
-                            for my $opt (keys $conf->%*) {
-                                next if $opt !~ /^net\d+$/;
-                                my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
-                                if (!defined($d->{'host-managed'})) {
-                                    $d->{'host-managed'} = 1;
-                                    $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
-                                }
-                            }
-                        }
-
-                        push @{ $conf->{lxc} }, ['lxc.init.cwd', $oci_config->{WorkingDir}]
-                            if ($oci_config->{WorkingDir});
-
-                        if (my $envs = $oci_config->{Env}) {
-                            $conf->{env} = join("\0", $envs->@*);
-                        }
-
-                        my $stop_signal = $oci_config->{StopSignal} // "SIGTERM";
-                        push @{ $conf->{lxc} }, ['lxc.signal.halt', $stop_signal];
                     } else {
                         # Not an OCI image, so restore it as an LXC image instead
                         PVE::LXC::Create::restore_archive(
