@@ -1,3 +1,9 @@
+pve-container (6.0.16) trixie; urgency=medium
+
+  * config: forbid passing control characters in env property through the API.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 17 Nov 2025 10:31:32 +0100
+
 pve-container (6.0.15) trixie; urgency=medium
 
   * add support to configure the runtime environment of a container. This
