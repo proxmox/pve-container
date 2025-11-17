@@ -642,6 +642,7 @@ my $confdesc = {
         optional => 1,
         type => 'string',
         description => "Absolute path from container rootfs to the binary to use as init.",
+        pattern => qr/[^\x00-\x1F\x7F]+/,
         default => '/sbin/init',
     },
     protection => {
