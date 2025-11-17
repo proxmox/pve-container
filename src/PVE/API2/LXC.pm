@@ -542,29 +542,24 @@ __PACKAGE__->register_method({
 
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
-                    my $archivepath = '-';
                     if ($archive ne '-') {
                         my $archive_sid = (PVE::Storage::parse_volume_id($archive))[0];
                         my $scfg = PVE::Storage::storage_config($storage_cfg, $archive_sid);
-                        $archivepath = PVE::Storage::abs_filesystem_path($storage_cfg, $archive)
-                            if $scfg->{path};
                     }
                     $bwlimit = PVE::Storage::get_bandwidth_limit(
                         'restore', [keys %used_storages], $bwlimit,
                     );
 
-                    my $is_oci = 0;
-                    if ($restore && $archive ne '-') {
-                        print "restoring '$archive' now..\n";
-                    } elsif ($archivepath =~ /\.tar$/) {
-                        $is_oci = PVE::LXC::Create::archive_is_oci_format($archivepath);
-                    }
-
-                    if ($is_oci) {
+                    if (
+                        !$restore # makes no sense to even check for OCI image on restore.
+                        && PVE::LXC::Create::archive_is_oci_format($storage_cfg, $archive)
+                    ) {
                         print "Detected OCI archive\n";
-                        PVE::LXC::Create::restore_oci_archive($archivepath, $rootdir, $conf);
+                        PVE::LXC::Create::restore_oci_archive(
+                            $storage_cfg, $archive, $rootdir, $conf,
+                        );
                     } else {
-                        # Not an OCI image, so restore it as an LXC image instead
+                        print "restoring '$archive' now..\n" if $restore && $archive ne '-';
                         PVE::LXC::Create::restore_archive(
                             $storage_cfg,
                             $archive,

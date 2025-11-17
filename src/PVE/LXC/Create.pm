@@ -635,11 +635,17 @@ sub restore_configuration_from_etc_vzdump {
 }
 
 sub archive_is_oci_format {
-    my ($tar_file) = @_;
+    my ($storage_cfg, $archive) = @_;
+
+    return 0 if !defined($archive) || $archive eq '-';
+
+    my $archive_file = eval { PVE::Storage::abs_filesystem_path($storage_cfg, $archive) };
+    warn "$@" if $@;
+    return 0 if !defined($archive_file) || $archive_file !~ /\.tar$/;
 
     my ($has_oci_layout, $has_index_json, $has_blobs) = (0, 0, 0);
     PVE::Tools::run_command(
-        ['tar', '-tf', $tar_file],
+        ['tar', '-tf', $archive_file],
         outfunc => sub {
             my $line = shift;
             $has_oci_layout = 1 if $line eq 'oci-layout';
@@ -657,12 +663,17 @@ sub archive_is_oci_format {
 # There is still room for improvements, e.g. potentially detecting "Volumes" or how to pass in some
 # config/snippet or the like (snipptes or maybe better the new Mapping infra?).
 sub restore_oci_archive {
-    my ($tar_file, $rootdir, $conf) = @_;
+    my ($storage_cfg, $archive, $rootdir, $conf) = @_;
+
+    die "cannot restore OCI from stdin archive!\n" if $archive eq '-';
+
+    my $archive_file = PVE::Storage::abs_filesystem_path($storage_cfg, $archive);
+    # assume the file was checked before already.
 
     my ($id_map, undef, undef) = PVE::LXC::parse_id_maps($conf);
     my $oci_config = PVE::LXC::Namespaces::run_in_userns(
         sub {
-            PVE::RS::OCI::parse_and_extract_image($tar_file, $rootdir);
+            PVE::RS::OCI::parse_and_extract_image($archive_file, $rootdir);
         },
         $id_map,
     );
