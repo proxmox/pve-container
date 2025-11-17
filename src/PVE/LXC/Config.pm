@@ -671,7 +671,7 @@ my $confdesc = {
         description => 'The container runtime environment as NUL-separated list.'
             . ' Replaces any lxc.environment.runtime entries in the config.',
         optional => 1,
-        pattern => qr/(?:\w+=[^\0]+)(?:\0\w+=[^\0]+)*/,
+        pattern => qr/(?:\w+=[^\x00-\x1F\x7F]+)(?:\0\w+=[^\x00-\x1F\x7F]+)*/,
     },
     hookscript => {
         optional => 1,
