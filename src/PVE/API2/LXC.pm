@@ -562,12 +562,7 @@ __PACKAGE__->register_method({
 
                     if ($is_oci) {
                         print "Detected OCI archive\n";
-                        my $oci_config =
-                            PVE::LXC::Create::restore_oci_archive($archivepath, $rootdir, $conf);
-
-                        # This method does the main part of the preparing a CT to run a OCI archive.
-                        PVE::LXC::Create::merge_oci_conf_into_pct_conf($oci_config, $conf);
-
+                        PVE::LXC::Create::restore_oci_archive($archivepath, $rootdir, $conf);
                     } else {
                         # Not an OCI image, so restore it as an LXC image instead
                         PVE::LXC::Create::restore_archive(

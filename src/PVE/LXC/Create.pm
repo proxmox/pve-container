@@ -651,6 +651,11 @@ sub archive_is_oci_format {
     return $has_oci_layout && $has_index_json && $has_blobs;
 }
 
+# This methods extracts and OCI image and then tries to map its OCI config into our LXC/PCT config
+# so that a OCI template can be started just like system containers.
+#
+# There is still room for improvements, e.g. potentially detecting "Volumes" or how to pass in some
+# config/snippet or the like (snipptes or maybe better the new Mapping infra?).
 sub restore_oci_archive {
     my ($tar_file, $rootdir, $conf) = @_;
 
@@ -661,17 +666,6 @@ sub restore_oci_archive {
         },
         $id_map,
     );
-
-    return $oci_config;
-}
-
-# This methods tries to map a OCI config into our LXC/PCT config so that a OCI template can be
-# started just like system containers.
-#
-# There is still room for improvements, e.g. potentially detecting "Volumes" or how to pass in some
-# config/snippet or the like (snipptes or maybe better the new Mapping infra?).
-sub merge_oci_conf_into_pct_conf {
-    my ($oci_config, $conf) = @_;
 
     my $init_cmd = [];
     push($init_cmd->@*, $oci_config->{Entrypoint}->@*) if $oci_config->{Entrypoint};
