@@ -543,8 +543,12 @@ __PACKAGE__->register_method({
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
                     my $archivepath = '-';
-                    $archivepath = PVE::Storage::abs_filesystem_path($storage_cfg, $archive)
-                        if ($archive ne '-');
+                    if ($archive ne '-') {
+                        my $archive_sid = (PVE::Storage::parse_volume_id($archive))[0];
+                        my $scfg = PVE::Storage::storage_config($storage_cfg, $archive_sid);
+                        $archivepath = PVE::Storage::abs_filesystem_path($storage_cfg, $archive)
+                            if $scfg->{path};
+                    }
                     $bwlimit = PVE::Storage::get_bandwidth_limit(
                         'restore', [keys %used_storages], $bwlimit,
                     );
