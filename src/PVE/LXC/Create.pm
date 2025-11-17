@@ -2,9 +2,11 @@ package PVE::LXC::Create;
 
 use strict;
 use warnings;
+
 use File::Basename;
 use File::Path;
 use Fcntl;
+use List::Util qw(any);
 
 use PVE::RPCEnvironment;
 use PVE::RESTEnvironment qw(log_warn);
@@ -671,16 +673,40 @@ sub restore_oci_archive {
     # assume the file was checked before already.
 
     my ($id_map, undef, undef) = PVE::LXC::parse_id_maps($conf);
-    my $oci_config = PVE::LXC::Namespaces::run_in_userns(
+    # NOTE: values of $unsafe_oci_config are untrusted! do NOT use them as is, only via the helpers!
+    my $unsafe_oci_config = PVE::LXC::Namespaces::run_in_userns(
         sub {
             PVE::RS::OCI::parse_and_extract_image($archive_file, $rootdir);
         },
         $id_map,
     );
 
+    # should we rather validate this on the rust side already?
+    my $has_ctrl_char = sub { return $_[0] =~ /[\x00-\x1F\x7F]/; };
+    my $oci_config_get_checked_scalar = sub {
+        my ($key) = @_;
+        my $value = $unsafe_oci_config->{$key} // return;
+        die "OCI config value for '$key' contains forbidden control characters!\n"
+            if $has_ctrl_char->($value);
+        return $value;
+    };
+    my $oci_config_get_checked_array = sub {
+        my ($key) = @_;
+        my $array = $unsafe_oci_config->{$key} // return;
+
+        die "OCI config array-value for '$key' contains forbidden control characters!\n"
+            if any { $has_ctrl_char->($_) } $array->@*;
+
+        return $array;
+    };
+
     my $init_cmd = [];
-    push($init_cmd->@*, $oci_config->{Entrypoint}->@*) if $oci_config->{Entrypoint};
-    push($init_cmd->@*, $oci_config->{Cmd}->@*) if $oci_config->{Cmd};
+    if (my $entrypoint = $oci_config_get_checked_array->('Entrypoint')) {
+        push($init_cmd->@*, $entrypoint->@*);
+    }
+    if (my $cmd = $oci_config_get_checked_array->('Cmd')) {
+        push($init_cmd->@*, $cmd->@*);
+    }
 
     if ($init_cmd->@* && $init_cmd->[0] ne '/sbin/init') {
         my $init_cmd_str = PVE::Tools::cmd2string($init_cmd);
@@ -704,14 +730,15 @@ sub restore_oci_archive {
         }
     }
 
-    push $conf->{lxc}->@*, ['lxc.init.cwd', $oci_config->{WorkingDir}]
-        if $oci_config->{WorkingDir};
+    if (my $working_dir = $oci_config_get_checked_scalar->('WorkingDir')) {
+        push $conf->{lxc}->@*, ['lxc.init.cwd', $working_dir];
+    }
 
-    if (my $envs = $oci_config->{Env}) {
+    if (my $envs = $oci_config_get_checked_array->('Env')) {
         $conf->{env} = join("\0", $envs->@*);
     }
 
-    my $stop_signal = $oci_config->{StopSignal} // "SIGTERM";
+    my $stop_signal = $oci_config_get_checked_scalar->('StopSignal') // "SIGTERM";
     push $conf->{lxc}->@*, ['lxc.signal.halt', $stop_signal];
 
     return $conf; # it's a reference anyway, so return mostly for convenience.
