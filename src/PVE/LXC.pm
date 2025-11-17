@@ -2801,37 +2801,6 @@ sub rescan {
     }
 }
 
-sub archive_is_oci_format {
-    my ($tar_file) = @_;
-
-    my ($has_oci_layout, $has_index_json, $has_blobs) = (0, 0, 0);
-    PVE::Tools::run_command(
-        ['tar', '-tf', $tar_file],
-        outfunc => sub {
-            my $line = shift;
-            $has_oci_layout = 1 if $line eq 'oci-layout';
-            $has_index_json = 1 if $line eq 'index.json';
-            $has_blobs = 1 if $line =~ /^blobs\//m;
-        },
-    );
-
-    return $has_oci_layout && $has_index_json && $has_blobs;
-}
-
-sub extract_oci_config {
-    my ($tar_file, $rootdir, $conf) = @_;
-
-    my ($id_map, undef, undef) = parse_id_maps($conf);
-    my $oci_config = PVE::LXC::Namespaces::run_in_userns(
-        sub {
-            PVE::RS::OCI::parse_and_extract_image($tar_file, $rootdir);
-        },
-        $id_map,
-    );
-
-    return $oci_config;
-}
-
 # This methods tries to map a OCI config into our LXC/PCT config so that a OCI template can be
 # started just like system containers.
 #
