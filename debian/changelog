@@ -1,3 +1,21 @@
+pve-container (6.0.17) trixie; urgency=medium
+
+  * config: allow one to set empty environment variables.
+
+  * api: create VM: use ha-manager command to add container as an HA resource.
+
+  * fix regression breaking container restore from PBS.
+
+  * config: forbid using control characters for new entrypoint property.
+
+  * oci create: ensure values taken from image do not contain control
+    characters.
+
+  * create oci: best-effort create directories for data volumes inside the
+    containers file system tree.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 17 Nov 2025 21:32:11 +0100
+
 pve-container (6.0.16) trixie; urgency=medium
 
   * config: forbid passing control characters in env property through the API.
