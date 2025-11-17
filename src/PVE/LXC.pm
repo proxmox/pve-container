@@ -2801,53 +2801,6 @@ sub rescan {
     }
 }
 
-# This methods tries to map a OCI config into our LXC/PCT config so that a OCI template can be
-# started just like system containers.
-#
-# There is still room for improvements, e.g. potentially detecting "Volumes" or how to pass in some
-# config/snippet or the like (snipptes or maybe better the new Mapping infra?).
-sub merge_oci_conf_into_pct_conf {
-    my ($oci_config, $conf) = @_;
-
-    my $init_cmd = [];
-    push($init_cmd->@*, $oci_config->{Entrypoint}->@*) if $oci_config->{Entrypoint};
-    push($init_cmd->@*, $oci_config->{Cmd}->@*) if $oci_config->{Cmd};
-
-    if ($init_cmd->@* && $init_cmd->[0] ne '/sbin/init') {
-        my $init_cmd_str = PVE::Tools::cmd2string($init_cmd);
-        # TODO: what about this being set through the API to override it?
-        $conf->{entrypoint} = $init_cmd_str;
-
-        # An entrypoint other than /sbin/init breaks the tty console mode.
-        # This is fixed by setting cmode: console
-        $conf->{cmode} = 'console';
-
-        # A container with a custom entrypoint likely lacks internal network
-        # management, so default to managing that by the PVE host.
-        for my $opt (keys $conf->%*) {
-            next if $opt !~ /^net\d+$/;
-            my $d = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
-            if (!defined($d->{'host-managed'})) {
-                print "Auto-Enabling host-managed network for network device $opt.\n";
-                $d->{'host-managed'} = 1;
-                $conf->{$opt} = PVE::LXC::Config->print_lxc_network($d);
-            }
-        }
-    }
-
-    push $conf->{lxc}->@*, ['lxc.init.cwd', $oci_config->{WorkingDir}]
-        if $oci_config->{WorkingDir};
-
-    if (my $envs = $oci_config->{Env}) {
-        $conf->{env} = join("\0", $envs->@*);
-    }
-
-    my $stop_signal = $oci_config->{StopSignal} // "SIGTERM";
-    push $conf->{lxc}->@*, ['lxc.signal.halt', $stop_signal];
-
-    return $conf; # it's a reference anyway, so return mostly for convenience.
-}
-
 # bash completion helper
 
 sub complete_os_templates {
