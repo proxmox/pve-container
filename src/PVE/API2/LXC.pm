@@ -542,10 +542,6 @@ __PACKAGE__->register_method({
 
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
-                    if ($archive ne '-') {
-                        my $archive_sid = (PVE::Storage::parse_volume_id($archive))[0];
-                        my $scfg = PVE::Storage::storage_config($storage_cfg, $archive_sid);
-                    }
                     $bwlimit = PVE::Storage::get_bandwidth_limit(
                         'restore', [keys %used_storages], $bwlimit,
                     );
