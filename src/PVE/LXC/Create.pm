@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use File::Basename;
-use File::Path;
+use File::Path qw(make_path);
 use Fcntl;
 use List::Util qw(any);
 
@@ -699,6 +699,31 @@ sub restore_oci_archive {
 
         return $array;
     };
+
+    if (my $unsafe_data_volumes = $unsafe_oci_config->{Volumes}) {
+        # while these keys do not get into the config let's just stay on the safe side here!
+        die "OCI config data-volumes path contains forbidden control characters!\n"
+            if any { $has_ctrl_char->($_) } keys $unsafe_data_volumes->%*;
+
+        my @data_volume_paths = keys $unsafe_data_volumes->%*;
+        # NOTE: The OCI image spec would actually recommend that these result in separate mounts
+        # outside of the CTs root FS.
+        # We currently have no good way of presenting the volumes to the user before create and we
+        # also cannot auto-magically create a mp out of thin air (how big and on which storage?!)
+        # So for now we just try (best-effort) to create these paths, as not all images have these
+        # included in the filesystem.
+        # This will also keep the cases working where a user does know about them and
+        # added MPs at this locations, at they will simply get mounted there correctly then.
+        # TODO: should the folders always be owned by the CT root user though?
+        PVE::LXC::Namespaces::run_in_userns(
+            sub {
+                for my $path (@data_volume_paths) {
+                    make_path("$rootdir/$path"); # safe inside CT namespace
+                }
+            },
+            $id_map,
+        );
+    }
 
     my $init_cmd = [];
     if (my $entrypoint = $oci_config_get_checked_array->('Entrypoint')) {
