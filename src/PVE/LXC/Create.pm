@@ -682,7 +682,7 @@ sub restore_oci_archive {
     );
 
     # should we rather validate this on the rust side already?
-    my $has_ctrl_char = sub { return $_[0] =~ /[\x00-\x1F\x7F]/; };
+    my $has_ctrl_char = sub { return $_[0] =~ /[\x00-\x08\x10-\x1F\x7F]/; };
     my $oci_config_get_checked_scalar = sub {
         my ($key) = @_;
         my $value = $unsafe_oci_config->{$key} // return;
