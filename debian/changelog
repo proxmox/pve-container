@@ -1,3 +1,19 @@
+pve-container (6.0.18) trixie; urgency=medium
+
+  * shell autocomplete: os templates: do not list VM backup archives for
+    restore.
+
+  * oci create: log volume directory creation.
+
+  * oci create: chroot into rootdir to contain creating volume directories.
+
+  * oci create: allow tabs in oci config
+
+  * config: allow tabs in values of environment variables and entrypoint
+    properties.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 18 Nov 2025 12:59:45 +0100
+
 pve-container (6.0.17) trixie; urgency=medium
 
   * config: allow one to set empty environment variables.
