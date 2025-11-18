@@ -718,6 +718,7 @@ sub restore_oci_archive {
         PVE::LXC::Namespaces::run_in_userns(
             sub {
                 for my $path (@data_volume_paths) {
+                    print "Creating placeholder directory for volume at $path\n";
                     make_path("$rootdir/$path"); # safe inside CT namespace
                 }
             },
