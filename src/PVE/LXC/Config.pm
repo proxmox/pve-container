@@ -642,7 +642,7 @@ my $confdesc = {
         optional => 1,
         type => 'string',
         description => "Absolute path from container rootfs to the binary to use as init.",
-        pattern => qr/[^\x00-\x1F\x7F]+/,
+        pattern => qr/[^\x00-\x08\x10-\x1F\x7F]+/, # no control characters besides \t tab.
         default => '/sbin/init',
     },
     protection => {
@@ -672,7 +672,7 @@ my $confdesc = {
         description => 'The container runtime environment as NUL-separated list.'
             . ' Replaces any lxc.environment.runtime entries in the config.',
         optional => 1,
-        pattern => qr/(?:\w+=[^\x00-\x1F\x7F]*)(?:\0\w+=[^\x00-\x1F\x7F]*)*/,
+        pattern => qr/(?:\w+=[^\x00-\x08\x10-\x1F\x7F]*)(?:\0\w+=[^\x00-\x08\x10-\x1F\x7F]*)*/,
     },
     hookscript => {
         optional => 1,
