@@ -717,9 +717,14 @@ sub restore_oci_archive {
         # TODO: should the folders always be owned by the CT root user though?
         PVE::LXC::Namespaces::run_in_userns(
             sub {
+                # we're now in the correct user namespace, but not in the mount namespace, so chroot
+                # into the rootdir to ensure that make_path is safe from ../ and symlinks!
+                chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
+                chdir('/') or die "failed to change to root directory\n";
+
                 for my $path (@data_volume_paths) {
                     print "creating base directory for volume at $path\n";
-                    make_path("$rootdir/$path"); # safe inside CT namespace
+                    make_path("/$path"); # chrooted to /$rootdir above already
                 }
             },
             $id_map,
