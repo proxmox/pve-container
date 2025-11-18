@@ -641,7 +641,8 @@ my $confdesc = {
     entrypoint => {
         optional => 1,
         type => 'string',
-        description => "Absolute path from container rootfs to the binary to use as init.",
+        description => "Command to run as init, optionally with arguments;"
+            . " may start with an absolute path, relative path, or a binary in \$PATH.",
         pattern => qr/[^\x00-\x08\x10-\x1F\x7F]+/, # no control characters besides \t tab.
         default => '/sbin/init',
     },
