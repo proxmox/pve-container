@@ -8,7 +8,7 @@ use warnings;
 use Carp;
 
 sub new {
-    my ($class, $conf, $rootdir, $os_release) = @_;
+    my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
     croak "implement me in sub-class\n";
 }
 

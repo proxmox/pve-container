@@ -24,7 +24,7 @@ use PVE::LXC::Tools;
 use base qw(PVE::LXC::Setup::Plugin);
 
 sub new {
-    my ($class, $conf, $rootdir, $os_release) = @_;
+    my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
 
     return bless { conf => $conf, rootdir => $rootdir, os_release => $os_release }, $class;
 }

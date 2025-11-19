@@ -6,7 +6,6 @@ use warnings;
 use PVE::Tools qw($IPV6RE);
 use PVE::LXC;
 use PVE::Network;
-use PVE::RESTEnvironment qw(log_warn);
 
 use File::Path;
 
@@ -20,7 +19,7 @@ use constant {
 };
 
 sub new {
-    my ($class, $conf, $rootdir) = @_;
+    my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
 
     my $version = PVE::Tools::file_read_firstline("$rootdir/etc/debian_version");
 
@@ -47,7 +46,7 @@ sub new {
     die "Container Debian version '$version' is too old\n" if $version < DEBIAN_MINIMUM_RELEASE;
 
     if ($version >= (DEBIAN_MAXIMUM_RELEASE + 1)) { # also allow all MAX.X point releases.
-        log_warn("The container's Debian version '$version' is newer than the tested version '"
+        $log_warn->("The container's Debian version '$version' is newer than the tested version '"
             . DEBIAN_MAXIMUM_RELEASE
             . "'. While everything may work fine, full compatibility cannot be guaranteed."
             . " Please check for PVE system updates.\n");

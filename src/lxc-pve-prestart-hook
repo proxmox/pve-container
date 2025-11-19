@@ -28,17 +28,6 @@ eval {
     $have_sdn = 1;
 };
 
-my $WARNFD;
-
-sub log_warn {
-    my ($vmid, $message) = @_;
-
-    if (!defined($WARNFD)) {
-        open($WARNFD, '>', "/run/pve/ct-${vmid}.warnings");
-    }
-    print $WARNFD "$message\n";
-}
-
 PVE::LXC::Tools::lxc_hook(
     'pre-start',
     'lxc',
@@ -52,6 +41,17 @@ PVE::LXC::Tools::lxc_hook(
         PVE::Cluster::check_cfs_quorum(); # only start if we have quorum
 
         PVE::RESTEnvironment->setup_default_cli_env();
+
+        my $warn_file = "/run/pve/ct-${vmid}.warnings";
+        # Opened here to ensure that logging works after forking into
+        # a chroot during a protected_call.
+        open(my $warnfd, '>', $warn_file) or die "Failed to open $warn_file: $!";
+        my $log_warn = sub {
+            my ($message) = @_;
+            chomp $message;
+            print $warnfd "$message\n";
+            $warnfd->flush; # required because protected_call calls POSIX::_exit
+        };
 
         return undef if !-f PVE::LXC::Config->config_file($vmid);
 
@@ -155,13 +155,12 @@ PVE::LXC::Tools::lxc_hook(
 
         PVE::LXC::Config->foreach_passthrough_device($conf, $setup_passthrough_device);
 
-        my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
+        my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir, undef, $log_warn);
         $lxc_setup->pre_start_hook();
 
         if (PVE::CGroup::cgroup_mode() == 2) {
             if (!$lxc_setup->unified_cgroupv2_support()) {
-                log_warn(
-                    $vmid,
+                $log_warn->(
                     "old systemd (< v232) detected, container won't run in a pure cgroupv2"
                         . " environment! Please see documentation -> container -> cgroup version.",
                 );

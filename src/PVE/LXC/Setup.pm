@@ -6,6 +6,7 @@ use warnings;
 use POSIX;
 use Cwd 'abs_path';
 
+use PVE::RESTEnvironment;
 use PVE::Tools;
 
 use PVE::LXC::Setup::Alpine;
@@ -97,11 +98,13 @@ my $autodetect_type = sub {
 };
 
 sub new {
-    my ($class, $conf, $rootdir, $type) = @_;
+    my ($class, $conf, $rootdir, $type, $log_warn) = @_;
 
     die "no root directory\n" if !$rootdir || $rootdir eq '/';
 
-    my $self = bless { conf => $conf, rootdir => $rootdir }, $class;
+    $log_warn ||= sub { PVE::RESTEnvironment::log_warn(@_); };
+
+    my $self = bless { conf => $conf, rootdir => $rootdir, log_warn => $log_warn }, $class;
 
     my $os_release = $self->get_ct_os_release();
 
@@ -121,7 +124,7 @@ sub new {
 
     my $plugin_class = $plugins->{$type} || die "no such OS type '$type'\n";
 
-    my $plugin = $plugin_class->new($conf, $rootdir, $os_release);
+    my $plugin = $plugin_class->new($conf, $rootdir, $os_release, $log_warn);
     $self->{plugin} = $plugin;
     $self->{in_chroot} = 0;
 

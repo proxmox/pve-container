@@ -5,7 +5,6 @@ use warnings;
 
 use PVE::Tools;
 use PVE::LXC;
-use PVE::RESTEnvironment qw(log_warn);
 
 use File::Path;
 
@@ -43,7 +42,7 @@ my $known_versions = {
 };
 
 sub new {
-    my ($class, $conf, $rootdir) = @_;
+    my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
 
     my $lsb_fn = "$rootdir/etc/lsb-release";
     my $lsbinfo = PVE::Tools::file_get_contents($lsb_fn);
@@ -64,7 +63,7 @@ sub new {
         # cannot support 16.10 or older, their systemd is not cgroupv2 ready
         die "unsupported ancient Ubuntu version '$version'\n" if $major < 17;
 
-        log_warn("The container's Ubuntu version '$version' is not in the known version list."
+        $log_warn->("The container's Ubuntu version '$version' is not in the known version list."
             . " As it's newer than the minimum supported version it's likely to work OK, but full"
             . " compatibility cannot be guaranteed. Please check for PVE system updates.\n");
     } else {
