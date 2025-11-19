@@ -3092,10 +3092,10 @@ sub vm_start {
 
         # if debug is requested, print the log it also when the start succeeded
         print_ct_stderr_log($vmid) if $is_debug;
-
-        print_ct_warn_log($vmid); # always print warn log, if any
     };
-    if (my $err = $@) {
+    my $err = $@;
+    print_ct_warn_log($vmid); # always print warn log, if any
+    if ($err) {
         unlink $skiplock_flag_fn;
         die $err;
     }
