@@ -605,9 +605,16 @@ sub clear_machine_id {
 sub get_systemd_version {
     my ($self, $init) = @_;
 
+    my $binary = abs_path($self->{rootdir} . $init);
+    if ($binary =~ /(^\Q$self->{rootdir}\E.*)/) {
+        $binary = $1; # untainted
+    } else {
+        die "Could not construct path to systemd binary: $self->{rootdir}, $init";
+    }
+
     my $version = undef;
     PVE::Tools::run_command(
-        ['objdump', '-p', $self->{rootdir} . $init],
+        ['objdump', '-p', $binary],
         outfunc => sub {
             my $line = shift;
             if ($line =~ /libsystemd-shared-(\d+)(?:[-_.][a-zA-Z0-9]+)*\.so:?$/) {
