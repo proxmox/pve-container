@@ -316,6 +316,7 @@ sub post_clone_hook {
     my ($self, $conf) = @_;
 
     $self->protected_call(sub { $self->{plugin}->post_clone_hook($conf) });
+    $self->check_systemd_nesting();
 }
 
 sub post_create_hook {
@@ -325,6 +326,7 @@ sub post_create_hook {
         $self->{plugin}->post_create_hook($self->{conf}, $root_password, $ssh_keys);
     });
     $self->rewrite_ssh_host_keys();
+    $self->check_systemd_nesting();
 }
 
 sub unified_cgroupv2_support {
