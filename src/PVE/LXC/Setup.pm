@@ -296,10 +296,20 @@ sub rewrite_ssh_host_keys {
     });
 }
 
+sub check_systemd_nesting {
+    my ($self) = @_;
+
+    my $init = $self->get_ct_init_path();
+    # not a protected_call because it calls objdump
+    my $warning = $self->{plugin}->check_systemd_nesting($self->{conf}, $init);
+    $self->{log_warn}->($warning) if $warning;
+}
+
 sub pre_start_hook {
     my ($self) = @_;
 
     $self->protected_call(sub { $self->{plugin}->pre_start_hook($self->{conf}) });
+    $self->check_systemd_nesting();
 }
 
 sub post_clone_hook {

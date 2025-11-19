@@ -649,6 +649,25 @@ sub get_ct_init_path {
     return $init_path;
 }
 
+sub check_systemd_nesting {
+    my ($self, $conf, $init) = @_;
+
+    my $features = PVE::LXC::Config->parse_features($conf->{features});
+    return if $features->{nesting};
+
+    return if !defined($init) || $init !~ m@/systemd$@;
+
+    my $sdver = $self->get_systemd_version($init);
+
+    # 241 is the systemd version used by Debian 10. It was chosen based
+    # on a forum post that suggested enabling nesting for the upgrade
+    # from PMG 6.x to 7 and after a quick test where a Debian 11 container
+    # hung 25 seconds after login.
+    return if !defined($sdver) || $sdver <= 241;
+
+    return "Systemd $sdver detected. You may need to enable nesting.";
+}
+
 sub ssh_host_key_types_to_generate {
     my ($self) = @_;
 
