@@ -915,7 +915,11 @@ our $netconf_desc = {
     'host-managed' => {
         type => 'boolean',
         description =>
-            "Whether this interface's IP configuration should be managed by the host.",
+            "Whether this interface's IP configuration should be managed by the host. When enabled,"
+            . " the host (rather than the container) is responsible for the interface's IP"
+            . " configuration. The container should not run its own DHCP client or network manager"
+            . " on this interface. This is useful for containers that lack an internal network"
+            . " management stack, like many application containers.",
         optional => 1,
     },
 };
