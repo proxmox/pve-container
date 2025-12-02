@@ -761,6 +761,11 @@ sub update_lxc_config {
         $raw .= "lxc.mount.auto = sys:mixed\n";
     }
 
+    if (defined($conf->{entrypoint}) && $conf->{entrypoint} ne '/sbin/init') {
+        # Mount /dev/shm tmpfs into the container, if no init system runs to set it up.
+        $raw .= "lxc.mount.entry = shm dev/shm tmpfs rw,nosuid,nodev,create=dir 0 0\n";
+    }
+
     PVE::LXC::Config->foreach_passthrough_device(
         $conf,
         sub {
