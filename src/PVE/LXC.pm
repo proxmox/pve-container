@@ -2125,6 +2125,13 @@ sub mountpoint_insert_staged {
 
     my $dest_fd = walk_tree_nofollow_fd('/', $rootdir_fd, $mp_dir, 1, $root_uid, $root_gid);
 
+    # Preserve attributes of destination directory
+    my ($mode, $uid, $gid) = (stat($dest_fd))[2, 4, 5];
+    PVE::Tools::fchownat(fileno($mount_fd), '', $uid, $gid, PVE::Tools::AT_EMPTY_PATH)
+        or die "failed to propagate uid and gid to mountpoint: $!\n";
+    PVE::Tools::fchmodat(fileno($mount_fd), '.', $mode, 0)
+        or die "failed to propagate access mode to mountpoint: $!\n";
+
     PVE::Tools::move_mount(
         fileno($mount_fd),
         '',
