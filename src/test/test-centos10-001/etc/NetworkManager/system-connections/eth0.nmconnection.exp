@@ -5,7 +5,7 @@ type=ethernet
 interface-name=eth0
 [ipv4]
 method=auto
-dns=127.0.0.1
+dns=127.0.0.1;192.168.0.1
 dns-search=example.com
 [ipv6]
 method=disabled
