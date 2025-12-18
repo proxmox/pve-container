@@ -626,7 +626,7 @@ my $confdesc = {
         type => 'string',
         format => 'lxc-ip-with-ll-iface-list',
         description =>
-            "Sets DNS server IP address for a container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
+            "Comma-separated list of IP addresses. Sets the addresses of the DNS servers of the container. Create will automatically use the setting from the host if you neither set searchdomain nor nameserver.",
     },
     timezone => {
         optional => 1,
