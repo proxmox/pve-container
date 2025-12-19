@@ -3,4 +3,5 @@ enable container-getty@.service
 disable getty@.service
 disable sys-kernel-config.mount
 disable sys-kernel-debug.mount
+disable systemd-homed-firstboot.service
 enable systemd-networkd.service

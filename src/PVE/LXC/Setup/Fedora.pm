@@ -43,6 +43,8 @@ sub setup_init {
             # systemd-networkd is disabled by the preset in >= 37 in favor of NetworkManager,
             # reenable it, since we make use of it.
             'systemd-networkd.service' => 1,
+            # its first-boot wizard waits for console input that nobody can provide on start.
+            'systemd-homed-firstboot.service' => 0,
         });
     }
 }
