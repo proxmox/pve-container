@@ -1643,7 +1643,7 @@ my $options_with_restricted_read = {
 };
 
 # NOTE: this modifies the $conf reference directly, clone up-front if you want to safe this $conf
-# again to avoid loosing values!
+# again to avoid losing values!
 sub delete_read_restricted_options {
     my ($rpcenv, $authuser, $vmid, $conf, $pool) = @_;
 
@@ -2106,7 +2106,7 @@ sub mountpoint_stage {
     }
 
     # We clone the mount point and leave it there in order to keep them connected to eg. loop
-    # devices in case we're hotplugging (which would allow contaienrs to unmount the new mount
+    # devices in case we're hotplugging (which would allow containers to unmount the new mount
     # point).
     my $err;
     my $fd = PVE::Tools::open_tree(&AT_FDCWD, $stage_dir, &OPEN_TREE_CLOEXEC | &OPEN_TREE_CLONE)
@@ -3134,7 +3134,7 @@ sub vm_start {
 # unmount-all step, but post-stop happens after lxc puts the container into the
 # STOPPED state.
 # $kill - if true it will always do an immediate hard-stop
-# $shutdown_timeout - the timeout to wait for a gracefull shutdown
+# $shutdown_timeout - the timeout to wait for a graceful shutdown
 # $kill_after_timeout - if true, send a hardstop if shutdown timed out
 sub vm_stop {
     my ($vmid, $kill, $shutdown_timeout, $kill_after_timeout) = @_;

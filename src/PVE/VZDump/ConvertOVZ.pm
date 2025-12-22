@@ -202,7 +202,7 @@ sub parse_integer {
     return undef;
 }
 
-my $ovz_ressources = {
+my $ovz_resources = {
     numproc => \&parse_res_num_ignore,
     numtcpsock => \&parse_res_num_ignore,
     numothersock => \&parse_res_num_ignore,
@@ -282,7 +282,7 @@ my $parse_ovz_config = sub {
         if ($line =~ m/^\s*([A-Z][A-Z0-9_]*)\s*=\s*\"(.*)\"\s*$/i) {
             my $name = lc($1);
             my $text = $2;
-            my $parser = $ovz_ressources->{$name};
+            my $parser = $ovz_resources->{$name};
             if (!$parser || !ref($parser)) {
                 $data->{$name}->{value} = $text;
                 next;

@@ -26,7 +26,7 @@ sub new {
 
     die "unable to read version info\n" if !defined($version);
 
-    # translate testing version and os-release incompat derivates names
+    # translate testing version and os-release incompat derivative names
     my $version_map = {
         'stretch/sid' => 9.1,
         'buster/sid' => 10,

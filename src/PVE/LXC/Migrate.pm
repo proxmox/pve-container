@@ -246,7 +246,7 @@ sub phase1 {
         $path_to_volid->{$path}->{$volid} = 1;
 
         if (defined($snapname)) {
-            # we cannot migrate shapshots on local storage
+            # we cannot migrate snapshots on local storage
             # exceptions: 'zfspool', 'btrfs'
             if ($scfg->{type} eq 'zfspool' || $scfg->{type} eq 'btrfs') {
                 return;
