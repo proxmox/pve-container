@@ -245,7 +245,7 @@ sub setup_network_with_networkmanager {
             }
             if (@name_servers_v4) {
                 $data .= "dns=" . join(';', @name_servers_v4) . "\n";
-                $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+                $data .= "dns-search=" . join(';', PVE::Tools::split_list($searchdomains)) . "\n"
                     if $searchdomains;
             }
         } else {
@@ -271,7 +271,7 @@ sub setup_network_with_networkmanager {
             }
             if (@name_servers_v6) {
                 $data .= "dns=" . join(';', @name_servers_v6) . "\n";
-                $data .= "dns-search=" . join(' ', PVE::Tools::split_list($searchdomains)) . "\n"
+                $data .= "dns-search=" . join(';', PVE::Tools::split_list($searchdomains)) . "\n"
                     if $searchdomains;
             }
         } else {
