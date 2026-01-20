@@ -88,7 +88,7 @@ sub prepare {
                     if !$plugin->check_connection($storage, $scfg);
             } else {
                 # unless in restart mode because we shut the container down
-                die "unable to migrate local mount point '$volid' while CT is running"
+                die "unable to migrate local mount point '$volid' while CT is running\n"
                     if $running && !$restart;
 
                 $targetsid = PVE::JSONSchema::map_id($self->{opts}->{storagemap}, $storage);
@@ -320,7 +320,7 @@ sub phase1 {
 
             # image is a linked clone on local storage, se we can't migrate.
             if (my $basename = (PVE::Storage::parse_volname($self->{storecfg}, $volid))[3]) {
-                die "clone of '$basename'";
+                die "clone of '$basename'\n";
             }
         };
         &$log_error($@, $volid) if $@;
