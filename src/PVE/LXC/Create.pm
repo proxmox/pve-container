@@ -3,6 +3,7 @@ package PVE::LXC::Create;
 use strict;
 use warnings;
 
+use Cwd qw(abs_path);
 use File::Basename;
 use File::Path qw(make_path);
 use Fcntl;
@@ -761,6 +762,13 @@ sub restore_oci_archive {
         }
     }
 
+    if (my $userstr = $oci_config_get_checked_scalar->('User')) {
+        my ($uid, $gid, $groups) = resolve_oci_user($userstr, $rootdir);
+        push $conf->{lxc}->@*, ['lxc.init.uid', $uid] if defined($uid);
+        push $conf->{lxc}->@*, ['lxc.init.gid', $gid] if defined($gid);
+        push $conf->{lxc}->@*, ['lxc.init.groups', $groups] if defined($groups);
+    }
+
     if (my $working_dir = $oci_config_get_checked_scalar->('WorkingDir')) {
         push $conf->{lxc}->@*, ['lxc.init.cwd', $working_dir];
     }
@@ -773,6 +781,80 @@ sub restore_oci_archive {
     push $conf->{lxc}->@*, ['lxc.signal.halt', $stop_signal];
 
     return $conf; # it's a reference anyway, so return mostly for convenience.
+}
+
+sub resolve_oci_user {
+    my ($userstr, $rootdir) = @_;
+
+    my ($user, $group) = $userstr =~ /^([^:]+)(?::([^:]+))?$/
+        or die "OCI config value for 'User' has an invalid format\n";
+
+    my ($etc_passwd, $etc_group) = @{
+        PVE::Tools::run_fork(sub {
+            # Prevent symlinks from escaping out of container rootdir
+            chroot($rootdir) or die "failed to change root to: $rootdir: $!\n";
+            chdir('/') or die "failed to change to root directory\n";
+            my $etc_passwd = abs_path('/etc/passwd')
+                or die "cannot resolve /etc/passwd path in container rootfs\n";
+            my $etc_group = abs_path('/etc/group')
+                or die "cannot resolve /etc/group path in container rootfs\n";
+
+            return [$rootdir . $etc_passwd, $rootdir . $etc_group];
+        })
+    };
+
+    # Scan file, match column $match_index against $match_val, return value at $ret_index
+    my $lookup_field = sub {
+        my ($file, $match_index, $match_val, $ret_index) = @_;
+
+        open(my $fh, '<', $file) or return undef;
+        while (my $line = <$fh>) {
+            chomp $line;
+            my @fields = split(/:/, $line);
+            if (defined($fields[$match_index]) && $fields[$match_index] eq $match_val) {
+                return $fields[$ret_index];
+            }
+        }
+        return undef;
+    };
+
+    my $get_supplementary_groups = sub {
+        my ($username) = @_;
+
+        my @groups;
+        open(my $fh, '<', $etc_group) or return undef;
+        while (my $line = <$fh>) {
+            chomp $line;
+            my (undef, undef, $gid, $user_list) = split(/:/, $line);
+            next if !defined($gid) || !defined($user_list);
+            my @users = split(/,/, $user_list);
+            push @groups, $gid if grep { $_ eq $username } @users;
+        }
+        return join(',', @groups);
+    };
+
+    my ($uid, $username, $gid, $groups);
+
+    if ($user =~ /^\d+$/) {
+        $uid = $user;
+        $username = $lookup_field->($etc_passwd, 2, $uid, 0);
+    } else {
+        $username = $user;
+        $uid = $lookup_field->($etc_passwd, 0, $username, 2);
+    }
+
+    if (defined($group)) {
+        if ($group =~ /^\d+$/) {
+            $gid = $group;
+        } else {
+            $gid = $lookup_field->($etc_group, 0, $group, 2);
+        }
+    } else {
+        $gid = $lookup_field->($etc_passwd, 2, $uid, 3) if defined($uid);
+        $groups = $get_supplementary_groups->($username) if defined($username);
+    }
+
+    return ($uid, $gid, $groups);
 }
 
 1;
