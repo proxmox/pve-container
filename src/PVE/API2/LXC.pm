@@ -2039,9 +2039,10 @@ __PACKAGE__->register_method({
                         $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 
                         if ($full) {
-                            die
-                                "Cannot do full clones on a running container without snapshots\n"
-                                if $running && !defined($snapname);
+                            if ($running && !defined($snapname)) {
+                                die "Full clone of a running container is only possible from a"
+                                    . " snapshot\n";
+                            }
                             $fullclone->{$opt} = 1;
                         } else {
                             # not full means clone instead of copy
