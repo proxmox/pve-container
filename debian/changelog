@@ -1,3 +1,30 @@
+pve-container (6.0.19) trixie; urgency=medium
+
+  * fix #7156: setup centOS/RHEL & derivatives: separate DNS list with
+    semicolons for better compatibility when multiple DNS server are
+    configured.
+
+  * ensure that container startup warnings are displayed even if startup fails
+    completely, as such warnings might provide additional context to a error
+    message.
+
+  * propagate pre-start-hook warnings to the start's task-log.
+
+  * fix #6897: warn that enabling cgroup nesting may be required for systemd.
+
+  * extend format description for the 'host-managed' network device option.
+
+  * Make mount points inherit the uid, gid, and access mode if the directory
+    already exists in the container file system.
+
+  * migrate: add missing newline to error messages.
+
+  * api: clone: improve error message to better reflect that a full-clone of a
+    running CT needs to use a snapshot as source, not that the CT just needs
+    to have (any) snapshots in general.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 24 Jan 2026 15:02:53 +0100
+
 pve-container (6.0.18) trixie; urgency=medium
 
   * shell autocomplete: os templates: do not list VM backup archives for
