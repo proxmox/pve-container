@@ -130,7 +130,7 @@ sub new {
 
     # Cache some host files we need access to:
     $plugin->{host_resolv_conf} = PVE::INotify::read_file('resolvconf');
-    $plugin->{host_timezone} = PVE::INotify::read_file('timezone');
+    $plugin->{host_timezone} = PVE::Systemd::get_timezone();
 
     abs_path('/etc/localtime') =~ m|^(/.+)| or die "invalid /etc/localtime\n"; # untaint
     $plugin->{host_localtime} = $1;
