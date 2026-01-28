@@ -95,11 +95,12 @@ PVE::LXC::Tools::lxc_hook(
                 $mountpoint, $dir, $storage_cfg, undef, $root_uid, $root_gid,
             );
 
-            my ($dest_dir, $dest_base_fd);
+            my ($dest_dir, $dest_base_fd, $keep_attrs);
             if ($rootdir_fd) {
                 # Mount relative to the rootdir fd.
                 $dest_base_fd = $rootdir_fd;
                 $dest_dir = './' . $mountpoint->{mp};
+                $keep_attrs = 1;
             } else {
                 # Assert that 'rootfs' is the first one:
                 die "foreach_mount() error\n" if $opt ne 'rootfs';
@@ -109,10 +110,11 @@ PVE::LXC::Tools::lxc_hook(
                 sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
                     or die "failed to open '.': $!\n";
                 $dest_dir = $rootdir;
+                $keep_attrs = 0;
             }
 
             PVE::LXC::mountpoint_insert_staged(
-                $mount_fd, $dest_base_fd, $dest_dir, $opt, $root_uid, $root_gid,
+                $mount_fd, $dest_base_fd, $dest_dir, $opt, $root_uid, $root_gid, $keep_attrs,
             );
 
             # From now on we mount inside our rootfs:

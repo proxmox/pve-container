@@ -2116,7 +2116,7 @@ sub mountpoint_stage {
 }
 
 sub mountpoint_insert_staged {
-    my ($mount_fd, $rootdir_fd, $mp_dir, $opt, $root_uid, $root_gid) = @_;
+    my ($mount_fd, $rootdir_fd, $mp_dir, $opt, $root_uid, $root_gid, $keep_attrs) = @_;
 
     if (!defined($rootdir_fd)) {
         sysopen($rootdir_fd, '.', O_PATH | O_DIRECTORY)
@@ -2125,12 +2125,14 @@ sub mountpoint_insert_staged {
 
     my $dest_fd = walk_tree_nofollow_fd('/', $rootdir_fd, $mp_dir, 1, $root_uid, $root_gid);
 
-    # Preserve attributes of destination directory
-    my ($mode, $uid, $gid) = (stat($dest_fd))[2, 4, 5];
-    PVE::Tools::fchownat(fileno($mount_fd), '', $uid, $gid, PVE::Tools::AT_EMPTY_PATH)
-        or die "failed to propagate uid and gid to mountpoint: $!\n";
-    PVE::Tools::fchmodat(fileno($mount_fd), '.', $mode, 0)
-        or die "failed to propagate access mode to mountpoint: $!\n";
+    if ($keep_attrs) {
+        # Preserve attributes of destination directory
+        my ($mode, $uid, $gid) = (stat($dest_fd))[2, 4, 5];
+        PVE::Tools::fchownat(fileno($mount_fd), '', $uid, $gid, PVE::Tools::AT_EMPTY_PATH)
+            or die "failed to propagate uid and gid to mountpoint: $!\n";
+        PVE::Tools::fchmodat(fileno($mount_fd), '.', $mode, 0)
+            or die "failed to propagate access mode to mountpoint: $!\n";
+    }
 
     PVE::Tools::move_mount(
         fileno($mount_fd),
@@ -2471,7 +2473,7 @@ sub mountpoint_hotplug : prototype($$$$$) {
         chdir('/')
             or die "failed to change root directory within the container's mount namespace: $!\n";
 
-        mountpoint_insert_staged($mount_fd, undef, $mp->{mp}, $opt, $root_uid, $root_gid);
+        mountpoint_insert_staged($mount_fd, undef, $mp->{mp}, $opt, $root_uid, $root_gid, 1);
     });
 }
 
