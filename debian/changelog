@@ -1,3 +1,13 @@
+pve-container (6.1.0) trixie; urgency=medium
+
+  * fix #7267: do not inherit host attributes for rootfs.
+
+  * config: support `uid`, `gid` and `groups` keys for `lxc.init` namespace.
+
+  * oci create: honor user defined in OCI image config.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 29 Jan 2026 18:50:28 +0100
+
 pve-container (6.0.19) trixie; urgency=medium
 
   * fix #7156: setup centOS/RHEL & derivatives: separate DNS list with
