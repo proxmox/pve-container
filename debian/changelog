@@ -1,3 +1,17 @@
+pve-container (6.1.1) trixie; urgency=medium
+
+  * setup: plugin interface: add missing check_systemd_nesting stub.
+
+  * fix #7270: setup: add no-op check_systemd_nesting implementation for
+    unmanaged containers.
+
+  * setup: add no-op detect_architecture for unmanaged CTs.
+
+  * fix #7271: exclude non-volume mount points, like e.g. bind mounts, from
+    attribute preservation.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 06 Feb 2026 15:40:44 +0100
+
 pve-container (6.1.0) trixie; urgency=medium
 
   * fix #7267: do not inherit host attributes for rootfs.
