@@ -153,7 +153,7 @@ sub new {
             warn "Architecture detection failed: $err" if $err;
         }
 
-        if (!defined($arch)) {
+        if (!$arch) {
             $arch = 'amd64';
             print "Falling back to $arch.\nUse `pct set VMID --arch ARCH` to change.\n";
         } else {
