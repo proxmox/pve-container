@@ -100,7 +100,7 @@ PVE::LXC::Tools::lxc_hook(
                 # Mount relative to the rootdir fd.
                 $dest_base_fd = $rootdir_fd;
                 $dest_dir = './' . $mountpoint->{mp};
-                $keep_attrs = 1;
+                $keep_attrs = $mountpoint->{type} eq 'volume';
             } else {
                 # Assert that 'rootfs' is the first one:
                 die "foreach_mount() error\n" if $opt ne 'rootfs';
