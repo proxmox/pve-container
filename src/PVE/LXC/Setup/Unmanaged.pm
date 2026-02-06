@@ -51,7 +51,13 @@ sub unified_cgroupv2_support {
 
 sub get_ct_init_path {
     my ($self) = @_;
-    return '/sbin/init'; # only passed to unified_cgroupv2_support for now
+    # only passed to check_systemd_nesting and unified_cgroupv2_support for now
+    return '/sbin/init';
+}
+
+sub check_systemd_nesting {
+    my ($self, $conf, $init) = @_;
+    return;
 }
 
 sub ssh_host_key_types_to_generate {
