@@ -65,6 +65,11 @@ sub ssh_host_key_types_to_generate {
     return;
 }
 
+sub detect_architecture {
+    my ($self) = @_;
+    return;
+}
+
 # hooks
 
 sub pre_start_hook {
