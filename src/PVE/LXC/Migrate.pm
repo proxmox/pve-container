@@ -8,11 +8,15 @@ use File::Copy; # fixme: remove
 
 use PVE::Cluster;
 use PVE::INotify;
+use PVE::JSONSchema;
 use PVE::Replication;
 use PVE::ReplicationConfig;
 use PVE::ReplicationState;
+use PVE::Storage::Plugin;
 use PVE::Storage;
+use PVE::StorageTunnel;
 use PVE::Tools;
+use PVE::Tunnel;
 
 use PVE::LXC::Config;
 use PVE::LXC;
