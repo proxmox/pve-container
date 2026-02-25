@@ -7,6 +7,7 @@ use Fcntl;
 use File::Copy 'copy';
 use POSIX;
 
+use PVE::APIClient::LWP;
 use PVE::CLIHandler;
 use PVE::Cluster;
 use PVE::CpuSet;
@@ -14,10 +15,14 @@ use PVE::Exception qw(raise_param_exc);
 use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
-use PVE::LXC::CGroup;
 use PVE::RPCEnvironment;
 use PVE::SafeSyslog;
+use PVE::Storage;
 use PVE::Tools qw(extract_param);
+
+use PVE::LXC;
+use PVE::LXC::Config;
+use PVE::LXC::CGroup;
 
 use PVE::API2::LXC::Config;
 use PVE::API2::LXC::Snapshot;
