@@ -1572,17 +1572,7 @@ sub template_create {
 
             my $volid = $mountpoint->{volume};
 
-            die "Template feature is not available for '$volid'\n"
-                if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
-        },
-    );
-
-    PVE::LXC::Config->foreach_volume(
-        $conf,
-        sub {
-            my ($ms, $mountpoint) = @_;
-
-            my $volid = $mountpoint->{volume};
+            return if !PVE::Storage::volume_has_feature($storecfg, 'template', $volid);
 
             PVE::Storage::activate_volumes($storecfg, [$volid]);
 
