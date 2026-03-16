@@ -2134,6 +2134,8 @@ __PACKAGE__->register_method({
 
             my $newvollist = [];
 
+            print("creating a clone of container $vmid with ID $newid\n");
+
             my $verify_running = PVE::LXC::check_running($vmid) || 0;
             die "unexpected state change\n" if $verify_running != $running;
 
