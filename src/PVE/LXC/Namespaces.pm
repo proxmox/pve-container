@@ -3,10 +3,10 @@ package PVE::LXC::Namespaces;
 use strict;
 use warnings;
 
-use Fcntl qw(O_WRONLY);
+use Fcntl qw(O_WRONLY O_RDONLY);
 use Socket;
 
-use PVE::Tools qw(CLONE_NEWNS CLONE_NEWUSER);
+use PVE::Tools qw(CLONE_NEWNS CLONE_NEWUSER O_CLOEXEC);
 
 my sub set_id_map($$) {
     my ($pid, $id_map) = @_;
@@ -65,6 +65,36 @@ sub run_in_userns($;$) {
         close($sp);
     };
     PVE::Tools::run_fork($child, { afterfork => $parent });
+}
+
+# Create a new user namespace with the provided idmap applied.
+# Returns a file handle to the namespace.
+sub new_userns($) {
+    my ($id_map) = @_;
+    socketpair(my $sp, my $sc, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
+        or die "socketpair: $!\n";
+    my $userns_fh;
+    my $child = sub {
+        close($sp);
+        PVE::Tools::unshare(CLONE_NEWUSER) or die "unshare(NEWUSER): $!\n";
+        sync_send($sc, "1\n");
+        shutdown($sc, 1);
+        sync_recv($sc, "2\n");
+        close($sc);
+    };
+    my $parent = sub {
+        my ($pid) = @_;
+        close($sc);
+        sync_recv($sp, "1\n");
+        set_id_map($pid, $id_map);
+        sysopen($userns_fh, "/proc/$pid/ns/user", O_RDONLY | O_CLOEXEC)
+            or die "Failed to open user namespace of child: $!\n";
+        sync_send($sp, "2\n");
+        close($sp);
+    };
+    PVE::Tools::run_fork($child, { afterfork => $parent });
+
+    return $userns_fh;
 }
 
 1;
