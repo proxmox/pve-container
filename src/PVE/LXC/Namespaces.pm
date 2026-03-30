@@ -25,6 +25,19 @@ my sub set_id_map($$) {
     PVE::Tools::run_command(['newuidmap', $pid, @uid_args]) if scalar(@uid_args);
 }
 
+my sub sync_send {
+    my ($fh, $msg) = @_;
+
+    syswrite($fh, $msg) == length($msg) or die "sync write of message \"$msg\" failed: $!\n";
+}
+
+my sub sync_recv {
+    my ($fh, $expect) = @_;
+
+    my $received = <$fh>;
+    die "sync read failed (expected message \"$expect\")\n" if $received ne $expect;
+}
+
 sub run_in_userns($;$) {
     my ($code, $id_map) = @_;
     socketpair(my $sp, my $sc, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
@@ -32,25 +45,23 @@ sub run_in_userns($;$) {
     my $child = sub {
         close($sp);
         PVE::Tools::unshare(CLONE_NEWUSER | CLONE_NEWNS) or die "unshare(NEWUSER|NEWNS): $!\n";
-        syswrite($sc, "1\n") == 2 or die "write: $!\n";
+        sync_send($sc, "1\n");
         shutdown($sc, 1);
-        my $two = <$sc>;
-        die "failed to sync with parent process\n" if $two ne "2\n";
+        sync_recv($sc, "2\n");
         close($sc);
         $! = undef;
         ($(, $)) = (0, 0);
-        die "$!\n" if $!;
+        die "setgid(0): $!\n" if $!;
         ($<, $>) = (0, 0);
-        die "$!\n" if $!;
+        die "setuid(0): $!\n" if $!;
         return $code->();
     };
     my $parent = sub {
         my ($pid) = @_;
         close($sc);
-        my $one = <$sp>;
-        die "failed to sync with userprocess\n" if $one ne "1\n";
+        sync_recv($sp, "1\n");
         set_id_map($pid, $id_map);
-        syswrite($sp, "2\n") == 2 or die "write: $!\n";
+        sync_send($sp, "2\n");
         close($sp);
     };
     PVE::Tools::run_fork($child, { afterfork => $parent });
