@@ -25,7 +25,7 @@ my sub set_id_map($$) {
     PVE::Tools::run_command(['newuidmap', $pid, @uid_args]) if scalar(@uid_args);
 }
 
-sub run_in_userns(&;$) {
+sub run_in_userns($;$) {
     my ($code, $id_map) = @_;
     socketpair(my $sp, my $sc, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
         or die "socketpair: $!\n";
