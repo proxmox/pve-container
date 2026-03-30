@@ -369,6 +369,27 @@ my $rootfs_desc = {
         format_description => 'opt[;opt...]',
         pattern => qr/$valid_mount_option_re(;$valid_mount_option_re)*/,
     },
+    idmap => {
+        optional => 1,
+        type => 'string',
+        description =>
+            'Map specific container UIDs/GIDs to underlying disk UIDs/GIDs for this mount point',
+        verbose_description =>
+            "Customize UID/GID mappings that override the container's `lxc.idmap` for this mount "
+            . "point. Accepts a semicolon-separated list of `type:container:disk:range-size` "
+            . "entries.\n"
+            . "`type` is `u` for UID or `g` for GID.\n"
+            . "`container` is the first ID as seen inside the container.\n"
+            . "`disk` is the first corresponding ID on the underlying filesystem.\n"
+            . "`range-size` is the number of consecutive IDs to map.\n"
+            . "Unmapped IDs fall back to the container's `lxc.idmap`.\n"
+            . "Example: `u:123:456:1` maps UID 123 in the container to UID 456 on the disk. "
+            . "Files owned by UID 456 on the disk will appear as UID 123 inside the container.",
+        format_description =>
+            'type:container:disk:range-size[;type:container:disk:range-size;...]',
+        pattern =>
+            qr/^(?:passthrough|[ug]:[0-9]+:[0-9]+:[1-9][0-9]*(?:;[ug]:[0-9]+:[0-9]+:[1-9][0-9]*)*)$/,
+    },
     ro => {
         type => 'boolean',
         description => 'Read-only mount point',
@@ -1319,6 +1340,8 @@ sub update_pct_config {
             $class->check_protection($conf, "can't update CT $vmid drive '$opt'");
             my $mp = $class->parse_volume($opt, $value);
             $check_content_type->($mp) if ($mp->{type} eq 'volume');
+            PVE::LXC::validate_id_maps($mp->{idmap})
+                if defined($mp->{idmap}) && $mp->{idmap} ne 'passthrough';
         } elsif ($opt eq 'hookscript') {
             PVE::GuestHelpers::check_hookscript($value);
         } elsif ($opt eq 'nameserver') {
@@ -1443,6 +1466,16 @@ my $parse_ct_mountpoint_full = sub {
 
     $res->{type} = $class->classify_mountpoint($res->{volume});
 
+    if (defined($res->{idmap}) && $res->{idmap} ne 'passthrough') {
+        my $mp_ct_idmap = [];
+        for my $entry (split(';', $res->{idmap})) {
+            $entry =~ /^([ug]):(\d+):(\d+):(\d+)$/
+                or die "failed to parse mount point idmap: $entry\n";
+            push @$mp_ct_idmap, [$1, $2, $3, $4];
+        }
+        $res->{idmap} = $mp_ct_idmap;
+    }
+
     return $res;
 };
 
@@ -1450,6 +1483,12 @@ sub print_ct_mountpoint {
     my ($class, $info, $nomp) = @_;
     my $skip = ['type'];
     push @$skip, 'mp' if $nomp;
+
+    if (defined($info->{idmap}) && $info->{idmap} ne 'passthrough') {
+        $info = {%$info}; # Shallow copy to avoid mutating the caller's hashref
+        $info->{idmap} = join ';', map { join ':', @$_ } @{ $info->{idmap} };
+    }
+
     return PVE::JSONSchema::print_property_string($info, $mp_desc, $skip);
 }
 

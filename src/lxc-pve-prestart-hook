@@ -87,6 +87,7 @@ PVE::LXC::Tools::lxc_hook(
         };
 
         my $rootdir_fd = undef;
+        my $userns_cache = {};
         my $setup_mountpoint = sub {
             my ($opt, $mountpoint) = @_;
 
@@ -94,6 +95,28 @@ PVE::LXC::Tools::lxc_hook(
             my (undef, undef, $dev, $mount_fd) = PVE::LXC::mountpoint_stage(
                 $mountpoint, $dir, $storage_cfg, undef, $root_uid, $root_gid,
             );
+
+            if ($mountpoint->{idmap}) {
+                if (@$id_map) {
+                    my $mp_id_map = PVE::LXC::resolve_mountpoint_idmap($id_map, $mountpoint);
+                    my $cache_key = join(';', map { join(':', @$_) } @$mp_id_map);
+                    my $usernsfh = $userns_cache->{$cache_key} //=
+                        PVE::LXC::Namespaces::new_userns($mp_id_map);
+
+                    PVE::Tools::mount_setattr(
+                        fileno($mount_fd),
+                        '',
+                        PVE::Tools::AT_EMPTY_PATH,
+                        &PVE::Syscall::MOUNT_ATTR_IDMAP,
+                        0,
+                        0,
+                        fileno($usernsfh),
+                    ) or die "mount_setattr: $!\n";
+                } else {
+                    $log_warn->(
+                        "'$opt' - ignoring 'idmap' option unsupported by privileged container");
+                }
+            }
 
             my ($dest_dir, $dest_base_fd, $keep_attrs);
             if ($rootdir_fd) {

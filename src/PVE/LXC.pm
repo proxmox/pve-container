@@ -11,6 +11,7 @@ use File::Path;
 use File::Spec;
 use IO::Poll qw(POLLIN POLLHUP);
 use IO::Socket::UNIX;
+use List::Util qw(max min);
 use POSIX qw(EINTR);
 use Socket;
 use Time::HiRes qw (gettimeofday);
@@ -43,6 +44,7 @@ use PVE::Syscall qw(:fsmount);
 use PVE::LXC::CGroup;
 use PVE::LXC::Config;
 use PVE::LXC::Monitor;
+use PVE::LXC::Namespaces;
 use PVE::LXC::Tools;
 
 my $have_sdn;
@@ -2411,7 +2413,24 @@ sub device_passthrough_hotplug : prototype($$$) {
 sub mountpoint_hotplug : prototype($$$$$) {
     my ($vmid, $conf, $opt, $mp, $storage_cfg) = @_;
 
-    my (undef, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
+    # Pin the container pid longer, we also need to get its monitor/parent:
+    my ($ct_pid, $ct_pidfd) = open_lxc_pid($vmid)
+        or die "failed to open pidfd of container $vmid\'s init process\n";
+
+    my ($id_map, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
+    my $mp_userns_fh;
+    if ($mp->{idmap}) {
+        if (!@$id_map) {
+            PVE::RESTEnvironment::log_warn(
+                "'$opt' - ignoring 'idmap' option unsupported by privileged container");
+        } elsif ($mp->{idmap} eq "passthrough") {
+            # Optimization: Reuse the container userns to avoid the overhead of creating a new ns
+            $mp_userns_fh = $get_container_namespace->($vmid, $ct_pid, 'user');
+        } else {
+            my $mp_id_map = resolve_mountpoint_idmap($id_map, $mp);
+            $mp_userns_fh = PVE::LXC::Namespaces::new_userns($mp_id_map);
+        }
+    }
 
     # We do the rest in a fork with an unshared mount namespace:
     #  -) change our apparmor profile to 'pve-container-mounthotplug', which is '/usr/bin/lxc-start'
@@ -2420,10 +2439,6 @@ sub mountpoint_hotplug : prototype($$$$$) {
     #     namespace, then mount it.
 
     PVE::Tools::run_fork(sub {
-        # Pin the container pid longer, we also need to get its monitor/parent:
-        my ($ct_pid, $ct_pidfd) = open_lxc_pid($vmid)
-            or die "failed to open pidfd of container $vmid\'s init process\n";
-
         my ($monitor_pid, $monitor_pidfd) = open_ppid($ct_pid)
             or die "failed to open pidfd of container $vmid\'s monitor process\n";
 
@@ -2446,6 +2461,18 @@ sub mountpoint_hotplug : prototype($$$$$) {
         );
 
         my $mount_fd = mountpoint_stage($mp, $dir, $storage_cfg, undef, $root_uid, $root_gid);
+
+        if ($mp_userns_fh) {
+            PVE::Tools::mount_setattr(
+                fileno($mount_fd),
+                '',
+                PVE::Tools::AT_EMPTY_PATH,
+                &PVE::Syscall::MOUNT_ATTR_IDMAP,
+                0,
+                0,
+                fileno($mp_userns_fh),
+            ) or die "mount_setattr: $!\n";
+        }
 
         PVE::Tools::setns(fileno($ct_mnt_ns), PVE::Tools::CLONE_NEWNS);
         chdir('/')
@@ -2960,6 +2987,65 @@ sub map_ct_gid_to_host {
     my ($gid, $id_map) = @_;
 
     return map_ct_id_to_host($gid, $id_map, 'g');
+}
+
+sub resolve_mountpoint_idmap {
+    my ($id_map, $mp) = @_;
+
+    die "mount point does not specify an idmap\n" if !$mp->{idmap};
+
+    return $id_map if $mp->{idmap} eq "passthrough";
+
+    my $mp_ct_idmap = $mp->{idmap};
+    validate_id_maps($mp_ct_idmap);
+
+    # Convert the user friendly mp.idmap to the actual mapping to be applied via mount_setattr.
+    # Provided by the config:
+    #   lxc.idmap:    ID in Container --> ID on Host
+    #    mp.idmap:    ID in Container --> ID on Disk
+    #
+    # Convert to:          ID on Disk --> ID on Host
+    my $result = [];
+    for my $type ('u', 'g') {
+        my @ct_chunks = grep { $_->[0] eq $type } @$id_map;
+        next if !@ct_chunks;
+
+        my @exceptions = sort { $a->[1] <=> $b->[1] } grep { $_->[0] eq $type } @$mp_ct_idmap;
+
+        for my $chunk (@ct_chunks) {
+            my (undef, $ct_start, $host_start, $len) = @$chunk;
+            my $ct_end = $ct_start + $len;
+
+            # Find exceptions that fall within this specific lxc.idmap chunk
+            my @chunk_exc = grep { $_->[1] < $ct_end && $_->[1] + $_->[3] > $ct_start } @exceptions;
+            push @chunk_exc, [$type, $ct_end, undef, 0]; # ensure the trailing gap is mapped
+
+            my $ct = $ct_start;
+            for my $exc (@chunk_exc) {
+                my (undef, $exc_ct, $exc_disk, $exc_len) = @$exc;
+
+                my $clamped_ct = max($exc_ct, $ct_start);
+                my $clamped_len = min($exc_ct + $exc_len, $ct_end) - $clamped_ct;
+
+                # Identity mapping for unmapped ranges
+                if ($ct < $clamped_ct) {
+                    my $host = $host_start + ($ct - $ct_start);
+                    push @$result, [$type, $host, $host, $clamped_ct - $ct];
+                }
+
+                # Map the IDs on Disk to the Host IDs.
+                if ($clamped_len > 0) {
+                    my $disk = $exc_disk + $clamped_ct - $exc_ct;
+                    my $host = $host_start + $clamped_ct - $ct_start;
+                    push @$result, [$type, $disk, $host, $clamped_len];
+                }
+
+                $ct = $clamped_ct + $clamped_len;
+            }
+        }
+    }
+
+    return $result;
 }
 
 sub userns_command {
