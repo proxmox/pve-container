@@ -1348,8 +1348,8 @@ __PACKAGE__->register_method({
                 if !$param->{online} && !$param->{restart};
         }
 
-        raise_param_exc({ vmid => "cannot migrate HA-managed CT to remote cluster" })
-            if PVE::HA::Config::vm_is_ha_managed($source_vmid);
+        raise_param_exc({ vmid => "cannot remote-migrate CT that is configured for HA" })
+            if PVE::HA::Config::service_is_configured("ct:$source_vmid");
 
         my $remote = PVE::JSONSchema::parse_property_string('proxmox-remote', $target_endpoint);
 
