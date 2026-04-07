@@ -1194,12 +1194,7 @@ sub update_net {
 
                 if ($have_sdn && $bridge_changed) {
                     PVE::Network::SDN::Vnets::add_next_free_cidr(
-                        $newnet->{bridge},
-                        $conf->{hostname},
-                        $newnet->{hwaddr},
-                        $vmid,
-                        undef,
-                        1,
+                        $newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1,
                     );
                 }
                 eval { PVE::LXC::net_tap_plug($veth, $newnet) };
