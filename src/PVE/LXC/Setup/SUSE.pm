@@ -147,6 +147,9 @@ sub setup_network {
         # To keep user-defined routes in route-$iface we mark ours:
         $self->ct_modify_file($routefile, $routes, delete => 1, prepend => 1);
     }
+
+    $self->setup_systemd_networkd($conf)
+        if $self->ct_file_exists("/usr/lib/systemd/systemd-networkd");
 }
 
 1;
