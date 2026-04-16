@@ -273,6 +273,8 @@ __PACKAGE__->register_method({
             $rpcenv->check($authuser, '/', ['Sys.Modify']) if !$unprivileged;
         }
 
+        $rpcenv->check($authuser, "/", ['Sys.Console']) if $ha_managed;
+
         my $force = extract_param($param, 'force');
 
         if (!($same_container_exists && $restore && $force)) {
