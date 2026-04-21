@@ -1,3 +1,17 @@
+pve-container (5.3.4) bookworm; urgency=medium
+
+  * api: vnc/termproxy: bind VNC tickets to the listen port to harden
+    authentication for interactive console sessions.
+
+  * api: vncproxy: always use a freshly generated password when authenticating
+    via the VNC protocol, improving entropy compared to the previous
+    ticket-derived scheme.
+
+  * api: termproxy: pin the accepted ticket in the spawned termproxy process
+    as an additional defense-in-depth measure.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 21 Apr 2026 22:31:06 +0200
+
 pve-container (5.3.3) bookworm; urgency=medium
 
   * setup: Ubuntu: record support for future 25.10 and 26.04 LTS release.
