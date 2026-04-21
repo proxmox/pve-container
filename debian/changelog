@@ -1,3 +1,28 @@
+pve-container (6.1.3) trixie; urgency=medium
+
+  * fix #7175: replace the deprecated /etc/timezone handling with systemd
+    timedatectl in container setup.
+
+  * api: clone: log the new VMID at the start of the clone task, which was
+    previously not recorded in the task log, journal, or task-worker UPID, for
+    both full and linked clones.
+
+  * external migration: block if HA is configured regardless of management
+    state, as migrating an HA-managed container can confuse the HA stack even
+    when in 'ignored' state. Mirrors the same change in qemu-server.
+
+  * api: vnc/termproxy: bind VNC tickets to the listen port to harden
+    authentication for interactive console sessions.
+
+  * api: vncproxy: always use a freshly generated password when authenticating
+    via the VNC protocol, improving entropy compared to the previous
+    ticket-derived scheme.
+
+  * api: termproxy: pin the accepted ticket in the spawned termproxy process
+    as an additional defense-in-depth measure.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 21 Apr 2026 22:28:24 +0200
+
 pve-container (6.1.2) trixie; urgency=medium
 
   * make mount point attribute preservation configurable and opt-in
