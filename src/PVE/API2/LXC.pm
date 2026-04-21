@@ -981,8 +981,6 @@ __PACKAGE__->register_method({
 
         my $authpath = "/vms/$vmid";
 
-        my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath);
-
         $sslcert = PVE::Tools::file_get_contents("/etc/pve/pve-root-ca.pem", 8192)
             if !$sslcert;
 
@@ -998,6 +996,7 @@ __PACKAGE__->register_method({
         }
 
         my $port = PVE::Tools::next_vnc_port($family);
+        my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath, $port);
 
         my $conf = PVE::LXC::Config->load_config($vmid, $node);
         my $concmd = PVE::LXC::get_console_command($vmid, $conf, -1);
@@ -1029,6 +1028,7 @@ __PACKAGE__->register_method({
                 $authpath,
                 '-perm',
                 'VM.Console',
+                '-verify-port',
             ];
 
             if ($param->{width}) {
@@ -1102,8 +1102,6 @@ __PACKAGE__->register_method({
 
         my $authpath = "/vms/$vmid";
 
-        my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath);
-
         my $family;
         my $remcmd = [];
 
@@ -1116,6 +1114,7 @@ __PACKAGE__->register_method({
         }
 
         my $port = PVE::Tools::next_vnc_port($family);
+        my $ticket = PVE::AccessControl::assemble_vnc_ticket($authuser, $authpath, $port);
 
         my $conf = PVE::LXC::Config->load_config($vmid, $node);
         my $concmd = PVE::LXC::get_console_command($vmid, $conf, -1);
@@ -1135,8 +1134,17 @@ __PACKAGE__->register_method({
 
             syslog('info', "starting lxc termproxy $upid\n");
 
-            my $cmd =
-                ['/usr/bin/termproxy', $port, '--path', $authpath, '--perm', 'VM.Console', '--'];
+            my $cmd = [
+                '/usr/bin/termproxy',
+                $port,
+                '--path',
+                $authpath,
+                '--perm',
+                'VM.Console',
+                '--vncticket-endpoint',
+                '--verify-port',
+                '--',
+            ];
             push @$cmd, @$remcmd, @$shcmd;
 
             PVE::Tools::run_command($cmd);
@@ -1197,9 +1205,8 @@ __PACKAGE__->register_method({
 
         my $authpath = "/vms/$param->{vmid}";
 
-        PVE::AccessControl::verify_vnc_ticket($param->{vncticket}, $authuser, $authpath);
-
         my $port = $param->{port};
+        PVE::AccessControl::verify_vnc_ticket($param->{vncticket}, $authuser, $authpath, $port);
 
         return { port => $port };
     },
