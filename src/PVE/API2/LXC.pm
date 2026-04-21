@@ -16,6 +16,7 @@ use PVE::DataCenterConfig;
 use PVE::AccessControl;
 use PVE::Firewall;
 use PVE::Storage;
+use PVE::Ticket;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::ReplicationConfig;
@@ -928,6 +929,12 @@ __PACKAGE__->register_method({
         properties => {
             user => { type => 'string' },
             ticket => { type => 'string' },
+            password => {
+                optional => 1,
+                description => "Password used for authentication within the VNC protocol."
+                    . " Consists of printable ASCII characters ('!' .. '~').",
+                type => 'string',
+            },
             cert => { type => 'string' },
             port => { type => 'integer' },
             upid => { type => 'string' },
@@ -975,6 +982,13 @@ __PACKAGE__->register_method({
             @$concmd,
         ];
 
+        my $password;
+        if ($param->{websocket}) {
+            $password = PVE::Ticket::generate_vnc_password();
+            # FIXME: MAJOR VERSION: Avoid this hack, require using explicit 'password' return value
+            $ticket = "${password}:${ticket}";
+        } # else authentication happens via ticket only, not via password in VNC protocol
+
         my $realcmd = sub {
             my $upid = shift;
 
@@ -1004,8 +1018,10 @@ __PACKAGE__->register_method({
             }
 
             if ($param->{websocket}) {
-                $ENV{PVE_VNC_TICKET} = $ticket; # pass ticket to vncterm
+                $ENV{PVE_VNC_TICKET} = $password; # pass VNC protocol password to vncterm
                 push @$cmd, '-notls', '-listen', 'localhost';
+            } else {
+                $ENV{PVE_VNC_TICKET} = $ticket; # pass VNC ticket to vncterm
             }
 
             push @$cmd, '-c', @$remcmd, @$shcmd;
@@ -1019,13 +1035,17 @@ __PACKAGE__->register_method({
 
         PVE::Tools::wait_for_vnc_port($port);
 
-        return {
+        my $res = {
             user => $authuser,
             ticket => $ticket,
             port => $port,
             upid => $upid,
             cert => $sslcert,
         };
+
+        $res->{password} = $password if defined($password);
+
+        return $res;
     },
 });
 
