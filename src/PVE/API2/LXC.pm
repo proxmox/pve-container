@@ -3,6 +3,7 @@ package PVE::API2::LXC;
 use strict;
 use warnings;
 
+use Fcntl qw(F_GETFD F_SETFD FD_CLOEXEC);
 use IO::Socket::UNIX;
 use Socket qw(SOCK_STREAM);
 use JSON;
@@ -1154,6 +1155,13 @@ __PACKAGE__->register_method({
 
             syslog('info', "starting lxc termproxy $upid\n");
 
+            pipe(my $ticket_rd, my $ticket_wr) or die "failed to create pipe: $!\n";
+
+            my $flags = fcntl($ticket_rd, F_GETFD, 0)
+                // die "failed to get file descriptor flags: $!\n";
+            fcntl($ticket_rd, F_SETFD, $flags & ~FD_CLOEXEC)
+                // die "failed to remove CLOEXEC flag from fd: $!\n";
+
             my $cmd = [
                 '/usr/bin/termproxy',
                 $port,
@@ -1163,11 +1171,18 @@ __PACKAGE__->register_method({
                 'VM.Console',
                 '--vncticket-endpoint',
                 '--verify-port',
+                '--ticket-fd',
+                fileno($ticket_rd),
                 '--',
             ];
             push @$cmd, @$remcmd, @$shcmd;
 
-            PVE::Tools::run_command($cmd);
+            my $afterfork = sub {
+                print {$ticket_wr} $ticket;
+                close($ticket_wr);
+            };
+
+            PVE::Tools::run_command($cmd, afterfork => $afterfork);
         };
 
         my $upid = $rpcenv->fork_worker('vncproxy', $vmid, $authuser, $realcmd, 1);
