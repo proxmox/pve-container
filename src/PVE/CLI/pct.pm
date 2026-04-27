@@ -112,6 +112,8 @@ __PACKAGE__->register_method({
 
         PVE::LXC::Config->remove_lock($vmid);
 
+        syslog('info', "executed 'pct unlock $vmid'");
+
         return undef;
     },
 });
