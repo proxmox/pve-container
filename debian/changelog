@@ -1,3 +1,12 @@
+pve-container (5.3.5) bookworm; urgency=medium
+
+  * disable AF_ALG sockets via seccomp due to security issues
+    For now, a custom seccomp profile via the raw lxc.seccomp.profile option
+    can be used, using the generated /var/lib/lxc/$vmid/rules.seccomp as a
+    base.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 30 Apr 2026 10:20:47 +0200
+
 pve-container (5.3.4) bookworm; urgency=medium
 
   * api: vnc/termproxy: bind VNC tickets to the listen port to harden
