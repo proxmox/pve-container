@@ -510,6 +510,9 @@ sub make_seccomp_config {
         # BTRFS_IOCTL_MAGIC 0x94, _IOC type shift is 8,
         # so `(req & 0xFF00) == 0x9400` is a btrfs ioctl and gets an EPERM
         ioctl => ['errno 1 [1,0x9400,SCMP_CMP_MASKED_EQ,0xff00]'],
+
+        # We disable `AF_ALG` sockets to avoid their potential security issues.
+        socket => ['errno 97 [0,38,SCMP_CMP_EQ]'],
     };
 
     my $raw_conf = '';
