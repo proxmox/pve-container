@@ -1,3 +1,12 @@
+pve-container (6.1.5) trixie; urgency=medium
+
+  * disable AF_ALG sockets via seccomp due to security issues
+    For now, a custom seccomp profile via the raw lxc.seccomp.profile option
+    can be used, using the generated /var/lib/lxc/$vmid/rules.seccomp as a
+    base.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 30 Apr 2026 10:20:28 +0200
+
 pve-container (6.1.4) trixie; urgency=medium
 
   * fix #7487: setup/suse: setup systemd-networkd if present.
