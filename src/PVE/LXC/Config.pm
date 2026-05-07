@@ -729,7 +729,7 @@ my $valid_lxc_conf_keys = {
     'lxc.rootfs.mount' => 1,
     'lxc.rootfs.options' => 'lxc.rootfs.options is not supported'
         . ', please use mount point options in the "rootfs" key',
-    # lxc.cgroup.*
+    # lxc.cgroup2.*
     # lxc.prlimit.*
     # lxc.net.*
     'lxc.cap.drop' => 1,
@@ -814,7 +814,11 @@ sub is_valid_lxc_conf_key {
     }
     my $validity = $valid_lxc_conf_keys->{$key};
     return $validity if defined($validity);
-    return 1 if $key =~ /^lxc\.cgroup2?\./ # allow all cgroup values
+    if ($key =~ /^lxc\.cgroup\./) {
+        warn "vm $vmid - $key is deprecated, this will be a hard error in the future!\n";
+        return 1;
+    }
+    return 1 if $key =~ /^lxc\.cgroup2\./ # allow all cgroup values
         || $key =~ /^lxc\.prlimit\./ # allow all prlimits
         || $key =~ /^lxc\.net\./; # allow custom network definitions
     return 0;
