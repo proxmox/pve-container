@@ -2235,7 +2235,7 @@ __PACKAGE__->register_method({
                         my $rootdir = PVE::LXC::mount_all($newid, $storecfg, $conf, 1);
 
                         eval {
-                            PVE::LXC::create_ifaces_ipams_ips($conf, $vmid);
+                            PVE::LXC::create_ifaces_ipams_ips($conf, $newid);
                             my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
                             $lxc_setup->post_clone_hook($conf);
                         };
