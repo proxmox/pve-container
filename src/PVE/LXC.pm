@@ -797,9 +797,7 @@ sub update_lxc_config {
 
     if (!PVE::LXC::Config->has_dev_console($conf)) {
         $raw .= "lxc.console.path = none\n";
-        if ($cgv1->{devices}) {
-            $raw .= "lxc.cgroup.devices.deny = c 5:1 rwm\n";
-        } elsif (defined($cgv2)) {
+        if (defined($cgv2)) {
             $raw .= "lxc.cgroup2.devices.deny = c 5:1 rwm\n";
         }
     }
@@ -813,16 +811,7 @@ sub update_lxc_config {
     my $utsname = $conf->{hostname} || "CT$vmid";
     $raw .= "lxc.uts.name = $utsname\n";
 
-    if ($cgv1->{memory}) {
-        my $memory = $conf->{memory} || 512;
-        my $swap = $conf->{swap} // 0;
-
-        my $lxcmem = int($memory * 1024 * 1024);
-        $raw .= "lxc.cgroup.memory.limit_in_bytes = $lxcmem\n";
-
-        my $lxcswap = int(($memory + $swap) * 1024 * 1024);
-        $raw .= "lxc.cgroup.memory.memsw.limit_in_bytes = $lxcswap\n";
-    } elsif ($cgv2->{memory}) {
+    if ($cgv2->{memory}) {
         my $memory = $conf->{memory} || 512;
         my $swap = $conf->{swap} // 0;
 
@@ -836,16 +825,7 @@ sub update_lxc_config {
         $raw .= "lxc.cgroup2.memory.swap.max = $lxcswap\n";
     }
 
-    if ($cgv1->{cpu}) {
-        if (my $cpulimit = $conf->{cpulimit}) {
-            $raw .= "lxc.cgroup.cpu.cfs_period_us = 100000\n";
-            my $value = int(100000 * $cpulimit);
-            $raw .= "lxc.cgroup.cpu.cfs_quota_us = $value\n";
-        }
-
-        my $shares = PVE::CGroup::clamp_cpu_shares($conf->{cpuunits});
-        $raw .= "lxc.cgroup.cpu.shares = $shares\n";
-    } elsif ($cgv2->{cpu}) {
+    if ($cgv2->{cpu}) {
         # See PVE::CGroup
         if (my $cpulimit = $conf->{cpulimit}) {
             my $value = int(100000 * $cpulimit);
@@ -914,7 +894,7 @@ sub update_lxc_config {
     if (my $lxcconf = $conf->{lxc}) {
         foreach my $entry (@$lxcconf) {
             my ($k, $v) = @$entry;
-            $had_cpuset = 1 if $k eq 'lxc.cgroup.cpuset.cpus' || $k eq 'lxc.cgroup2.cpuset.cpus';
+            $had_cpuset = 1 if $k eq 'lxc.cgroup2.cpuset.cpus';
             $raw .= "$k = $v\n";
         }
     }
