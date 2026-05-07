@@ -1,3 +1,16 @@
+pve-container (6.1.6) trixie; urgency=medium
+
+  * warn about deprecated cgroupv1 keys
+
+  * remove code to generate cgroupv1 config entries, they are not supported
+    and will be warned about and ignored by lxc >= 7.0
+
+  * log 'pct unlock' operations
+
+  * add support for idmapped mounts
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 07 May 2026 12:11:14 +0200
+
 pve-container (6.1.5) trixie; urgency=medium
 
   * disable AF_ALG sockets via seccomp due to security issues
