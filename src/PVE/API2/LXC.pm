@@ -1538,7 +1538,7 @@ __PACKAGE__->register_method({
                                     type => 'string',
                                     description => "The reason why the HA"
                                         . " resource is blocking the migration.",
-                                    enum => ['resource-affinity'],
+                                    enum => ['node-affinity', 'resource-affinity'],
                                 },
                             },
                         },
