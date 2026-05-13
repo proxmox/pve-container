@@ -2688,9 +2688,9 @@ sub update_disksize {
 
     my $update_mp = sub {
         my ($key, $mp, @param) = @_;
-        my $size = $all_volumes->{ $mp->{volume} }->{size} // 0;
+        my $size = $all_volumes->{ $mp->{volume} }->{size};
 
-        if (!defined($mp->{size}) || $size != $mp->{size}) {
+        if (defined($size) && (!defined($mp->{size}) || $size != $mp->{size})) {
             $changes = 1;
             print "$prefix updated volume size of '$mp->{volume}' in config.\n";
             $mp->{size} = $size;
@@ -2761,7 +2761,7 @@ sub scan_volids {
     foreach my $storeid (keys %$info) {
         foreach my $item (@{ $info->{$storeid} }) {
             my $volid = $item->{volid};
-            next if !($volid && defined($item->{size}));
+            next if !($volid && (defined($item->{size}) || defined($item->{'approximate-size'})));
             $item->{path} = PVE::Storage::path($cfg, $volid);
             $all_volumes->{$volid} = $item;
         }
