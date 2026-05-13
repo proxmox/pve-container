@@ -2761,7 +2761,7 @@ sub scan_volids {
     foreach my $storeid (keys %$info) {
         foreach my $item (@{ $info->{$storeid} }) {
             my $volid = $item->{volid};
-            next if !($volid && $item->{size});
+            next if !($volid && defined($item->{size}));
             $item->{path} = PVE::Storage::path($cfg, $volid);
             $all_volumes->{$volid} = $item;
         }
