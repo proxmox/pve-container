@@ -1,3 +1,16 @@
+pve-container (6.1.7) trixie; urgency=medium
+
+  * api: migration preconditions: also report HA node affinity as a blocking
+    cause, previously only resource-affinity was reported.
+
+  * ubuntu setup: add preliminary support for 26.10.
+
+  * fix #7568: api: clone: use the new VMID for IPAM entries when cloning a
+    container, otherwise the cloned guest re-uses the source VMID in any
+    configured IPAM plugin and ends up with duplicate entries.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 15 May 2026 11:59:16 +0200
+
 pve-container (6.1.6) trixie; urgency=medium
 
   * warn about deprecated cgroupv1 keys
