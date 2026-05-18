@@ -1,3 +1,9 @@
+pve-container (6.1.8) trixie; urgency=medium
+
+  * config: correctly skip tab characters in env/entrypoint property.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 18 May 2026 12:51:28 +0200
+
 pve-container (6.1.7) trixie; urgency=medium
 
   * api: migration preconditions: also report HA node affinity as a blocking
