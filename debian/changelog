@@ -1,3 +1,14 @@
+pve-container (6.1.9) trixie; urgency=medium
+
+  * volume rescan: also consider volumes that storage plugins list with only
+    an approximate size. Preparatory work, since currently only qcow2 LVs on
+    LVM are reported this way and containers do not use that combination.
+
+  * volume rescan: properly detect zero-sized subvol-format volumes as unused.
+    The previous truthy check skipped them.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 18 May 2026 21:11:20 +0200
+
 pve-container (6.1.8) trixie; urgency=medium
 
   * config: correctly skip tab characters in env/entrypoint property.
