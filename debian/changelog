@@ -1,3 +1,14 @@
+pve-container (6.1.10) trixie; urgency=medium
+
+  * lxc config: mount /dev/shm as tmpfs for application containers (those with
+    a custom entrypoint, where no init system sets it up), to align with the
+    OCI Runtime Spec defaults.
+
+  * fix #7603: config: extend the verbose description of the mountpoint idmap
+    option with examples for range mapping and passthrough.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 19 May 2026 19:10:48 +0200
+
 pve-container (6.1.9) trixie; urgency=medium
 
   * volume rescan: also consider volumes that storage plugins list with only
