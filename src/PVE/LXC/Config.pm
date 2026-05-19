@@ -377,14 +377,18 @@ my $rootfs_desc = {
         verbose_description =>
             "Customize UID/GID mappings that override the container's `lxc.idmap` for this mount "
             . "point. Accepts a semicolon-separated list of `type:container:disk:range-size` "
-            . "entries.\n"
-            . "`type` is `u` for UID or `g` for GID.\n"
-            . "`container` is the first ID as seen inside the container.\n"
-            . "`disk` is the first corresponding ID on the underlying filesystem.\n"
-            . "`range-size` is the number of consecutive IDs to map.\n"
-            . "Unmapped IDs fall back to the container's `lxc.idmap`.\n"
-            . "Example: `u:123:456:1` maps UID 123 in the container to UID 456 on the disk. "
-            . "Files owned by UID 456 on the disk will appear as UID 123 inside the container.",
+            . "entries.\n\n"
+            . "`type` is `u` for UID or `g` for GID.\n\n"
+            . "`container` is the first ID as seen inside the container.\n\n"
+            . "`disk` is the first corresponding ID on the underlying filesystem.\n\n"
+            . "`range-size` is the number of consecutive IDs to map.\n\n"
+            . "Unmapped IDs fall back to the container's `lxc.idmap`.\n\n"
+            . "Example 1: `u:123:456:1` maps UID 123 in the container to UID 456 on the disk. "
+            . "Files owned by UID 456 on the disk will appear as UID 123 inside the container.\n\n"
+            . "Example 2: `g:100:50:5` maps 5 consecutive GIDs, such that GIDs 100-104 in the "
+            . "container are mapped to GIDs 50-54 on the disk.\n\n"
+            . "Example 3: `passthrough` identity-maps all UIDs and GIDs, meaning IDs inside the "
+            . "container will match the IDs on the disk.",
         format_description =>
             'type:container:disk:range-size[;type:container:disk:range-size;...]',
         pattern =>
