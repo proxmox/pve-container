@@ -329,6 +329,14 @@ sub post_create_hook {
     $self->check_systemd_nesting();
 }
 
+sub post_restore_hook {
+    my ($self, $root_password, $ssh_keys) = @_;
+
+    $self->protected_call(sub {
+        $self->{plugin}->post_restore_hook($self->{conf}, $root_password, $ssh_keys);
+    });
+}
+
 sub unified_cgroupv2_support {
     my ($self) = @_;
 

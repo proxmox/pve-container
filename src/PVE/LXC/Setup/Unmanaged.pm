@@ -84,4 +84,8 @@ sub post_create_hook {
     my ($self, $conf, $root_password, $ssh_keys) = @_;
 }
 
+sub post_restore_hook {
+    my ($self, $conf, $root_password, $ssh_keys) = @_;
+}
+
 1;

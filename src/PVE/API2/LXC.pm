@@ -594,7 +594,7 @@ __PACKAGE__->register_method({
                         );
                         PVE::LXC::create_ifaces_ipams_ips($conf, $vmid) if $unique;
                         my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
-                        $lxc_setup->template_fixup($conf);
+                        $lxc_setup->post_restore_hook($password, $ssh_keys);
                     } else {
                         my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir); # detect OS
                         PVE::LXC::Config->write_config($vmid, $conf); # safe config (after OS detection)

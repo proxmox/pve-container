@@ -99,4 +99,9 @@ sub post_create_hook {
     croak "implement me in sub-class";
 }
 
+sub post_restore_hook {
+    my ($self, $conf, $root_password, $ssh_keys) = @_;
+    croak "implement me in sub-class";
+}
+
 1;

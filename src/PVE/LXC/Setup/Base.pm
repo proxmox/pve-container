@@ -735,6 +735,15 @@ sub post_create_hook {
     # fixme: what else ?
 }
 
+sub post_restore_hook {
+    my ($self, $conf, $root_password, $ssh_keys) = @_;
+
+    $self->template_fixup($conf);
+
+    $self->set_user_password($conf, 'root', $root_password) if defined($root_password);
+    $self->set_user_authorized_ssh_keys($conf, 'root', $ssh_keys) if $ssh_keys;
+}
+
 # File access wrappers for container setup code.
 # NOTE: those are not direct part of the Plugin API (yet), avoid using them outside the child plugins
 # For user-namespace support these might need to take uid and gid maps into account.
