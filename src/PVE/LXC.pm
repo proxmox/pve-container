@@ -1514,7 +1514,7 @@ sub check_ct_modify_config_perm {
         my ($opt, $delete) = @_;
         if ($opt eq 'cores' || $opt eq 'cpuunits' || $opt eq 'cpulimit') {
             $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.CPU']);
-        } elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/) {
+        } elsif ($opt eq 'rootfs' || $opt =~ /^mp\d+$/ || $opt =~ /^unused\d+$/) {
             $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Disk']);
             return if $delete;
             my $data = PVE::LXC::Config->parse_volume($opt, $newconf->{$opt});
