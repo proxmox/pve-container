@@ -1,3 +1,11 @@
+pve-container (5.3.6) bookworm; urgency=medium
+
+  * api: require the 'VM.Config.Disk' privilege and check access to the
+    referenced volume for unused volume entries, treating them like mount
+    points.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 04 Aug 2026 13:38:56 +0200
+
 pve-container (5.3.5) bookworm; urgency=medium
 
   * disable AF_ALG sockets via seccomp due to security issues
