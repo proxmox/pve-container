@@ -3269,10 +3269,13 @@ __PACKAGE__->register_method({
 
                     eval {
                         my $conf = {
-                            unprivileged => $unprivileged,
                             arch => $arch,
                         };
-                        $rpcenv->check($authuser, '/', ['Sys.Modify']) if !$unprivileged;
+                        if ($unprivileged) {
+                            $conf->{unprivileged} = 1;
+                        } else {
+                            $rpcenv->check($authuser, '/', ['Sys.Modify']);
+                        }
                         PVE::LXC::check_ct_modify_config_perm(
                             $rpcenv,
                             $authuser,
