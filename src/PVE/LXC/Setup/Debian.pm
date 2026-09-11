@@ -172,6 +172,21 @@ sub snakeoil_fixup {
     }
 }
 
+=head3 ifupdown2_has_slaac($self)
+
+Checks if the ifupdown2 installation has SLAAC support. Debian's version of
+ifupdown2 currently doesn't, our version does.
+
+=cut
+
+sub ifupdown2_has_slaac {
+    my ($self) = @_;
+
+    my $addon_dir = '/usr/share/ifupdown2/addons';
+
+    return $self->ct_is_directory($addon_dir) && $self->ct_file_exists("$addon_dir/auto.py");
+}
+
 sub remove_gateway_scripts {
     my ($attr) = @_;
     my $length = scalar(@$attr);
@@ -300,6 +315,7 @@ sub setup_network {
     my $done_v6_hash = {};
 
     my ($os, $version) = ($conf->{ostype}, $self->{version});
+    my $slaac = ifupdown2_has_slaac($self);
     my $print_section = sub {
         return if !$section;
 
@@ -348,7 +364,13 @@ sub setup_network {
             if (!defined($net->{address6})) {
                 # no address => no iface line
             } elsif ($net->{address6} =~ /^(auto|dhcp|manual)$/) {
-                $interfaces .= "iface $ifname inet6 $1\n\n";
+                my $method = $1;
+                # the kernel does SLAAC on its own with the default sysctls, so
+                # 'manual' is the closest we can get without a working 'auto'
+                if ($method eq 'auto' && !$slaac) {
+                    $method = 'manual';
+                }
+                $interfaces .= "iface $ifname inet6 $method\n\n";
             } else {
                 $interfaces .= "iface $ifname inet6 static\n";
                 if (
