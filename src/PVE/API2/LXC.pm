@@ -2618,6 +2618,11 @@ __PACKAGE__->register_method({
                     die "cannot move volumes of a running container\n"
                         if PVE::LXC::check_running($vmid);
 
+                    PVE::LXC::Config->check_protection(
+                        $conf,
+                        "cannot move volumes of a protected container",
+                    );
+
                     if ($mpkey =~ m/^unused\d+$/) {
                         die
                             "cannot move volume '$mpkey', only configured volumes can be moved to "
@@ -2764,6 +2769,11 @@ __PACKAGE__->register_method({
                 $target_conf = PVE::LXC::Config->load_config($target_vmid);
                 PVE::LXC::Config->check_lock($target_conf);
             }
+
+            PVE::LXC::Config->check_protection(
+                $source_conf,
+                "cannot move volumes of a protected container",
+            );
 
             die "Can't move volumes from or to template CT\n"
                 if ($source_conf->{template} || $target_conf->{template});
