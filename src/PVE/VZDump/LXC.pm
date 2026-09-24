@@ -545,7 +545,7 @@ sub archive {
         push @$tar, '--anchored';
         push @$tar, map { "--exclude=.$_" } @findexcl_anchored;
 
-        push @$tar, @sources;
+        push @$tar, '--', @sources;
 
         my $cmd = [$tar];
 

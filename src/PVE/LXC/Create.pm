@@ -259,7 +259,7 @@ sub restore_external_archive {
                 grep { $_ ne '--one-file-system' } @PVE::Storage::Plugin::COMMON_TAR_FLAGS;
 
             my $create_cmd = [
-                'tar', 'cpf', '-', @flags, "--directory=$directory", '.',
+                'tar', 'cpf', '-', @flags, "--directory=$directory", '--', '.',
             ];
 
             # archive is trusted, we created it
