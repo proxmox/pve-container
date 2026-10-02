@@ -498,8 +498,7 @@ my $features_desc = {
         default => 0,
         description =>
             "Allow unprivileged containers to use mknod() to add certain device nodes."
-            . " This requires a kernel with seccomp trap to user space support (5.3 or newer)."
-            . " This is experimental.",
+            . " This requires a kernel with seccomp trap to user space support (5.3 or newer).",
     },
     force_rw_sys => {
         optional => 1,
