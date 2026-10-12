@@ -14,6 +14,7 @@ use PVE::DataCenterConfig;
 use PVE::Exception qw(raise raise_param_exc raise_perm_exc);
 use PVE::Firewall;
 use PVE::GuestHelpers;
+use PVE::GuestID;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::RESTHandler;
@@ -887,6 +888,10 @@ __PACKAGE__->register_method({
         };
 
         $early_checks->($conf);
+
+        # record before destroying anything, so a failure here leaves the CT intact
+        eval { PVE::GuestID::register_used_id($vmid) };
+        die "unable to destroy CT $vmid - $@" if $@;
 
         my $running_error_msg = "unable to destroy CT $vmid - container is running\n";
         die $running_error_msg if !$param->{force} && PVE::LXC::check_running($vmid); # check early

@@ -7,6 +7,7 @@ use File::Basename;
 use File::Copy; # fixme: remove
 
 use PVE::Cluster;
+use PVE::GuestID;
 use PVE::INotify;
 use PVE::JSONSchema;
 use PVE::Replication;
@@ -542,6 +543,9 @@ sub final_cleanup {
             PVE::Tunnel::write_tunnel($self->{tunnel}, 60, 'start');
         }
         if ($self->{opts}->{delete}) {
+            eval { PVE::GuestID::register_used_id($vmid) };
+            warn $@ if $@;
+
             PVE::LXC::destroy_lxc_container(
                 PVE::Storage::config(),
                 $vmid,
