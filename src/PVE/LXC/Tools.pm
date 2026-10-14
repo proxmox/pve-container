@@ -122,14 +122,7 @@ sub for_current_passthrough_mounts($&) {
     my ($vmid, $code) = @_;
 
     my $devlist_file = "/var/lib/lxc/$vmid/passthrough/mounts";
-
-    if (-e $devlist_file) {
-        for_devices($devlist_file, $vmid, $code);
-    } else {
-        # Fallback to the old device list file in case a package upgrade
-        # occurs between lxc-pve-prestart-hook and now.
-        for_devices("/var/lib/lxc/$vmid/devices", $vmid, $code);
-    }
+    for_devices($devlist_file, $vmid, $code);
 }
 
 sub for_current_passthrough_devices($&) {
