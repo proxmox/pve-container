@@ -11,6 +11,7 @@ use PVE::DataCenterConfig;
 use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
+use PVE::Network::SDN::Vnets;
 use PVE::RESTEnvironment;
 use PVE::Tools;
 
@@ -22,12 +23,6 @@ use base qw(PVE::AbstractConfig);
 use constant {
     FIFREEZE => 0xc0045877,
     FITHAW => 0xc0045878,
-};
-
-my $have_sdn;
-eval {
-    require PVE::Network::SDN::Vnets;
-    $have_sdn = 1;
 };
 
 my $nodename = PVE::INotify::nodename();
@@ -1702,17 +1697,15 @@ sub vmconfig_hotplug_pending {
                 PVE::LXC::kill_dhclients($vmid, $net->{name}) if $net->{'host-managed'};
 
                 PVE::Network::veth_delete("veth${vmid}i$netid");
-                if ($have_sdn) {
-                    print "delete ips from $opt\n";
-                    eval {
-                        PVE::Network::SDN::Vnets::del_ips_from_mac(
-                            $net->{bridge},
-                            $net->{hwaddr},
-                            $conf->{hostname},
-                        );
-                    };
-                    warn $@ if $@;
-                }
+                print "delete ips from $opt\n";
+                eval {
+                    PVE::Network::SDN::Vnets::del_ips_from_mac(
+                        $net->{bridge},
+                        $net->{hwaddr},
+                        $conf->{hostname},
+                    );
+                };
+                warn $@ if $@;
             } else {
                 die "skip\n"; # skip non-hotpluggable opts
             }
@@ -1811,17 +1804,15 @@ sub vmconfig_apply_pending {
                     },
                 );
             } elsif ($opt =~ m/^net(\d+)$/) {
-                if ($have_sdn) {
-                    my $net = $class->parse_lxc_network($conf->{$opt});
-                    eval {
-                        PVE::Network::SDN::Vnets::del_ips_from_mac(
-                            $net->{bridge},
-                            $net->{hwaddr},
-                            $conf->{hostname},
-                        );
-                    };
-                    warn $@ if $@;
-                }
+                my $net = $class->parse_lxc_network($conf->{$opt});
+                eval {
+                    PVE::Network::SDN::Vnets::del_ips_from_mac(
+                        $net->{bridge},
+                        $net->{hwaddr},
+                        $conf->{hostname},
+                    );
+                };
+                warn $@ if $@;
             }
         };
         if (my $err = $@) {
@@ -1844,28 +1835,17 @@ sub vmconfig_apply_pending {
                 my $netid = $1;
                 my $net = $class->parse_lxc_network($conf->{pending}->{$opt});
                 $conf->{pending}->{$opt} = $class->print_lxc_network($net);
-                if ($have_sdn) {
-                    if ($conf->{$opt}) {
-                        my $old_net = $class->parse_lxc_network($conf->{$opt});
-                        if (
-                            $old_net->{bridge} ne $net->{bridge}
-                            || $old_net->{hwaddr} ne $net->{hwaddr}
-                        ) {
-                            PVE::Network::SDN::Vnets::del_ips_from_mac(
-                                $old_net->{bridge},
-                                $old_net->{hwaddr},
-                                $conf->{name},
-                            );
-                            PVE::Network::SDN::Vnets::add_next_free_cidr(
-                                $net->{bridge},
-                                $conf->{hostname},
-                                $net->{hwaddr},
-                                $vmid,
-                                undef,
-                                1,
-                            );
-                        }
-                    } else {
+                if ($conf->{$opt}) {
+                    my $old_net = $class->parse_lxc_network($conf->{$opt});
+                    if (
+                        $old_net->{bridge} ne $net->{bridge}
+                        || $old_net->{hwaddr} ne $net->{hwaddr}
+                    ) {
+                        PVE::Network::SDN::Vnets::del_ips_from_mac(
+                            $old_net->{bridge},
+                            $old_net->{hwaddr},
+                            $conf->{name},
+                        );
                         PVE::Network::SDN::Vnets::add_next_free_cidr(
                             $net->{bridge},
                             $conf->{hostname},
@@ -1875,6 +1855,10 @@ sub vmconfig_apply_pending {
                             1,
                         );
                     }
+                } else {
+                    PVE::Network::SDN::Vnets::add_next_free_cidr(
+                        $net->{bridge}, $conf->{hostname}, $net->{hwaddr}, $vmid, undef, 1,
+                    );
                 }
             }
         };

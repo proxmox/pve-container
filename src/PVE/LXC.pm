@@ -25,6 +25,8 @@ use PVE::GuestHelpers qw(check_vnet_access safe_string_ne safe_num_ne safe_boole
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Network;
+use PVE::Network::SDN::Vnets;
+use PVE::Network::SDN::Zones;
 use PVE::ProcFSTools;
 use PVE::RESTEnvironment;
 use PVE::SafeSyslog;
@@ -46,13 +48,6 @@ use PVE::LXC::Config;
 use PVE::LXC::Monitor;
 use PVE::LXC::Namespaces;
 use PVE::LXC::Tools;
-
-my $have_sdn;
-eval {
-    require PVE::Network::SDN::Zones;
-    require PVE::Network::SDN::Vnets;
-    $have_sdn = 1;
-};
 
 my $LXC_CONFIG_PATH = '/usr/share/lxc/config';
 
@@ -1115,22 +1110,10 @@ sub net_tap_plug : prototype($$) {
 
     my $create_firewall_bridges = $net->{firewall} && PVE::Firewall::Helpers::needs_fwbr($bridge);
 
-    if ($have_sdn) {
-        PVE::Network::SDN::Zones::tap_plug(
-            $iface, $bridge, $tag, $create_firewall_bridges, $trunks, $rate,
-        );
-        PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge);
-    } else {
-        PVE::Network::tap_plug(
-            $iface,
-            $bridge,
-            $tag,
-            $create_firewall_bridges,
-            $trunks,
-            $rate,
-            { mac => $hwaddr },
-        );
-    }
+    PVE::Network::SDN::Zones::tap_plug(
+        $iface, $bridge, $tag, $create_firewall_bridges, $trunks, $rate,
+    );
+    PVE::Network::SDN::Zones::add_bridge_fdb($iface, $hwaddr, $bridge);
 
     PVE::Tools::run_command(['/sbin/ip', 'link', 'set', 'dev', $iface, 'up']);
 }
@@ -1156,7 +1139,7 @@ sub update_net {
 
             PVE::Network::veth_delete($veth);
 
-            if ($have_sdn && safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr})) {
+            if (safe_string_ne($oldnet->{hwaddr}, $newnet->{hwaddr})) {
                 eval {
                     PVE::Network::SDN::Vnets::del_ips_from_mac(
                         $oldnet->{bridge},
@@ -1193,7 +1176,7 @@ sub update_net {
 
                     PVE::Network::tap_unplug($veth);
 
-                    if ($have_sdn && $bridge_changed) {
+                    if ($bridge_changed) {
                         eval {
                             PVE::Network::SDN::Vnets::del_ips_from_mac(
                                 $oldbridge,
@@ -1205,7 +1188,7 @@ sub update_net {
                     }
                 }
 
-                if ($have_sdn && $bridge_changed) {
+                if ($bridge_changed) {
                     PVE::Network::SDN::Vnets::add_next_free_cidr(
                         $newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1,
                     );
@@ -1232,14 +1215,12 @@ sub update_net {
             PVE::LXC::Config->write_config($vmid, $conf);
         }
     } else {
-        if ($have_sdn) {
-            PVE::Network::SDN::Vnets::add_next_free_cidr(
-                $newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1,
-            );
-            PVE::Network::SDN::Vnets::add_dhcp_mapping(
-                $newnet->{bridge}, $newnet->{hwaddr}, $vmid, $conf->{hostname},
-            );
-        }
+        PVE::Network::SDN::Vnets::add_next_free_cidr(
+            $newnet->{bridge}, $conf->{hostname}, $newnet->{hwaddr}, $vmid, undef, 1,
+        );
+        PVE::Network::SDN::Vnets::add_dhcp_mapping(
+            $newnet->{bridge}, $newnet->{hwaddr}, $vmid, $conf->{hostname},
+        );
 
         hotplug_net($vmid, $conf, $opt, $newnet, $netid);
     }
@@ -1254,13 +1235,9 @@ sub hotplug_net {
     my $vethpeer = $veth . "p";
     my $eth = $newnet->{name};
 
-    if ($have_sdn) {
-        PVE::Network::SDN::Zones::veth_create(
-            $veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr},
-        );
-    } else {
-        PVE::Network::veth_create($veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr});
-    }
+    PVE::Network::SDN::Zones::veth_create(
+        $veth, $vethpeer, $newnet->{bridge}, $newnet->{hwaddr},
+    );
 
     PVE::LXC::net_tap_plug($veth, $newnet);
 
@@ -3479,8 +3456,6 @@ sub thaw($) {
 sub create_ifaces_ipams_ips {
     my ($conf, $vmid) = @_;
 
-    return if !$have_sdn;
-
     for my $opt (keys %$conf) {
         next if $opt !~ m/^net(\d+)$/;
         my $net = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
@@ -3493,8 +3468,6 @@ sub create_ifaces_ipams_ips {
 
 sub delete_ifaces_ipams_ips {
     my ($conf, $vmid) = @_;
-
-    return if !$have_sdn;
 
     for my $opt (keys %$conf) {
         next if $opt !~ m/^net(\d+)$/;
