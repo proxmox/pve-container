@@ -41,5 +41,6 @@ Depends: binutils,
          xz-utils,
          ${misc:Depends},
          ${perl:Depends},
+Breaks: pve-manager (<< 9.2.22),
 Description: Proxmox VE Container management tool
  Tool to manage Linux Containers on Proxmox VE.
