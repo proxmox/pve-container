@@ -300,7 +300,11 @@ __PACKAGE__->register_method({
 
         if ($rpcenv->check($authuser, "/vms/$vmid", ['VM.Allocate'], 1)) {
             # OK
-        } elsif ($pool && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)) {
+        } elsif (
+            $pool
+            && !$same_container_exists
+            && $rpcenv->check($authuser, "/pool/$pool", ['VM.Allocate'], 1)
+        ) {
             # OK
         } elsif (
             $restore
