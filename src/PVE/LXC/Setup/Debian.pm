@@ -172,19 +172,20 @@ sub snakeoil_fixup {
     }
 }
 
-=head3 ifupdown2_has_slaac($self)
+=head3 ifupdown2_lacks_slaac($self)
 
-Checks if the ifupdown2 installation has SLAAC support. Debian's version of
-ifupdown2 currently doesn't, our version does.
+Checks if the container uses an ifupdown2 installation without SLAAC support.
+Debian's version of ifupdown2 currently lacks it, while our version and the
+classic ifupdown support it through the 'auto' method.
 
 =cut
 
-sub ifupdown2_has_slaac {
+sub ifupdown2_lacks_slaac {
     my ($self) = @_;
 
     my $addon_dir = '/usr/share/ifupdown2/addons';
 
-    return $self->ct_is_directory($addon_dir) && $self->ct_file_exists("$addon_dir/auto.py");
+    return $self->ct_is_directory($addon_dir) && !$self->ct_file_exists("$addon_dir/auto.py");
 }
 
 sub remove_gateway_scripts {
@@ -315,7 +316,7 @@ sub setup_network {
     my $done_v6_hash = {};
 
     my ($os, $version) = ($conf->{ostype}, $self->{version});
-    my $slaac = ifupdown2_has_slaac($self);
+    my $no_slaac = ifupdown2_lacks_slaac($self);
     my $print_section = sub {
         return if !$section;
 
@@ -367,7 +368,7 @@ sub setup_network {
                 my $method = $1;
                 # the kernel does SLAAC on its own with the default sysctls, so
                 # 'manual' is the closest we can get without a working 'auto'
-                if ($method eq 'auto' && !$slaac) {
+                if ($method eq 'auto' && $no_slaac) {
                     $method = 'manual';
                 }
                 $interfaces .= "iface $ifname inet6 $method\n\n";
