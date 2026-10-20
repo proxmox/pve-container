@@ -1,3 +1,47 @@
+pve-container (6.1.15) trixie; urgency=medium
+
+  * setup: debian: configure IPv6 SLAAC with the 'manual' instead of the
+    'auto' method in /etc/network/interfaces if the container uses Debian's
+    own ifupdown2, which errors out on 'auto'. The kernel then performs SLAAC
+    with its default settings. Containers using classic ifupdown or the
+    Proxmox build of ifupdown2 keep using 'auto'.
+
+  * remote migration:
+    - additionally require the 'VM.Audit' and 'VM.Config.Disk' privileges,
+      as the migration hands the container's configuration and disks to the
+      remote endpoint, and require 'VM.Allocate' if the source container is
+      to be deleted. Users that could migrate with 'VM.Migrate' alone so far
+      need these privileges now.
+    - do not write an empty 'unprivileged' entry into the config of migrated
+      privileged containers, which caused a warning whenever that config was
+      parsed afterwards.
+
+  * config: drop the experimental note from the 'mknod' feature, which is
+    considered stable now.
+
+  * packaging: depend on libpve-network-perl instead of only recommending it,
+    as every Proxmox VE node has it installed through pve-manager anyway, and
+    drop the fallback for nodes without SDN support.
+
+  * mount points: always remove a bind mount again if verifying it fails, for
+    example because it could not be made read-only, instead of leaving it
+    mounted, possibly writable. This affects bind mount points and
+    subvolume-based volumes, for example on ZFS.
+
+  * mount points: harden mounting a container on the host against symlink
+    races by using the same staged mounts as container start. Each volume is
+    now attached to the already checked directory, instead of being mounted
+    by path after the check, which left a window for swapping the path for a
+    symlink. This affects pct mount, fstrim and df, as well as container
+    creation, restore and clone.
+
+  * api: create: only accept the 'VM.Allocate' privilege on the pool passed
+    via 'pool' when creating a new container. Restoring over an existing
+    container requires the privilege on that container itself, which its own
+    pool membership still grants, or 'VM.Backup' as before.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 20 Oct 2026 19:20:44 +0200
+
 pve-container (6.1.14) trixie; urgency=medium
 
   * fix #7148: reassign volume: check the target container's protection flag
