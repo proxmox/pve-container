@@ -51,6 +51,10 @@ use PVE::LXC::Tools;
 
 my $LXC_CONFIG_PATH = '/usr/share/lxc/config';
 
+# We choose a path in /var/lib/lxc/ here because the lxc-start apparmor profile restricts most
+# mounts to that.
+my $STAGING_ROOT = '/var/lib/lxc/.pve-staged-mounts';
+
 my $nodename = PVE::INotify::nodename();
 
 my $cpuinfo = PVE::ProcFSTools::read_cpuinfo();
@@ -1818,7 +1822,17 @@ sub mount_all {
 
     my (undef, $root_uid, $root_gid) = parse_id_maps($conf);
 
+    # Only create the directory, get_staging_tempfs() would mount a tmpfs over the staging root in
+    # the host namespace if it does not exist yet, and nothing unmounts that again.
+    my $stage_dir = "$STAGING_ROOT/$vmid.all";
+    File::Path::make_path($stage_dir);
+
+    PVE::Tools::mount("none", $stage_dir, 'tmpfs', 0, "size=8k,mode=755")
+        or die "failed to mount $stage_dir as tmpfs: $!\n";
+
     eval {
+        my $rootdir_fd = undef;
+
         PVE::LXC::Config->foreach_volume(
             $conf,
             sub {
@@ -1826,13 +1840,55 @@ sub mount_all {
 
                 $mountpoint->{ro} = 0 if $ignore_ro;
 
-                mountpoint_mount(
-                    $mountpoint, $rootdir, $storage_cfg, undef, $root_uid, $root_gid,
+                my $stage_sub = "$stage_dir/$ms";
+
+                mkdir($stage_sub)
+                    or die "failed to create directory '$stage_sub': $!\n";
+
+                my (undef, undef, undef, $mount_fd) = mountpoint_stage(
+                    $mountpoint, $stage_sub, $storage_cfg, undef, $root_uid, $root_gid,
                 );
+
+                my ($dest_dir, $dest_base_fd);
+                if ($rootdir_fd) {
+                    # Mount relative to the rootdir fd.
+                    $dest_base_fd = $rootdir_fd;
+                    $dest_dir = './' . $mountpoint->{mp};
+                } else {
+                    # Assert that 'rootfs' is the first one:
+                    die "foreach_mount() error\n" if $ms ne 'rootfs';
+
+                    # Mount the rootfs absolutely.
+                    # $rootdir is not controlled by the container, so this is fine.
+                    sysopen($dest_base_fd, '/', O_PATH | O_DIRECTORY)
+                        or die "failed to open '/': $!\n";
+                    $dest_dir = $rootdir;
+                }
+
+                # Don't inherit attributes for 'keepattrs' here, container start does that. Doing it
+                # on the host would change volumes on mere access and fail for read-only ones.
+                mountpoint_insert_staged(
+                    $mount_fd, $dest_base_fd, $dest_dir, $ms, $root_uid, $root_gid, 0,
+                );
+
+                eval { PVE::Tools::run_command(['umount', $stage_sub]) };
+                warn "failed to unmount staging mount point at '$stage_sub': $@" if $@;
+                rmdir($stage_sub);
+
+                # From now on we mount inside our rootfs:
+                if (!$rootdir_fd) {
+                    $rootdir_fd = $mount_fd;
+                }
             },
         );
     };
-    if (my $err = $@) {
+
+    my $err = $@;
+    eval { PVE::Tools::run_command(['umount', '--recursive', $stage_dir]); };
+    warn "failed to unmount temporary staging directory '$stage_dir': $@" if $@;
+    rmdir($stage_dir);
+
+    if ($err) {
         warn "mounting container failed\n";
         umount_all($vmid, $storage_cfg, $conf, 1);
         die $err;
@@ -2506,9 +2562,7 @@ sub get_staging_mount_path($) {
 
 # Mount tmpfs for mount point staging and return the path.
 sub get_staging_tempfs() {
-    # We choose a path in /var/lib/lxc/ here because the lxc-start apparmor profile restricts most
-    # mounts to that.
-    my $target = '/var/lib/lxc/.pve-staged-mounts';
+    my $target = $STAGING_ROOT;
     if (!mkdir($target)) {
         return $target if $! == EEXIST;
         die "failed to create directory $target: $!\n";
