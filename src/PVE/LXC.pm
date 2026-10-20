@@ -2053,8 +2053,11 @@ sub bindmount {
 
     __bindmount_do($dir, $dest, $ro, @extra_opts);
 
-    if (!__bindmount_verify($srcdh, $parentfd, $last_dir, $ro)) {
+    my $verified = eval { __bindmount_verify($srcdh, $parentfd, $last_dir, $ro) };
+    my $err = $@;
+    if (!$verified || $err) {
         PVE::Tools::run_command(['umount', $dest]);
+        die $err if $err;
         die "detected mount path change at: $dir\n";
     }
 }
