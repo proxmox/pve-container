@@ -1,3 +1,27 @@
+pve-container (6.1.16) trixie; urgency=medium
+
+  * packaging: require pve-manager 9.2.22 or newer after removing the obsolete
+    console cleanup helper, to prevent pvestatd errors during partial
+    upgrades.
+
+  * fix #7164: restore: apply the root password and SSH public keys supplied
+    with a container restore instead of silently ignoring them.
+
+  * restore: warn when a container with a recent systemd version may need the
+    nesting feature enabled, as already done on creation and cloning.
+
+  * template: allow converting containers with LVM-backed volumes to
+    templates. These volumes support full clones, but not linked clones.
+
+  * fix #8237: api: allow users without 'VM.Config.Options' to read container
+    configurations and pending changes when 'env' is set. Hide the restricted
+    field instead of failing the entire request.
+
+  * volume move: honor the source container's protection flag when moving
+    volumes to another storage or container.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 29 Oct 2026 15:08:28 +0100
+
 pve-container (6.1.15) trixie; urgency=medium
 
   * setup: debian: configure IPv6 SLAAC with the 'manual' instead of the
