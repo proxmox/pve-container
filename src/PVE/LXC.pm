@@ -1599,7 +1599,7 @@ sub delete_read_restricted_options {
     for my ($restricted_key, $required_priv) ($options_with_restricted_read->%*) {
         my $has_no_access = 0;
         if (exists($conf->{$restricted_key})) {
-            if (!$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], 1)) {
+            if (!$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], undef, 1)) {
                 $has_no_access = 1;
                 delete $conf->{$restricted_key};
             }
@@ -1607,7 +1607,7 @@ sub delete_read_restricted_options {
         if (exists($conf->{pending}) && exists($conf->{pending}->{$restricted_key})) {
             if (
                 $has_no_access
-                || !$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], 1)
+                || !$rpcenv->check_vm_perm($authuser, $vmid, $pool, [$required_priv], undef, 1)
             ) {
                 delete $conf->{pending}->{$restricted_key};
             }
