@@ -518,7 +518,7 @@ sub make_seccomp_config {
         ioctl => ['errno 1 [1,0x9400,SCMP_CMP_MASKED_EQ,0xff00]'],
 
         # We disable `AF_ALG` sockets to avoid their potential security issues.
-        socket => ['errno 97 [0,38,SCMP_CMP_EQ]'],
+        socket => ['errno 97 [0,38,SCMP_CMP_MASKED_EQ,0xffffffff]'],
     };
 
     my $raw_conf = '';
