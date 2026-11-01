@@ -467,6 +467,7 @@ sub archive {
         push @$param, '--backup-time', $task->{backup_time};
         push @$param, '--change-detection-mode', $opts->{"pbs-change-detection-mode"}
             if $opts->{"pbs-change-detection-mode"};
+        push @$param, '--rate', "$opts->{bwlimit}KiB" if $opts->{bwlimit};
 
         if (my $entries_max = $opts->{"performance"}->{"pbs-entries-max"}) {
             push $param->@*, '--entries-max', $entries_max;
