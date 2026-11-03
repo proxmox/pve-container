@@ -1,3 +1,15 @@
+pve-container (6.1.18) trixie; urgency=medium
+
+  * apparmor: deny AF_ALG sockets in unprivileged containers through the
+    generated AppArmor profile as well. The seccomp rule cannot cover
+    sockets created through io_uring or by 32-bit processes, including
+    every process in a container with the i386 architecture. Containers get
+    the new rule on their next start. A custom seccomp profile, as suggested
+    with 6.1.5, no longer allows AF_ALG. Workloads that need it should run
+    in a VM instead.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 03 Nov 2026 15:04:22 +0100
+
 pve-container (6.1.17) trixie; urgency=medium
 
   * check_bridge_access: fix control flow issue that can cause bridge access
