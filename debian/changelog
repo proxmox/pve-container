@@ -1,3 +1,14 @@
+pve-container (6.1.17) trixie; urgency=medium
+
+  * check_bridge_access: fix control flow issue that can cause bridge access
+    checks to be skipped under some circumstances.
+
+  * use masked-equality for AF_ALG socket seccomp rule, to prevent the filter
+    from being bypassed using bogus values in the high part of the syscall
+    argument value that is ignored by the kernel.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 03 Nov 2026 13:21:35 +0100
+
 pve-container (6.1.16) trixie; urgency=medium
 
   * packaging: require pve-manager 9.2.22 or newer after removing the obsolete
