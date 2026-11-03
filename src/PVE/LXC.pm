@@ -650,6 +650,11 @@ sub make_apparmor_config {
         }
     }
 
+    # Unlike seccomp, AppArmor also catches AF_ALG sockets created via io_uring or 32-bit syscalls.
+    if ($unprivileged) {
+        $raw .= "lxc.apparmor.raw = deny network alg,\n";
+    }
+
     # More to come?
 
     if (PVE::LXC::Config->has_lxc_entry($conf, 'lxc.apparmor.profile')) {
