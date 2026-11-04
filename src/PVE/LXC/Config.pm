@@ -1738,10 +1738,6 @@ sub vmconfig_hotplug_pending {
                     $hotplug_memory->($conf->{pending}->{memory}, $conf->{pending}->{swap});
                 }
             } elsif ($opt =~ m/^mp(\d+)$/) {
-                if (exists($conf->{$opt})) {
-                    die "skip\n"; # don't try to hotplug over existing mp
-                }
-
                 $class->apply_pending_mountpoint($vmid, $conf, $opt, $storecfg, 1);
                 # apply_pending_mountpoint modifies the value if it creates a new disk
                 $value = $conf->{pending}->{$opt};
@@ -1876,11 +1872,43 @@ my $rescan_volume = sub {
     warn "Could not rescan volume size - $@\n" if $@;
 };
 
+my @FAST_PLUG_SAFE_KEYS = qw(backup replicate);
+
+# Checks whether the changed properties can be applied at runtime. It only
+# returns true if all changes can be applied in this way. If even one
+# property cannot be applied, returns false to ensure changes are applied
+# as a unit.
+sub __mountpoint_config_fast_plug_safe {
+    my ($class, $key, $new, $old) = @_;
+
+    my %new = $new->%*;
+    my %old = $old->%*;
+    delete @new{@FAST_PLUG_SAFE_KEYS};
+    delete @old{@FAST_PLUG_SAFE_KEYS};
+
+    my $new_str = $class->print_volume($key, \%new);
+    my $old_str = $class->print_volume($key, \%old);
+
+    return $new_str eq $old_str;
+}
+
 sub apply_pending_mountpoint {
     my ($class, $vmid, $conf, $opt, $storecfg, $running) = @_;
 
     my $mp = $class->parse_volume($opt, $conf->{pending}->{$opt});
     my $old = $conf->{$opt};
+
+    if (defined($old) && $running) {
+        if ($class->__mountpoint_config_fast_plug_safe(
+            $opt,
+            $mp,
+            $class->parse_volume($opt, $old),
+        )) {
+            return;
+        }
+        die "skip\n"; # don't try to hotplug over existing mp
+    }
+
     if ($mp->{type} eq 'volume' && $mp->{volume} =~ $PVE::LXC::NEW_DISK_RE) {
         my $original_value = $conf->{pending}->{$opt};
         my $vollist = PVE::LXC::create_disks(
@@ -1901,7 +1929,6 @@ sub apply_pending_mountpoint {
             }
         }
     } else {
-        die "skip\n" if $running && defined($old); # TODO: "changing" mount points?
         $rescan_volume->($storecfg, $mp) if $mp->{type} eq 'volume';
         if ($running) {
             PVE::LXC::mountpoint_hotplug($vmid, $conf, $opt, $mp, $storecfg);
