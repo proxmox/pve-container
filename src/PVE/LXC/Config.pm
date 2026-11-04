@@ -1737,7 +1737,7 @@ sub vmconfig_hotplug_pending {
                 if (!$hotplug_memory_done) { # don't call twice if both opts are passed
                     $hotplug_memory->($conf->{pending}->{memory}, $conf->{pending}->{swap});
                 }
-            } elsif ($opt =~ m/^mp(\d+)$/) {
+            } elsif ($opt =~ m/^mp(\d+)$/ || $opt eq 'rootfs') {
                 $class->apply_pending_mountpoint($vmid, $conf, $opt, $storecfg, 1);
                 # apply_pending_mountpoint modifies the value if it creates a new disk
                 $value = $conf->{pending}->{$opt};
