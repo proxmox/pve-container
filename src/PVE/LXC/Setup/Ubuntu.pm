@@ -3,7 +3,6 @@ package PVE::LXC::Setup::Ubuntu;
 use strict;
 use warnings;
 
-use PVE::Tools;
 use PVE::LXC;
 
 use File::Path;
@@ -45,15 +44,7 @@ my $known_versions = {
 sub new {
     my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
 
-    my $lsb_fn = "$rootdir/etc/lsb-release";
-    my $lsbinfo = PVE::Tools::file_get_contents($lsb_fn);
-
-    die "got unknown DISTRIB_ID\n" if $lsbinfo !~ m/^DISTRIB_ID=Ubuntu$/mi;
-
-    my $version;
-    if ($lsbinfo =~ m/^DISTRIB_RELEASE=(\d+\.\d+)$/mi) {
-        $version = $1;
-    }
+    my $version = $os_release->{VERSION_ID};
 
     die "unable to read version info\n" if !defined($version);
 
