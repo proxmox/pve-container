@@ -12,7 +12,8 @@ use PVE::LXC::Setup::Debian;
 use base qw(PVE::LXC::Setup::Debian);
 
 my $known_versions = {
-    '26.10' => 1, # s
+    '27.04' => 1, # tenacious
+    '26.10' => 1, # stonking
     '26.04' => 1, # resolute LTS
     '25.10' => 1, # questing
     '25.04' => 1, # plucky
