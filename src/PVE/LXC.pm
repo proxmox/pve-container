@@ -290,8 +290,9 @@ sub vmstatus {
         $d->{name} = $conf->{'hostname'} || "CT$vmid";
         $d->{name} =~ s/[\s]//g;
 
-        $d->{cpus} = $conf->{cores} || $conf->{cpulimit};
-        $d->{cpus} = $cpucount if !$d->{cpus};
+        # cpulimit is a fractional value kept as string by the config parser, so
+        # convert it explicitly to have 'cpus' encoded as a JSON number
+        $d->{cpus} = ($conf->{cores} || $conf->{cpulimit} || $cpucount) + 0;
 
         $d->{tags} = $conf->{tags} if defined($conf->{tags});
 
