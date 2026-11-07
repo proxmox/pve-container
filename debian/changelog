@@ -1,3 +1,28 @@
+pve-container (6.1.19) trixie; urgency=medium
+
+  * vzdump: honor the bandwidth limit for container backups to a Proxmox
+    Backup Server as well. Previously, the limit only applied to backups to
+    file-based storages.
+
+  * setup ubuntu: read the version from '/etc/os-release', fixing the setup of
+    Ubuntu 26.10 containers, which no longer ship '/etc/lsb-release'.
+
+  * setup ubuntu: add preliminary support for 27.04.
+
+  * mount points: changing only the 'backup' or 'replicate' flag of a mount
+    point, or the 'replicate' flag of the root disk, now applies directly to a
+    running container instead of staying pending until its next start.
+
+  * fix #6392: setup: fedora: disable the homed first-boot wizard, which waits
+    for console input that cannot be provided during container start.
+    Containers created from the Fedora 42 template seemed to hang on their
+    first boot. Already stuck containers boot normally on their next start.
+
+  * config: document that the 'nameserver' option takes a comma-separated list
+    of DNS server addresses.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 07 Nov 2026 18:30:50 +0100
+
 pve-container (6.1.18) trixie; urgency=medium
 
   * apparmor: deny AF_ALG sockets in unprivileged containers through the
