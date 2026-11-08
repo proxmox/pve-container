@@ -170,6 +170,7 @@ __PACKAGE__->register_method({
             password => {
                 optional => 1,
                 type => 'string',
+                sensitive => 1,
                 description => "Sets root password inside container.",
                 minLength => 5,
             },
