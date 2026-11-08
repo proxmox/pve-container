@@ -505,6 +505,15 @@ my $features_desc = {
     },
 };
 
+my $meta_info_fmt = {
+    ctime => {
+        type => 'integer',
+        description => "The guest creation timestamp as UNIX epoch time",
+        minimum => 0,
+        optional => 1,
+    },
+};
+
 my $confdesc = {
     lock => {
         optional => 1,
@@ -716,6 +725,13 @@ my $confdesc = {
         description =>
             "Try to be more verbose. For now this only enables debug log-level on start.",
         default => 0,
+    },
+    meta => {
+        optional => 1,
+        type => 'string',
+        format => $meta_info_fmt,
+        description =>
+            "Read-only meta-information about this container, for example its creation time.",
     },
 };
 
@@ -1312,6 +1328,7 @@ sub queue_pct_config_changes {
     my $storage_cfg = PVE::Storage::config();
 
     foreach my $opt (@$revert) {
+        die "unable to revert read-only option: '$opt'\n" if $opt eq 'meta';
         delete $conf->{pending}->{$opt};
         $class->remove_from_pending_delete($conf, $opt); # also remove from deletion queue
     }
@@ -1320,6 +1337,7 @@ sub queue_pct_config_changes {
     my $modified = {}; # record modified options
 
     foreach my $opt (@$delete) {
+        die "unable to delete read-only option: '$opt'\n" if $opt eq 'meta';
         if (!defined($conf->{$opt}) && !defined($conf->{pending}->{$opt})) {
             warn "cannot delete '$opt' - not set in current configuration!\n";
             next;
@@ -1360,7 +1378,7 @@ sub queue_pct_config_changes {
             $value = PVE::LXC::verify_nameserver_list($value);
         } elsif ($opt eq 'searchdomain') {
             $value = PVE::LXC::verify_searchdomain_list($value);
-        } elsif ($opt eq 'unprivileged') {
+        } elsif ($opt eq 'unprivileged' || $opt eq 'meta') {
             die "unable to modify read-only option: '$opt'\n";
         } elsif ($opt eq 'tags') {
             $value = PVE::GuestHelpers::get_unique_tags($value);
@@ -1456,12 +1474,20 @@ sub json_config_properties {
     my ($class, $prop) = @_;
 
     foreach my $opt (keys %$confdesc) {
-        next if $opt eq 'parent' || $opt eq 'snaptime';
+        # 'meta' is read-only
+        next if $opt eq 'parent' || $opt eq 'snaptime' || $opt eq 'meta';
         next if $prop->{$opt};
         $prop->{$opt} = $confdesc->{$opt};
     }
 
     return $prop;
+}
+
+# Returns the 'meta' property string for a newly created container.
+sub new_meta_info_string {
+    my ($class) = @_;
+
+    return PVE::JSONSchema::print_property_string({ ctime => int(time()) }, $meta_info_fmt);
 }
 
 my $parse_ct_mountpoint_full = sub {
@@ -1655,6 +1681,8 @@ my $LXC_FASTPLUG_OPTIONS = {
 sub vmconfig_hotplug_pending {
     my ($class, $vmid, $conf, $storecfg, $selection, $errors) = @_;
 
+    $class->drop_pending_meta($conf);
+
     my $pid = PVE::LXC::find_lxc_pid($vmid);
     my $rootdir = "/proc/$pid/root";
 
@@ -1780,6 +1808,8 @@ sub vmconfig_hotplug_pending {
 
 sub vmconfig_apply_pending {
     my ($class, $vmid, $conf, $storecfg, $selection, $errors) = @_;
+
+    $class->drop_pending_meta($conf);
 
     my $add_apply_error = sub {
         my ($opt, $msg) = @_;

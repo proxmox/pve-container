@@ -70,6 +70,14 @@ __PACKAGE__->register_method({
                 description =>
                     'SHA1 digest of configuration file. This can be used to prevent concurrent modifications.',
             },
+            # without a format, as a config written by a newer version can have unknown members
+            meta => {
+                type => 'string',
+                description =>
+                    "Read-only meta-information about this container, for example its"
+                    . " creation time.",
+                optional => 1,
+            },
         }),
     },
     code => sub {

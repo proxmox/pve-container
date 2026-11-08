@@ -488,6 +488,7 @@ __PACKAGE__->register_method({
         PVE::LXC::Config->queue_pct_config_changes($vmid, $conf, $no_disk_param, [], []);
 
         $conf->{unprivileged} = 1 if $unprivileged;
+        $conf->{meta} = PVE::LXC::Config->new_meta_info_string() if !$restore;
 
         my $emsg = $restore ? "unable to restore CT $vmid -" : "unable to create CT $vmid -";
 
@@ -3388,6 +3389,8 @@ __PACKAGE__->register_method({
 
                     my $unprivileged = delete $new_conf->{unprivileged};
                     my $arch = delete $new_conf->{arch};
+                    # read-only for the update below, the source's values are kept as they are
+                    my $meta = delete $new_conf->{meta};
 
                     # TODO handle properly?
                     delete $new_conf->{snapshots};
@@ -3422,6 +3425,7 @@ __PACKAGE__->register_method({
                             $state->{vmid}, $conf, 0, $new_conf, [], [],
                         );
                         raise_param_exc($errors) if scalar(keys %$errors);
+                        $conf->{meta} = $meta if defined($meta);
                         PVE::LXC::Config->write_config($state->{vmid}, $conf);
                         PVE::LXC::update_lxc_config($vmid, $conf);
                     };

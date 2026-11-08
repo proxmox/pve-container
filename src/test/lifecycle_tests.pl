@@ -31,6 +31,7 @@ use PVE::LXC::Create;
 use PVE::LXC::Migrate;
 
 use PVE::API2::LXC;
+use PVE::API2::LXC::Config;
 
 my $WORKDIR = 'lifecycle-working';
 my $NODENAME = PVE::INotify::nodename();
@@ -464,6 +465,12 @@ my sub restore_ct($vmid, $param = undef) {
     });
 }
 
+my sub update_ct($vmid, $param) {
+    return run_task(sub {
+        PVE::API2::LXC::Config->update_vm({ node => $NODENAME, vmid => $vmid, $param->%* });
+    });
+}
+
 # Runs the migration tunnel for $vmid with the commands @commands, which are sent at once, and
 # returns the error of the task, if any, and the replies.
 my sub run_mtunnel($vmid, @commands) {
@@ -496,6 +503,7 @@ my $INCOMING_CONFIG = <<~'EOF';
     arch: amd64
     hostname: incoming
     memory: 1024
+    meta: ctime=1600000000
     ostype: debian
     rootfs: local:300/vm-300-disk-0.raw,size=4G
     unprivileged: 1
@@ -521,6 +529,13 @@ my sub migrate_remote($vmid, $opts, $tunnel) {
     });
 
     return ($err, $log);
+}
+
+# Returns the members of the 'meta' property in the config of $vmid.
+my sub meta_of($vmid) {
+    my $conf = PVE::LXC::Config->load_config($vmid);
+
+    return { map { split(/=/, $_, 2) } split(/,/, $conf->{meta} // '') };
 }
 
 # Tests
@@ -1291,6 +1306,137 @@ subtest 'restore treats a container that got removed before the reservation as n
         'privileged: restore is refused',
     );
     ok(!defined(read_raw_config(200)), 'privileged: the VMID is released');
+};
+
+subtest 'meta cannot be changed through the API' => sub {
+    reset_state();
+    write_raw_config(200, existing_config('ctime=1500000000'));
+    my $raw = read_raw_config(200);
+
+    for my $user ('root@pam', 'admin@pve') {
+        my $rejected = sub($name, $expected_err, $call) {
+            like(as_user($user, {}, $call), $expected_err, "$user cannot $name");
+        };
+        my $unknown = qr/meta: property is not defined in schema/;
+        $rejected->('set meta', $unknown, sub { update_ct(200, { meta => 'ctime=1' }) });
+        $rejected->('create with meta', $unknown,
+            sub { create_ct(201, { meta => 'ctime=1' }) });
+        $rejected->(
+            'restore with meta',
+            $unknown,
+            sub { restore_ct(200, { force => 1, meta => 'ctime=1' }) },
+        );
+        $rejected->(
+            'delete meta',
+            qr/unable to delete read-only option: 'meta'/,
+            sub { update_ct(200, { delete => 'meta' }) },
+        );
+        $rejected->(
+            'revert meta',
+            qr/unable to revert read-only option: 'meta'/,
+            sub { update_ct(200, { revert => 'meta' }) },
+        );
+    }
+
+    is(read_raw_config(200), $raw, 'config is unchanged');
+    ok(!defined(read_raw_config(201)), 'no container got created');
+
+    my $conf = PVE::LXC::Config->load_config(200);
+    eval { PVE::LXC::Config->update_pct_config(200, $conf, 0, { meta => 'ctime=1' }, [], []) };
+    like($@, qr/unable to modify read-only option: 'meta'/, 'update cannot set meta');
+
+    write_raw_config(200, existing_config());
+    my $err = update_ct(200, { delete => 'meta' });
+    like($err, qr/unable to delete read-only option: 'meta'/,
+        'meta cannot be deleted if unset');
+};
+
+subtest 'pending changes of meta are dropped' => sub {
+    my $raw = existing_config('ctime=1500000000') . <<~'EOF';
+
+        [pve:pending]
+        delete: meta
+        meta: ctime=1
+        EOF
+
+    reset_state();
+    write_raw_config(200, $raw);
+    my $err = update_ct(200, { hostname => 'changed' });
+    is($err, '', 'update succeeds');
+    like($task_log, qr/ignoring pending change of read-only option 'meta'/, 'drop is logged');
+    my $conf = PVE::LXC::Config->load_config(200);
+    is(meta_of(200)->{ctime}, 1500000000, 'ctime is kept');
+    is_deeply($conf->{pending}, {}, 'pending change of meta is dropped');
+
+    for my $pending ('meta: ctime=1', 'delete: meta') {
+        $conf = PVE::LXC::Config::parse_pct_config(
+            '/lxc/200.conf',
+            existing_config('ctime=1500000000') . "\n[pve:pending]\n$pending\n",
+        );
+        {
+            local $SIG{__WARN__} = sub { };
+            PVE::LXC::Config->vmconfig_apply_pending(200, $conf, $storage_cfg);
+        }
+        is($conf->{meta}, 'ctime=1500000000', "applying '$pending' keeps meta");
+        is_deeply($conf->{pending}, {}, "applying drops '$pending'");
+    }
+
+    $conf = PVE::LXC::Config::parse_pct_config('/lxc/200.conf', $raw);
+    my $cgroup_module = Test::MockModule->new('PVE::LXC::CGroup');
+    $cgroup_module->mock(new => sub { return bless {}, 'PVE::LXC::CGroup' });
+    with_mock(
+        $lxc_module,
+        { find_lxc_pid => sub { return 1 } },
+        sub {
+            local $SIG{__WARN__} = sub { };
+            PVE::LXC::Config->vmconfig_hotplug_pending(200, $conf, $storage_cfg, undef, {});
+        },
+    );
+    is($conf->{meta}, 'ctime=1500000000', 'hotplugging keeps meta');
+    is_deeply($conf->{pending}, {}, 'hotplugging drops the pending change of meta');
+};
+
+subtest 'meta with members unknown to this version can be read' => sub {
+    reset_state();
+    write_raw_config(200, existing_config('ctime=1500000000,future=value'));
+
+    my $info = PVE::API2::LXC::Config->map_method_by_name('vm_config');
+    my $conf = eval {
+        local $SIG{__WARN__} = sub { };
+        PVE::API2::LXC::Config->handle($info, { node => $NODENAME, vmid => 200 }, 1);
+    };
+    is($@, '', 'config passes the result verification');
+    is($conf->{meta}, 'ctime=1500000000,future=value', 'meta is returned as it is');
+};
+
+subtest 'create sets the creation time, restore and remote migration keep it' => sub {
+    reset_state();
+
+    my $before = time();
+    my $err = create_ct(201);
+    my $after = time();
+    is($err, '', 'create succeeds');
+    my $ctime = meta_of(201)->{ctime};
+    ok($ctime >= $before && $ctime <= $after, 'ctime is the time of the create');
+
+    $backup_raw_config = backup_config('ctime=1400000000');
+    $err = restore_ct(202);
+    is($err, '', 'restore to an unused VMID succeeds');
+    is(meta_of(202)->{ctime}, 1400000000, 'ctime of the backup is kept');
+
+    write_raw_config(200, existing_config('ctime=1500000000'));
+    $err = restore_ct(200, { force => 1 });
+    is($err, '', 'restore over an existing container succeeds');
+    is(meta_of(200)->{ctime}, 1400000000, 'ctime of the backup is used');
+
+    ($err, my $replies) = run_mtunnel(
+        300,
+        { cmd => 'config', conf => $INCOMING_CONFIG },
+        { cmd => 'quit', cleanup => 0 },
+    );
+    is($err, '', 'tunnel exits normally') or diag(explain($replies), $task_log);
+    is(meta_of(300)->{ctime}, 1600000000, 'ctime of the source of a migration is kept');
+    is(PVE::LXC::Config->load_config(300)->{hostname}, 'incoming', 'with its other options');
 };
 
 remove_tree($WORKDIR);

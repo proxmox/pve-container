@@ -190,4 +190,26 @@ subtest 'restore does not take over pending changes of the backup' => sub {
     }
 };
 
+subtest 'meta property' => sub {
+    like(PVE::LXC::Config->new_meta_info_string(), qr/^ctime=\d+$/, 'creation time is set');
+
+    my $raw = "hostname: ct100\nmeta: ctime=1700000000\n";
+    my $conf = PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw, 1);
+    is($conf->{meta}, 'ctime=1700000000', 'meta is parsed');
+    is(PVE::LXC::Config::write_pct_config('/lxc/100.conf', $conf), $raw, 'meta is written');
+
+    $raw = "hostname: ct100\nmeta: ctime=1700000000,unknown=value\n";
+    my $warnings = '';
+    {
+        local $SIG{__WARN__} = sub { $warnings .= $_[0] };
+        $conf = PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw);
+    }
+    like($warnings, qr/unable to parse value of 'meta'/, 'unknown member causes a warning');
+    is($conf->{meta}, 'ctime=1700000000,unknown=value', 'meta with unknown member is kept');
+    eval { PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw, 1) };
+    like($@, qr/unable to parse value of 'meta'/, 'unknown member fails strict parsing');
+
+    ok(!exists(PVE::LXC::Config->json_config_properties({})->{meta}), 'meta cannot be set');
+};
+
 done_testing();
