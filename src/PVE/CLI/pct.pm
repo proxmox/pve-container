@@ -1102,7 +1102,13 @@ our $cmddef = {
     ],
     set => ['PVE::API2::LXC::Config', 'update_vm', ['vmid'], { node => $nodename }],
 
-    resize => ["PVE::API2::LXC", 'resize_vm', ['vmid', 'disk', 'size'], { node => $nodename }],
+    resize => [
+        "PVE::API2::LXC",
+        'resize_vm',
+        ['vmid', 'disk', 'size'],
+        { node => $nodename },
+        $upid_exit,
+    ],
 
     create =>
         ['PVE::API2::LXC', 'create_vm', ['vmid', 'ostemplate'], { node => $nodename }, $upid_exit],
