@@ -3433,7 +3433,7 @@ __PACKAGE__->register_method({
 
                 warn "Removing temporary VM config..\n";
                 $run_locked->(sub {
-                    PVE::LXC::destroy_config($state->{vmid});
+                    PVE::LXC::Config->destroy_config($state->{vmid});
                 });
 
                 die "Exiting mtunnel\n";
