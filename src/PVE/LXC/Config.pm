@@ -1203,7 +1203,10 @@ sub parse_pct_config {
             my $key = $1;
             my $value = $2;
             eval { $value = PVE::LXC::Config->check_type($key, $value); };
-            $handle_error->("vm $vmid - unable to parse value of '$key' - $@") if $@;
+            if (my $err = $@) {
+                $handle_error->("vm $vmid - unable to parse value of '$key' - $err");
+                next if !PVE::LXC::Config->option_exists($key);
+            }
             $conf->{$key} = $value;
         } else {
             $handle_error->("vm $vmid - unable to parse config: $line\n");

@@ -128,4 +128,27 @@ subtest 'rootfs idmap array does not throw off comparison' => sub {
     ok($result, "can be hotplugged");
 };
 
+subtest 'parsing drops keys outside of the schema' => sub {
+    my $raw = <<~'EOF';
+        hostname: ct100
+        net0: name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:00,type=veth
+        net01: name=eth1,bridge=vmbr0,hwaddr=BC:24:11:00:00:01,type=veth
+        net32: name=eth2,bridge=vmbr0,hwaddr=BC:24:11:00:00:02,type=veth
+        dev256: /dev/null
+        unknown: value
+        memory: invalid
+        EOF
+
+    my $conf;
+    {
+        local $SIG{__WARN__} = sub { };
+        $conf = PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw);
+    }
+
+    is($conf->{hostname}, 'ct100', 'valid key is kept');
+    ok(defined($conf->{net0}), 'valid network device key is kept');
+    ok(!exists($conf->{$_}), "unknown key $_ is dropped") for qw(net01 net32 dev256 unknown);
+    is($conf->{memory}, 'invalid', 'invalid value of a known key is kept');
+};
+
 done_testing();
