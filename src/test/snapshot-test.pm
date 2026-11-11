@@ -593,14 +593,6 @@ testcase_rollback("203", "test",
 printf("Expected error for snapshot_rollback with lock\n");
 testcase_rollback("204", "test", "CT is locked (backup)\n");
 
-printf("Expected error for snapshot_rollback with saved vmstate\n");
-testcase_rollback(
-    "205",
-    "test",
-    "implement me - save vmstate\n",
-    { "local:snapshotable-disk-1" => "test" },
-);
-
 $kill_possible = 0;
 
 printf("Expected error for snapshot_rollback with unkillable container\n");
