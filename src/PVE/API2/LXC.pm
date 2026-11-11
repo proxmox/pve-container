@@ -15,6 +15,7 @@ use PVE::Exception qw(raise raise_param_exc raise_perm_exc);
 use PVE::Firewall;
 use PVE::GuestHelpers;
 use PVE::GuestID;
+use PVE::GuestIdentity;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::RESTEnvironment;
@@ -1671,6 +1672,8 @@ __PACKAGE__->register_method({
                                 },
                             },
                         },
+                        'guest-identity-unsupported' =>
+                            PVE::GuestIdentity::node_identity_unsupported_schema(),
                     },
                 },
                 description => "Not allowed nodes, keyed by node name, with the reasons.",
@@ -1734,6 +1737,12 @@ __PACKAGE__->register_method({
                     $blocking_ha_resources;
             }
 
+            # the migration refuses nodes that would drop the guest identity
+            if (my $unsupported = PVE::GuestIdentity::node_identity_unsupported($node)) {
+                $res->{'not-allowed-nodes'}->{$node}->{'guest-identity-unsupported'} =
+                    $unsupported;
+            }
+
             # if nothing came up, add it to the allowed nodes
             if (!defined($res->{'not-allowed-nodes'}->{$node})) {
                 push $res->{'allowed-nodes'}->@*, $node;
@@ -1777,6 +1786,8 @@ __PACKAGE__->register_method({
         PVE::Cluster::check_cfs_quorum();
 
         PVE::Cluster::check_node_exists($target);
+        # an older node drops the guest identity on its next write of the config
+        PVE::GuestIdentity::assert_node_supports_identity($target);
 
         my $targetip = PVE::Cluster::remote_node_ip($target);
 
@@ -1890,10 +1901,13 @@ __PACKAGE__->register_method({
         type => "object",
         properties => {
             hasFeature => { type => 'boolean' },
-            #nodes => {
-            #type => 'array',
-            #items => { type => 'string' },
-            #}
+            nodes => {
+                description => "Nodes that pass the guest identity check for a clone. The"
+                    . " storages of the container are not checked. Not set for 'snapshot'.",
+                type => 'array',
+                items => { type => 'string' },
+                optional => 1,
+            },
         },
     },
     code => sub {
@@ -1915,14 +1929,24 @@ __PACKAGE__->register_method({
             $conf = $snap;
         }
         my $storage_cfg = PVE::Storage::config();
-        #Maybe include later
-        #my $nodelist = PVE::LXC::shared_nodes($conf, $storage_cfg);
         my $hasFeature =
             PVE::LXC::Config->has_feature($feature, $conf, $storage_cfg, $snapname);
+        # the web interface polls the snapshot feature, which needs no target nodes
+        return { hasFeature => $hasFeature } if $feature eq 'snapshot';
+
+        # A clone to another node is refused if that node would drop the guest identity. Whether
+        # the storages of the container are available on a node is not checked.
+        my $nodename = PVE::INotify::nodename();
+        my $nodes = [];
+        for my $other (PVE::Cluster::get_nodelist()->@*) {
+            my $unsupported =
+                $other ne $nodename && PVE::GuestIdentity::node_identity_unsupported($other);
+            push $nodes->@*, $other if !$unsupported;
+        }
 
         return {
             hasFeature => $hasFeature,
-            #nodes => [ keys %$nodelist ],
+            nodes => $nodes,
         };
     },
 });
@@ -2103,6 +2127,8 @@ __PACKAGE__->register_method({
         undef $target if $target && ($target eq $localnode || $target eq 'localhost');
 
         PVE::Cluster::check_node_exists($target) if $target;
+        # an older node drops the guest identity on its next write of the config
+        PVE::GuestIdentity::assert_node_supports_identity($target) if $target;
 
         my $storecfg = PVE::Storage::config();
 

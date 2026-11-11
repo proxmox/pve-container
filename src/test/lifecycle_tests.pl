@@ -25,6 +25,7 @@ use PVE::Cluster;
 use PVE::GuestHelpers;
 use PVE::GuestIdentity;
 use PVE::INotify;
+use PVE::JSONSchema;
 use PVE::Tools qw(file_get_contents file_set_contents);
 
 use PVE::LXC;
@@ -103,6 +104,12 @@ my $storage_cfg = {
     },
 };
 
+# reported Proxmox VE versions of the other cluster nodes
+my $node_versions = {
+    'new-node' => PVE::GuestIdentity::MIN_PVE_MANAGER_VERSION,
+    'old-node' => '9.2.0',
+};
+
 # recording used guest IDs needs the cluster filesystem and is not what gets tested here
 my $guest_id_module = Test::MockModule->new('PVE::GuestID');
 $guest_id_module->mock(register_used_id => sub { return; });
@@ -138,6 +145,19 @@ $cluster_module->mock(
         return 1 if !-f cfs_file(ct_config_path($vmid));
         return undef if $noerr;
         die "CT $vmid already exists on node '$NODENAME'\n";
+    },
+    remote_node_ip => sub { return '192.0.2.1' },
+    get_node_pvecfg_version => sub {
+        my ($node) = @_;
+        return $node_versions->{$node};
+    },
+    node_pvecfg_version_at_least => sub {
+        my ($node, @required) = @_;
+        my @version = split(/\./, $node_versions->{$node} // return 0);
+        for my $i (0 .. 2) {
+            return $version[$i] > $required[$i] if $version[$i] != $required[$i];
+        }
+        return 1;
     },
 );
 
@@ -1635,6 +1655,176 @@ subtest 'backup assigns the guest identity and includes it' => sub {
     $now_ms += 1000;
     $plugin->unlock_vm(987);
     is_deeply(identity_of(987), $identity, 'removing the backup lock keeps the identity');
+};
+
+subtest 'migration is refused to nodes that drop the guest identity' => sub {
+    reset_configs();
+    my $raw = existing_config('ctime=1500000000,rtime=1500000000000,uid=existingexistingexis');
+    write_raw_config(200, $raw);
+
+    my $migrated_to;
+    my $migrate_module = Test::MockModule->new('PVE::LXC::Migrate');
+    $migrate_module->mock(migrate => sub { $migrated_to = $_[1] });
+    my $ha_config_module = Test::MockModule->new('PVE::HA::Config');
+    $ha_config_module->mock(vm_is_ha_managed => sub { return 0 });
+
+    my $migrate = sub {
+        my ($target, $param) = @_;
+        return run_task(sub {
+            PVE::API2::LXC->migrate_vm({
+                node => $NODENAME,
+                vmid => 200,
+                target => $target,
+                ($param // {})->%*,
+            });
+        });
+    };
+
+    my $err = $migrate->('old-node');
+    like($err, qr/node 'old-node' runs Proxmox VE 9\.2\.0/, 'node too old is refused');
+    $err = $migrate->('unknown-node');
+    like($err, qr/does not report its Proxmox VE version/, 'node without version is refused');
+
+    my $stopped = 0;
+    $lxc_module->mock(
+        check_running => sub { return 1 },
+        vm_stop => sub { $stopped = 1 },
+    );
+    $err = $migrate->('old-node', { restart => 1 });
+    $lxc_module->mock(check_running => sub { return 0 });
+    $lxc_module->unmock('vm_stop');
+    like($err, qr/node 'old-node' runs Proxmox VE 9\.2\.0/, 'restart migration is refused');
+    ok(!$stopped, 'running container is not stopped');
+
+    ok(!defined($migrated_to), 'migration does not start');
+    is(read_raw_config(200), $raw, 'config is unchanged');
+
+    $err = $migrate->('new-node');
+    is($err, '', 'migration to an upgraded node starts');
+    is($migrated_to, 'new-node', 'migration goes to the target');
+};
+
+subtest 'migration preconditions list nodes that drop the guest identity' => sub {
+    reset_configs();
+    my $raw = existing_config('ctime=1500000000,rtime=1500000000000,uid=existingexistingexis');
+    write_raw_config(200, $raw);
+
+    my $ha_config_module = Test::MockModule->new('PVE::HA::Config');
+    $ha_config_module->mock(vm_is_ha_managed => sub { return 0 });
+    $cluster_module->mock(
+        get_nodelist => sub { return [$NODENAME, 'new-node', 'old-node', 'unknown-node'] },
+    );
+
+    my $res = PVE::API2::LXC->migrate_vm_precondition({ node => $NODENAME, vmid => 200 });
+    $cluster_module->unmock('get_nodelist');
+
+    my $required = PVE::GuestIdentity::MIN_PVE_MANAGER_VERSION;
+    is_deeply($res->{'allowed-nodes'}, ['new-node'], 'only the upgraded node is allowed');
+    is_deeply(
+        $res->{'not-allowed-nodes'},
+        {
+            'old-node' => {
+                'guest-identity-unsupported' => {
+                    version => '9.2.0',
+                    'required-version' => $required,
+                },
+            },
+            'unknown-node' => {
+                'guest-identity-unsupported' => { 'required-version' => $required },
+            },
+        },
+        'nodes that drop the identity are not allowed',
+    );
+
+    my $returns = PVE::API2::LXC->map_method_by_name('migrate_vm_precondition')->{returns};
+    eval { PVE::JSONSchema::validate($res, $returns) };
+    is($@, '', 'result matches the schema');
+    my $reasons_schema = {
+        $returns->{properties}->{'not-allowed-nodes'}->{additionalProperties}->%*,
+        additionalProperties => 0,
+    };
+    for my $node ('old-node', 'unknown-node') {
+        my $reasons = $res->{'not-allowed-nodes'}->{$node};
+        eval { PVE::JSONSchema::validate($reasons, $reasons_schema) };
+        is($@, '', "reason for $node is documented in the schema");
+    }
+};
+
+subtest 'clone feature only lists nodes that keep the guest identity' => sub {
+    reset_configs();
+    my $raw = existing_config('ctime=1500000000,rtime=1500000000000,uid=existingexistingexis');
+    write_raw_config(200, $raw);
+
+    $config_module->mock(has_feature => sub { return 1 });
+    $cluster_module->mock(
+        get_nodelist => sub { return [$NODENAME, 'new-node', 'old-node', 'unknown-node'] },
+    );
+
+    my $res =
+        PVE::API2::LXC->vm_feature({ node => $NODENAME, vmid => 200, feature => 'clone' });
+    $cluster_module->unmock('get_nodelist');
+
+    # the local node reports no version here, a clone on the same node needs no check
+    is_deeply(
+        $res->{nodes},
+        [$NODENAME, 'new-node'],
+        'nodes that drop the identity are left out',
+    );
+
+    my $returns = PVE::API2::LXC->map_method_by_name('vm_feature')->{returns};
+    eval { PVE::JSONSchema::validate($res, $returns) };
+    is($@, '', 'result matches the schema');
+
+    my $lookups = 0;
+    my $mocked_at_least = \&PVE::Cluster::node_pvecfg_version_at_least;
+    my $mocked_version = \&PVE::Cluster::get_node_pvecfg_version;
+    $cluster_module->mock(
+        get_nodelist => sub { return [$NODENAME, 'new-node', 'old-node', 'unknown-node'] },
+        node_pvecfg_version_at_least => sub { $lookups++; return $mocked_at_least->(@_) },
+        get_node_pvecfg_version => sub { $lookups++; return $mocked_version->(@_) },
+    );
+    $res =
+        PVE::API2::LXC->vm_feature({ node => $NODENAME, vmid => 200, feature => 'snapshot' });
+    $cluster_module->mock(
+        node_pvecfg_version_at_least => $mocked_at_least,
+        get_node_pvecfg_version => $mocked_version,
+    );
+    $cluster_module->unmock('get_nodelist');
+    is($lookups, 0, 'snapshot feature: no node versions are looked up');
+    ok(!exists($res->{nodes}), 'snapshot feature: no nodes are returned');
+    eval { PVE::JSONSchema::validate($res, $returns) };
+    is($@, '', 'snapshot feature: result matches the schema');
+
+    $config_module->unmock('has_feature');
+};
+
+subtest 'clone to another node is refused if the node drops the guest identity' => sub {
+    reset_configs();
+    my $raw = <<~'EOF';
+        arch: amd64
+        hostname: existing
+        memory: 512
+        meta: ctime=1500000000,rtime=1500000000000,uid=existingexistingexis
+        ostype: debian
+        rootfs: shared:200/vm-200-disk-0.raw,size=4G
+        unprivileged: 1
+        EOF
+    write_raw_config(200, $raw);
+    make_path(cfs_file("nodes/new-node/lxc"));
+
+    my $err = clone_ct(200, 201, { target => 'old-node' });
+    like($err, qr/node 'old-node' runs Proxmox VE 9\.2\.0/, 'clone is refused');
+    is(read_raw_config(200), $raw, 'source is unchanged');
+    ok(!defined(read_raw_config(201)), 'no clone is created');
+
+    $err = clone_ct(200, 201, { target => 'new-node' });
+    is($err, '', 'clone to an upgraded node succeeds') or diag($task_log);
+    my $clone_raw = read_raw_config(201, 'new-node');
+    ok(defined($clone_raw), 'clone is moved to the target node');
+    my $identity =
+        PVE::GuestIdentity::parse_identity($clone_raw =~ m/^meta: (.*)$/m ? $1 : undef);
+    like($identity->{uid}, qr/^[a-z2-7]{20}$/, 'clone has a uid');
+    isnt($identity->{uid}, 'existingexistingexis', 'clone has a new uid');
 };
 
 remove_tree($WORKDIR);
