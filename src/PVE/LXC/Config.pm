@@ -9,6 +9,7 @@ use PVE::AbstractConfig;
 use PVE::Cluster qw(cfs_register_file);
 use PVE::DataCenterConfig;
 use PVE::GuestHelpers;
+use PVE::GuestIdentity;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Network::SDN::Vnets;
@@ -58,6 +59,12 @@ sub cfs_config_path {
 
     $node = $nodename if !$node;
     return "nodes/$node/lxc/$vmid.conf";
+}
+
+sub __identity_enabled {
+    my ($class) = @_;
+
+    return 1;
 }
 
 sub mountpoint_backup_enabled {
@@ -512,6 +519,7 @@ my $meta_info_fmt = {
         minimum => 0,
         optional => 1,
     },
+    PVE::GuestIdentity::meta_format_properties()->%*,
 };
 
 my $confdesc = {

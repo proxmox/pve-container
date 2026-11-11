@@ -11,6 +11,7 @@ use lib qw(..);
 # tested modules load. Tests that call into them mock the functions they need.
 BEGIN {
     $INC{'PVE/HA/Config.pm'} = $INC{'PVE/HA/Env/PVE2.pm'} = __FILE__;
+    $INC{'PVE/VZDump.pm'} = __FILE__;
 }
 
 use Fcntl qw(:flock);
@@ -22,6 +23,7 @@ use Test::More;
 
 use PVE::Cluster;
 use PVE::GuestHelpers;
+use PVE::GuestIdentity;
 use PVE::INotify;
 use PVE::Tools qw(file_get_contents file_set_contents);
 
@@ -92,6 +94,12 @@ my $storage_cfg = {
             type => 'pbs',
             content => { backup => 1 },
         },
+        shared => {
+            type => 'nfs',
+            path => '/mnt/pve/shared',
+            shared => 1,
+            content => { rootdir => 1, images => 1 },
+        },
     },
 };
 
@@ -157,6 +165,28 @@ $config_module->mock(
     },
 );
 
+# guest identities are generated deterministically
+my $random_counter = 0;
+my $now_ms = 1_700_000_000_000;
+
+my $identity_module = Test::MockModule->new('PVE::GuestIdentity');
+$identity_module->mock(
+    __random_bytes => sub {
+        my ($len) = @_;
+        die "unexpected length $len\n" if $len != 20;
+        # one byte per uid character, the last three hold 5 bits of the counter each
+        my $n = ++$random_counter;
+        return ("\0" x 17) . pack('C3', map { ($n >> $_) & 31 } (10, 5, 0));
+    },
+    __time_ms => sub { return $now_ms },
+);
+
+my $repl_config_module = Test::MockModule->new('PVE::ReplicationConfig');
+$repl_config_module->mock(
+    new => sub { return bless {}, 'PVE::ReplicationConfig' },
+    check_for_existing_jobs => sub { return undef },
+);
+
 # Fake environment, records task output
 
 my $task_log = '';
@@ -202,6 +232,7 @@ $restenv_module->mock(
         chomp($msg);
         $task_log .= "WARN: $msg\n";
     },
+    setup_default_cli_env => sub { },
 );
 
 # Runs $code as $user, who lacks what $deny lists, see the check method above.
@@ -286,6 +317,8 @@ $storage_module->mock(
         die "unexpected volume '$volid'\n" if $volid ne $PBS_VOLID;
         return ('backup', 'ct/100/2026-01-01T00:00:00Z', 100, undef, undef, undef, 'pbs-ct');
     },
+    volume_rollback_is_possible => sub { return 1 },
+    volume_snapshot_rollback => sub { },
 );
 
 my $lxc_module = Test::MockModule->new('PVE::LXC');
@@ -318,6 +351,10 @@ $lxc_module->mock(
         return $rootdir;
     },
     umount_all => sub { },
+    copy_volume => sub {
+        my ($mp, $newid) = @_;
+        return "local:$newid/vm-$newid-disk-0.raw";
+    },
     create_ifaces_ipams_ips => sub { },
     delete_ifaces_ipams_ips => sub { },
     update_lxc_config => sub { },
@@ -383,10 +420,12 @@ $setup_module->mock(new => sub { return bless {}, 'PVE::LXC::Test::Setup' });
 package PVE::LXC::Test::Setup {
     sub post_create_hook { die $hook_error if defined($hook_error) }
     sub post_restore_hook { die $hook_error if defined($hook_error) }
+    sub post_clone_hook { }
 }
 
 my $firewall_module = Test::MockModule->new('PVE::Firewall');
 $firewall_module->mock(
+    clone_vmfw_conf => sub { },
     remove_vmfw_conf => sub {
         my ($vmid) = @_;
         PVE::GuestHelpers::set_firewall_config_raw($vmid, undef);
@@ -437,6 +476,7 @@ my sub reset_state {
     $backup_raw_config = backup_config();
     ($backup_read_error, $hook_error, $in_between) = ();
     $backup_fw_config = undef;
+    $now_ms = 1_700_000_000_000;
 }
 
 # API call helpers
@@ -468,6 +508,17 @@ my sub restore_ct($vmid, $param = undef) {
 my sub update_ct($vmid, $param) {
     return run_task(sub {
         PVE::API2::LXC::Config->update_vm({ node => $NODENAME, vmid => $vmid, $param->%* });
+    });
+}
+
+my sub clone_ct($vmid, $newid, $param = undef) {
+    return run_task(sub {
+        PVE::API2::LXC->clone_vm({
+            node => $NODENAME,
+            vmid => $vmid,
+            newid => $newid,
+            ($param // {})->%*,
+        });
     });
 }
 
@@ -536,6 +587,10 @@ my sub meta_of($vmid) {
     my $conf = PVE::LXC::Config->load_config($vmid);
 
     return { map { split(/=/, $_, 2) } split(/,/, $conf->{meta} // '') };
+}
+
+my sub identity_of($vmid) {
+    return PVE::LXC::Config->get_identity(PVE::LXC::Config->load_config($vmid));
 }
 
 # Tests
@@ -1437,6 +1492,149 @@ subtest 'create sets the creation time, restore and remote migration keep it' =>
     is($err, '', 'tunnel exits normally') or diag(explain($replies), $task_log);
     is(meta_of(300)->{ctime}, 1600000000, 'ctime of the source of a migration is kept');
     is(PVE::LXC::Config->load_config(300)->{hostname}, 'incoming', 'with its other options');
+};
+
+subtest 'create assigns a new guest identity' => sub {
+    reset_configs();
+    $now_ms = 1_700_000_000_000;
+
+    my $err = create_ct(201);
+    is($err, '', 'create succeeds');
+
+    my $meta = meta_of(201);
+    like($meta->{uid}, qr/^[a-z2-7]{20}$/, 'uid is assigned');
+    is($meta->{rtime}, 1_700_000_000_000, 'rtime is the time of the create');
+    ok(defined($meta->{ctime}), 'ctime is kept next to the identity');
+    ok(!defined(PVE::LXC::Config->load_config(201)->{lock}), 'create lock is removed');
+
+    $err = create_ct(202);
+    isnt(identity_of(202)->{uid}, $meta->{uid}, 'another container gets another uid');
+};
+
+subtest 'config changes keep the guest identity' => sub {
+    reset_configs();
+    my $meta = 'ctime=1500000000,rtime=1500000000000,uid=existingexistingexis';
+    write_raw_config(200, existing_config($meta));
+    $now_ms = 1_700_000_000_000;
+
+    my $err = update_ct(200, { hostname => 'changed', memory => 1024 });
+    is($err, '', 'update succeeds');
+    my $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{hostname}, 'changed', 'change is applied');
+    is($conf->{meta}, $meta, 'meta is unchanged');
+
+    write_raw_config(200, existing_config('ctime=1500000000'));
+    $err = update_ct(200, { hostname => 'first-write' });
+    is($err, '', 'update of a container without identity succeeds');
+    my $identity = identity_of(200);
+    like($identity->{uid}, qr/^[a-z2-7]{20}$/, 'first write assigns a uid');
+    is($identity->{rtime}, 1_700_000_000_000, 'first write sets rtime');
+    is(meta_of(200)->{ctime}, 1500000000, 'ctime is kept');
+
+    $now_ms += 1000;
+    $err = update_ct(200, { hostname => 'second-write' });
+    is_deeply(identity_of(200), $identity, 'later writes keep the identity');
+};
+
+subtest 'clone assigns a new guest identity' => sub {
+    reset_configs();
+    write_raw_config(
+        200,
+        existing_config('ctime=1500000000,rtime=1500000000000,uid=existingexistingexis'),
+    );
+    $now_ms = 1_700_000_000_000;
+
+    my $err = clone_ct(200, 201, { hostname => 'clone' });
+    is($err, '', 'clone succeeds') or diag($task_log);
+
+    my $meta = meta_of(201);
+    like($meta->{uid}, qr/^[a-z2-7]{20}$/, 'clone has a uid');
+    isnt($meta->{uid}, 'existingexistingexis', 'clone does not get the uid of the source');
+    is($meta->{rtime}, 1_700_000_000_000, 'rtime is the time of the clone');
+    is($meta->{ctime}, 1500000000, 'ctime of the source is kept');
+    is(identity_of(200)->{uid}, 'existingexistingexis', 'source keeps its uid');
+};
+
+subtest 'snapshot rollback keeps the current guest identity' => sub {
+    reset_configs();
+    write_raw_config(200, <<~'EOF');
+        arch: amd64
+        hostname: existing
+        memory: 512
+        meta: ctime=1500000000,rtime=1600000000000,uid=existingexistingexis
+        ostype: debian
+        parent: snap
+        rootfs: local:200/vm-200-disk-0.raw,size=4G
+        unprivileged: 1
+
+        [snap]
+        arch: amd64
+        hostname: snapshot
+        memory: 512
+        meta: ctime=1500000000,rtime=1500000000000,uid=snapshotsnapshotsnap
+        ostype: debian
+        rootfs: local:200/vm-200-disk-0.raw,size=4G
+        snaptime: 1500000000
+        unprivileged: 1
+        EOF
+
+    my $err = run_task(sub { PVE::LXC::Config->snapshot_rollback(200, 'snap') });
+    is($err, '', 'rollback succeeds') or diag($task_log);
+
+    my $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{hostname}, 'snapshot', 'config of the snapshot is restored');
+    is_deeply(
+        identity_of(200),
+        { uid => 'existingexistingexis', rtime => 1600000000000 },
+        'current identity is kept',
+    );
+};
+
+subtest 'in-place restore keeps the guest identity of the target' => sub {
+    reset_configs();
+    my $meta = 'ctime=1500000000,rtime=1500000000000,uid=existingexistingexis';
+    write_raw_config(200, existing_config($meta));
+
+    for my $backup_meta (
+        undef, 'ctime=1400000000,rtime=1400000000000,uid=existingexistingexis',
+    ) {
+        $backup_raw_config = backup_config($backup_meta);
+        my $err = restore_ct(200, { force => 1 });
+        is($err, '', 'restore succeeds') or diag($task_log);
+        is_deeply(
+            identity_of(200),
+            { uid => 'existingexistingexis', rtime => 1500000000000 },
+            'identity is kept',
+        );
+        is(PVE::LXC::Config->load_config(200)->{hostname}, 'backup', 'backup is restored');
+    }
+};
+
+subtest 'backup assigns the guest identity and includes it' => sub {
+    reset_configs();
+    write_raw_config(987, existing_config('ctime=1500000000'));
+    $now_ms = 1_700_000_000_000;
+
+    require PVE::VZDump::LXC;
+    my $plugin = bless { vzdump => { opts => { pbs => 1 } } }, 'PVE::VZDump::LXC';
+
+    $plugin->lock_vm(987);
+    my $identity = identity_of(987);
+    like($identity->{uid}, qr/^[a-z2-7]{20}$/, 'backup lock assigns a uid');
+    is($identity->{rtime}, $now_ms, 'backup lock sets rtime');
+
+    $plugin->assemble({ tmpdir => "$WORKDIR/backup" }, 987);
+    my $raw = file_get_contents("$WORKDIR/backup/etc/vzdump/pct.conf");
+    my $backup_conf = PVE::LXC::Config::parse_pct_config('/lxc/987.conf', $raw);
+    is_deeply(
+        PVE::LXC::Config->get_identity($backup_conf),
+        $identity,
+        'backup has the identity',
+    );
+
+    $now_ms += 1000;
+    $plugin->unlock_vm(987);
+    is_deeply(identity_of(987), $identity, 'removing the backup lock keeps the identity');
 };
 
 remove_tree($WORKDIR);
