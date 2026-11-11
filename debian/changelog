@@ -1,3 +1,19 @@
+pve-container (6.1.20) trixie; urgency=medium
+
+  * remote migration: fix removing the temporary config on the target node if
+    the migration fails.
+
+  * pct resize: return the exit status of the resize task, instead of always
+    reporting success once the task was started.
+
+  * config: drop keys that are not defined in the schema, like qemu-server
+    does. Keys like 'net32' or 'net01', which the API rejects but manual edits
+    or restored backups could add, set up an additional network interface
+    without proxmox-firewall rules. A running container keeps such an
+    interface until it is restarted.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 11 Nov 2026 02:09:04 +0100
+
 pve-container (6.1.19) trixie; urgency=medium
 
   * vzdump: honor the bandwidth limit for container backups to a Proxmox
