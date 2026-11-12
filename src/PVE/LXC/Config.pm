@@ -1301,8 +1301,10 @@ sub write_pct_config {
     return $raw;
 }
 
-sub update_pct_config {
-    my ($class, $vmid, $conf, $running, $param, $delete, $revert) = @_;
+# Checks the changes and queues them in the pending section of $conf, without applying them.
+# Returns the options that got changed.
+sub queue_pct_config_changes {
+    my ($class, $vmid, $conf, $param, $delete, $revert) = @_;
 
     my $storage_cfg = PVE::Storage::config();
 
@@ -1389,8 +1391,17 @@ sub update_pct_config {
         $class->remove_from_pending_delete($conf, $opt);
     }
 
-    my $changes = $class->cleanup_pending($conf);
+    $class->cleanup_pending($conf);
 
+    return $modified;
+}
+
+sub update_pct_config {
+    my ($class, $vmid, $conf, $running, $param, $delete, $revert) = @_;
+
+    my $modified = $class->queue_pct_config_changes($vmid, $conf, $param, $delete, $revert);
+
+    my $storage_cfg = PVE::Storage::config();
     my $errors = {};
     if ($running) {
         $class->vmconfig_hotplug_pending($vmid, $conf, $storage_cfg, $modified, $errors);
