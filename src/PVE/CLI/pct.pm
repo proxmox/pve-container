@@ -12,6 +12,7 @@ use PVE::CLIHandler;
 use PVE::Cluster;
 use PVE::CpuSet;
 use PVE::Exception qw(raise_param_exc);
+use PVE::File;
 use PVE::GuestHelpers;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
@@ -1053,6 +1054,60 @@ __PACKAGE__->register_method({
     },
 });
 
+__PACKAGE__->register_method({
+    name => 'mtunnel',
+    path => 'mtunnel',
+    method => 'POST',
+    description => "For internal use by intra-cluster migration only.",
+    parameters => {
+        additionalProperties => 0,
+        properties => {},
+    },
+    returns => { type => 'null' },
+    code => sub {
+        my ($param) = @_;
+
+        if (!PVE::Cluster::check_cfs_quorum(1)) {
+            print "no quorum\n";
+            return;
+        }
+
+        my $tunnel_write = sub {
+            my $text = shift;
+            chomp $text;
+            print "$text\n";
+            *STDOUT->flush();
+        };
+
+        $tunnel_write->("tunnel online");
+        $tunnel_write->("ver 1");
+
+        while (my $line = <STDIN>) {
+            chomp $line;
+            if ($line =~ /^quit$/) {
+                $tunnel_write->("OK");
+                last;
+            } elsif ($line =~ /^config ([0-9]+) (\S+)$/) {
+                my ($vmid, $node) = ($1, $2);
+                eval {
+                    my $conf_fn = PVE::LXC::Config->config_file($vmid, $node);
+                    my $raw = PVE::File::file_get_contents($conf_fn);
+                    PVE::LXC::Config::parse_pct_config($conf_fn, $raw, 1);
+                };
+                if (my $err = $@) {
+                    $tunnel_write->("ERR: strict config check for target node failed - $err");
+                } else {
+                    $tunnel_write->("OK");
+                }
+            } else {
+                $tunnel_write->("ERR: unknown command '$line'");
+            }
+        }
+
+        return;
+    },
+});
+
 our $cmddef = {
     list => [
         'PVE::API2::LXC',
@@ -1199,6 +1254,8 @@ our $cmddef = {
     rescan => [__PACKAGE__, 'rescan', []],
     cpusets => [__PACKAGE__, 'cpusets', []],
     fstrim => [__PACKAGE__, 'fstrim', ['vmid']],
+
+    mtunnel => [__PACKAGE__, 'mtunnel', []],
 };
 
 1;
