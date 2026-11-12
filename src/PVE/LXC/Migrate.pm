@@ -177,10 +177,7 @@ sub prepare {
         $self->log('info', "websocket tunnel started\n");
         $self->{tunnel} = $tunnel;
     } else {
-        # test ssh connection
-        my $cmd = [@{ $self->{rem_ssh} }, '/bin/true'];
-        eval { $self->cmd_quiet($cmd); };
-        die "Can't connect to destination address using public key\n" if $@;
+        $self->prepare_local_cluster_checks();
     }
 
     # in restart mode, we shutdown the container before migrating
