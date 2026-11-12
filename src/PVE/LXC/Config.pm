@@ -1696,7 +1696,7 @@ sub vmconfig_hotplug_pending {
                 $cgroup->change_cpu_shares(undef);
             } elsif ($opt =~ m/^net(\d)$/) {
                 my $netid = $1;
-                my $net = parse_lxc_network($conf->{$opt});
+                my $net = $class->parse_lxc_network($conf->{$opt});
                 PVE::LXC::kill_dhclients($vmid, $net->{name}) if $net->{'host-managed'};
 
                 PVE::Network::veth_delete("veth${vmid}i$netid");
