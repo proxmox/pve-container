@@ -29,6 +29,18 @@ use base qw(PVE::AbstractMigrate);
 # compared against remote end's minimum version
 our $WS_TUNNEL_VERSION = 2;
 
+sub fork_tunnel {
+    my ($self, $ssh_forward_info) = @_;
+
+    my $cmd = ['pct', 'mtunnel'];
+    my $log = sub {
+        my ($level, $msg) = @_;
+        $self->log($level, $msg);
+    };
+
+    return PVE::Tunnel::fork_ssh_tunnel($self->{rem_ssh}, $cmd, $ssh_forward_info, $log);
+}
+
 sub lock_vm {
     my ($self, $vmid, $code, @param) = @_;
 
