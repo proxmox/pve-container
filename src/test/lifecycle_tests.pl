@@ -40,6 +40,8 @@ my $WORKDIR = 'lifecycle-working';
 my $NODENAME = PVE::INotify::nodename();
 my $BACKUP_VOLID = 'local:backup/vzdump-lxc-100-2026_01_01-00_00_00.tar.zst';
 my $PBS_VOLID = 'pbs:backup/ct/100/2026-01-01T00:00:00Z';
+my $BACKUP_META = 'ctime=1400000000,rtime=1400000000000,uid=backupbackupbackupba';
+my $EXISTING_META = 'ctime=1500000000,rtime=1500000000000,uid=existingexistingexis';
 
 remove_tree($WORKDIR);
 make_path("$WORKDIR/lock");
@@ -104,6 +106,9 @@ my $storage_cfg = {
     },
 };
 
+# error of the cluster-wide guest identity lock, if set
+my $domain_lock_error;
+
 # reported Proxmox VE versions of the other cluster nodes
 my $node_versions = {
     'new-node' => PVE::GuestIdentity::MIN_PVE_MANAGER_VERSION,
@@ -145,6 +150,32 @@ $cluster_module->mock(
         return 1 if !-f cfs_file(ct_config_path($vmid));
         return undef if $noerr;
         die "CT $vmid already exists on node '$NODENAME'\n";
+    },
+    cfs_lock_domain => sub {
+        my ($domain, $timeout, $code, @param) = @_;
+        die "unexpected lock domain '$domain'\n" if $domain ne 'guest-identity';
+        if (defined($domain_lock_error)) {
+            $@ = $domain_lock_error;
+            return undef;
+        }
+        my $res = eval { $code->(@param) };
+        return $res;
+    },
+    get_guest_config_properties => sub {
+        my ($properties) = @_;
+        my $res = {};
+        for my $file (glob("$WORKDIR/cfs/nodes/*/{lxc,qemu-server}/*.conf")) {
+            my ($vmid) = $file =~ m|/(\d+)\.conf$|;
+            for my $line (split(/\n/, file_get_contents($file))) {
+                last if $line =~ m/^\[/;
+                for my $property (@$properties) {
+                    # like pmxcfs, a line with nothing after the colon does not count
+                    $res->{$vmid}->{$property} = $1 =~ s/^\s+|\s+$//gr
+                        if $line =~ m/^\Q$property\E:(.+)$/;
+                }
+            }
+        }
+        return $res;
     },
     remote_node_ip => sub { return '192.0.2.1' },
     get_node_pvecfg_version => sub {
@@ -497,6 +528,7 @@ my sub reset_state {
     ($backup_read_error, $hook_error, $in_between) = ();
     $backup_fw_config = undef;
     $now_ms = 1_700_000_000_000;
+    $domain_lock_error = undef;
 }
 
 # API call helpers
@@ -611,6 +643,17 @@ my sub meta_of($vmid) {
 
 my sub identity_of($vmid) {
     return PVE::LXC::Config->get_identity(PVE::LXC::Config->load_config($vmid));
+}
+
+my sub pending_uid_of($vmid) {
+    return PVE::GuestIdentity::get_pending_uid(PVE::LXC::Config->load_config($vmid));
+}
+
+# Returns whether the config lock of $vmid is held, for mocks of functions that need it.
+my sub config_lock_held($vmid) {
+    open(my $fh, '>>', "$WORKDIR/lock/pve-config-$vmid.lock") or die "open failed - $!\n";
+
+    return !flock($fh, LOCK_EX | LOCK_NB);
 }
 
 # Tests
@@ -1825,6 +1868,423 @@ subtest 'clone to another node is refused if the node drops the guest identity' 
         PVE::GuestIdentity::parse_identity($clone_raw =~ m/^meta: (.*)$/m ? $1 : undef);
     like($identity->{uid}, qr/^[a-z2-7]{20}$/, 'clone has a uid');
     isnt($identity->{uid}, 'existingexistingexis', 'clone has a new uid');
+};
+
+subtest 'restore adopts the guest identity of the backup' => sub {
+    my $in_use =
+        "guest identity: backup uid backupbackupbackupba is in use by guest 150, keeping uid ";
+    my $adopted = qr/^guest identity: adopted uid backupbackupbackupba from the backup$/m;
+    my $new = qr/^guest identity: new uid [a-z2-7]{20}$/m;
+
+    my $now = 1_700_000_000_000;
+
+    my $locked = 1;
+    my $adopt = PVE::GuestIdentity->can('adopt');
+    my $probe_lock = {
+        adopt => sub {
+            my ($class, $vmid) = @_;
+            $locked &&= config_lock_held($vmid);
+            return $adopt->(@_);
+        },
+    };
+
+    my $run = sub($name, $setup, $param, $expected_uid, $expected_rtime, $expected_log) {
+        reset_state();
+        $backup_raw_config = backup_config($BACKUP_META);
+        $setup->();
+        my $err = with_mock($identity_module, $probe_lock, sub { restore_ct(200, $param) });
+        is($err, '', "$name: restore succeeds") or diag($task_log);
+        my $identity = identity_of(200);
+        if (defined($expected_uid)) {
+            is($identity->{uid}, $expected_uid, "$name: uid");
+        } else {
+            like($identity->{uid}, qr/^[a-z2-7]{20}$/, "$name: uid is assigned");
+            isnt(
+                $identity->{uid},
+                'backupbackupbackupba',
+                "$name: uid is not the one of the backup",
+            );
+        }
+        is($identity->{rtime}, $expected_rtime, "$name: rtime");
+        like($task_log, $expected_log, "$name: result is logged");
+    };
+    my $without_identity = sub { write_raw_config(200, existing_config('ctime=1500000000')) };
+    my $same_identity = sub {
+        write_raw_config(
+            200,
+            existing_config($EXISTING_META =~ s/uid=.*/uid=backupbackupbackupba/r),
+        );
+    };
+    my $kept = qr/^guest identity: kept uid backupbackupbackupba$/m;
+    my $stdin = { ostemplate => '-', rootfs => 'local:4' };
+
+    $run->('unused VMID', sub { }, {}, 'backupbackupbackupba', $now, $adopted);
+    $run->(
+        'unused VMID, uid used by another container',
+        sub { write_raw_config(150, existing_config('uid=backupbackupbackupba')) },
+        {},
+        undef,
+        $now,
+        qr/^\Q$in_use\E[a-z2-7]{20}$/m,
+    );
+    $run->('unused VMID, unique', sub { }, { unique => 1 }, undef, $now, $new);
+    $run->(
+        'unused VMID, backup without identity',
+        sub { $backup_raw_config = backup_config('ctime=1400000000') },
+        {},
+        undef,
+        $now,
+        $new,
+    );
+    $run->(
+        'unused VMID, from STDIN', sub { }, $stdin, 'backupbackupbackupba', $now, $adopted,
+    );
+    $run->(
+        'unused VMID, from STDIN without config',
+        sub { $backup_raw_config = undef },
+        $stdin,
+        undef,
+        $now,
+        $new,
+    );
+    $run->(
+        'in place, container without identity',
+        $without_identity,
+        { force => 1 },
+        'backupbackupbackupba',
+        $now,
+        $adopted,
+    );
+    $run->(
+        'in place, container without identity, unique',
+        $without_identity,
+        { force => 1, unique => 1 },
+        undef,
+        $now,
+        $new,
+    );
+    $run->(
+        'in place, container with the same identity',
+        $same_identity,
+        { force => 1 },
+        'backupbackupbackupba',
+        1500000000000,
+        $kept,
+    );
+    $run->(
+        'in place, container with the same identity, unique',
+        $same_identity,
+        { force => 1, unique => 1 },
+        'backupbackupbackupba',
+        1500000000000,
+        $kept,
+    );
+    $run->(
+        'in place, container with identity, backup without identity',
+        sub {
+            write_raw_config(200, existing_config($EXISTING_META));
+            $backup_raw_config = backup_config('ctime=1400000000');
+        },
+        { force => 1 },
+        'existingexistingexis',
+        1500000000000,
+        qr/^guest identity: kept uid existingexistingexis$/m,
+    );
+    $run->(
+        'in place, by a user with only VM.Backup',
+        sub {
+            $without_identity->();
+            $rpcenv = PVE::LXC::Test::RPCEnvironment->new('user@pve');
+            $rpcenv->{deny} = { '/vms/200' => { 'VM.Allocate' => 1 } };
+        },
+        { force => 1 },
+        'backupbackupbackupba',
+        $now,
+        $adopted,
+    );
+
+    ok($locked, 'config lock is held while adopting the identity');
+};
+
+# Restores over a container without identity and fails after reading the backup. That leaves the
+# container behind with the uid of the backup as pending uid.
+my sub failed_restore_in_place($param = {}) {
+    reset_state();
+    $backup_raw_config = backup_config($BACKUP_META);
+    write_raw_config(200, existing_config('ctime=1500000000'));
+    my $full = { create_disks => sub { die "unable to allocate volume - storage full\n" } };
+    my $err = with_mock($lxc_module, $full, sub { restore_ct(200, { force => 1, $param->%* }) });
+    like($err, qr/storage full/, 'restore fails after reading the backup');
+    is(PVE::LXC::Config->load_config(200)->{hostname}, 'existing', 'container is kept');
+    is(pending_uid_of(200), 'backupbackupbackupba', 'it has the uid of the backup as pending uid');
+}
+
+subtest 'retry of a failed restore adopts the uid of the backup' => sub {
+    reset_state();
+    $backup_raw_config = backup_config($BACKUP_META);
+    $hook_error = "setup hook failed\n";
+    like(restore_ct(200), qr/setup hook failed/, 'restore to an unused VMID fails');
+    ok(!defined(read_raw_config(200)), 'its config is removed');
+    $hook_error = undef;
+    is(restore_ct(200), '', 'retry succeeds') or diag($task_log);
+    is(identity_of(200)->{uid}, 'backupbackupbackupba', 'retry adopts the uid');
+
+    failed_restore_in_place();
+    isnt(identity_of(200)->{uid}, 'backupbackupbackupba', 'container has a uid of its own');
+    is(restore_ct(200, { force => 1 }), '', 'retry over the container succeeds')
+        or diag($task_log);
+    is(identity_of(200)->{uid}, 'backupbackupbackupba', 'retry adopts the uid');
+    is(pending_uid_of(200), undef, 'pending uid is removed');
+};
+
+subtest 'retry elsewhere, then over the container left behind' => sub {
+    failed_restore_in_place();
+    my $leftover = identity_of(200)->{uid};
+
+    my $err = restore_ct(201);
+    is($err, '', 'restore to another VMID succeeds') or diag($task_log);
+    is(identity_of(201)->{uid}, 'backupbackupbackupba', 'pending uid is not in use');
+    is(pending_uid_of(200), 'backupbackupbackupba', 'container left behind keeps it');
+
+    $err = restore_ct(200, { force => 1 });
+    is($err, '', 'restore over the container left behind succeeds') or diag($task_log);
+    like(
+        $task_log,
+        qr/: backup uid backupbackupbackupba is in use by guest 201, keeping uid $leftover$/m,
+        'uid of the backup is in use by now',
+    );
+    is(identity_of(200)->{uid}, $leftover, 'container left behind keeps its uid');
+    is(pending_uid_of(200), undef, 'pending uid is removed');
+};
+
+subtest 'using the container left behind drops its pending uid' => sub {
+    failed_restore_in_place();
+
+    my $err = update_ct(200, { description => 'used' });
+    is($err, '', 'config change of the stopped container') or diag($task_log);
+    my $dropped = "guest identity: dropping pending uid backupbackupbackupba of an unfinished"
+        . " restore - a retry now needs 'allow-identity-mismatch'";
+    like($task_log, qr/^WARN: \Q$dropped\E$/m, 'dropped');
+    is(pending_uid_of(200), undef, 'pending uid is gone');
+};
+
+subtest 'restore with unique keeps a pending uid, but never adopts it' => sub {
+    for my $retry ({ unique => 1 }, {}) {
+        my $what = $retry->{unique} ? 'retry with unique' : 'retry without unique';
+
+        failed_restore_in_place({ unique => 1 });
+        my $leftover = identity_of(200)->{uid};
+
+        my $err = restore_ct(200, { force => 1, $retry->%* });
+        is($err, '', "$what succeeds") or diag($task_log);
+        is(pending_uid_of(200), undef, "$what: pending uid is removed");
+        is(
+            identity_of(200)->{uid},
+            $retry->{unique} ? $leftover : 'backupbackupbackupba',
+            "$what: " . ($retry->{unique} ? 'keeps its uid' : 'adopts the uid of the backup'),
+        );
+    }
+};
+
+subtest 'failed adoption keeps the pending uid' => sub {
+    reset_state();
+    $backup_raw_config = backup_config($BACKUP_META);
+    $domain_lock_error = "cfs-lock 'domain-guest-identity' error: no quorum!\n";
+    my $err = restore_ct(200);
+    $domain_lock_error = undef;
+    is($err, '', 'restore succeeds') or diag($task_log);
+    my $uid = identity_of(200)->{uid};
+    isnt($uid, 'backupbackupbackupba', 'container has a uid of its own');
+    my $warning =
+        "WARN: guest identity: unable to adopt backup uid backupbackupbackupba, keeping"
+        . " uid $uid - cfs-lock 'domain-guest-identity' error: no quorum!";
+    like($task_log, qr/^\Q$warning\E$/m, 'failure is logged as warning');
+    is(pending_uid_of(200), 'backupbackupbackupba', 'nothing decided, pending uid stays');
+
+    $err = restore_ct(200, { force => 1 });
+    is($err, '', 'restore of the backup again succeeds') or diag($task_log);
+    is(identity_of(200)->{uid}, 'backupbackupbackupba', 'uid of the backup is adopted');
+};
+
+subtest 'config of a container left behind shows its stored identity' => sub {
+    failed_restore_in_place();
+    my $meta = PVE::LXC::Config->load_config(200)->{meta};
+
+    my $conf = PVE::API2::LXC::Config->vm_config({ node => $NODENAME, vmid => 200 });
+    is($conf->{meta}, $meta, 'config with pending changes applied: stored identity');
+    $conf = PVE::API2::LXC::Config->vm_config({ node => $NODENAME, vmid => 200, current => 1 });
+    is($conf->{meta}, $meta, 'current config: stored identity');
+
+    my $pending = PVE::API2::LXC->vm_pending({ node => $NODENAME, vmid => 200 });
+    my ($item) = grep { $_->{key} eq 'meta' } $pending->@*;
+    is($item->{value}, $meta, 'pending view: current value');
+    is($item->{pending}, 'uid=backupbackupbackupba', 'pending view: pending uid');
+};
+
+# Once a write of the config of CT 200 has the pending uid of the backup, all later writes of the
+# restore have it, so that the container keeps it whenever the restore stops. Only the adoption
+# removes it.
+subtest 'every write of a restore keeps the pending uid' => sub {
+    my $cases = [
+        ['unused VMID', undef, {}],
+        ['in place over a container without uid', existing_config('ctime=1500000000'), {}],
+        ['unused VMID, from STDIN', undef, { ostemplate => '-', rootfs => 'local:4' }],
+        ['unused VMID, template', undef, {}, "template: 1\n"],
+    ];
+
+    for my $case (@$cases) {
+        my ($what, $target, $param, $extra) = @$case;
+
+        reset_state();
+        $backup_raw_config = backup_config($BACKUP_META) . ($extra // '');
+        write_raw_config(200, $target) if $target;
+        my $restore = sub { restore_ct(200, { $target ? (force => 1) : (), $param->%* }) };
+        my $err =
+            with_mock($storage_module, { volume_has_feature => sub { return 0 } }, $restore);
+        is($err, '', "$what: restore succeeds") or diag($task_log);
+        like(
+            $task_log,
+            qr/^guest identity: adopted uid backupbackupbackupba/m,
+            "$what: adopted",
+        );
+
+        my @writes = $written->{200}->@*;
+        my $last = pop(@writes);
+        my $first = 0;
+        $first++ while $first < @writes && $writes[$first] !~ m/^\[pve:pending\]/m;
+        ok($first < @writes, "$what: pending uid is written") or next;
+        my @later = @writes[$first .. $#writes];
+        is(
+            scalar(grep { m/^\[pve:pending\]\nmeta: uid=backupbackupbackupba$/m } @later),
+            scalar(@later),
+            "$what: all later writes keep it",
+        );
+        unlike($last, qr/^\[pve:pending\]/m, "$what: adoption removes it");
+    }
+};
+
+subtest 'an archive file is extracted through the handle that its config was read from' => sub {
+    my $dir = "$WORKDIR/dump";
+    my $path = "$dir/vzdump-lxc-100-2026_01_01-00_00_00.tar.gz";
+    my $make_archive = sub($target, $uid) {
+        my $source = "$WORKDIR/archive-source";
+        remove_tree($source);
+        make_path("$source/etc/vzdump", $dir);
+        file_set_contents("$source/etc/vzdump/pct.conf", backup_config("uid=$uid"));
+        PVE::Tools::run_command(['tar', '-czf', $target, '-C', $source, './etc']);
+    };
+    $make_archive->($path, 'backupbackupbackupba');
+    $make_archive->("$dir/other.tar.gz", 'anotheranotheranothe');
+
+    # the path gets to name another archive once the file is open, before its config is read
+    my $extract_config = PVE::Storage->can('extract_vzdump_config_tar');
+    my $replace = {
+        extract_vzdump_config_tar => sub {
+            rename("$dir/other.tar.gz", $path) or die "rename failed - $!\n";
+            return $extract_config->(@_);
+        },
+    };
+    my $recover_config = $create_module->original('recover_config');
+    my ($conf, undef, $opened) =
+        with_mock($storage_module, $replace, sub { [$recover_config->($storage_cfg, $path, 200)] })
+        ->@*;
+    is($conf->{meta}, 'uid=backupbackupbackupba', 'config is read from the opened file');
+    ok($opened->{fh}, 'the handle of the file is returned');
+
+    my $rootdir = "$WORKDIR/rootfs/200";
+    my $extract = sub($archive, $opened) {
+        reset_state();
+        remove_tree($rootdir);
+        make_path($rootdir);
+        return run_task(sub {
+            $create_module->original('restore_archive')
+                ->($storage_cfg, $archive, $rootdir, {}, 0, undef, $opened);
+        });
+    };
+    my $extracted_uid = sub {
+        my ($uid) = file_get_contents("$rootdir/etc/vzdump/pct.conf") =~ m/^meta: uid=(\S+)$/m;
+        return $uid;
+    };
+    my $inherited = sub($fh) {
+        return !($fh->fcntl(Fcntl::F_GETFD(), 0) & Fcntl::FD_CLOEXEC());
+    };
+
+    is($extract->($path, $opened), '', 'extraction succeeds') or diag($task_log);
+    is($extracted_uid->(), 'backupbackupbackupba', 'data is extracted from the opened file');
+    close($opened->{fh});
+
+    $conf = $recover_config->($storage_cfg, $path, 200);
+    is($conf->{meta}, 'uid=anotheranotheranothe', 'the path names another archive by now');
+
+    # The restore can get the archive through another name. Until the extraction, a prune job can
+    # remove the file and the name can get to point to an archive with another compression.
+    my $link = "$dir/latest";
+    symlink('vzdump-lxc-100-2026_01_01-00_00_00.tar.gz', $link) or die "symlink failed - $!\n";
+    ($conf, undef, $opened) = $recover_config->($storage_cfg, $link, 200);
+    unlink($link, $path) == 2 or die "unlink failed - $!\n";
+    file_set_contents("$dir/newer.tar.xz", "not an archive\n");
+    symlink('newer.tar.xz', $link) or die "symlink failed - $!\n";
+
+    is($extract->($link, $opened), '', 'extraction succeeds after the file got removed')
+        or diag($task_log);
+    is($extracted_uid->(), 'anotheranotheranothe', 'data is extracted from the removed file');
+    ok(!$inherited->($opened->{fh}), 'later child processes do not inherit the handle');
+
+    my $tools_module = Test::MockModule->new('PVE::Tools');
+    $tools_module->mock(run_command => sub { die "unable to start tar\n" });
+    like(
+        $extract->($link, $opened),
+        qr/unable to start tar/,
+        'extraction fails if tar does not start',
+    );
+    ok(!$inherited->($opened->{fh}), 'the handle is not inherited then either');
+    $tools_module->unmock_all();
+    close($opened->{fh});
+
+    like(
+        $extract->($path, undef),
+        qr/^can't find file /,
+        'without the handle, a removed file fails',
+    );
+};
+
+subtest 'restore fails if the backup changed after its uid was read' => sub {
+    # the merge of the config reads the backup again and finds another one
+    my $mocked_restore_archive = PVE::LXC::Create->can('restore_archive');
+    my $changes = {
+        restore_archive => sub {
+            $backup_raw_config =
+                backup_config($BACKUP_META =~ s/uid=.*/uid=anotheranotheranothe/r);
+            return $mocked_restore_archive->(@_);
+        },
+    };
+    my $changed = "unable to restore CT 200 - backup changed during the restore: its uid"
+        . " 'anotheranotheranothe' differs from uid 'backupbackupbackupba' read before";
+
+    for my $archive ($BACKUP_VOLID, $PBS_VOLID) {
+        my $name = $archive eq $PBS_VOLID ? 'backup server' : 'archive file';
+        my $restore = sub($param = {}) {
+            $backup_raw_config = backup_config($BACKUP_META);
+            my $call = sub { restore_ct(200, { ostemplate => $archive, $param->%* }) };
+            return with_mock($create_module, $changes, $call);
+        };
+
+        reset_state();
+        like($restore->(), qr/^\Q$changed\E$/, "$name, unused VMID: restore fails");
+        ok(!defined(read_raw_config(200)), "$name, unused VMID: nothing is left behind");
+
+        # the checked backup has the uid of the container
+        reset_state();
+        write_raw_config(
+            200,
+            existing_config($EXISTING_META =~ s/uid=.*/uid=backupbackupbackupba/r),
+        );
+        like($restore->({ force => 1 }), qr/^\Q$changed\E$/, "$name, in place: restore fails");
+        ok(
+            !defined(read_raw_config(200)),
+            "$name, in place: the other backup is not left behind with the uid of the container",
+        );
+    }
 };
 
 remove_tree($WORKDIR);

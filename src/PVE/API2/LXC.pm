@@ -257,7 +257,8 @@ __PACKAGE__->register_method({
             unique => {
                 optional => 1,
                 type => 'boolean',
-                description => "Assign a unique random ethernet address.",
+                description => "Assign a unique random ethernet address and do not adopt"
+                    . " the guest uid of the backup.",
                 requires => 'restore',
             },
             pool => {
@@ -515,6 +516,8 @@ __PACKAGE__->register_method({
             my $was_template;
             # for the cleanup after a failure, a restore can replace the firewall config
             my $old_firewall_config = PVE::GuestHelpers::get_firewall_config_raw($vmid);
+            my ($backup_uid, $pending_uid);
+            my $opened_archive;
 
             my $vollist = [];
             my $old_volumes_left = [];
@@ -526,8 +529,14 @@ __PACKAGE__->register_method({
                     if ($archive ne '-') {
                         my $orig_conf;
                         print "recovering backed-up configuration from '$archive'\n";
-                        ($orig_conf, $orig_mp_param) =
+                        # for extracting the archive file that the config is from
+                        ($orig_conf, $orig_mp_param, $opened_archive) =
                             PVE::LXC::Create::recover_config($storage_cfg, $archive, $vmid);
+                        $backup_uid = (PVE::LXC::Config->get_identity($orig_conf) // {})->{uid};
+                        # a container with another uid keeps it, which only gets logged
+                        $pending_uid = PVE::GuestIdentity::prepare_restore(
+                            'PVE::LXC::Config', $vmid, $reservation, $backup_uid, 1,
+                        );
 
                         for my $opt (keys %$orig_conf) {
                             # early check before disks are created
@@ -624,12 +633,11 @@ __PACKAGE__->register_method({
                 PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf, 0, $vollist);
 
                 if ($reservation->{existed}) {
+                    my $replacement_conf = { lock => 'create' };
+                    PVE::GuestIdentity::set_pending_uid($replacement_conf, $pending_uid);
                     # destroy old container volumes
                     $old_volumes_left = PVE::LXC::destroy_lxc_container(
-                        $storage_cfg,
-                        $vmid,
-                        $old_conf,
-                        { lock => 'create' },
+                        $storage_cfg, $vmid, $old_conf, $replacement_conf,
                     );
                 }
                 # up until here the old container is intact, besides its lock
@@ -661,6 +669,7 @@ __PACKAGE__->register_method({
                             $conf,
                             $ignore_unpack_errors,
                             $bwlimit,
+                            $opened_archive,
                         );
                     }
 
@@ -676,6 +685,23 @@ __PACKAGE__->register_method({
                             $unique,
                             $overwrite_only,
                         );
+                        # the API parameters cannot carry 'meta', so it comes from the backup
+                        my $restored_uid = (PVE::LXC::Config->get_identity($conf) // {})->{uid};
+                        if ($archive eq '-') {
+                            $backup_uid = $restored_uid;
+                            $pending_uid = PVE::GuestIdentity::prepare_restore(
+                                'PVE::LXC::Config', $vmid, $reservation, $backup_uid, 1,
+                            );
+                        } else {
+                            # the merge read the config of the backup again, it must have the uid
+                            # that was checked
+                            my ($checked, $restored) =
+                                map { $_ // 'none' } ($backup_uid, $restored_uid);
+                            if ($restored ne $checked) {
+                                die "backup changed during the restore: its uid '$restored'"
+                                    . " differs from uid '$checked' read before\n";
+                            }
+                        }
                         PVE::LXC::create_ifaces_ipams_ips($conf, $vmid) if $unique;
                         my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);
                         $lxc_setup->post_restore_hook($password, $ssh_keys);
@@ -699,6 +725,8 @@ __PACKAGE__->register_method({
                 foreach my $mp (keys %$delayed_mp_param) {
                     $conf->{$mp} = $delayed_mp_param->{$mp};
                 }
+                # the template conversion writes the restored config, too
+                PVE::GuestIdentity::set_pending_uid($conf, $pending_uid);
                 # If the template flag was set, we try to convert again to template after restore
                 if ($was_template) {
                     print STDERR "Convert restored container to template...\n";
@@ -737,6 +765,11 @@ __PACKAGE__->register_method({
                     }
                 }
                 die "$emsg $err";
+            }
+            if ($restore) {
+                PVE::GuestIdentity::adopt_from_backup(
+                    'PVE::LXC::Config', $vmid, $unique ? undef : $backup_uid, $reservation,
+                );
             }
             PVE::AccessControl::add_vm_to_pool($vmid, $pool) if $pool;
         };

@@ -22,8 +22,9 @@ use PVE::VZDump::ConvertOVZ;
 use PVE::Tools;
 use POSIX;
 
+# $opened is what recover_config returned for the archive file $archive, if anything.
 sub restore_archive {
-    my ($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+    my ($storage_cfg, $archive, $rootdir, $conf, $no_unpack_error, $bwlimit, $opened) = @_;
 
     my ($storeid, $volname) = PVE::Storage::parse_volume_id($archive, 1);
     if (defined($storeid)) {
@@ -47,8 +48,14 @@ sub restore_archive {
         }
     }
 
-    $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $archive) if $archive ne '-';
-    restore_tar_archive($archive, $rootdir, $conf, $no_unpack_error, $bwlimit);
+    my $archive_fh;
+    if ($opened) {
+        # the file can be gone or another one by now, so do not look up the path again
+        ($archive, $archive_fh) = $opened->@{qw(path fh)};
+    } elsif ($archive ne '-') {
+        $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $archive);
+    }
+    restore_tar_archive($archive, $rootdir, $conf, $no_unpack_error, $bwlimit, 0, $archive_fh);
 }
 
 sub restore_proxmox_backup_archive {
@@ -193,18 +200,23 @@ my sub restore_tar_archive_command {
     return $cmd;
 }
 
+# Extracts $archive, through the handle $opened_fh of it if given.
 sub restore_tar_archive {
-    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit, $untrusted) = @_;
+    my ($archive, $rootdir, $conf, $no_unpack_error, $bwlimit, $untrusted, $opened_fh) = @_;
 
     my $archive_fh;
+    my $flags;
     my $tar_input = '<&STDIN';
     my $compression_opt;
     if ($archive ne '-') {
         # GNU tar refuses to autodetect this... *sigh*
         $compression_opt = tar_compression_option($archive);
-        sysopen($archive_fh, $archive, O_RDONLY)
-            or die "failed to open '$archive': $!\n";
-        my $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
+        $archive_fh = $opened_fh;
+        if (!$archive_fh) {
+            sysopen($archive_fh, $archive, O_RDONLY)
+                or die "failed to open '$archive': $!\n";
+        }
+        $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
         $archive_fh->fcntl(Fcntl::F_SETFD(), $flags & ~(Fcntl::FD_CLOEXEC()));
         $tar_input = '<&' . fileno($archive_fh);
     }
@@ -223,7 +235,14 @@ sub restore_tar_archive {
     }
     eval { PVE::Tools::run_command($cmd, input => $tar_input); };
     my $err = $@;
-    close($archive_fh) if defined $archive_fh;
+    if (defined($archive_fh)) {
+        if ($opened_fh) {
+            # only tar may inherit the handle, also if it could not be started
+            $archive_fh->fcntl(Fcntl::F_SETFD(), $flags);
+        } else {
+            close($archive_fh);
+        }
+    }
     die $err if $err && !$no_unpack_error;
 }
 
@@ -285,6 +304,9 @@ sub restore_external_archive {
 
 }
 
+# For an archive file, the third return value has the handle 'fh' of the file and the 'path' that it
+# was opened with. Passed to restore_archive, it extracts the data that the config belongs to, even
+# if the path names another file or none by then.
 sub recover_config {
     my ($storage_cfg, $volid, $vmid) = @_;
 
@@ -299,7 +321,11 @@ sub recover_config {
     }
 
     my $archive = PVE::Storage::abs_filesystem_path($storage_cfg, $volid);
-    recover_config_from_tar($archive, $vmid);
+    sysopen(my $fh, $archive, O_RDONLY) or die "failed to open '$archive': $!\n";
+    # this path opens the file of the handle again, also for child processes
+    my ($conf, $mp_param) = recover_config_from_tar("/proc/$$/fd/" . fileno($fh), $vmid);
+
+    return wantarray ? ($conf, $mp_param, { fh => $fh, path => $archive }) : $conf;
 }
 
 sub recover_config_from_proxmox_backup {
