@@ -51,6 +51,53 @@ BEGIN {
     }
 }
 
+my $migrate_json_properties = {
+    node => get_standard_option('pve-node'),
+    vmid => get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
+    target => get_standard_option(
+        'pve-node',
+        {
+            description => "Target node.",
+            completion => \&PVE::Cluster::complete_migration_target,
+        },
+    ),
+    'target-storage' => get_standard_option('pve-targetstorage'),
+    online => {
+        type => 'boolean',
+        description => "Use online/live migration.",
+        optional => 1,
+    },
+    restart => {
+        type => 'boolean',
+        description => "Use restart migration",
+        optional => 1,
+    },
+    timeout => {
+        type => 'integer',
+        description => "Timeout in seconds for shutdown for restart migration",
+        optional => 1,
+        default => 180,
+    },
+    bwlimit => {
+        description => "Override I/O bandwidth limit (in KiB/s).",
+        optional => 1,
+        type => 'number',
+        minimum => '0',
+        default => 'migrate limit from datacenter or storage config',
+    },
+};
+
+# Properties that will be forwarded via the HA stack to the LRM, which will then use them for its
+# own invocation of the migration API endpoint. Values the caller supplies for other properties are
+# not forwarded for HA migrations, the LRM uses hard-coded values for many of those properties.
+my $ha_migrate_props = {};
+
+sub ha_migrate_json_properties {
+    my $forwarded_props = {};
+    $forwarded_props->{$_} = $migrate_json_properties->{$_} for keys $ha_migrate_props->%*;
+    return $forwarded_props;
+}
+
 my sub assert_not_restore_from_external {
     my ($archive, $storage_cfg) = @_;
 
@@ -1663,42 +1710,7 @@ __PACKAGE__->register_method({
     },
     parameters => {
         additionalProperties => 0,
-        properties => {
-            node => get_standard_option('pve-node'),
-            vmid =>
-                get_standard_option('pve-vmid', { completion => \&PVE::LXC::complete_ctid }),
-            target => get_standard_option(
-                'pve-node',
-                {
-                    description => "Target node.",
-                    completion => \&PVE::Cluster::complete_migration_target,
-                },
-            ),
-            'target-storage' => get_standard_option('pve-targetstorage'),
-            online => {
-                type => 'boolean',
-                description => "Use online/live migration.",
-                optional => 1,
-            },
-            restart => {
-                type => 'boolean',
-                description => "Use restart migration",
-                optional => 1,
-            },
-            timeout => {
-                type => 'integer',
-                description => "Timeout in seconds for shutdown for restart migration",
-                optional => 1,
-                default => 180,
-            },
-            bwlimit => {
-                description => "Override I/O bandwidth limit (in KiB/s).",
-                optional => 1,
-                type => 'number',
-                minimum => '0',
-                default => 'migrate limit from datacenter or storage config',
-            },
-        },
+        properties => $migrate_json_properties,
     },
     returns => {
         type => 'string',
@@ -1762,10 +1774,24 @@ __PACKAGE__->register_method({
                 my $upid = shift;
 
                 my $service = "ct:$vmid";
+                my $extra_opts = '';
 
                 my $cmd = ['ha-manager', 'migrate', $service, $target];
+                # Only nodes with pve-manager 9.2.31 or newer have an ha-manager that accepts
+                # additional migration options.
+                if (PVE::Cluster::node_pvecfg_version_at_least($localnode, 9, 2, 31)) {
+                    for my $prop (sort keys $ha_migrate_props->%*) {
+                        if (defined(my $value = $param->{$prop})) {
+                            push($cmd->@*, "--$prop", $value);
+                            $extra_opts .= ', ' if $extra_opts;
+                            $extra_opts .= "$prop=$value";
+                        }
+                    }
+                }
 
-                print "Requesting HA migration for CT $vmid to node $target\n";
+                my $msg = "Requesting HA migration for CT $vmid to node $target";
+                $msg .= " (${extra_opts})" if $extra_opts;
+                print "$msg\n";
 
                 PVE::Tools::run_command($cmd);
 
