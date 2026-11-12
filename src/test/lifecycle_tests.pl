@@ -28,6 +28,7 @@ use PVE::INotify;
 use PVE::JSONSchema;
 use PVE::Tools qw(file_get_contents file_set_contents);
 
+use PVE::CLI::pct;
 use PVE::LXC;
 use PVE::LXC::Config;
 use PVE::LXC::Create;
@@ -340,6 +341,7 @@ my $backup_raw_config; # the config in the backup, undef for none
 my $backup_read_error; # set to let reading the config of the backup fail
 my $backup_fw_config; # the firewall config in the backup, if any
 my $hook_error; # set to let the setup hooks at the end of a create or restore fail
+my $volumes_touched = 0;
 
 my $storage_module = Test::MockModule->new('PVE::Storage');
 $storage_module->mock(
@@ -378,6 +380,7 @@ $lxc_module->mock(
     create_disks => sub {
         my ($storecfg, $vmid, $settings, $conf, $pending, $allocated) = @_;
         my $vollist = $allocated // [];
+        $volumes_touched++;
         for my $ms (sort keys %$settings) {
             my $volid = "local:$vmid/vm-$vmid-disk-$ms.raw";
             $conf->{$ms} = "$volid,size=4G";
@@ -388,6 +391,7 @@ $lxc_module->mock(
     destroy_disks => sub { return [] },
     destroy_lxc_container => sub {
         my ($storecfg, $vmid, $conf, $replacement_conf) = @_;
+        $volumes_touched++;
         if (defined($replacement_conf)) {
             PVE::LXC::Config->write_config($vmid, $replacement_conf);
         } else {
@@ -529,6 +533,7 @@ my sub reset_state {
     $backup_fw_config = undef;
     $now_ms = 1_700_000_000_000;
     $domain_lock_error = undef;
+    $volumes_touched = 0;
 }
 
 # API call helpers
@@ -2066,6 +2071,9 @@ subtest 'using the container left behind drops its pending uid' => sub {
         . " restore - a retry now needs 'allow-identity-mismatch'";
     like($task_log, qr/^WARN: \Q$dropped\E$/m, 'dropped');
     is(pending_uid_of(200), undef, 'pending uid is gone');
+
+    $err = restore_ct(200, { force => 1 });
+    like($err, qr/backup belongs to another guest/, 'container stays a guest of its own');
 };
 
 subtest 'restore with unique keeps a pending uid, but never adopts it' => sub {
@@ -2285,6 +2293,107 @@ subtest 'restore fails if the backup changed after its uid was read' => sub {
             "$name, in place: the other backup is not left behind with the uid of the container",
         );
     }
+};
+
+subtest 'restore over a container of another guest needs an override' => sub {
+    my $existing_raw = existing_config($EXISTING_META);
+    my $existing_conf = PVE::LXC::Config::parse_pct_config('/lxc/200.conf', $existing_raw);
+    delete $existing_conf->{digest};
+
+    my $setup = sub {
+        reset_state();
+        $backup_raw_config = backup_config($BACKUP_META);
+        write_raw_config(200, $existing_raw);
+    };
+    my $refused = sub($name, $param, $expected_err) {
+        $setup->();
+        my $err = restore_ct(200, { force => 1, $param->%* });
+        is($err, "unable to restore CT 200 - $expected_err\n", "$name: restore is refused");
+        is($volumes_touched, 0, "$name: volumes are not touched");
+        my $conf = PVE::LXC::Config->load_config(200);
+        delete $conf->{digest};
+        is_deeply($conf, $existing_conf, "$name: config is unchanged");
+    };
+
+    my $mismatch_err =
+        "backup belongs to another guest: its uid 'backupbackupbackupba' differs from uid"
+        . " 'existingexistingexis' of the existing CT 200 - use 'allow-identity-mismatch' to"
+        . " overwrite the CT anyway";
+    my $stdin_err =
+        "cannot verify the guest identity of a backup from standard input before overwriting"
+        . " CT 200 (uid 'existingexistingexis') - use 'allow-identity-mismatch' to overwrite the"
+        . " CT anyway";
+    my $ignored = "guest identity: ignoring backup uid backupbackupbackupba, CT 200 keeps uid"
+        . " existingexistingexis";
+    my $stdin = { ostemplate => '-', rootfs => 'local:4' };
+    $refused->('different uid', {}, $mismatch_err);
+    $refused->('different uid, unique', { unique => 1 }, $mismatch_err);
+    $refused->('from STDIN', $stdin, $stdin_err);
+
+    for my $param ({}, $stdin) {
+        my $name = $param->{ostemplate} ? 'from STDIN' : 'from file';
+        $setup->();
+        my $err = restore_ct(200, { force => 1, 'allow-identity-mismatch' => 1, $param->%* });
+        is($err, '', "$name: restore with override succeeds") or diag($task_log);
+        is(
+            PVE::LXC::Config->load_config(200)->{hostname},
+            'backup',
+            "$name: backup is restored",
+        );
+        is_deeply(
+            identity_of(200),
+            { uid => 'existingexistingexis', rtime => 1500000000000 },
+            "$name: identity of the container is kept",
+        );
+        like($task_log, qr/^\Q$ignored\E$/m, "$name: override is logged");
+        like(
+            $task_log,
+            qr/^guest identity: kept uid existingexistingexis$/m,
+            "$name: result is logged",
+        );
+    }
+
+    reset_state();
+    $backup_raw_config = backup_config($BACKUP_META);
+    write_raw_config(200, existing_config('ctime=1500000000'));
+    my $err = restore_ct(200, { force => 1, $stdin->%* });
+    is($err, '', 'restore from STDIN over a container without identity succeeds');
+    is(identity_of(200)->{uid}, 'backupbackupbackupba', 'uid of the backup is adopted');
+
+    $err = create_ct(201, { 'allow-identity-mismatch' => 1 });
+    like($err, qr/allow-identity-mismatch/, 'override is only allowed for restores');
+
+    my ($class, $method, undef, $fixed) = $PVE::CLI::pct::cmddef->{restore}->@*;
+    is("$class->$method", 'PVE::API2::LXC->create_vm', 'pct restore uses the create API call');
+    ok($fixed->{restore}, 'pct restore sets restore, so it accepts the override');
+};
+
+subtest 'restore over the container left behind by a restore of a backup' => sub {
+    failed_restore_in_place();
+    $backup_raw_config = backup_config($BACKUP_META =~ s/uid=.*/uid=anotheranotheranothe/r);
+    my $err = restore_ct(200, { force => 1 });
+    like(
+        $err,
+        qr/backup belongs to another guest: its uid .anotheranotheranothe. differs/,
+        'another backup is refused',
+    );
+    is(pending_uid_of(200), 'backupbackupbackupba', 'pending uid is unchanged');
+
+    $backup_raw_config = backup_config($BACKUP_META);
+    my $param = { force => 1, ostemplate => '-', rootfs => 'local:4' };
+    $err = restore_ct(200, $param);
+    like(
+        $err,
+        qr/cannot verify the guest identity of a backup from standard input/,
+        'the same backup from STDIN is refused',
+    );
+
+    $err = restore_ct(200, { $param->%*, 'allow-identity-mismatch' => 1 });
+    is($err, '', 'from STDIN with override succeeds') or diag($task_log);
+    is(
+        identity_of(200)->{uid}, 'backupbackupbackupba', 'its uid is the pending uid: adopted',
+    );
+    is(pending_uid_of(200), undef, 'pending uid is removed');
 };
 
 remove_tree($WORKDIR);

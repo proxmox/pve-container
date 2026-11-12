@@ -121,6 +121,11 @@ my sub assert_not_restore_from_external {
     die "refusing to restore privileged container backup from external source\n";
 }
 
+my $allow_identity_mismatch_option =
+    get_standard_option('pve-guest-allow-identity-mismatch', { requires => 'restore' });
+$allow_identity_mismatch_option->{description} .= " A restore from standard input over a container"
+    . " that has a uid always needs this option, as the backup cannot be checked beforehand.";
+
 my $check_storage_access_migrate = sub {
     my ($rpcenv, $authuser, $storecfg, $storage, $node) = @_;
 
@@ -261,6 +266,7 @@ __PACKAGE__->register_method({
                     . " the guest uid of the backup.",
                 requires => 'restore',
             },
+            'allow-identity-mismatch' => $allow_identity_mismatch_option,
             pool => {
                 optional => 1,
                 type => 'string',
@@ -323,6 +329,7 @@ __PACKAGE__->register_method({
         my $unprivileged = extract_param($param, 'unprivileged');
         my $restore = extract_param($param, 'restore');
         my $unique = extract_param($param, 'unique');
+        my $allow_identity_mismatch = extract_param($param, 'allow-identity-mismatch');
 
         $param->{cpuunits} = PVE::CGroup::clamp_cpu_shares($param->{cpuunits})
             if defined($param->{cpuunits}); # clamp value depending on cgroup version
@@ -533,9 +540,14 @@ __PACKAGE__->register_method({
                         ($orig_conf, $orig_mp_param, $opened_archive) =
                             PVE::LXC::Create::recover_config($storage_cfg, $archive, $vmid);
                         $backup_uid = (PVE::LXC::Config->get_identity($orig_conf) // {})->{uid};
-                        # a container with another uid keeps it, which only gets logged
+                        # Restoring over an existing container must not turn it into another
+                        # guest, so this check comes before the restore changes anything.
                         $pending_uid = PVE::GuestIdentity::prepare_restore(
-                            'PVE::LXC::Config', $vmid, $reservation, $backup_uid, 1,
+                            'PVE::LXC::Config',
+                            $vmid,
+                            $reservation,
+                            $backup_uid,
+                            $allow_identity_mismatch,
                         );
 
                         for my $opt (keys %$orig_conf) {
@@ -569,6 +581,12 @@ __PACKAGE__->register_method({
                         ) {
                             $rpcenv->check($authuser, '/', ['Sys.Modify']);
                         }
+                    } elsif ($reservation->{previous} && !$allow_identity_mismatch) {
+                        # the uid of such a backup is only known once the container got overwritten
+                        my $uid = $reservation->{previous}->{uid};
+                        die "cannot verify the guest identity of a backup from standard input"
+                            . " before overwriting CT $vmid (uid '$uid') - use"
+                            . " 'allow-identity-mismatch' to overwrite the CT anyway\n";
                     }
                 }
                 if ($storage_only_mode) {
@@ -689,8 +707,14 @@ __PACKAGE__->register_method({
                         my $restored_uid = (PVE::LXC::Config->get_identity($conf) // {})->{uid};
                         if ($archive eq '-') {
                             $backup_uid = $restored_uid;
+                            # A mismatch only gets logged here, as a restore from standard input
+                            # over a container with an identity required the override already.
                             $pending_uid = PVE::GuestIdentity::prepare_restore(
-                                'PVE::LXC::Config', $vmid, $reservation, $backup_uid, 1,
+                                'PVE::LXC::Config',
+                                $vmid,
+                                $reservation,
+                                $backup_uid,
+                                $allow_identity_mismatch,
                             );
                         } else {
                             # the merge read the config of the backup again, it must have the uid
