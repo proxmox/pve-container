@@ -308,15 +308,19 @@ __PACKAGE__->register_method({
 
         # vm_start is invoked directly from the worker, so its own permissions
         # predicate doesn't fire here - check VM.PowerMgmt up front so a user
-        # with only VM.Snapshot.Rollback can't power the CT on as a side effect.
-        $rpcenv->check($authuser, "/vms/$vmid", ['VM.PowerMgmt'])
-            if $param->{start};
+        # with only VM.Snapshot.Rollback can't power the CT on or off as a side
+        # effect, unless the CT is already running/powered off
+        my $start = extract_param($param, 'start') ? 1 : 0;
+        my $is_running = PVE::LXC::check_running($vmid) ? 1 : 0;
+        if ($start != $is_running) {
+            $rpcenv->check($authuser, "/vms/$vmid", ['VM.PowerMgmt']);
+        }
 
         my $realcmd = sub {
             PVE::Cluster::log_msg('info', $authuser, "rollback snapshot LXC $vmid: $snapname");
             PVE::LXC::Config->snapshot_rollback($vmid, $snapname);
 
-            if ($param->{start}) {
+            if ($start) {
                 PVE::API2::LXC::Status->vm_start({ vmid => $vmid, node => $node });
             }
         };
