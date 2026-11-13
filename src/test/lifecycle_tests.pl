@@ -36,6 +36,7 @@ use PVE::LXC::Migrate;
 
 use PVE::API2::LXC;
 use PVE::API2::LXC::Config;
+use PVE::API2::LXC::Status;
 
 my $WORKDIR = 'lifecycle-working';
 my $NODENAME = PVE::INotify::nodename();
@@ -2755,6 +2756,31 @@ subtest 'remote migration keeps the source if the target refuses the identity' =
     my $conf = PVE::LXC::Config->load_config(987);
     ok(!defined($conf->{lock}), 'source is not locked');
     is(identity_of(987)->{uid}, 'sourcesourcesourceso', 'source keeps its uid');
+};
+
+subtest 'current status reports the uid' => sub {
+    reset_configs();
+    write_raw_config(
+        200,
+        existing_config('ctime=1500000000,rtime=1500000000000,uid=existingexistingexis'),
+    );
+    write_raw_config(201, existing_config('ctime=1500000000'));
+
+    $lxc_module->mock(
+        vmstatus => sub {
+            my ($vmid) = @_;
+            return { $vmid => { vmid => int($vmid), status => 'stopped' } };
+        },
+    );
+    my $ha_config_module = Test::MockModule->new('PVE::HA::Config');
+    $ha_config_module->mock(get_service_status => sub { return { managed => 0 } });
+
+    my $status = PVE::API2::LXC::Status->vm_status({ node => $NODENAME, vmid => 200 });
+    is($status->{uid}, 'existingexistingexis', 'uid is reported');
+    $status = PVE::API2::LXC::Status->vm_status({ node => $NODENAME, vmid => 201 });
+    ok(!exists($status->{uid}), 'no uid is reported for a container without identity');
+
+    $lxc_module->unmock('vmstatus');
 };
 
 remove_tree($WORKDIR);

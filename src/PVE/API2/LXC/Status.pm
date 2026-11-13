@@ -10,6 +10,7 @@ use PVE::INotify;
 use PVE::Cluster qw(cfs_read_file);
 use PVE::AccessControl;
 use PVE::Firewall;
+use PVE::GuestIdentity;
 use PVE::Storage;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
@@ -98,6 +99,7 @@ __PACKAGE__->register_method({
                 description => "HA manager service status.",
                 type => 'object',
             },
+            uid => PVE::GuestIdentity::meta_format_properties()->{uid},
         },
     },
     code => sub {
@@ -111,6 +113,10 @@ __PACKAGE__->register_method({
         my $status = $vmstatus->{$vmid};
 
         $status->{ha} = PVE::HA::Config::get_service_status("ct:$vmid");
+
+        if (my $identity = PVE::LXC::Config->get_identity($conf)) {
+            $status->{uid} = $identity->{uid};
+        }
 
         return $status;
     },
