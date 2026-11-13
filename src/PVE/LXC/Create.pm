@@ -41,13 +41,7 @@ sub restore_archive {
             my $backup_provider =
                 PVE::Storage::new_backup_provider($storage_cfg, $storeid, $log_function);
             return restore_external_archive(
-                $backup_provider,
-                $storeid,
-                $volname,
-                $rootdir,
-                $conf,
-                $no_unpack_error,
-                $bwlimit,
+                $backup_provider, $volname, $rootdir, $conf, $no_unpack_error, $bwlimit,
             );
         }
     }
@@ -233,15 +227,15 @@ sub restore_tar_archive {
 }
 
 sub restore_external_archive {
-    my ($backup_provider, $storeid, $volname, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
+    my ($backup_provider, $volname, $rootdir, $conf, $no_unpack_error, $bwlimit) = @_;
 
     die "refusing to restore privileged container backup from external source\n"
         if !$conf->{unprivileged};
 
-    my ($mechanism, $vmtype) = $backup_provider->restore_get_mechanism($volname, $storeid);
+    my ($mechanism, $vmtype) = $backup_provider->restore_get_mechanism($volname);
     die "cannot restore non-LXC guest of type '$vmtype'\n" if $vmtype ne 'lxc';
 
-    my $info = $backup_provider->restore_container_init($volname, $storeid, {});
+    my $info = $backup_provider->restore_container_init($volname, {});
     eval {
         if ($mechanism eq 'tar') {
             my $tar_path = $info->{'tar-path'}
@@ -281,7 +275,7 @@ sub restore_external_archive {
         }
     };
     my $err = $@;
-    eval { $backup_provider->restore_container_cleanup($volname, $storeid, {}); };
+    eval { $backup_provider->restore_container_cleanup($volname, {}); };
     if (my $cleanup_err = $@) {
         die $cleanup_err if !$err;
         warn $cleanup_err;
@@ -505,7 +499,7 @@ sub restore_configuration_from_external_backup {
 
     sanitize_and_merge_config($conf, $oldconf, $restricted, $unique);
 
-    my $firewall_config = $backup_provider->archive_get_firewall_config($volname, $storeid);
+    my $firewall_config = $backup_provider->archive_get_firewall_config($volname);
 
     if ($firewall_config) {
         my $pve_firewall_dir = '/etc/pve/firewall';
