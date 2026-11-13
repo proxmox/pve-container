@@ -14,6 +14,8 @@ BEGIN {
 }
 
 use File::Path qw(make_path remove_tree);
+use JSON;
+use Socket qw(AF_UNIX SOCK_STREAM PF_UNSPEC);
 use Test::MockModule;
 use Test::More;
 
@@ -25,6 +27,7 @@ use PVE::Tools qw(file_get_contents file_set_contents);
 use PVE::LXC;
 use PVE::LXC::Config;
 use PVE::LXC::Create;
+use PVE::LXC::Migrate;
 
 use PVE::API2::LXC;
 
@@ -76,6 +79,11 @@ my $storage_cfg = {
             type => 'dir',
             path => '/var/lib/vz',
             content => { rootdir => 1, images => 1, backup => 1, vztmpl => 1 },
+        },
+        iso => {
+            type => 'dir',
+            path => '/mnt/iso',
+            content => { iso => 1 },
         },
     },
 };
@@ -298,6 +306,12 @@ $lxc_module->mock(
     umount_all => sub { },
     create_ifaces_ipams_ips => sub { },
     delete_ifaces_ipams_ips => sub { },
+    update_lxc_config => sub { },
+    # not the socket of a migration that runs on the host
+    mtunnel_socket => sub {
+        my ($vmid) = @_;
+        return "$WORKDIR/ct-$vmid.mtunnel";
+    },
 );
 
 my $create_module = Test::MockModule->new('PVE::LXC::Create');
@@ -336,6 +350,9 @@ $firewall_module->mock(
         PVE::GuestHelpers::set_firewall_config_raw($vmid, undef);
     },
 );
+
+my $access_control_module = Test::MockModule->new('PVE::AccessControl');
+$access_control_module->mock(assemble_tunnel_ticket => sub { return 'ticket' });
 
 my sub backup_config($meta = undef) {
     my $raw = <<~'EOF';
@@ -403,6 +420,65 @@ my sub restore_ct($vmid, $param = undef) {
             ($param // {})->%*,
         });
     });
+}
+
+# Runs the migration tunnel for $vmid with the commands @commands, which are sent at once, and
+# returns the error of the task, if any, and the replies.
+my sub run_mtunnel($vmid, @commands) {
+    socketpair(my $tunnel_end, my $client_end, AF_UNIX, SOCK_STREAM, PF_UNSPEC)
+        or die "socketpair failed - $!\n";
+    for my $command (@commands) {
+        print $client_end JSON::encode_json($command) . "\n";
+    }
+    $client_end->flush();
+    shutdown($client_end, 1);
+
+    my $socket_module = Test::MockModule->new('IO::Socket::UNIX');
+    $socket_module->mock(
+        new => sub { return bless { conn => $tunnel_end }, 'PVE::LXC::Test::Socket' });
+
+    my $err = run_task(sub { PVE::API2::LXC->mtunnel({ node => $NODENAME, vmid => $vmid }) });
+
+    close($tunnel_end);
+    my $replies = [map { JSON::decode_json($_) } <$client_end>];
+    close($client_end);
+
+    return ($err, $replies);
+}
+
+package PVE::LXC::Test::Socket {
+    sub accept { return $_[0]->{conn} }
+}
+
+my $INCOMING_CONFIG = <<~'EOF';
+    arch: amd64
+    hostname: incoming
+    memory: 1024
+    ostype: debian
+    rootfs: local:300/vm-300-disk-0.raw,size=4G
+    unprivileged: 1
+    EOF
+
+# Runs a remote migration of CT $vmid on the source, with the functions of the tunnel replaced by
+# the ones in the hash $tunnel. Returns the error, if any, and the log of the migration.
+my sub migrate_remote($vmid, $opts, $tunnel) {
+    my $log = '';
+    my $migrate_module = Test::MockModule->new('PVE::AbstractMigrate');
+    $migrate_module->mock(log => sub { $log .= "$_[1]: $_[2]\n" });
+    my $tunnel_module = Test::MockModule->new('PVE::Tunnel');
+    $tunnel_module->mock($tunnel->%*);
+
+    my $err = run_task(sub {
+        my $remote = { vmid => 300, conn => { host => '192.0.2.1', port => 8006 } };
+        PVE::LXC::Migrate->migrate(
+            'remote-node',
+            '192.0.2.1',
+            $vmid,
+            { remote => $remote, $opts->%* },
+        );
+    });
+
+    return ($err, $log);
 }
 
 # Tests
@@ -496,6 +572,93 @@ subtest 'create and restore do not change a container that the checks were not d
     my $conf = PVE::LXC::Config->load_config(200);
     is($conf->{hostname}, 'existing', 'protection set in between: container is kept');
     ok(!defined($conf->{lock}), 'protection set in between: lock is removed');
+};
+
+subtest 'remote migration cleans up the target if it fails before the transfer' => sub {
+    reset_state();
+    write_raw_config(200, existing_config());
+    my $raw = read_raw_config(200);
+
+    my ($commands, $cleanup);
+    my $tunnel = sub($version) {
+        ($commands, $cleanup) = (0);
+        return {
+            fork_websocket_tunnel => sub { return { version => $version, age => 0 } },
+            write_tunnel => sub { $commands++; return {}; },
+            finish_tunnel => sub { (undef, $cleanup) = @_ },
+        };
+    };
+    my $version = $PVE::LXC::Migrate::WS_TUNNEL_VERSION;
+
+    my ($err, $log) = migrate_remote(200, {}, $tunnel->($version - 1));
+    like($err, qr/migration aborted/, 'migration to an older target fails');
+    like($log, qr/^err: .*Remote tunnel endpoint too old/m, 'target is reported as too old');
+    is($cleanup, 1, 'older target is asked to clean up');
+    is($commands, 0, 'nothing else is sent to the target');
+
+    ($err, $log) = migrate_remote(200, {}, $tunnel->($version + 1));
+    like($err, qr/migration aborted/, 'migration to an incompatible target fails');
+    like($log, qr/^err: .*Remote tunnel endpoint not compatible/m, 'target is reported');
+    is($cleanup, 1, 'incompatible target is asked to clean up');
+    is(read_raw_config(200), $raw, 'config of the source is unchanged');
+
+    my $does_not_stop = {
+        check_running => sub { return 1 },
+        vm_stop => sub { die "container did not stop\n" },
+    };
+    ($err, $log) = with_mock(
+        $lxc_module,
+        $does_not_stop,
+        sub { [migrate_remote(200, { restart => 1 }, $tunnel->($version))] },
+    )->@*;
+    like(
+        $err,
+        qr/migration aborted/,
+        'restart migration of a container that does not stop fails',
+    );
+    like($log, qr/^err: .*container did not stop/m, 'failed shutdown is reported');
+    is($cleanup, 1, 'target is asked to clean up');
+    ok(!defined(PVE::LXC::Config->load_config(200)->{lock}), 'source is not left locked');
+};
+
+subtest 'migration tunnel logs failed commands and cleans up after an early end' => sub {
+    my $config_cmd = { cmd => 'config', conf => $INCOMING_CONFIG };
+
+    reset_state();
+    my ($err, $replies) = run_mtunnel(300, $config_cmd, { cmd => 'quit', cleanup => 0 });
+    is($err, '', 'tunnel exits normally after quit') or diag(explain($replies), $task_log);
+    ok($replies->[0]->{success}, 'config command succeeds');
+    my $conf = PVE::LXC::Config->load_config(300);
+    is($conf->{hostname}, 'incoming', 'config of the source is written');
+    is($conf->{lock}, 'migrate', 'config is locked for the migration');
+
+    reset_state();
+    ($err, $replies) = run_mtunnel(300);
+    like($err, qr/mtunnel exited unexpectedly/, 'tunnel that ends without a command fails');
+    like(
+        $task_log,
+        qr/^WARN: tunnel closed before the config arrived, cleaning up$/m,
+        'cleanup is logged',
+    );
+    ok(!defined(read_raw_config(300)), 'reserved config is removed');
+
+    reset_state();
+    my $broken = $INCOMING_CONFIG =~ s/^rootfs: local:/rootfs: iso:/mr;
+    ($err, $replies) = run_mtunnel(300, { cmd => 'config', conf => $broken });
+    like($err, qr/mtunnel exited unexpectedly/, 'tunnel that ends after a failed config fails');
+    ok(!$replies->[0]->{success}, 'config command fails');
+    like(
+        $task_log,
+        qr/^WARN: failed to handle 'config' command - /m,
+        'failed command is logged',
+    );
+    ok(!defined(read_raw_config(300)), 'reserved config is removed after a failed config');
+
+    reset_state();
+    ($err, $replies) = run_mtunnel(300, $config_cmd);
+    like($err, qr/mtunnel exited unexpectedly/, 'tunnel that ends after the config fails');
+    unlike($task_log, qr/cleaning up/, 'no cleanup once the config arrived');
+    is(PVE::LXC::Config->load_config(300)->{lock}, 'migrate', 'config that arrived is kept');
 };
 
 remove_tree($WORKDIR);
