@@ -27,7 +27,8 @@ use PVE::AbstractMigrate;
 use base qw(PVE::AbstractMigrate);
 
 # compared against remote end's minimum version
-our $WS_TUNNEL_VERSION = 2;
+# 3: the 'identity' command, and 'meta' with the guest identity in the config
+our $WS_TUNNEL_VERSION = 3;
 
 sub fork_tunnel {
     my ($self, $ssh_forward_info) = @_;
@@ -166,6 +167,11 @@ sub prepare {
             if $WS_TUNNEL_VERSION < $min_version;
         $err = "Remote tunnel endpoint too old, upgrade required\n"
             if $WS_TUNNEL_VERSION > $tunnel->{version};
+
+        if (!$err) {
+            eval { $self->adopt_identity_on_target('PVE::LXC::Config', $tunnel) };
+            $err = $@;
+        }
 
         if ($err) {
             # the target already reserved the VMID with a locked config

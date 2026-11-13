@@ -75,6 +75,12 @@ my sub write_raw_config($vmid, $raw, $node = undef) {
     file_set_contents($file, $raw);
 }
 
+my sub write_raw_vm_config($vmid, $raw) {
+    my $dir = cfs_file("nodes/$NODENAME/qemu-server");
+    make_path($dir);
+    file_set_contents("$dir/$vmid.conf", $raw);
+}
+
 my sub read_raw_config($vmid, $node = undef) {
     my $file = cfs_file(ct_config_path($vmid, $node));
     return -f $file ? file_get_contents($file) : undef;
@@ -2394,6 +2400,361 @@ subtest 'restore over the container left behind by a restore of a backup' => sub
         identity_of(200)->{uid}, 'backupbackupbackupba', 'its uid is the pending uid: adopted',
     );
     is(pending_uid_of(200), undef, 'pending uid is removed');
+};
+
+subtest 'remote migration adopts the guest identity of the source' => sub {
+    my $source_meta = 'ctime=1600000000,rtime=1600000000000,uid=sourcesourcesourceso';
+    my $incoming = $INCOMING_CONFIG =~ s/^meta: .*$/meta: $source_meta/mr;
+    # like the source sends it
+    my $identity_cmd =
+        { cmd => 'identity', uid => 'sourcesourcesourceso', 'allow-new-uid' => 0 };
+    my $config_cmd = { cmd => 'config', conf => $incoming };
+    my $quit_cmd = { cmd => 'quit', cleanup => 0 };
+    my $cleanup_cmd = { cmd => 'quit', cleanup => 1 };
+    $now_ms = 1_700_000_000_000;
+
+    my $migrate = sub {
+        my ($name, $setup, $allow_new_uid, $expected_result, $expected_uid) = @_;
+
+        reset_configs();
+        $setup->();
+        my ($err, $replies) = run_mtunnel(
+            300,
+            { $identity_cmd->%*, 'allow-new-uid' => $allow_new_uid },
+            $config_cmd,
+            $quit_cmd,
+        );
+        is($err, '', "$name: tunnel exits normally") or diag(explain($replies), $task_log);
+        ok($replies->[0]->{success}, "$name: identity command succeeds");
+        ok($replies->[1]->{success}, "$name: config command succeeds");
+        ok(!exists($replies->[1]->{identity}), "$name: config command adopts nothing");
+
+        my $identity = $replies->[0]->{identity};
+        is($identity->{result}, $expected_result, "$name: result is returned");
+        my $stored = identity_of(300);
+        is($identity->{uid}, $stored->{uid}, "$name: returned uid is the stored one");
+        if (defined($expected_uid)) {
+            is($stored->{uid}, $expected_uid, "$name: uid");
+        } else {
+            isnt(
+                $stored->{uid},
+                'sourcesourcesourceso',
+                "$name: uid is not the one of the source",
+            );
+        }
+        is($stored->{rtime}, $now_ms, "$name: rtime is the time of the migration");
+        is(meta_of(300)->{ctime}, 1600000000, "$name: ctime of the source is kept");
+        like(
+            $task_log,
+            qr/^guest identity: .*$identity->{uid}/m,
+            "$name: result is logged on the target",
+        );
+
+        return $identity;
+    };
+
+    $migrate->('free uid', sub { }, 0, 'adopted', 'sourcesourcesourceso');
+    my $reserved_write = $written->{300}->[1];
+    ok(
+        $reserved_write =~ m/^lock: create$/m
+            && $reserved_write =~ m/^meta: .*uid=sourcesourcesourceso$/m,
+        'free uid: adopted right after the reservation',
+    );
+
+    my $in_use_by_ct =
+        sub { write_raw_config(150, existing_config('uid=sourcesourcesourceso')) };
+    my $in_use_by_vm =
+        sub { write_raw_vm_config(151, "memory: 512\nmeta: uid=sourcesourcesourceso\n") };
+    $migrate->('uid used by another container, allow-new-uid', $in_use_by_ct, 1, 'in-use');
+    $migrate->('uid used by a VM, allow-new-uid', $in_use_by_vm, 1, 'in-use');
+
+    for my $case (
+        ['uid used by another container', $in_use_by_ct, 150],
+        ['uid used by a VM', $in_use_by_vm, 151],
+    ) {
+        my ($name, $setup, $holder) = $case->@*;
+        reset_configs();
+        $setup->();
+        my ($err, $replies) = run_mtunnel(300, $identity_cmd, $cleanup_cmd);
+        is($err, '', "$name: tunnel exits normally") or diag($task_log);
+        ok(!$replies->[0]->{success}, "$name: identity command fails");
+        is(
+            $replies->[0]->{msg},
+            "failed to handle 'identity' command - guest $holder in the target cluster already"
+                . " has the uid 'sourcesourcesourceso' of this guest - use 'allow-new-uid' to"
+                . " migrate it with a new uid\n",
+            "$name: migration is refused",
+        );
+        is(scalar($written->{300}->@*), 1, "$name: nothing written besides the reservation");
+        ok($replies->[1]->{success}, "$name: cleanup succeeds");
+        ok(!defined(read_raw_config(300)), "$name: reservation is removed");
+    }
+
+    for my $case (
+        ['source without identity command', $incoming],
+        ['source without identity command and uid', $INCOMING_CONFIG],
+    ) {
+        my ($name, $conf) = $case->@*;
+        reset_configs();
+        my ($err, $replies) = run_mtunnel(300, { cmd => 'config', conf => $conf }, $quit_cmd);
+        is($err, '', "$name: tunnel exits normally") or diag($task_log);
+        ok($replies->[0]->{success}, "$name: config command succeeds");
+        my $uid = identity_of(300)->{uid};
+        like($uid, qr/^[a-z2-7]{20}$/, "$name: container has a uid");
+        isnt($uid, 'sourcesourcesourceso', "$name: it is a new one");
+        like(
+            $task_log,
+            qr/^guest identity: the source sent no uid, .* has the new uid $uid$/m,
+            "$name: target task logs the new uid",
+        );
+        like(
+            $task_log,
+            qr/^guest identity: .* a migration back there gets refused$/m,
+            "$name: and that the container cannot migrate back",
+        );
+    }
+
+    my $real_adopt = \&PVE::GuestIdentity::adopt;
+    my ($lock, $locked);
+    $identity_module->mock(
+        adopt => sub {
+            my ($class, $vmid) = @_;
+            $lock = PVE::LXC::Config->load_config($vmid)->{lock};
+            open(my $fh, '>>', "$WORKDIR/lock/pve-config-$vmid.lock")
+                or die "open failed - $!\n";
+            $locked = !flock($fh, LOCK_EX | LOCK_NB);
+            close($fh);
+            return $real_adopt->(@_);
+        },
+    );
+    $migrate->('order of the writes', sub { }, 0, 'adopted', 'sourcesourcesourceso');
+    $identity_module->unmock('adopt');
+    is($lock, 'create', 'identity is adopted before the config of the source is written');
+    ok($locked, 'config lock is held while adopting the identity');
+
+    reset_configs();
+    $domain_lock_error = "cfs-lock 'domain-guest-identity' error: got lock request timeout\n";
+    my ($err, $replies) = run_mtunnel(300, $identity_cmd, $cleanup_cmd);
+    $domain_lock_error = undef;
+    is($err, '', 'identity lock failure: tunnel exits normally') or diag($task_log);
+    ok(!$replies->[0]->{success}, 'identity lock failure: identity command fails');
+    is(
+        $replies->[0]->{msg},
+        "failed to handle 'identity' command - unable to adopt the uid of the source guest -"
+            . " cfs-lock 'domain-guest-identity' error: got lock request timeout\n",
+        'identity lock failure: error is returned',
+    );
+    ok($replies->[1]->{success}, 'identity lock failure: cleanup succeeds');
+    ok(!defined(read_raw_config(300)), 'identity lock failure: target config is removed');
+
+    reset_configs();
+    ($err, $replies) =
+        run_mtunnel(300, $identity_cmd, $identity_cmd, $config_cmd, $identity_cmd, $quit_cmd);
+    is($err, '', 'repeated identity: tunnel exits normally');
+    ok($replies->[0]->{success}, 'first identity command succeeds');
+    ok($replies->[2]->{success}, 'config command succeeds');
+    unlike($task_log, qr/the source sent no uid/, 'no note about a source without uid');
+    for my $i (1, 3) {
+        like(
+            $replies->[$i]->{msg},
+            qr/the uid can only be adopted once, before the config arrives/,
+            "identity command at position $i fails",
+        );
+    }
+
+    reset_configs();
+    my $broken = $incoming =~ s/^rootfs: local:/rootfs: iso:/mr;
+    ($err, $replies) = run_mtunnel(
+        300,
+        $identity_cmd,
+        { cmd => 'config', conf => $broken },
+        $config_cmd,
+        $config_cmd,
+        $quit_cmd,
+    );
+    is($err, '', 'repeated config: tunnel exits normally');
+    is($replies->[0]->{identity}->{result}, 'adopted', 'uid is adopted at the start');
+    ok(!$replies->[1]->{success}, 'failing config command fails');
+    ok($replies->[2]->{success}, 'retry of the config command succeeds');
+    ok(!$replies->[3]->{success}, 'config command after success fails');
+    is_deeply(
+        identity_of(300),
+        { uid => 'sourcesourcesourceso', rtime => $now_ms },
+        'identity adopted at the start is kept',
+    );
+};
+
+subtest 'remote migration sends the guest identity on the source' => sub {
+    my $source_raw = <<~'EOF';
+        arch: amd64
+        hostname: source
+        memory: 512
+        meta: ctime=1600000000,rtime=1600000000000,uid=sourcesourcesourceso
+        ostype: debian
+        unprivileged: 1
+        EOF
+    reset_configs();
+    write_raw_config(987, $source_raw);
+
+    my $log = '';
+    my $migrate_module = Test::MockModule->new('PVE::AbstractMigrate');
+    $migrate_module->mock(log => sub { $log .= "$_[1]: $_[2]\n" });
+
+    my ($commands, $reply) = ([]);
+    my $tunnel_module = Test::MockModule->new('PVE::Tunnel');
+    $tunnel_module->mock(
+        write_tunnel => sub {
+            my ($tunnel, $timeout, $command, $params) = @_;
+            push $commands->@*, { command => $command, timeout => $timeout, params => $params };
+            return $reply;
+        },
+    );
+
+    my $new_migration = sub($opts = {}) {
+        return bless {
+            opts => { remote => { vmid => 300 }, $opts->%* },
+            vmid => 987,
+            node => 'remote-node',
+            nodeip => '192.0.2.1',
+            storecfg => $storage_cfg,
+            vmconf => PVE::LXC::Config->load_config(987),
+            tunnel => {},
+            },
+            'PVE::LXC::Migrate';
+    };
+    my $adopt_on_target = sub($self) {
+        ($commands, $log) = ([], '');
+        return run_task(sub { $self->adopt_identity_on_target('PVE::LXC::Config', {}) });
+    };
+
+    $reply = {
+        success => 1,
+        identity => {
+            result => 'adopted',
+            uid => 'sourcesourcesourceso',
+            requested => 'sourcesourcesourceso',
+        },
+    };
+    is($adopt_on_target->($new_migration->()), '', 'identity command succeeds');
+    is_deeply(
+        $commands,
+        [{
+            command => 'identity',
+            timeout => 60,
+            params => { uid => 'sourcesourcesourceso', 'allow-new-uid' => 0 },
+        }],
+        'uid is sent, the source waits for the identity lock of the target',
+    );
+    my $adopted = 'guest identity: the migrated guest keeps uid sourcesourcesourceso';
+    like($log, qr/^info: \Q$adopted\E$/m, 'result of the target is logged');
+
+    is($adopt_on_target->($new_migration->({ 'allow-new-uid' => 1 })), '', 'allow-new-uid');
+    is($commands->[0]->{params}->{'allow-new-uid'}, 1, 'allow-new-uid is sent');
+
+    # a target with a newer version has accepted the uid at this point
+    $reply =
+        { success => 1, identity => { result => 'future', uid => 'sourcesourcesourceso' } };
+    is($adopt_on_target->($new_migration->()), '', 'outcome unknown here does not fail');
+    like(
+        $log,
+        qr/^warn: guest identity: unknown result 'future' of the target$/m,
+        'unknown outcome is a warning',
+    );
+
+    write_raw_config(987, $source_raw =~ s/^meta: .*\n//mr);
+    $reply = { success => 1 };
+    is($adopt_on_target->($new_migration->()), '', 'source without uid');
+    my $uid = identity_of(987)->{uid};
+    like($uid, qr/^[a-z2-7]{20}$/, 'source without uid: it gets a uid first');
+    is_deeply(
+        $commands,
+        [{
+            command => 'identity',
+            timeout => 60,
+            params => { uid => $uid, 'allow-new-uid' => 0 },
+        }],
+        'source without uid: that uid is sent',
+    );
+    write_raw_config(987, $source_raw);
+
+    $reply = { success => 1 };
+    ($commands, $log) = ([], '');
+    is(run_task(sub { $new_migration->()->phase1(987) }), '', 'phase 1 succeeds')
+        or diag($log, $task_log);
+    is($commands->[0]->{command}, 'config', 'phase 1 sends the config');
+    like(
+        $commands->[0]->{params}->{conf},
+        qr/^meta: .*uid=sourcesourcesourceso/m,
+        'config is sent with the identity',
+    );
+    is($commands->[0]->{timeout}, 10, 'config command does not wait for the identity lock');
+    unlike($log, qr/guest identity/, 'nothing is logged about the identity');
+    is(identity_of(987)->{uid}, 'sourcesourcesourceso', 'source keeps its uid');
+    PVE::LXC::Config->remove_lock(987, 'migrate');
+};
+
+subtest 'remote migration keeps the source if the target refuses the identity' => sub {
+    reset_configs();
+    write_raw_config(987, <<~'EOF');
+        arch: amd64
+        hostname: source
+        memory: 512
+        meta: ctime=1600000000,rtime=1600000000000,uid=sourcesourcesourceso
+        ostype: debian
+        unprivileged: 1
+        EOF
+
+    my $log = '';
+    my $migrate_module = Test::MockModule->new('PVE::AbstractMigrate');
+    $migrate_module->mock(log => sub { $log .= "$_[1]: $_[2]\n" });
+
+    my ($commands, $cleanup) = ([]);
+    my $tunnel_module = Test::MockModule->new('PVE::Tunnel');
+    $tunnel_module->mock(
+        fork_websocket_tunnel => sub { return { version => 3, age => 1 } },
+        write_tunnel => sub {
+            my ($tunnel, $timeout, $command) = @_;
+            push $commands->@*, $command;
+            die "error - tunnel command '$command' failed - failed to handle 'identity' command"
+                . " - guest 150 in the target cluster already has the uid 'sourcesourcesourceso'"
+                . " of this guest - use 'allow-new-uid' to migrate it with a new uid\n";
+        },
+        finish_tunnel => sub { (undef, $cleanup) = @_ },
+    );
+
+    my ($running, $stopped, $destroyed) = (1, 0, 0);
+    my $destroy_ct = \&PVE::LXC::destroy_lxc_container;
+    $lxc_module->mock(
+        check_running => sub { return $running },
+        vm_stop => sub { $stopped = 1 },
+        destroy_lxc_container => sub { $destroyed = 1 },
+    );
+
+    my $err = run_task(sub {
+        PVE::LXC::Migrate->migrate(
+            'remote-node',
+            '192.0.2.1',
+            987,
+            {
+                remote => { vmid => 300, conn => { host => '192.0.2.1', port => 8006 } },
+                restart => 1,
+                delete => 1,
+            },
+        );
+    });
+
+    $lxc_module->mock(check_running => sub { return 0 }, destroy_lxc_container => $destroy_ct);
+    $lxc_module->unmock('vm_stop');
+
+    like($err, qr/migration aborted/, 'migration fails');
+    like($log, qr/^err: .*already has the uid 'sourcesourcesourceso'/m, 'refusal is logged');
+    is_deeply($commands, ['identity'], 'nothing else is sent to the target');
+    is($cleanup, 1, 'target gets cleaned up');
+    ok(!$stopped, 'source is not stopped for the restart migration');
+    ok(!$destroyed, 'source is not destroyed');
+    my $conf = PVE::LXC::Config->load_config(987);
+    ok(!defined($conf->{lock}), 'source is not locked');
+    is(identity_of(987)->{uid}, 'sourcesourcesourceso', 'source keeps its uid');
 };
 
 remove_tree($WORKDIR);

@@ -1542,6 +1542,7 @@ __PACKAGE__->register_method({
                 minimum => '0',
                 default => 'migrate limit from datacenter or storage config',
             },
+            'allow-new-uid' => get_standard_option('pve-guest-allow-new-uid'),
         },
     },
     returns => {
@@ -3350,7 +3351,7 @@ __PACKAGE__->register_method({
         my $socket_addr = PVE::LXC::mtunnel_socket($vmid);
 
         my $lock = 'create';
-        eval { PVE::LXC::Config->create_and_lock_config($vmid, 0, $lock); };
+        my $reservation = eval { PVE::LXC::Config->create_and_lock_config($vmid, 0, $lock) };
 
         raise_param_exc({ vmid => "unable to create empty CT config - $@" })
             if $@;
@@ -3380,6 +3381,7 @@ __PACKAGE__->register_method({
             };
 
             my $cmd_desc = {
+                identity => PVE::GuestIdentity::tunnel_identity_cmd_schema(),
                 config => {
                     conf => {
                         type => 'string',
@@ -3434,11 +3436,20 @@ __PACKAGE__->register_method({
                     # bump/bump for opt-in changes
                     return {
                         api => $PVE::LXC::Migrate::WS_TUNNEL_VERSION,
-                        age => 0,
+                        age => 1,
                     };
+                },
+                'identity' => sub {
+                    my ($params) = @_;
+
+                    return PVE::GuestIdentity::handle_tunnel_identity(
+                        'PVE::LXC::Config', $state, $reservation, $params,
+                    );
                 },
                 'config' => sub {
                     my ($params) = @_;
+
+                    PVE::GuestIdentity::log_tunnel_identity_not_sent($state, $reservation);
 
                     # parse and write out VM FW config if given
                     if (my $fw_conf = $params->{'firewall-config'}) {

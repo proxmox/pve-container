@@ -14,6 +14,7 @@ use PVE::CpuSet;
 use PVE::Exception qw(raise_param_exc);
 use PVE::File;
 use PVE::GuestHelpers;
+use PVE::GuestIdentity;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::RPCEnvironment;
@@ -981,6 +982,7 @@ __PACKAGE__->register_method({
                 minimum => '0',
                 default => 'migrate limit from datacenter or storage config',
             },
+            'allow-new-uid' => get_standard_option('pve-guest-allow-new-uid'),
         },
     },
     returns => {
