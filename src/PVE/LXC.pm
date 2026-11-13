@@ -30,6 +30,7 @@ use PVE::Network::SDN::Zones;
 use PVE::ProcFSTools;
 use PVE::RESTEnvironment;
 use PVE::SafeSyslog;
+use PVE::Storage::Common;
 use PVE::Storage;
 use PVE::Tools qw(
     run_command
@@ -2298,7 +2299,7 @@ sub __mountpoint_mount {
                 }
             };
             my $use_loopdev = 0;
-            if ($scfg->{content}->{rootdir}) {
+            if (PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol')) {
                 if ($scfg->{path}) {
                     $mounted_dev = run_with_loopdev($domount, $path, $readonly);
                     $use_loopdev = 1;
@@ -2612,7 +2613,7 @@ sub alloc_disk {
 
     eval {
         my $do_format = 0;
-        if ($scfg->{content}->{rootdir} && $scfg->{path}) {
+        if (PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol') && $scfg->{path}) {
             if ($size_kb > 0 && !($scfg->{type} eq 'btrfs' && $scfg->{quotas})) {
                 $volid =
                     PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
@@ -2626,7 +2627,7 @@ sub alloc_disk {
             $volid =
                 PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'subvol', undef, $size_kb);
             $needs_chown = 1;
-        } elsif ($scfg->{content}->{rootdir}) {
+        } elsif (PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol')) {
             $volid =
                 PVE::Storage::vdisk_alloc($storecfg, $storage, $vmid, 'raw', undef, $size_kb);
             $do_format = 1;
@@ -2913,7 +2914,7 @@ sub complete_storage {
     my $res = [];
     foreach my $sid (keys %$ids) {
         next if !PVE::Storage::storage_check_enabled($cfg, $sid, undef, 1);
-        next if !$ids->{$sid}->{content}->{rootdir};
+        next if !PVE::Storage::Common::content_allows($ids->{$sid}->{content}, 'ct-vol');
         push @$res, $sid;
     }
 

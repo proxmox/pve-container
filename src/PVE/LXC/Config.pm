@@ -13,6 +13,7 @@ use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
 use PVE::Network::SDN::Vnets;
 use PVE::RESTEnvironment;
+use PVE::Storage::Common;
 use PVE::Tools;
 
 use PVE::LXC;
@@ -1339,7 +1340,7 @@ sub queue_pct_config_changes {
         my $sid = PVE::Storage::parse_volume_id($mp->{volume});
         my $storage_config = PVE::Storage::storage_config($storage_cfg, $sid);
         die "storage '$sid' does not allow content type 'rootdir' (Container)\n"
-            if !$storage_config->{content}->{rootdir};
+            if !PVE::Storage::Common::content_allows($storage_config->{content}, 'ct-vol');
     };
 
     foreach my $opt (sort keys %$param) { # add/change
@@ -2122,7 +2123,8 @@ sub get_replicatable_volumes {
         my ($path, $owner, $vtype) = PVE::Storage::path($storecfg, $volid);
         return if !$owner || ($owner != $vmid);
 
-        die "unable to replicate volume '$volid', type '$vtype'\n" if $vtype ne 'images';
+        die "unable to replicate volume '$volid', type '$vtype'\n"
+            if !PVE::Storage::Common::is_guest_vtype($vtype);
 
         return if !$cleanup && !$replicate;
 

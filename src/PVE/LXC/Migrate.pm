@@ -12,6 +12,7 @@ use PVE::JSONSchema;
 use PVE::Replication;
 use PVE::ReplicationConfig;
 use PVE::ReplicationState;
+use PVE::Storage::Common;
 use PVE::Storage::Plugin;
 use PVE::Storage;
 use PVE::StorageTunnel;
@@ -83,7 +84,7 @@ sub prepare {
             my $targetsid = $storage;
 
             die "content type 'rootdir' is not available on storage '$storage'\n"
-                if !$scfg->{content}->{rootdir};
+                if !PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol');
 
             if ($scfg->{shared} && !$remote) {
                 # PVE::Storage::activate_storage checks this for non-shared storages
@@ -104,7 +105,7 @@ sub prepare {
                 );
 
                 die "$volid: content type 'rootdir' is not available on storage '$targetsid'\n"
-                    if !$target_scfg->{content}->{rootdir};
+                    if !PVE::Storage::Common::content_allows($target_scfg->{content}, 'ct-vol');
             }
 
             $storages->{$targetsid} = 1;

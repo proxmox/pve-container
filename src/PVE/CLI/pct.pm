@@ -1039,7 +1039,7 @@ __PACKAGE__->register_method({
 
             my $content_types = [PVE::Tools::split_list($found->{content})];
             die "remote: storage '$storage' cannot store CT rootdir\n"
-                if !grep { $_ eq 'rootdir' } @$content_types;
+                if !grep { $_ eq 'rootdir' || $_ eq 'ct-vol' } @$content_types;
         };
 
         foreach my $target_sid (values %{ $storagemap->{entries} }) {

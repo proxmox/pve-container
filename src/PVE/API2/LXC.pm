@@ -23,6 +23,7 @@ use PVE::RS::OCI;
 use PVE::ReplicationConfig;
 use PVE::SSHInfo;
 use PVE::SafeSyslog;
+use PVE::Storage::Common;
 use PVE::Storage;
 use PVE::Ticket;
 use PVE::Tools qw(extract_param run_command);
@@ -68,7 +69,7 @@ my $check_storage_access_migrate = sub {
 
     my $scfg = PVE::Storage::storage_config($storecfg, $storage);
     die "storage '$storage' does not support CT rootdirs\n"
-        if !$scfg->{content}->{rootdir};
+        if !PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol');
 };
 
 __PACKAGE__->register_method({
@@ -361,7 +362,7 @@ __PACKAGE__->register_method({
 
             raise_param_exc({
                 storage => "storage '$sid' does not support container directories" })
-                if !$scfg->{content}->{rootdir};
+                if !PVE::Storage::Common::content_allows($scfg->{content}, 'ct-vol');
 
             $rpcenv->check($authuser, "/storage/$sid", ['Datastore.AllocateSpace']);
 
