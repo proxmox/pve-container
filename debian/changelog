@@ -1,3 +1,27 @@
+pve-container (6.1.21) trixie; urgency=medium
+
+  * api: snapshot rollback: also require VM.PowerMgmt for rolling back a
+    running container without the 'start' parameter, as that leaves the
+    container stopped. Previously, VM.Snapshot.Rollback alone was enough to
+    power off a container this way.
+
+  * restore: backup provider: call the restore methods of an external backup
+    provider as documented, without the storage ID as extra argument. A
+    provider using the documented signatures could not restore containers at
+    all. A provider that reads the second argument of the container restore
+    init and cleanup methods as storage ID needs to be adapted.
+
+  * config: release the IPAM addresses of a network interface removed from a
+    running container, and stop the DHCP client of a host-managed one.
+    Previously, the addresses stayed allocated, even after destroying the
+    container.
+
+  * fix #8162: status: always return 'cpus' as number. For containers that
+    only have 'cpulimit' set it was returned as string, breaking clients that
+    decode the response strictly by the API schema.
+
+ -- Proxmox Support Team <support@proxmox.com>  Sat, 14 Nov 2026 22:30:29 +0100
+
 pve-container (6.1.20) trixie; urgency=medium
 
   * remote migration: fix removing the temporary config on the target node if
