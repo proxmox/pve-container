@@ -8,6 +8,8 @@ use lib qw(..);
 use Test::More;
 
 use PVE::LXC::Config;
+use PVE::LXC::Create;
+use PVE::RPCEnvironment;
 
 # Creates new and old configurations based on the common core and just
 # the changes. The fourth parameter can change the kind of mountpoint it
@@ -149,6 +151,28 @@ subtest 'parsing drops keys outside of the schema' => sub {
     ok(defined($conf->{net0}), 'valid network device key is kept');
     ok(!exists($conf->{$_}), "unknown key $_ is dropped") for qw(net01 net32 dev256 unknown);
     is($conf->{memory}, 'invalid', 'invalid value of a known key is kept');
+};
+
+subtest 'restore does not take over pending changes of the backup' => sub {
+    my $rpcenv = PVE::RPCEnvironment->init('cli');
+
+    my $raw =
+        "arch: amd64\nhostname: ct100\nmemory: 512\nostype: debian\nunprivileged: 1\n"
+        . "\n[pve:pending]\nlxc.apparmor.profile: unconfined\nmemory: 4096\n"
+        . "mp0: /etc,mp=/mnt/hostetc\n";
+    my $backup = PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw);
+    ok(scalar(keys $backup->{pending}->%*), 'backup config has pending changes');
+
+    for my $user ('user@pve', 'root@pam') {
+        $rpcenv->set_user($user);
+        for my $conf ({}, { pending => {} }) {
+            my $what =
+                "$user, " . (exists($conf->{pending}) ? 'with' : 'without') . ' own pending';
+            PVE::LXC::Create::sanitize_and_merge_config($conf, $backup, $user ne 'root@pam', 0);
+            is($conf->{memory}, 512, "$what: current values are taken over");
+            ok(!scalar(keys(($conf->{pending} // {})->%*)), "$what: pending changes are not");
+        }
+    }
 };
 
 done_testing();

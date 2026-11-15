@@ -531,6 +531,8 @@ sub sanitize_and_merge_config {
             || $key eq 'snapshots'
             || $key eq 'unprivileged'
             || $key eq 'parent';
+        # vzdump never archives pending changes, and the next start would apply them unchecked
+        next if $key eq 'pending';
         next if $key =~ /^mp\d+$/; # don't recover mountpoints
         next if $key =~ /^unused\d+$/; # don't recover unused disks
         # we know if it was a template in the restore API call and check if the target
