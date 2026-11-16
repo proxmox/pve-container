@@ -1,3 +1,20 @@
+pve-container (6.1.22) trixie; urgency=medium
+
+  * storage: handle the volume types that libpve-storage-perl 9.1.17
+    introduces, which tell the volumes of containers ('ct-vol') apart from the
+    disks and saved states of VMs. A storage that is restricted to container
+    volumes can be used for the root disk and mount points of a container, the
+    same as one with the 'rootdir' content type, which keeps allowing them.
+    Replication handles volumes of the new type too. Existing storages and
+    containers work unchanged.
+
+  * restore: explicitly skip pending changes in the config of a backup, as
+    hardening. vzdump never archives pending changes, and a restore did not
+    take them over from a crafted backup before either, but only due to how
+    the API prepares the config of the restored container.
+
+ -- Proxmox Support Team <support@proxmox.com>  Mon, 16 Nov 2026 02:57:28 +0100
+
 pve-container (6.1.21) trixie; urgency=medium
 
   * api: snapshot rollback: also require VM.PowerMgmt for rolling back a
