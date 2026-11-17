@@ -149,10 +149,18 @@ sub prepare {
         $self->log('info', "local WS tunnel version: $WS_TUNNEL_VERSION");
         $self->log('info', "remote WS tunnel version: $tunnel->{version}");
         $self->log('info', "minimum required WS tunnel version: $min_version");
-        die "Remote tunnel endpoint not compatible, upgrade required\n"
+        my $err;
+        $err = "Remote tunnel endpoint not compatible, upgrade required\n"
             if $WS_TUNNEL_VERSION < $min_version;
-        die "Remote tunnel endpoint too old, upgrade required\n"
+        $err = "Remote tunnel endpoint too old, upgrade required\n"
             if $WS_TUNNEL_VERSION > $tunnel->{version};
+
+        if ($err) {
+            # the target already reserved the VMID with a locked config
+            eval { PVE::Tunnel::finish_tunnel($tunnel, 1); };
+            $self->log('warn', "cleanup of the target failed - $@") if $@;
+            die $err;
+        }
 
         $self->log('info', "websocket tunnel started\n");
         $self->{tunnel} = $tunnel;
@@ -169,7 +177,15 @@ sub prepare {
 
         $self->log('info', "shutdown CT $vmid\n");
 
-        PVE::LXC::vm_stop($vmid, 0, $timeout);
+        eval { PVE::LXC::vm_stop($vmid, 0, $timeout) };
+        if (my $err = $@) {
+            # the target of a remote migration already reserved the VMID with a locked config
+            if (my $tunnel = delete $self->{tunnel}) {
+                eval { PVE::Tunnel::finish_tunnel($tunnel, 1); };
+                $self->log('warn', "cleanup of the target failed - $@") if $@;
+            }
+            die $err;
+        }
 
         $running = 0;
     }
