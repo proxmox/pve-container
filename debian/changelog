@@ -1,3 +1,12 @@
+pve-container (6.1.23) trixie; urgency=medium
+
+  * api: create: mark the root password as sensitive.
+
+  * api: record used CT IDs for supporting the new 'unique' property for the
+    'next-id' datacenter configuration option.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 17 Nov 2026 12:36:03 +0100
+
 pve-container (6.1.22) trixie; urgency=medium
 
   * storage: handle the volume types that libpve-storage-perl 9.1.17
