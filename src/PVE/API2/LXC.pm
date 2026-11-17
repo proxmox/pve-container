@@ -631,13 +631,15 @@ __PACKAGE__->register_method({
                 warn $@ if $@;
                 PVE::LXC::destroy_disks($storage_cfg, $vollist);
                 if ($destroy_config_on_error) {
-                    eval { PVE::LXC::Config->destroy_config($vmid) };
-                    warn $@ if $@;
-
+                    # The firewall config goes first, before the VMID is freed. The config is
+                    # locked, so the CT cannot run unprotected.
                     if (!$skip_fw_config_restore) { # Only if user has permission to change the fw
-                        PVE::Firewall::remove_vmfw_conf($vmid);
+                        eval { PVE::Firewall::remove_vmfw_conf($vmid) };
                         warn $@ if $@;
                     }
+
+                    eval { PVE::LXC::Config->destroy_config($vmid) };
+                    warn $@ if $@;
                 }
                 die "$emsg $err";
             }
@@ -2175,8 +2177,10 @@ __PACKAGE__->register_method({
                 $lock_and_reload->(
                     $newid,
                     sub {
-                        PVE::LXC::Config->destroy_config($newid);
+                        # The firewall config goes first, before the VMID is freed. The config
+                        # is locked, so the CT cannot run unprotected.
                         PVE::Firewall::remove_vmfw_conf($newid);
+                        PVE::LXC::Config->destroy_config($newid);
                     },
                 );
             };
@@ -2294,8 +2298,10 @@ __PACKAGE__->register_method({
                         sub {
                             my $conf = shift;
                             PVE::LXC::delete_ifaces_ipams_ips($conf, $newid);
-                            PVE::LXC::Config->destroy_config($newid);
+                            # The firewall config goes first, before the VMID is freed. The
+                            # config is locked, so the CT cannot run unprotected.
                             PVE::Firewall::remove_vmfw_conf($newid);
+                            PVE::LXC::Config->destroy_config($newid);
                         },
                     );
                 };
