@@ -996,10 +996,12 @@ sub delete_mountpoint_volume {
     }
 }
 
+# Returns the volumes of $conf that could not be removed.
 sub destroy_lxc_container {
     my ($storage_cfg, $vmid, $conf, $replacement_conf, $purge_unreferenced) = @_;
 
     my $volids = {};
+    my $left = [];
 
     if ($conf->{template}) {
         PVE::LXC::Config->foreach_volume_full(
@@ -1031,7 +1033,10 @@ sub destroy_lxc_container {
         $volids->{$volid} = 1;
 
         eval { delete_mountpoint_volume($storage_cfg, $vmid, $volid); };
-        PVE::RESTEnvironment::log_warn("failed to delete mountpoint volume $volid: $@") if $@;
+        if (my $err = $@) {
+            PVE::RESTEnvironment::log_warn("failed to delete mountpoint volume $volid: $err");
+            push $left->@*, $volid;
+        }
     };
     PVE::LXC::Config->foreach_volume_full($conf, { include_unused => 1 }, $remove_volume);
 
@@ -1060,6 +1065,8 @@ sub destroy_lxc_container {
     } else {
         PVE::LXC::Config->destroy_config($vmid);
     }
+
+    return $left;
 }
 
 sub vm_stop_cleanup {
@@ -2593,17 +2600,26 @@ sub format_disk {
     mkfs($path, $root_uid, $root_gid);
 }
 
+# Frees the volumes in $vollist and returns the ones that could not be freed.
 sub destroy_disks {
     my ($storecfg, $vollist) = @_;
 
+    my $left = [];
     foreach my $volid (@$vollist) {
         eval { PVE::Storage::vdisk_free($storecfg, $volid); };
-        warn $@ if $@;
+        if (my $err = $@) {
+            warn $err;
+            push $left->@*, $volid;
+        }
     }
+
+    return $left;
 }
 
+# If the array $allocated is given, a volume that got allocated before a failure is added to it and
+# not freed, so that the caller frees it.
 sub alloc_disk {
-    my ($storecfg, $vmid, $storage, $size_kb, $root_uid, $root_gid) = @_;
+    my ($storecfg, $vmid, $storage, $size_kb, $root_uid, $root_gid, $allocated) = @_;
 
     my $needs_chown = 0;
     my $volid;
@@ -2638,7 +2654,9 @@ sub alloc_disk {
     };
     if (my $err = $@) {
         # in case formatting got interrupted:
-        if (defined($volid)) {
+        if (defined($volid) && $allocated) {
+            push $allocated->@*, $volid;
+        } elsif (defined($volid)) {
             eval { PVE::Storage::vdisk_free($storecfg, $volid); };
             warn $@ if $@;
         }
@@ -2648,10 +2666,12 @@ sub alloc_disk {
     return ($volid, $needs_chown);
 }
 
+# Allocates the new volumes in $settings and returns them. If the array $allocated is given, they get
+# added to it as soon as they exist, and freeing them after a failure is left to the caller.
 sub create_disks {
-    my ($storecfg, $vmid, $settings, $conf, $pending) = @_;
+    my ($storecfg, $vmid, $settings, $conf, $pending, $allocated) = @_;
 
-    my $vollist = [];
+    my $vollist = $allocated // [];
 
     eval {
         my (undef, $root_uid, $root_gid) = PVE::LXC::parse_id_maps($conf);
@@ -2673,12 +2693,20 @@ sub create_disks {
                     my $size_kb = int(${size_gb} * 1024) * 1024;
 
                     my $needs_chown = 0;
-                    ($volid, $needs_chown) =
-                        alloc_disk($storecfg, $vmid, $storage, $size_kb, $root_uid, $root_gid);
+                    ($volid, $needs_chown) = alloc_disk(
+                        $storecfg,
+                        $vmid,
+                        $storage,
+                        $size_kb,
+                        $root_uid,
+                        $root_gid,
+                        $allocated,
+                    );
                     push @$chown_vollist, $volid if $needs_chown;
                     push @$vollist, $volid;
                     $mountpoint->{volume} = $volid;
                     $mountpoint->{size} = $size_kb * 1024;
+
                     if ($pending) {
                         $conf->{pending}->{$ms} =
                             PVE::LXC::Config->print_ct_mountpoint($mountpoint, $ms eq 'rootfs');
@@ -2703,7 +2731,7 @@ sub create_disks {
     };
     # free allocated images on error
     if (my $err = $@) {
-        destroy_disks($storecfg, $vollist);
+        destroy_disks($storecfg, $vollist) if !$allocated;
         die $err;
     }
     return $vollist;

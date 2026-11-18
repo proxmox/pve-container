@@ -18,6 +18,7 @@ use PVE::GuestHelpers;
 use PVE::GuestID;
 use PVE::INotify;
 use PVE::JSONSchema qw(get_standard_option);
+use PVE::RESTEnvironment;
 use PVE::RESTHandler;
 use PVE::RPCEnvironment;
 use PVE::RRD;
@@ -506,6 +507,7 @@ __PACKAGE__->register_method({
             my $old_firewall_config = PVE::GuestHelpers::get_firewall_config_raw($vmid);
 
             my $vollist = [];
+            my $old_volumes_left = [];
             eval {
                 my $orig_mp_param; # only used if $restore
                 if ($restore) {
@@ -608,12 +610,12 @@ __PACKAGE__->register_method({
                     }
                 }
 
-                $vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
+                PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf, 0, $vollist);
 
                 # we always have the 'create' lock so check for more than 1 entry
                 if (scalar(keys %$old_conf) > 1) {
                     # destroy old container volumes
-                    PVE::LXC::destroy_lxc_container(
+                    $old_volumes_left = PVE::LXC::destroy_lxc_container(
                         $storage_cfg,
                         $vmid,
                         $old_conf,
@@ -695,18 +697,31 @@ __PACKAGE__->register_method({
             if (my $err = $@) {
                 eval { PVE::LXC::delete_ifaces_ipams_ips($conf, $vmid) };
                 warn $@ if $@;
-                PVE::LXC::destroy_disks($storage_cfg, $vollist);
+                my @left = map { "volume '$_'" } (
+                    PVE::LXC::destroy_disks($storage_cfg, $vollist)->@*, $old_volumes_left->@*,
+                );
                 if ($destroy_config_on_error) {
                     # The firewall config goes first, before the VMID is freed. The config is
                     # locked, so the CT cannot run unprotected. If the restore destroyed the old
-                    # container, its firewall config gets removed like its config. In all other
-                    # cases, the previous firewall config is put back.
-                    my $firewall_config = $same_container_exists ? undef : $old_firewall_config;
+                    # container and nothing of it is left, its firewall config gets removed like
+                    # its config. In all other cases, the previous firewall config is put back.
+                    my $firewall_config =
+                        $same_container_exists && !@left ? undef : $old_firewall_config;
                     eval { PVE::GuestHelpers::set_firewall_config_raw($vmid, $firewall_config) };
-                    warn "unable to reset the firewall config - $@" if $@;
+                    if (my $firewall_err = $@) {
+                        warn "unable to reset the firewall config - $firewall_err";
+                        push @left, 'the firewall config';
+                    }
 
-                    eval { PVE::LXC::Config->destroy_config($vmid) };
-                    warn $@ if $@;
+                    if (@left) {
+                        # what is left keeps the VMID, so that no other guest gets it
+                        my $msg =
+                            "keeping CT $vmid locked, the cleanup left behind " . join(', ', @left);
+                        PVE::RESTEnvironment::log_warn($msg);
+                    } else {
+                        eval { PVE::LXC::Config->destroy_config($vmid) };
+                        warn $@ if $@;
+                    }
                 }
                 die "$emsg $err";
             }

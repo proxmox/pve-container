@@ -290,8 +290,8 @@ my $lxc_module = Test::MockModule->new('PVE::LXC');
 $lxc_module->mock(
     check_running => sub { return 0 },
     create_disks => sub {
-        my ($storecfg, $vmid, $settings, $conf) = @_;
-        my $vollist = [];
+        my ($storecfg, $vmid, $settings, $conf, $pending, $allocated) = @_;
+        my $vollist = $allocated // [];
         for my $ms (sort keys %$settings) {
             my $volid = "local:$vmid/vm-$vmid-disk-$ms.raw";
             $conf->{$ms} = "$volid,size=4G";
@@ -299,7 +299,7 @@ $lxc_module->mock(
         }
         return $vollist;
     },
-    destroy_disks => sub { },
+    destroy_disks => sub { return [] },
     destroy_lxc_container => sub {
         my ($storecfg, $vmid, $conf, $replacement_conf) = @_;
         if (defined($replacement_conf)) {
@@ -307,6 +307,7 @@ $lxc_module->mock(
         } else {
             PVE::LXC::Config->destroy_config($vmid);
         }
+        return [];
     },
     mount_all => sub {
         my ($vmid) = @_;
@@ -826,6 +827,136 @@ subtest 'firewall config follows its container if a create or restore fails' => 
             undef,
         );
     }
+};
+
+subtest 'failed create or restore keeps the VMID if the cleanup leaves something behind' => sub {
+    my $kept = sub($name, $err, $left) {
+        like($err, qr/setup hook failed|storage full/, "$name: fails");
+        my $msg = "keeping CT 200 locked, the cleanup left behind $left";
+        like($task_log, qr/^WARN: \Q$msg\E$/m, "$name: what is left is logged");
+        ok(defined(read_raw_config(200)), "$name: config is kept") or return;
+        is(PVE::LXC::Config->load_config(200)->{lock}, 'create', "$name: and stays locked");
+    };
+    my $setup = sub {
+        reset_state();
+        $hook_error = "setup hook failed\n";
+    };
+    my $keep_all = { destroy_disks => sub { return $_[1] } };
+
+    $setup->();
+    my $err = with_mock($lxc_module, $keep_all, sub { restore_ct(200) });
+    $kept->('volume that cannot be freed', $err, "volume 'local:200/vm-200-disk-rootfs.raw'");
+
+    # create_disks leaves the volumes it allocated before a failure to the caller
+    $setup->();
+    my $partly = {
+        $keep_all->%*,
+        create_disks => sub {
+            my ($storecfg, $vmid, $settings, $conf, $pending, $allocated) = @_;
+            push $allocated->@*, 'local:200/vm-200-disk-0.raw', 'local:200/vm-200-disk-1.raw';
+            die "unable to allocate volume - storage full\n";
+        },
+    };
+    $err = with_mock($lxc_module, $partly, sub { create_ct(200) });
+    $kept->(
+        'volumes of a failed allocation',
+        $err,
+        "volume 'local:200/vm-200-disk-0.raw', volume 'local:200/vm-200-disk-1.raw'",
+    );
+
+    $setup->();
+    write_raw_config(200, existing_config());
+    set_firewall_config(200, "rules of the container\n");
+    $backup_fw_config = "backup rules\n";
+    my $mocked_destroy = PVE::LXC->can('destroy_lxc_container');
+    my $old_left = {
+        destroy_lxc_container => sub {
+            $mocked_destroy->(@_);
+            return ['local:200/vm-200-disk-0.raw'];
+        },
+    };
+    $err = with_mock($lxc_module, $old_left, sub { restore_ct(200, { force => 1 }) });
+    $kept->('volume of the old container', $err, "volume 'local:200/vm-200-disk-0.raw'");
+    is(firewall_config(200), "rules of the container\n", 'its firewall config is put back');
+
+    $setup->();
+    $backup_fw_config = "backup rules\n";
+    my $set_raw = PVE::GuestHelpers->can('set_firewall_config_raw');
+    my $helpers_module = Test::MockModule->new('PVE::GuestHelpers');
+    $helpers_module->mock(
+        set_firewall_config_raw => sub {
+            my ($vmid, $raw) = @_;
+            die "unable to remove the firewall config - Input/output error\n" if !defined($raw);
+            return $set_raw->(@_);
+        },
+    );
+    $err = restore_ct(200);
+    $kept->('firewall config that cannot be put back', $err, 'the firewall config');
+    like(
+        $task_log,
+        qr/^WARN: unable to reset the firewall config - .* Input\/output error$/m,
+        'the reason is logged',
+    );
+};
+
+subtest 'volumes that cannot be freed are returned or left to the caller' => sub {
+    reset_state();
+    my (@allocated, @freed, $busy, $formats);
+    my $storage_mocks = {
+        vdisk_alloc => sub {
+            my ($cfg, $storeid, $vmid) = @_;
+            push @allocated, "$storeid:$vmid/vm-$vmid-disk-" . scalar(@allocated) . ".raw";
+            return $allocated[-1];
+        },
+        vdisk_free => sub {
+            my ($cfg, $volid) = @_;
+            die "unable to free '$volid' - storage busy\n" if $busy->{$volid};
+            push @freed, $volid;
+        },
+    };
+    my $lxc_mocks = {
+        destroy_disks => $lxc_module->original('destroy_disks'),
+        # formatting the second volume fails
+        format_disk => sub { die "formatting failed\n" if ++$formats == 2 },
+    };
+    my $create_disks = sub(@allocated_by_caller) {
+        (@allocated, @freed, $formats) = ();
+        my $settings = { rootfs => 'local:4', mp0 => 'local:4,mp=/mnt' };
+        my $run = sub {
+            $lxc_module->original('create_disks')
+                ->($storage_cfg, 200, $settings, {}, 0, @allocated_by_caller);
+        };
+        my $err = run_task(sub {
+            with_mock(
+                $storage_module,
+                $storage_mocks,
+                sub { with_mock($lxc_module, $lxc_mocks, $run) },
+            );
+        });
+        like($err, qr/formatting failed/, 'allocating the volumes fails');
+    };
+
+    $create_disks->();
+    is(scalar(@allocated), 2, 'two volumes got allocated');
+    is_deeply([sort @freed], \@allocated, 'create_disks frees them');
+
+    my $vollist = [];
+    $create_disks->($vollist);
+    is_deeply($vollist, \@allocated, 'with an array of the caller, they are added to it');
+    is_deeply(\@freed, [], 'and freeing them is left to the caller');
+
+    $busy = { $allocated[1] => 1 };
+    my $left = with_mock(
+        $storage_module,
+        $storage_mocks,
+        sub {
+            run_task(sub {
+                $vollist = $lxc_module->original('destroy_disks')->($storage_cfg, $vollist);
+            });
+        },
+    );
+    is_deeply($vollist, [$allocated[1]], 'destroy_disks returns the volume it could not free');
+    is_deeply(\@freed, [$allocated[0]], 'and frees the other one');
 };
 
 remove_tree($WORKDIR);
