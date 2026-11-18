@@ -15,6 +15,7 @@ use PVE::Storage::PBSPlugin;
 use PVE::Storage::Plugin;
 use PVE::Storage;
 use PVE::DataCenterConfig;
+use PVE::GuestHelpers;
 use PVE::LXC;
 use PVE::LXC::Setup;
 use PVE::VZDump::ConvertOVZ;
@@ -397,6 +398,22 @@ sub recover_config_from_external_backup {
     return wantarray ? ($conf, $mp_param) : $conf;
 }
 
+# Makes the firewall config of a backup, which $get_raw returns, the one of CT $vmid. With $skip_fw,
+# for a user without the permission to change the firewall config, it only warns.
+my sub restore_firewall_config {
+    my ($vmid, $skip_fw, $get_raw) = @_;
+
+    if ($skip_fw) {
+        warn "ignoring firewall config from backup archive, lacking API permission to modify"
+            . " firewall.\n";
+        warn "old firewall configuration of CT $vmid left in place!\n"
+            if defined(PVE::GuestHelpers::get_firewall_config_raw($vmid));
+        return;
+    }
+
+    PVE::GuestHelpers::set_firewall_config_raw($vmid, $get_raw->());
+}
+
 sub restore_configuration {
     my ($vmid, $storage_cfg, $archive, $rootdir, $conf, $restricted, $unique, $skip_fw) = @_;
 
@@ -458,21 +475,19 @@ sub restore_configuration_from_proxmox_backup {
     my $has_fw_conf = grep { $_->{filename} eq 'fw.conf.blob' } @$list;
 
     if ($has_fw_conf) {
-        my $pve_firewall_dir = '/etc/pve/firewall';
-        my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
-        if ($skip_fw) {
-            warn
-                "ignoring firewall config from backup archive's 'fw.conf', lacking API permission to modify firewall.\n";
-            warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
-                if -e $pct_fwcfg_target;
-        } else {
-            mkdir $pve_firewall_dir; # make sure the directory exists
-            unlink $pct_fwcfg_target;
-
-            my $cmd = "restore";
-            my $param = [$name, "fw.conf", $pct_fwcfg_target];
-            PVE::Storage::PBSPlugin::run_raw_client_cmd($scfg, $storeid, $cmd, $param);
-        }
+        my $get_raw = sub {
+            # through a file, as reading the output line by line would not keep it byte for byte
+            open(my $fh, '+>', undef) or die "unable to create a temporary file - $!\n";
+            my %opts = (output => '>&' . fileno($fh));
+            my $param = [$name, "fw.conf", "-"];
+            PVE::Storage::PBSPlugin::run_raw_client_cmd(
+                $scfg, $storeid, "restore", $param, %opts,
+            );
+            seek($fh, 0, 0) or die "unable to read the firewall config of the backup - $!\n";
+            local $/ = undef;
+            return <$fh>;
+        };
+        restore_firewall_config($vmid, $skip_fw, $get_raw);
     }
 }
 
@@ -501,19 +516,8 @@ sub restore_configuration_from_external_backup {
 
     my $firewall_config = $backup_provider->archive_get_firewall_config($volname);
 
-    if ($firewall_config) {
-        my $pve_firewall_dir = '/etc/pve/firewall';
-        my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
-        if ($skip_fw) {
-            warn
-                "ignoring firewall config from backup archive, lacking API permission to modify firewall.\n";
-            warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
-                if -e $pct_fwcfg_target;
-        } else {
-            mkdir $pve_firewall_dir; # make sure the directory exists
-            PVE::Tools::file_set_contents($pct_fwcfg_target, $firewall_config);
-        }
-    }
+    restore_firewall_config($vmid, $skip_fw, sub { return $firewall_config })
+        if $firewall_config;
 
     return;
 }
@@ -597,17 +601,8 @@ sub restore_configuration_from_etc_vzdump {
         # only copy non-empty, non-symlink files, and only if the user is
         # allowed to modify the firewall config anyways
         if (-f $pct_fwcfg_fn && !-l $pct_fwcfg_fn && -s $pct_fwcfg_fn) {
-            my $pve_firewall_dir = '/etc/pve/firewall';
-            my $pct_fwcfg_target = "${pve_firewall_dir}/${vmid}.fw";
-            if ($skip_fw) {
-                warn
-                    "ignoring firewall config from backup archive's '$pct_fwcfg_fn', lacking API permission to modify firewall.\n";
-                warn "old firewall configuration in '$pct_fwcfg_target' left in place!\n"
-                    if -e $pct_fwcfg_target;
-            } else {
-                mkdir $pve_firewall_dir; # make sure the directory exists
-                PVE::Tools::file_copy($pct_fwcfg_fn, $pct_fwcfg_target);
-            }
+            my $get_raw = sub { return PVE::Tools::file_get_contents($pct_fwcfg_fn) };
+            restore_firewall_config($vmid, $skip_fw, $get_raw);
             unlink $pct_fwcfg_fn;
         }
 

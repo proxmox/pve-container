@@ -34,6 +34,7 @@ use PVE::API2::LXC;
 my $WORKDIR = 'lifecycle-working';
 my $NODENAME = PVE::INotify::nodename();
 my $BACKUP_VOLID = 'local:backup/vzdump-lxc-100-2026_01_01-00_00_00.tar.zst';
+my $PBS_VOLID = 'pbs:backup/ct/100/2026-01-01T00:00:00Z';
 
 remove_tree($WORKDIR);
 make_path("$WORKDIR/lock");
@@ -84,6 +85,10 @@ my $storage_cfg = {
             type => 'dir',
             path => '/mnt/iso',
             content => { iso => 1 },
+        },
+        pbs => {
+            type => 'pbs',
+            content => { backup => 1 },
         },
     },
 };
@@ -249,6 +254,7 @@ my sub with_mock($module, $mocks, $code) {
 
 my $backup_raw_config; # the config in the backup, undef for none
 my $backup_read_error; # set to let reading the config of the backup fail
+my $backup_fw_config; # the firewall config in the backup, if any
 my $hook_error; # set to let the setup hooks at the end of a create or restore fail
 
 my $storage_module = Test::MockModule->new('PVE::Storage');
@@ -273,6 +279,11 @@ $storage_module->mock(
     },
     storage_has_feature => sub { return 0 },
     get_bandwidth_limit => sub { return undef },
+    parse_volname => sub {
+        my ($cfg, $volid) = @_;
+        die "unexpected volume '$volid'\n" if $volid ne $PBS_VOLID;
+        return ('backup', 'ct/100/2026-01-01T00:00:00Z', 100, undef, undef, undef, 'pbs-ct');
+    },
 );
 
 my $lxc_module = Test::MockModule->new('PVE::LXC');
@@ -332,6 +343,34 @@ $create_module->mock(
         make_path("$rootdir/etc/vzdump");
         file_set_contents("$rootdir/etc/vzdump/pct.conf", $backup_raw_config)
             if defined($backup_raw_config);
+        file_set_contents("$rootdir/etc/vzdump/pct.fw", $backup_fw_config)
+            if defined($backup_fw_config);
+    },
+);
+
+# the same backup on a Proxmox Backup Server, which has the configs as files of their own
+my $pbs_module = Test::MockModule->new('PVE::Storage::PBSPlugin');
+$pbs_module->mock(
+    run_client_cmd => sub {
+        my ($scfg, $storeid, $cmd) = @_;
+        die "unexpected client command '$cmd'\n" if $cmd ne 'files';
+        my @files = ('pct.conf', defined($backup_fw_config) ? 'fw.conf' : ());
+        return [map { { filename => "$_.blob" } } @files];
+    },
+    run_raw_client_cmd => sub {
+        my ($scfg, $storeid, $cmd, $param, %opts) = @_;
+        my ($name, $file, $target) = @$param;
+        die "unexpected client command '$cmd $file $target'\n"
+            if $cmd ne 'restore' || $target ne '-';
+        my $files = { 'pct.conf' => $backup_raw_config, 'fw.conf' => $backup_fw_config };
+        my $raw = $files->{$file} // die "backup has no file '$file'\n";
+        if (my ($fd) = ($opts{output} // '') =~ m/^>&(\d+)$/) {
+            open(my $out, '>&', $fd) or die "unable to write to file descriptor $fd - $!\n";
+            print $out $raw;
+            close($out) or die "unable to write to file descriptor $fd - $!\n";
+        } else {
+            $opts{outfunc}->($_) for split(/\n/, $raw);
+        }
     },
 );
 
@@ -394,6 +433,7 @@ my sub reset_state {
     $rpcenv = PVE::LXC::Test::RPCEnvironment->new('root@pam');
     $backup_raw_config = backup_config();
     ($backup_read_error, $hook_error, $in_between) = ();
+    $backup_fw_config = undef;
 }
 
 # API call helpers
@@ -659,6 +699,51 @@ subtest 'migration tunnel logs failed commands and cleans up after an early end'
     like($err, qr/mtunnel exited unexpectedly/, 'tunnel that ends after the config fails');
     unlike($task_log, qr/cleaning up/, 'no cleanup once the config arrived');
     is(PVE::LXC::Config->load_config(300)->{lock}, 'migrate', 'config that arrived is kept');
+};
+
+subtest 'restore replaces the firewall config with the one of the backup' => sub {
+    for my $archive ($BACKUP_VOLID, $PBS_VOLID) {
+        my $name = $archive eq $PBS_VOLID ? 'backup server' : 'archive file';
+        my $param = { ostemplate => $archive };
+
+        reset_state();
+        set_firewall_config(200, "older rules\n");
+        is(restore_ct(200, $param), '', "$name without firewall config: restore succeeds")
+            or diag($task_log);
+        is(firewall_config(200), "older rules\n", "$name: existing firewall config is kept");
+
+        # must arrive byte for byte
+        my $backup_rules = "backup rules\r\nwithout a final newline";
+        $backup_fw_config = $backup_rules;
+        is(restore_ct(201, $param), '', "$name with firewall config: restore succeeds")
+            or diag($task_log);
+        is(firewall_config(201), $backup_rules, "$name: its firewall config is written");
+        is(restore_ct(200, { force => 1, $param->%* }), '', "$name: restore over a container")
+            or diag($task_log);
+        is(firewall_config(200), $backup_rules, "$name: its firewall config replaces one");
+
+        # 'VM.Backup' allows overwriting the container, but not changing its firewall config
+        set_firewall_config(200, "rules of the container\n");
+        my $deny = { '/vms/200' => { 'VM.Allocate' => 1 } };
+        my $err =
+            as_user('user@pve', $deny, sub { restore_ct(200, { force => 1, $param->%* }) });
+        is($err, '', "$name: restore with only VM.Backup succeeds") or diag($task_log);
+        is(
+            firewall_config(200),
+            "rules of the container\n",
+            "$name: firewall config of the container is kept",
+        );
+        like(
+            $task_log,
+            qr/^WARN: ignoring firewall config from backup archive, lacking API permission/m,
+            "$name: ignored firewall config is logged",
+        );
+        like(
+            $task_log,
+            qr/^WARN: old firewall configuration of CT 200 left in place!$/m,
+            "$name: kept firewall config is logged",
+        );
+    }
 };
 
 remove_tree($WORKDIR);
