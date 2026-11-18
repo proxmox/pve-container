@@ -430,13 +430,19 @@ __PACKAGE__->register_method({
 
         my $emsg = $restore ? "unable to restore CT $vmid -" : "unable to create CT $vmid -";
 
-        eval { PVE::LXC::Config->create_and_lock_config($vmid, $force) };
+        # only overwrite a container that the checks above were done for
+        eval {
+            PVE::LXC::Config->create_and_lock_config($vmid, $force && $same_container_exists);
+        };
         die "$emsg $@" if $@;
 
         my $destroy_config_on_error = !$same_container_exists;
 
         my $code = sub {
             my $old_conf = PVE::LXC::Config->load_config($vmid);
+            # the container may have changed since the protection check above
+            PVE::LXC::Config->check_protection($old_conf, "unable to restore CT $vmid")
+                if $restore;
             my $was_template;
 
             my $vollist = [];
