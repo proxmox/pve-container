@@ -1552,31 +1552,35 @@ __PACKAGE__->register_method({
             'not-allowed-nodes' => {
                 type => 'object',
                 optional => 1,
-                properties => {
-                    'blocking-ha-resources' => {
-                        description => "HA resources, which are blocking the"
-                            . " container from being migrated to the node.",
-                        type => 'array',
-                        optional => 1,
-                        items => {
-                            description => "A blocking HA resource",
-                            type => 'object',
-                            properties => {
-                                sid => {
-                                    type => 'string',
-                                    description => "The blocking HA resource id",
-                                },
-                                cause => {
-                                    type => 'string',
-                                    description => "The reason why the HA"
-                                        . " resource is blocking the migration.",
-                                    enum => ['node-affinity', 'resource-affinity'],
+                additionalProperties => {
+                    type => 'object',
+                    description => "Why migrating to the node is not allowed.",
+                    properties => {
+                        'blocking-ha-resources' => {
+                            description => "HA resources, which are blocking the"
+                                . " container from being migrated to the node.",
+                            type => 'array',
+                            optional => 1,
+                            items => {
+                                description => "A blocking HA resource",
+                                type => 'object',
+                                properties => {
+                                    sid => {
+                                        type => 'string',
+                                        description => "The blocking HA resource id",
+                                    },
+                                    cause => {
+                                        type => 'string',
+                                        description => "The reason why the HA"
+                                            . " resource is blocking the migration.",
+                                        enum => ['node-affinity', 'resource-affinity'],
+                                    },
                                 },
                             },
                         },
                     },
                 },
-                description => "List of not allowed nodes with additional information.",
+                description => "Not allowed nodes, keyed by node name, with the reasons.",
             },
             'dependent-ha-resources' => {
                 description => "HA resources, which will be migrated to the same target node as"
