@@ -1,3 +1,41 @@
+pve-container (6.1.24) trixie; urgency=medium
+
+  * migration: check that the target node can parse the container config
+    before an intra-cluster migration, as already done for remote migrations.
+    This prevents an outdated target from dropping or ignoring settings it
+    cannot parse yet, like a new mount point option. The check needs
+    pve-manager 9.2.31 or newer on both nodes and can be skipped with the new
+    'skip-config-check' option, which is also passed through the HA stack for
+    HA-managed containers.
+
+  * remote migration:
+    - clean up the reserved CT ID on the target if preparing the migration
+      fails on the source, for example on a tunnel version mismatch or if
+      stopping the container for a restart migration fails.
+    - also log failed tunnel commands in the task log of the target.
+    - clean up the reserved CT ID and the volumes received so far on the
+      target if the tunnel closes before the source sent the container config,
+      for example because the source task got killed. The source keeps the
+      container in that case.
+
+  * create, restore, clone: on failure, remove the firewall config before the
+    container config. Otherwise, the cleanup could remove the firewall config
+    of a guest that another node created with the freed ID in the meantime.
+
+  * restore:
+    - keep the existing container if replacing it fails before it got
+      destroyed, for example if allocating the new volumes fails on a full
+      storage, or for a template with linked clones. Before, the cleanup
+      removed its config and left its volumes unreferenced.
+    - with 'force', only overwrite a container that already existed for the
+      permission checks, and check again whether it is protected. A container
+      created in the meantime makes the restore fail as for an ID in use.
+
+  * api: migration preconditions: describe the reasons why a migration to a
+    node is not allowed per node in the schema, matching the returned data.
+
+ -- Proxmox Support Team <support@proxmox.com>  Wed, 18 Nov 2026 14:35:28 +0100
+
 pve-container (6.1.23) trixie; urgency=medium
 
   * api: create: mark the root password as sensitive.
