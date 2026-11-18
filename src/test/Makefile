@@ -2,7 +2,8 @@ RUN_USERNS := lxc-usernsexec -m "u:0:`id -u`:1" -m "g:0:`id -g`:1" --
 
 all: test
 
-test: test_setup test_snapshot test_bindmount test_idmap test_config test_raw_config_write
+test: test_setup test_snapshot test_bindmount test_idmap test_config test_raw_config_write \
+	test_lifecycle
 
 test_setup: run_setup_tests.pl
 	if test -e /run/lock/sbuild; then \
@@ -30,5 +31,8 @@ test_config: config_tests.pl
 test_raw_config_write: raw_config_write_test.pl
 	./raw_config_write_test.pl
 
+test_lifecycle: lifecycle_tests.pl
+	./lifecycle_tests.pl
+
 clean:
-	rm -rf tmprootfs
+	rm -rf tmprootfs lifecycle-working

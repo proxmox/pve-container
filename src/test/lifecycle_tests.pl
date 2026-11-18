@@ -1,0 +1,503 @@
+#!/usr/bin/perl
+
+# Runs API calls that create, restore, update and migrate containers against a fake cluster
+# filesystem in a working directory, with storage and container runtime operations mocked.
+
+use v5.36;
+
+use lib qw(..);
+
+# Modules of pve-ha-manager and pve-manager are not build dependencies, so stub the ones that the
+# tested modules load. Tests that call into them mock the functions they need.
+BEGIN {
+    $INC{'PVE/HA/Config.pm'} = $INC{'PVE/HA/Env/PVE2.pm'} = __FILE__;
+}
+
+use File::Path qw(make_path remove_tree);
+use Test::MockModule;
+use Test::More;
+
+use PVE::Cluster;
+use PVE::GuestHelpers;
+use PVE::INotify;
+use PVE::Tools qw(file_get_contents file_set_contents);
+
+use PVE::LXC;
+use PVE::LXC::Config;
+use PVE::LXC::Create;
+
+use PVE::API2::LXC;
+
+my $WORKDIR = 'lifecycle-working';
+my $NODENAME = PVE::INotify::nodename();
+my $BACKUP_VOLID = 'local:backup/vzdump-lxc-100-2026_01_01-00_00_00.tar.zst';
+
+remove_tree($WORKDIR);
+make_path("$WORKDIR/lock");
+
+# locks are taken and firewall configs are kept in the working directory
+$PVE::GuestHelpers::lockdir = "$WORKDIR/lock";
+$PVE::GuestHelpers::firewall_config_dir = "$WORKDIR/firewall";
+
+my sub firewall_config($vmid) {
+    return PVE::GuestHelpers::get_firewall_config_raw($vmid);
+}
+
+my sub set_firewall_config($vmid, $raw) {
+    PVE::GuestHelpers::set_firewall_config_raw($vmid, $raw);
+}
+
+# Fake cluster filesystem
+
+my sub cfs_file($path) {
+    return "$WORKDIR/cfs/$path";
+}
+
+my sub ct_config_path($vmid, $node = undef) {
+    return "nodes/" . ($node // $NODENAME) . "/lxc/$vmid.conf";
+}
+
+my sub write_raw_config($vmid, $raw, $node = undef) {
+    my $file = cfs_file(ct_config_path($vmid, $node));
+    make_path($file =~ s|/[^/]+$||r);
+    file_set_contents($file, $raw);
+}
+
+my sub read_raw_config($vmid, $node = undef) {
+    my $file = cfs_file(ct_config_path($vmid, $node));
+    return -f $file ? file_get_contents($file) : undef;
+}
+
+my $written = {}; # VMID => the written raw configs, in the order of the writes
+
+my $storage_cfg = {
+    ids => {
+        local => {
+            type => 'dir',
+            path => '/var/lib/vz',
+            content => { rootdir => 1, images => 1, backup => 1, vztmpl => 1 },
+        },
+    },
+};
+
+# recording used guest IDs needs the cluster filesystem and is not what gets tested here
+my $guest_id_module = Test::MockModule->new('PVE::GuestID');
+$guest_id_module->mock(register_used_id => sub { return; });
+
+my $cluster_module = Test::MockModule->new('PVE::Cluster');
+$cluster_module->mock(
+    cfs_update => sub { },
+    check_cfs_quorum => sub { },
+    check_node_exists => sub { },
+    get_config => sub {
+        my ($path) = @_;
+        my $file = cfs_file($path);
+        return -f $file ? file_get_contents($file) : undef;
+    },
+    cfs_read_file => sub {
+        my ($path) = @_;
+        die "unexpected read of '$path'\n" if $path !~ m|^nodes/[^/]+/lxc/\d+\.conf$|;
+        my $file = cfs_file($path);
+        return undef if !-f $file;
+        return PVE::LXC::Config::parse_pct_config("/etc/pve/$path", file_get_contents($file));
+    },
+    cfs_write_file => sub {
+        my ($path, $conf) = @_;
+        die "unexpected write of '$path'\n" if $path !~ m|^nodes/[^/]+/lxc/\d+\.conf$|;
+        my $raw = PVE::LXC::Config::write_pct_config("/etc/pve/$path", $conf);
+        my $file = cfs_file($path);
+        make_path($file =~ s|/[^/]+$||r);
+        file_set_contents($file, $raw);
+        push $written->{ ($path =~ m|/(\d+)\.conf$|)[0] }->@*, $raw;
+    },
+    check_vmid_unused => sub {
+        my ($vmid, $noerr) = @_;
+        return 1 if !-f cfs_file(ct_config_path($vmid));
+        return undef if $noerr;
+        die "CT $vmid already exists on node '$NODENAME'\n";
+    },
+);
+
+# runs once between the checks of the create API call and its reservation, if set
+my $in_between;
+
+my $api_module = Test::MockModule->new('PVE::API2::LXC');
+$api_module->mock(
+    cfs_read_file => sub {
+        my ($path) = @_;
+        die "unexpected read of '$path'\n" if $path ne 'storage.cfg';
+        return $storage_cfg;
+    },
+);
+
+my $config_module = Test::MockModule->new('PVE::LXC::Config');
+$config_module->mock(
+    config_file => sub {
+        my ($class, $vmid, $node) = @_;
+        return cfs_file(ct_config_path($vmid, $node));
+    },
+    config_file_lock => sub {
+        my ($class, $vmid) = @_;
+        return "$WORKDIR/lock/pve-config-$vmid.lock";
+    },
+);
+
+# Fake environment, records task output
+
+my $task_log = '';
+
+package PVE::LXC::Test::RPCEnvironment {
+
+    sub new($class, $user) {
+        return bless { user => $user, type => 'cli' }, $class;
+    }
+
+    sub get_user { return $_[0]->{user} }
+
+    # 'deny' maps paths to 1 or to the privileges that the checks of the path do not grant
+    sub check($self, $user, $path, $privs, $noerr = undef) {
+        my $deny = $self->{deny}->{$path};
+        return 1 if !$deny || (ref($deny) && !grep { $deny->{$_} } @$privs);
+        return 0 if $noerr;
+        die "permission check failed ($path, " . join(', ', @$privs) . ")\n";
+    }
+    sub check_vm_perm { return 1 }
+    sub check_pool_exist { return 1 }
+
+    sub warn($self, $msg) {
+        $task_log .= "WARN: $msg\n";
+    }
+
+    sub fork_worker($self, $type, $id, $user, $function, @) {
+        my $upid = "UPID:$NODENAME:$type:$id";
+        $function->($upid);
+        return $upid;
+    }
+}
+
+my $rpcenv = PVE::LXC::Test::RPCEnvironment->new('root@pam');
+
+my $rpcenv_module = Test::MockModule->new('PVE::RPCEnvironment');
+$rpcenv_module->mock(get => sub { return $rpcenv });
+
+my $restenv_module = Test::MockModule->new('PVE::RESTEnvironment');
+$restenv_module->mock(
+    log_warn => sub {
+        my ($msg) = @_;
+        chomp($msg);
+        $task_log .= "WARN: $msg\n";
+    },
+);
+
+# Runs $code as $user, who lacks what $deny lists, see the check method above.
+my sub as_user($user, $deny, $code) {
+    $rpcenv = PVE::LXC::Test::RPCEnvironment->new($user);
+    $rpcenv->{deny} = $deny;
+    my $res = $code->();
+    $rpcenv = PVE::LXC::Test::RPCEnvironment->new('root@pam');
+
+    return $res;
+}
+
+# Runs $code like a task, with its output going to the task log. Returns the error, if any.
+my sub run_task($code) {
+    $task_log = '';
+    my $output = '';
+    eval {
+        # both append, as the warnings get appended as well
+        local (*STDOUT, *STDERR);
+        open(STDOUT, '>>', \$output) or die "unable to capture output - $!\n";
+        open(STDERR, '>>', \$output) or die "unable to capture errors - $!\n";
+        local $SIG{__WARN__} = sub { $output .= "WARN: $_[0]" };
+        $code->();
+    };
+    my $err = $@;
+    $task_log = $output . $task_log;
+
+    return $err;
+}
+
+# Runs $code with the functions in the hash $mocks in place of the ones of the mocked module
+# $module, and puts back what they were before, be it a mock or the real function.
+my sub with_mock($module, $mocks, $code) {
+    my $package = $module->get_package();
+    my %before = map { $_ => $module->is_mocked($_) && $package->can($_) } keys %$mocks;
+    $module->mock(%$mocks);
+    my $res = eval { $code->() };
+    my $err = $@;
+    for my $name (keys %before) {
+        if ($before{$name}) {
+            $module->mock($name => $before{$name});
+        } else {
+            $module->unmock($name);
+        }
+    }
+    die $err if $err;
+
+    return $res;
+}
+
+# Fake storage and container runtime
+
+my $backup_raw_config; # the config in the backup, undef for none
+my $backup_read_error; # set to let reading the config of the backup fail
+my $hook_error; # set to let the setup hooks at the end of a create or restore fail
+
+my $storage_module = Test::MockModule->new('PVE::Storage');
+$storage_module->mock(
+    config => sub { return $storage_cfg },
+    activate_storage => sub {
+        if (my $code = $in_between) {
+            undef $in_between;
+            $code->();
+        }
+    },
+    activate_volumes => sub { },
+    deactivate_volumes => sub { },
+    check_volume_access => sub { },
+    storage_check_enabled => sub {
+        my ($cfg, $storeid) = @_;
+        return $storage_cfg->{ids}->{$storeid};
+    },
+    storage_config => sub {
+        my ($cfg, $storeid) = @_;
+        return $storage_cfg->{ids}->{$storeid} // die "storage '$storeid' does not exist\n";
+    },
+    storage_has_feature => sub { return 0 },
+    get_bandwidth_limit => sub { return undef },
+);
+
+my $lxc_module = Test::MockModule->new('PVE::LXC');
+$lxc_module->mock(
+    check_running => sub { return 0 },
+    create_disks => sub {
+        my ($storecfg, $vmid, $settings, $conf) = @_;
+        my $vollist = [];
+        for my $ms (sort keys %$settings) {
+            my $volid = "local:$vmid/vm-$vmid-disk-$ms.raw";
+            $conf->{$ms} = "$volid,size=4G";
+            push @$vollist, $volid;
+        }
+        return $vollist;
+    },
+    destroy_disks => sub { },
+    destroy_lxc_container => sub {
+        my ($storecfg, $vmid, $conf, $replacement_conf) = @_;
+        if (defined($replacement_conf)) {
+            PVE::LXC::Config->write_config($vmid, $replacement_conf);
+        } else {
+            PVE::LXC::Config->destroy_config($vmid);
+        }
+    },
+    mount_all => sub {
+        my ($vmid) = @_;
+        my $rootdir = "$WORKDIR/rootfs/$vmid";
+        make_path($rootdir);
+        return $rootdir;
+    },
+    umount_all => sub { },
+    create_ifaces_ipams_ips => sub { },
+    delete_ifaces_ipams_ips => sub { },
+);
+
+my $create_module = Test::MockModule->new('PVE::LXC::Create');
+$create_module->mock(
+    archive_is_oci_format => sub { return 0 },
+    recover_config => sub {
+        my ($storecfg, $volid, $vmid) = @_;
+        die $backup_read_error if defined($backup_read_error);
+        my $conf = PVE::LXC::Config::parse_pct_config("/lxc/$vmid.conf", $backup_raw_config);
+        delete $conf->{snapshots};
+        my $mp_param = {};
+        PVE::LXC::Config->foreach_volume($conf,
+            sub { $mp_param->{ $_[0] } = $conf->{ $_[0] } });
+        return wantarray ? ($conf, $mp_param) : $conf;
+    },
+    restore_archive => sub {
+        my ($storecfg, $archive, $rootdir, $conf) = @_;
+        make_path("$rootdir/etc/vzdump");
+        file_set_contents("$rootdir/etc/vzdump/pct.conf", $backup_raw_config)
+            if defined($backup_raw_config);
+    },
+);
+
+my $setup_module = Test::MockModule->new('PVE::LXC::Setup');
+$setup_module->mock(new => sub { return bless {}, 'PVE::LXC::Test::Setup' });
+
+package PVE::LXC::Test::Setup {
+    sub post_create_hook { die $hook_error if defined($hook_error) }
+    sub post_restore_hook { die $hook_error if defined($hook_error) }
+}
+
+my $firewall_module = Test::MockModule->new('PVE::Firewall');
+$firewall_module->mock(
+    remove_vmfw_conf => sub {
+        my ($vmid) = @_;
+        PVE::GuestHelpers::set_firewall_config_raw($vmid, undef);
+    },
+);
+
+my sub backup_config($meta = undef) {
+    my $raw = <<~'EOF';
+        arch: amd64
+        hostname: backup
+        memory: 2048
+        ostype: debian
+        rootfs: local:100/vm-100-disk-0.raw,size=8G
+        unprivileged: 1
+        EOF
+    $raw .= "meta: $meta\n" if defined($meta);
+
+    return $raw;
+}
+
+my sub existing_config($meta = undef) {
+    my $raw = <<~'EOF';
+        arch: amd64
+        hostname: existing
+        memory: 512
+        ostype: debian
+        rootfs: local:200/vm-200-disk-0.raw,size=4G
+        unprivileged: 1
+        EOF
+    $raw .= "meta: $meta\n" if defined($meta);
+
+    return $raw;
+}
+
+my sub reset_configs {
+    remove_tree("$WORKDIR/cfs", "$WORKDIR/rootfs", "$WORKDIR/firewall");
+    $written = {};
+}
+
+# Removes all configs and puts the fakes back to their defaults, with a backup that has the config
+# backup_config().
+my sub reset_state {
+    reset_configs();
+    $rpcenv = PVE::LXC::Test::RPCEnvironment->new('root@pam');
+    $backup_raw_config = backup_config();
+    ($backup_read_error, $hook_error, $in_between) = ();
+}
+
+# API call helpers
+
+my sub create_ct($vmid, $param = undef) {
+    return run_task(sub {
+        PVE::API2::LXC->create_vm({
+            node => $NODENAME,
+            vmid => $vmid,
+            ostemplate => 'local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst',
+            hostname => "ct$vmid",
+            ($param // {})->%*,
+        });
+    });
+}
+
+my sub restore_ct($vmid, $param = undef) {
+    return run_task(sub {
+        PVE::API2::LXC->create_vm({
+            node => $NODENAME,
+            vmid => $vmid,
+            ostemplate => $BACKUP_VOLID,
+            restore => 1,
+            ($param // {})->%*,
+        });
+    });
+}
+
+# Tests
+
+subtest 'create and restore write the config of the container' => sub {
+    reset_state();
+
+    is(create_ct(201), '', 'create succeeds') or diag($task_log);
+    my $conf = PVE::LXC::Config->load_config(201);
+    is($conf->{hostname}, 'ct201', 'create: given option is applied');
+    ok(!defined($conf->{lock}), 'create: lock is removed');
+
+    is(restore_ct(202), '', 'restore to an unused VMID succeeds') or diag($task_log);
+    is(PVE::LXC::Config->load_config(202)->{hostname}, 'backup',
+        'config of the backup is used');
+
+    write_raw_config(200, existing_config());
+    my $err = restore_ct(200, { force => 1, hostname => 'given' });
+    is($err, '', 'restore over a container succeeds') or diag($task_log);
+    $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{hostname}, 'given', 'given option wins over the one of the backup');
+    is($conf->{memory}, 2048, 'other options come from the backup');
+    ok(!defined($conf->{lock}), 'restore: lock is removed');
+};
+
+subtest 'restore over a container keeps it if replacing it fails early' => sub {
+    my $kept = sub($name, $extra_config, $mocks, $expected_err) {
+        reset_state();
+        write_raw_config(200, existing_config() . $extra_config);
+        set_firewall_config(200, "rules of the container\n");
+
+        my $err = with_mock($lxc_module, $mocks, sub { restore_ct(200, { force => 1 }) });
+        like($err, $expected_err, "$name: restore fails");
+        is(firewall_config(200), "rules of the container\n", "$name: firewall config is kept");
+        ok(defined(read_raw_config(200)), "$name: config is kept") or return;
+        my $conf = PVE::LXC::Config->load_config(200);
+        is($conf->{hostname}, 'existing', "$name: config is the one of the container");
+        is($conf->{rootfs}, 'local:200/vm-200-disk-0.raw,size=4G', "$name: volume is kept");
+        ok(!defined($conf->{lock}), "$name: lock is removed");
+    };
+
+    $kept->(
+        'allocation fails',
+        '',
+        { create_disks => sub { die "unable to allocate volume - storage full\n" } },
+        qr/storage full/,
+    );
+    # the real function checks this before it removes anything
+    my $in_use =
+        "base volume 'local:200/base-200-disk-0.raw' is still in use by linked clone\n";
+    $kept->(
+        'template with linked clones',
+        "template: 1\n",
+        { destroy_lxc_container => sub { die $in_use } },
+        qr/still in use by linked clone/,
+    );
+};
+
+subtest 'create and restore do not change a container that the checks were not done for' => sub {
+    my $other_raw = existing_config() =~ s/^hostname: existing$/hostname: other/mr;
+    # the guest list of the reservation is the one of the start of the API call
+    my $stale_guest_list = { check_vmid_unused => sub { return 1 } };
+
+    my $refused = sub($name, $call) {
+        reset_state();
+        $in_between = sub { write_raw_config(200, $other_raw) };
+        my $err = with_mock($cluster_module, $stale_guest_list, $call);
+        like($err, qr/CT 200 already exists/, "created in between: $name is refused");
+        is(read_raw_config(200), $other_raw, "created in between: $name changes nothing");
+    };
+    $refused->('create', sub { create_ct(200) });
+    $refused->('restore', sub { restore_ct(200) });
+    # a user who may create CT 200 in the pool, but not overwrite it
+    $refused->(
+        'restore with force',
+        sub {
+            my $param = { force => 1, pool => 'pool1' };
+            return as_user('user@pve', { '/vms/200' => 1 }, sub { restore_ct(200, $param) });
+        },
+    );
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $in_between = sub { write_raw_config(200, existing_config() . "protection: 1\n") };
+    my $err = restore_ct(200, { force => 1 });
+    like(
+        $err,
+        qr/^unable to restore CT 200 - protection mode enabled$/,
+        'protection set in between: restore is refused',
+    );
+    my $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{hostname}, 'existing', 'protection set in between: container is kept');
+    ok(!defined($conf->{lock}), 'protection set in between: lock is removed');
+};
+
+remove_tree($WORKDIR);
+
+done_testing();
