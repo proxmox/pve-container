@@ -3507,4 +3507,11 @@ sub delete_ifaces_ipams_ips {
     }
 }
 
+# Returns the path of the socket of the migration tunnel endpoint for $vmid.
+sub mtunnel_socket {
+    my ($vmid) = @_;
+
+    return "/run/pve/ct-$vmid.mtunnel";
+}
+
 1;

@@ -3229,7 +3229,7 @@ __PACKAGE__->register_method({
 
         PVE::Cluster::check_cfs_quorum();
 
-        my $socket_addr = "/run/pve/ct-$vmid.mtunnel";
+        my $socket_addr = PVE::LXC::mtunnel_socket($vmid);
 
         my $lock = 'create';
         eval { PVE::LXC::Config->create_and_lock_config($vmid, 0, $lock); };
@@ -3469,7 +3469,6 @@ __PACKAGE__->register_method({
             };
 
             $run_locked->(sub {
-                my $socket_addr = "/run/pve/ct-$state->{vmid}.mtunnel";
                 unlink $socket_addr;
 
                 $state->{socket} = IO::Socket::UNIX->new(
@@ -3492,7 +3491,7 @@ __PACKAGE__->register_method({
                 warn "Failed to accept tunnel connection - $@\n";
 
                 warn "Removing tunnel socket..\n";
-                unlink $state->{socket};
+                unlink $socket_addr;
 
                 warn "Removing temporary VM config..\n";
                 $run_locked->(sub {
