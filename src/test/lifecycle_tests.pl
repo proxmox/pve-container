@@ -746,6 +746,88 @@ subtest 'restore replaces the firewall config with the one of the backup' => sub
     }
 };
 
+subtest 'firewall config follows its container if a create or restore fails' => sub {
+    # the firewall configs written, each with whether the VMID was reserved at that time
+    my @writes;
+    my $set_raw = PVE::GuestHelpers->can('set_firewall_config_raw');
+    my $helpers_module = Test::MockModule->new('PVE::GuestHelpers');
+    $helpers_module->mock(
+        set_firewall_config_raw => sub {
+            my ($vmid, $raw) = @_;
+            push @writes, [$raw, defined(read_raw_config($vmid)) ? 'reserved' : 'free'];
+            return $set_raw->(@_);
+        },
+    );
+
+    my $failed = sub($name, $before, $setup, $call, $after = $before) {
+        reset_state();
+        $hook_error = "setup hook failed\n";
+        set_firewall_config(200, $before) if defined($before);
+        $setup->();
+        @writes = ();
+        my $err = $call->();
+        isnt($err, '', "$name: fails");
+        is(firewall_config(200), $after, "$name: firewall config afterwards");
+        ok(!defined(read_raw_config(200)), "$name: VMID is released");
+        return $err;
+    };
+    my $with_fw = sub { $backup_fw_config = "backup rules\n" };
+
+    $failed->('create', "older rules\n", sub { }, sub { create_ct(200) });
+    $failed->(
+        'restore without firewall config',
+        "older rules\n",
+        sub { },
+        sub { restore_ct(200) },
+    );
+    for my $archive ($BACKUP_VOLID, $PBS_VOLID) {
+        my $name =
+            'restore from ' . ($archive eq $PBS_VOLID ? 'backup server' : 'archive file');
+        my $restore = sub { restore_ct(200, { ostemplate => $archive }) };
+
+        $failed->("$name, no firewall config before", undef, $with_fw, $restore);
+        $failed->("$name, firewall config before", "older rules\n", $with_fw, $restore);
+        is_deeply(
+            \@writes,
+            [["backup rules\n", 'reserved'], ["older rules\n", 'reserved']],
+            "$name: firewall config is put back before the VMID is released",
+        );
+    }
+
+    my $mocked_client_cmd = PVE::Storage::PBSPlugin->can('run_raw_client_cmd');
+    my $no_fw_conf = {
+        run_raw_client_cmd => sub {
+            my ($scfg, $storeid, $cmd, $param) = @_;
+            die "unable to read fw.conf\n" if $param->[1] eq 'fw.conf';
+            return $mocked_client_cmd->(@_);
+        },
+    };
+    my $err = $failed->(
+        'restore from backup server that fails to read the firewall config',
+        "older rules\n",
+        sub { $with_fw->(); $hook_error = undef; },
+        sub {
+            my $restore = sub { restore_ct(200, { ostemplate => $PBS_VOLID }) };
+            return with_mock($pbs_module, $no_fw_conf, $restore);
+        },
+    );
+    like($err, qr/unable to read fw\.conf/, 'the read error is the reason');
+
+    # the firewall config of a container that the restore destroyed goes with it
+    for my $user ('root@pam', 'user@pve') {
+        my $deny = $user eq 'root@pam' ? {} : { '/vms/200' => { 'VM.Allocate' => 1 } };
+        $failed->(
+            "restore over a container by $user",
+            "rules of the container\n",
+            sub { $with_fw->(); write_raw_config(200, existing_config()); },
+            sub {
+                as_user($user, $deny, sub { restore_ct(200, { force => 1 }) });
+            },
+            undef,
+        );
+    }
+};
+
 remove_tree($WORKDIR);
 
 done_testing();

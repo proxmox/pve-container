@@ -502,6 +502,8 @@ __PACKAGE__->register_method({
             PVE::LXC::Config->check_protection($old_conf, "unable to restore CT $vmid")
                 if $restore;
             my $was_template;
+            # for the cleanup after a failure, a restore can replace the firewall config
+            my $old_firewall_config = PVE::GuestHelpers::get_firewall_config_raw($vmid);
 
             my $vollist = [];
             eval {
@@ -696,11 +698,12 @@ __PACKAGE__->register_method({
                 PVE::LXC::destroy_disks($storage_cfg, $vollist);
                 if ($destroy_config_on_error) {
                     # The firewall config goes first, before the VMID is freed. The config is
-                    # locked, so the CT cannot run unprotected.
-                    if (!$skip_fw_config_restore) { # Only if user has permission to change the fw
-                        eval { PVE::Firewall::remove_vmfw_conf($vmid) };
-                        warn $@ if $@;
-                    }
+                    # locked, so the CT cannot run unprotected. If the restore destroyed the old
+                    # container, its firewall config gets removed like its config. In all other
+                    # cases, the previous firewall config is put back.
+                    my $firewall_config = $same_container_exists ? undef : $old_firewall_config;
+                    eval { PVE::GuestHelpers::set_firewall_config_raw($vmid, $firewall_config) };
+                    warn "unable to reset the firewall config - $@" if $@;
 
                     eval { PVE::LXC::Config->destroy_config($vmid) };
                     warn $@ if $@;
