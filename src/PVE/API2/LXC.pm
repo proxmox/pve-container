@@ -542,9 +542,6 @@ __PACKAGE__->register_method({
                     }
                 }
 
-                # up until here we did not modify the container, besides the lock
-                $destroy_config_on_error = 1;
-
                 $vollist = PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf);
 
                 # we always have the 'create' lock so check for more than 1 entry
@@ -557,6 +554,8 @@ __PACKAGE__->register_method({
                         { lock => 'create' },
                     );
                 }
+                # up until here the old container is intact, besides its lock
+                $destroy_config_on_error = 1;
 
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);
