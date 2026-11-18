@@ -496,6 +496,8 @@ __PACKAGE__->register_method({
         die "$emsg $@" if $@;
 
         my $destroy_config_on_error = !$same_container_exists;
+        # set once the worker cleans up after a failure on its own
+        my $started = 0;
 
         my $code = sub {
             my $old_conf = PVE::LXC::Config->load_config($vmid);
@@ -508,6 +510,7 @@ __PACKAGE__->register_method({
 
             my $vollist = [];
             my $old_volumes_left = [];
+            $started = 1;
             eval {
                 my $orig_mp_param; # only used if $restore
                 if ($restore) {
@@ -732,8 +735,13 @@ __PACKAGE__->register_method({
         my $realcmd = sub {
             eval { PVE::LXC::Config->lock_config($vmid, $code); };
             if (my $err = $@) {
-                # if we aborted before changing the container, we must remove the create lock
-                if (!$destroy_config_on_error) {
+                if (!$started && $destroy_config_on_error) {
+                    # for example as taking the config lock timed out, so the reservation of the
+                    # unused VMID is untouched
+                    eval { PVE::LXC::Config->remove_unused_reservation($vmid) };
+                    warn $@ if $@;
+                } elsif (!$destroy_config_on_error) {
+                    # if we aborted before changing the container, we must remove the create lock
                     PVE::LXC::Config->remove_lock($vmid, 'create');
                 }
                 die $err;

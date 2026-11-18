@@ -959,6 +959,36 @@ subtest 'volumes that cannot be freed are returned or left to the caller' => sub
     is_deeply(\@freed, [$allocated[0]], 'and frees the other one');
 };
 
+subtest 'create or restore that does not get the config lock releases an unused VMID' => sub {
+    # inherited, so the mock calls the method of the base class
+    my $lock_config = PVE::LXC::Config->can('lock_config');
+    my $calls;
+    my $timeout = {
+        lock_config => sub {
+            die "can't lock file '/run/lock/lxc/pve-config-200.lock' - got timeout\n"
+                if !$calls++;
+            die "lock_config mock called too often\n" if $calls > 20;
+            return $lock_config->(@_);
+        },
+    };
+
+    for my $call (sub { create_ct(200) }, sub { restore_ct(200) }) {
+        reset_state();
+        $calls = 0;
+        like(with_mock($config_module, $timeout, $call), qr/got timeout/, 'unused VMID: fails');
+        ok(!defined(read_raw_config(200)), 'unused VMID: the reservation is removed');
+    }
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $calls = 0;
+    my $err = with_mock($config_module, $timeout, sub { restore_ct(200, { force => 1 }) });
+    like($err, qr/got timeout/, 'existing container: restore fails');
+    my $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{hostname}, 'existing', 'existing container: config is kept');
+    ok(!defined($conf->{lock}), 'existing container: its lock is removed');
+};
+
 remove_tree($WORKDIR);
 
 done_testing();
