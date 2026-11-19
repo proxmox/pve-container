@@ -1718,6 +1718,16 @@ sub check_ct_modify_config_perm {
             my $old = $oldconf->{$opt};
             my $new = $delete ? '' : $newconf->{$opt};
             PVE::GuestHelpers::assert_tag_permissions($vmid, $old, $new, $rpcenv, $authuser);
+        } elsif ($opt eq 'env') {
+            $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
+            return if $delete || !defined($newconf->{$opt});
+            if (defined(
+                my $name = PVE::LXC::Config::find_forbidden_lxc_env_var($newconf->{$opt})
+            )) {
+                raise_perm_exc(
+                    "setting restricted environment variable '$name' is only allowed for root\@pam"
+                );
+            }
         } else {
             $rpcenv->check_vm_perm($authuser, $vmid, $pool, ['VM.Config.Options']);
         }

@@ -711,6 +711,7 @@ my $confdesc = {
         description => 'The container runtime environment as NUL-separated list.'
             . ' Replaces any lxc.environment.runtime entries in the config.',
         optional => 1,
+        format => 'pve-lxc-env',
         pattern =>
             qr/(?:\w+=[^\x00-\x08\x0a-\x1F\x7F]*)(?:\0\w+=[^\x00-\x08\x0a-\x1F\x7F]*)*\z/,
     },
@@ -986,6 +987,68 @@ for (my $i = 0; $i < $MAX_LXC_NETWORKS; $i++) {
         format => $netconf_desc,
         description => "Specifies network interfaces for the container.",
     };
+}
+
+# Selected denylist of sensitive variables based on ld.so(8)'s secure-execution list
+# (AT_SECURE) plus GLIBC_TUNABLES.
+my $FORBIDDEN_ENV_VARS = {
+    map { $_ => 1 }
+        qw(
+        GCONV_PATH GETCONF_DIR GLIBC_TUNABLES HOSTALIASES LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT
+        LD_DYNAMIC_WEAK LD_HWCAP_MASK LD_LIBRARY_PATH LD_ORIGIN_PATH LD_PREFER_MAP_32BIT_EXEC
+        LD_PRELOAD LD_PROFILE LD_PROFILE_OUTPUT LD_SHOW_AUXV LD_USE_LOAD_BIAS LOCALDOMAIN
+        LOCPATH MALLOC_TRACE NIS_PATH NLSPATH RESOLV_HOST_CONF RES_OPTIONS TMPDIR TZDIR
+        )
+};
+
+PVE::JSONSchema::register_format('pve-lxc-env', \&verify_lxc_env);
+
+# Classifies a single runtime environment entry (without NUL bytes).
+# Returns ('ok', $name), ('forbidden', $name), or ('malformed', undef).
+sub classify_lxc_env_entry {
+    my ($entry) = @_;
+
+    # Disallow leading/trailing whitespace on names, entries without '=' (which inherit
+    # host env in LXC), empty entries, and control characters (other than tab).
+    if ($entry !~ m/^(\w+)=[^\x00-\x08\x0a-\x1F\x7F]*\z/) {
+        return ('malformed', undef);
+    }
+    my $name = $1;
+    if ($FORBIDDEN_ENV_VARS->{$name}) {
+        return ('forbidden', $name);
+    }
+    return ('ok', $name);
+}
+
+# Returns the first restricted variable name found in a NUL-separated env string, or undef.
+sub find_forbidden_lxc_env_var {
+    my ($env) = @_;
+
+    for my $variable (split(/\0/, $env, -1)) {
+        my ($status, $name) = classify_lxc_env_entry($variable);
+        return $name if $status eq 'forbidden';
+    }
+    return undef;
+}
+
+sub verify_lxc_env {
+    my ($env, $noerr) = @_;
+
+    my @variables = split(/\0/, $env, -1);
+    if (!@variables) {
+        return undef if $noerr;
+        die "invalid empty property 'env'\n";
+    }
+
+    for my $variable (@variables) {
+        my ($status) = classify_lxc_env_entry($variable);
+        if ($status eq 'malformed') {
+            return undef if $noerr;
+            die "invalid environment variable entry '$variable'\n";
+        }
+    }
+
+    return $env;
 }
 
 PVE::JSONSchema::register_format('pve-ct-timezone', \&verify_ct_timezone);
@@ -1415,6 +1478,8 @@ sub queue_pct_config_changes {
 
             # Validate device
             PVE::LXC::Tools::get_device_mode_and_rdev($device->{path});
+        } elsif ($opt eq 'env') {
+            verify_lxc_env($value);
         }
         $conf->{pending}->{$opt} = $value;
         $class->remove_from_pending_delete($conf, $opt);
