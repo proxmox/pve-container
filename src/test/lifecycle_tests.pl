@@ -13,6 +13,7 @@ BEGIN {
     $INC{'PVE/HA/Config.pm'} = $INC{'PVE/HA/Env/PVE2.pm'} = __FILE__;
 }
 
+use Fcntl qw(:flock);
 use File::Path qw(make_path remove_tree);
 use JSON;
 use Socket qw(AF_UNIX SOCK_STREAM PF_UNSPEC);
@@ -1140,6 +1141,99 @@ subtest 'migration tunnel waits for a volume transfer before it cleans up' => su
     );
     ok($queries > 0, 'the transfer got queried');
     ok(defined(read_raw_config(300)), 'reserved config is kept while a transfer still runs');
+};
+
+subtest 'post-stop hook only changes the config under its lock' => sub {
+    my $while_hook_runs;
+    my $lxc_config_memory; # the memory setting that the lxc config got written with last
+    $lxc_module->mock(
+        get_staging_tempfs => sub { return "$WORKDIR/staging" },
+        vm_stop_cleanup => sub { $while_hook_runs->() if $while_hook_runs },
+        update_lxc_config => sub($vmid, $conf) { $lxc_config_memory = $conf->{memory} },
+    );
+    my $tools_module = Test::MockModule->new('PVE::Tools');
+    $tools_module->mock(run_command => sub { });
+    my $guest_helpers_module = Test::MockModule->new('PVE::GuestHelpers');
+    $guest_helpers_module->mock(exec_hookscript => sub { });
+    # the hook runs several times in this process
+    $restenv_module->mock(setup_default_cli_env => sub { });
+
+    local $ENV{LXC_HOOK_VERSION} = '1';
+    local $ENV{LXC_NAME} = '200';
+    local $ENV{LXC_HOOK_SECTION} = 'lxc';
+    local $ENV{LXC_HOOK_TYPE} = 'post-stop';
+    local $ENV{LXC_ROOTFS_MOUNT} = "$WORKDIR/rootfs/200";
+    local $ENV{LXC_ROOTFS_PATH} = "$WORKDIR/rootfs/200";
+    local $ENV{LXC_CONFIG_FILE} = "$WORKDIR/lxc-200.config";
+    delete local $ENV{LXC_TARGET};
+
+    my $run_hook = sub {
+        my $err = run_task(sub {
+            do '../lxc-pve-poststop-hook';
+            die $@ if $@;
+        });
+        is($err, '', 'hook succeeds') or diag($task_log);
+        unlike($task_log, qr/WARN/, 'hook does not warn') or diag($task_log);
+    };
+    my $pending = existing_config() . "\n[pve:pending]\nmemory: 1024\n";
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $run_hook->();
+    ok(!$written->{200}, 'without pending changes: config is not written');
+
+    # another process changes the config after the hook loaded it
+    reset_state();
+    write_raw_config(200, $pending);
+    $while_hook_runs = sub {
+        PVE::LXC::Config->lock_config(
+            200,
+            sub {
+                my $conf = PVE::LXC::Config->load_config(200);
+                $conf->{description} = 'changed while the hook ran';
+                PVE::LXC::Config->write_config(200, $conf);
+            },
+        );
+    };
+    $run_hook->();
+    my $conf = PVE::LXC::Config->load_config(200);
+    is($conf->{memory}, 1024, 'lock is free: pending change is applied');
+    is_deeply($conf->{pending}, {}, 'lock is free: no pending change is left');
+    like(
+        $conf->{description},
+        qr/^changed while the hook ran$/,
+        'lock is free: other change is kept',
+    );
+    is($lxc_config_memory, 1024, 'lock is free: lxc config has the applied change');
+
+    # Another process, like a task that stops the container, holds the lock while the hook runs.
+    # A handle of its own conflicts with the lock of this process in the same way.
+    reset_state();
+    write_raw_config(200, $pending);
+    $while_hook_runs = undef;
+    my $lockfile = PVE::LXC::Config->config_file_lock(200);
+    open(my $other, '>>', $lockfile) or die "unable to open '$lockfile' - $!\n";
+    flock($other, LOCK_EX) or die "unable to lock '$lockfile' - $!\n";
+    $lxc_config_memory = undef;
+    $run_hook->();
+    ok(!$written->{200}, 'lock is held: hook does not write the config');
+    ok(!defined($lxc_config_memory), 'lock is held: hook does not write the lxc config');
+    close($other);
+
+    # what vm_stop does once the container has stopped
+    $conf = PVE::LXC::Config->lock_config(200, sub { PVE::LXC::apply_pending_after_stop(200) });
+    is($conf->{memory}, 1024, 'lock is held: its holder gets the changed config');
+    like(
+        read_raw_config(200),
+        qr/^memory: 1024$/m,
+        'lock is held: its holder applied the change',
+    );
+    unlike(read_raw_config(200), qr/pending/, 'lock is held: no pending change is left');
+    is($lxc_config_memory, 1024, 'lock is held: its holder writes the lxc config');
+
+    $lxc_module->unmock('get_staging_tempfs', 'vm_stop_cleanup');
+    $lxc_module->mock(update_lxc_config => sub { });
+    $restenv_module->unmock('setup_default_cli_env');
 };
 
 remove_tree($WORKDIR);

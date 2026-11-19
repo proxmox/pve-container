@@ -53,19 +53,33 @@ PVE::LXC::Tools::lxc_hook(
             PVE::Network::veth_delete("veth${vmid}i$ind");
         }
 
+        my $target = $vars->{TARGET};
+        my $reboot = $target && $target eq 'reboot';
+
+        # Changing the config needs its lock, and the config that got loaded above can be outdated
+        # by now, so load it again under the lock.
+        #
+        # After a stop, do not wait for the lock: a task that stops the container can hold it
+        # until this hook is done, and applies the pending changes then. For a reboot, wait for
+        # it: the container starts again right away, with the lxc config that gets written here
+        # and without a task that would apply the pending changes.
         my $config_updated = 0;
-        if ($conf->{pending}) {
+        if ($reboot || scalar(keys %{ $conf->{pending} })) {
+            my $apply = sub {
+                $conf = PVE::LXC::apply_pending_after_stop($vmid);
+                $config_updated = 1;
+            };
             eval {
-                PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
-                PVE::LXC::Config->write_config($vmid, $conf);
+                if ($reboot) {
+                    PVE::LXC::Config->lock_config($vmid, $apply);
+                } else {
+                    PVE::LXC::Config->try_lock_config($vmid, $apply);
+                }
             };
             warn "$@" if $@;
-            PVE::LXC::update_lxc_config($vmid, $conf);
-            $config_updated = 1;
         }
 
-        my $target = $vars->{TARGET};
-        if ($target && $target eq 'reboot') {
+        if ($reboot) {
             # In order to make sure hot-plugged config changes aren't reverted
             # to what the monitor initially loaded we need to stop the container
             # and restart it.

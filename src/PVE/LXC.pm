@@ -3261,6 +3261,23 @@ sub vm_start {
     return;
 }
 
+# Applies the pending changes of the stopped container $vmid, writes its lxc config and returns
+# its config afterwards. The caller must hold the config lock, which also updates the file cache.
+sub apply_pending_after_stop {
+    my ($vmid) = @_;
+
+    my $conf = PVE::LXC::Config->load_config($vmid);
+
+    if (scalar(keys $conf->{pending}->%*)) {
+        my $storage_cfg = PVE::Storage::config();
+        PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
+        PVE::LXC::Config->write_config($vmid, $conf);
+    }
+    update_lxc_config($vmid, $conf);
+
+    return $conf;
+}
+
 # Helper to stop a container completely and make sure it has stopped completely.
 # This is necessary because we want the post-stop hook to have completed its
 # unmount-all step, but post-stop happens after lxc puts the container into the
@@ -3313,13 +3330,20 @@ sub vm_stop {
         my $poll = IO::Poll->new();
         $poll->mask($sock => POLLIN | POLLHUP); # watch for input and EOF events
         $poll->poll($shutdown_timeout); # IO::Poll timeout is in seconds
-        return if ($poll->events($sock) & POLLHUP);
+        die "container did not stop\n" if !($poll->events($sock) & POLLHUP);
     } else {
         my $result = <$sock>;
-        return if !defined $result; # monitor is gone and the ct has stopped.
+        # without a result, the monitor is gone and the container has stopped
+        die "container did not stop\n" if defined($result);
     }
 
-    die "container did not stop\n";
+    # The post-stop hook left the pending changes alone if the caller holds the config lock.
+    eval {
+        PVE::LXC::Config->lock_config($vmid, sub { apply_pending_after_stop($vmid) });
+    };
+    warn "unable to apply the pending changes of CT $vmid - $@" if $@;
+
+    return;
 }
 
 sub vm_reboot {
