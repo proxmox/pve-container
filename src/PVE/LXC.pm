@@ -5,7 +5,17 @@ use warnings;
 
 use Cwd qw();
 use Errno qw(ELOOP ENOTDIR EROFS ECONNREFUSED EEXIST);
-use Fcntl qw(O_RDONLY O_WRONLY O_NOFOLLOW O_DIRECTORY O_CREAT :mode);
+use Fcntl qw(
+    O_RDONLY
+    O_WRONLY
+    O_NOFOLLOW
+    O_DIRECTORY
+    O_CREAT
+    F_GETFD
+    F_SETFD
+    FD_CLOEXEC
+    :mode
+);
 use File::Basename;
 use File::Path;
 use File::Spec;
@@ -1216,6 +1226,53 @@ sub update_net {
     update_ipconfig($vmid, $conf, $opt, $eth, $newnet, $rootdir);
 }
 
+my $NSENTER_OPT = {
+    ipc => '--ipc',
+    mnt => '--mount',
+    net => '--net',
+    pid => '--pid',
+    user => '--user',
+    uts => '--uts',
+};
+
+my $open_pidfd_namespaces = sub {
+    my ($vmid, $pidfd, $namespaces) = @_;
+
+    my (@ns_fhs, @ns_opts);
+    for my $ns ($namespaces->@*) {
+        my $opt = $NSENTER_OPT->{$ns} // die "unsupported namespace '$ns'\n";
+
+        # Do NOT pass O_NOFOLLOW: /proc/$pid/ns/* entries are procfs magic symlinks.
+        my $nsfh = PVE::Tools::openat(fileno($pidfd), "ns/$ns", O_RDONLY)
+            or die "failed to open '$ns' namespace of CT $vmid: $!\n";
+
+        my $flags = fcntl($nsfh, F_GETFD, 0)
+            or die "failed to get fd flags for '$ns' namespace of CT $vmid: $!\n";
+        fcntl($nsfh, F_SETFD, $flags & ~FD_CLOEXEC)
+            or die "failed to clear FD_CLOEXEC for '$ns' namespace of CT $vmid: $!\n";
+
+        push @ns_fhs, $nsfh;
+        push @ns_opts, "$opt=/proc/self/fd/" . fileno($nsfh);
+    }
+
+    return (\@ns_fhs, \@ns_opts);
+};
+
+# Run $cmd inside the given namespaces ('net', 'mnt', ...) of a running container, taking the
+# options of run_command.
+sub run_in_ct_namespaces {
+    my ($vmid, $namespaces, $cmd, %run_opts) = @_;
+
+    die "no namespaces given\n" if !$namespaces->@*;
+
+    my ($pid, $pidfd) = open_lxc_pid($vmid)
+        or die "failed to open pidfd of init process of CT $vmid\n";
+
+    my ($ns_fhs, $ns_opts) = $open_pidfd_namespaces->($vmid, $pidfd, $namespaces);
+
+    return run_command(['/usr/bin/nsenter', $ns_opts->@*, '--', $cmd->@*], %run_opts);
+}
+
 sub hotplug_net {
     my ($vmid, $conf, $opt, $newnet, $netid) = @_;
 
@@ -1234,9 +1291,7 @@ sub hotplug_net {
     PVE::Tools::run_command($cmd);
 
     # link up peer in container
-    $cmd =
-        ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', '/sbin/ip', 'link', 'set', $eth, 'up'];
-    PVE::Tools::run_command($cmd);
+    run_in_ct_namespaces($vmid, ['net'], ['/sbin/ip', 'link', 'set', $eth, 'up']);
 
     my $done = { type => 'veth' };
     foreach (qw(bridge tag firewall hwaddr name link_down)) {
@@ -1250,13 +1305,17 @@ sub hotplug_net {
 sub get_interfaces {
     my ($vmid) = @_;
 
-    my $pid = eval { find_lxc_pid($vmid); };
+    my ($ns_fhs, $ns_opts) = eval {
+        my ($pid, $pidfd) = open_lxc_pid($vmid)
+            or die "failed to open pidfd of init process of CT $vmid\n";
+        return $open_pidfd_namespaces->($vmid, $pidfd, ['net']);
+    };
     return if $@;
 
     my $output;
     # enters the network namespace of the container and executes 'ip a'
     run_command(
-        ['nsenter', '-t', $pid, '--net', '--', 'ip', '--json', 'a'],
+        ['/usr/bin/nsenter', $ns_opts->@*, '--', '/sbin/ip', '--json', 'a'],
         outfunc => sub { $output .= shift; },
     );
 
@@ -1296,29 +1355,27 @@ sub manage_dhclient {
     my $pidfile = "/var/lib/lxc/$vmid/hook/dhclient$ipversion-$eth.pid";
     my $leasefile = "/var/lib/lxc/$vmid/hook/dhclient$ipversion-$eth.leases";
     my $scriptfile = '/usr/share/lxc/hooks/dhclient-script';
-    PVE::Tools::run_command([
-        'lxc-attach',
-        '-n',
+    run_in_ct_namespaces(
         $vmid,
-        '-s',
-        'NETWORK|UTSNAME',
-        '--',
-        'aa-exec',
-        '-p',
-        'unconfined', # FIXME: use a profile that confines writes to /var/lib/lxc/$vmid and rootfs
-        '/sbin/dhclient',
-        $action eq 'start' ? '-1' : '-r',
-        "-$ipversion",
-        '-pf',
-        $pidfile,
-        '-lf',
-        $leasefile,
-        '-e',
-        "ROOTFS=$rootdir",
-        '-sf',
-        $scriptfile,
-        $eth,
-    ]);
+        ['net', 'uts'],
+        [
+            '/usr/bin/aa-exec',
+            '-p',
+            'unconfined', # FIXME: use a profile that confines writes to /var/lib/lxc/$vmid and rootfs
+            '/sbin/dhclient',
+            $action eq 'start' ? '-1' : '-r',
+            "-$ipversion",
+            '-pf',
+            $pidfile,
+            '-lf',
+            $leasefile,
+            '-e',
+            "ROOTFS=$rootdir",
+            '-sf',
+            $scriptfile,
+            $eth,
+        ],
+    );
 }
 
 sub kill_dhclients {
@@ -1347,13 +1404,7 @@ sub update_ipconfig {
     my $optdata = PVE::LXC::Config->parse_lxc_network($conf->{$opt});
     my $deleted = [];
     my $added = [];
-    my $nscmd = sub {
-        my $cmdargs = shift;
-        PVE::Tools::run_command(
-            ['lxc-attach', '-n', $vmid, '-s', 'NETWORK', '--', @_], %$cmdargs,
-        );
-    };
-    my $ipcmd = sub { &$nscmd({}, '/sbin/ip', @_) };
+    my $ipcmd = sub { run_in_ct_namespaces($vmid, ['net'], ['/sbin/ip', @_]) };
 
     my $change_ip_config = sub {
         my ($ipversion) = @_;
@@ -1440,19 +1491,28 @@ sub update_ipconfig {
             my $promote = 0;
             eval {
                 if ($ipversion == 4) {
-                    &$nscmd(
-                        { outfunc => sub { $promote = int(shift) } },
-                        'cat',
-                        "/proc/sys/net/ipv4/conf/$eth/promote_secondaries",
+                    run_in_ct_namespaces(
+                        $vmid,
+                        ['net'],
+                        ['/bin/cat', "/proc/sys/net/ipv4/conf/$eth/promote_secondaries"],
+                        outfunc => sub { $promote = int(shift) },
                     );
-                    &$nscmd({}, 'sysctl', "net.ipv4.conf.$eth.promote_secondaries=1");
+                    run_in_ct_namespaces(
+                        $vmid,
+                        ['net'],
+                        ['/sbin/sysctl', "net.ipv4.conf.$eth.promote_secondaries=1"],
+                    );
                 }
                 &$ipcmd($family_opt, 'addr', 'del', $oldip, 'dev', $eth);
             };
             warn $@ if $@; # no need to die here
 
             if ($ipversion == 4) {
-                &$nscmd({}, 'sysctl', "net.ipv4.conf.$eth.promote_secondaries=$promote");
+                run_in_ct_namespaces(
+                    $vmid,
+                    ['net'],
+                    ['/sbin/sysctl', "net.ipv4.conf.$eth.promote_secondaries=$promote"],
+                );
             }
         }
 
