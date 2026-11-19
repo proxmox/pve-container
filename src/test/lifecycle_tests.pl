@@ -1157,6 +1157,9 @@ subtest 'post-stop hook only changes the config under its lock' => sub {
     $guest_helpers_module->mock(exec_hookscript => sub { });
     # the hook runs several times in this process
     $restenv_module->mock(setup_default_cli_env => sub { });
+    # a build environment has no syslog socket, which makes setting up the log warn
+    my $lxc_tools_module = Test::MockModule->new('PVE::LXC::Tools');
+    $lxc_tools_module->mock(initlog => sub { });
 
     local $ENV{LXC_HOOK_VERSION} = '1';
     local $ENV{LXC_NAME} = '200';
