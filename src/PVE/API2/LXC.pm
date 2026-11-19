@@ -493,7 +493,7 @@ __PACKAGE__->register_method({
 
         # Only overwrite a container that the checks above were done for. The permission to only
         # overwrite a container does not cover creating it anew, should it be gone by now.
-        eval {
+        my $reservation = eval {
             PVE::LXC::Config->create_and_lock_config(
                 $vmid,
                 $overwrite_only ? 'require' : $force && $same_container_exists,
@@ -501,7 +501,7 @@ __PACKAGE__->register_method({
         };
         die "$emsg $@" if $@;
 
-        my $destroy_config_on_error = !$same_container_exists;
+        my $destroy_config_on_error = !$reservation->{existed};
         # set once the worker cleans up after a failure on its own
         my $started = 0;
 
@@ -553,7 +553,7 @@ __PACKAGE__->register_method({
 
                         # implicit privileged change, or creating a new privileged container is checked here
                         if (
-                            (!$same_container_exists || $old_conf->{unprivileged})
+                            (!$reservation->{existed} || $old_conf->{unprivileged})
                             && !$conf->{unprivileged}
                         ) {
                             $rpcenv->check($authuser, '/', ['Sys.Modify']);
@@ -621,8 +621,7 @@ __PACKAGE__->register_method({
 
                 PVE::LXC::create_disks($storage_cfg, $vmid, $mp_param, $conf, 0, $vollist);
 
-                # we always have the 'create' lock so check for more than 1 entry
-                if (scalar(keys %$old_conf) > 1) {
+                if ($reservation->{existed}) {
                     # destroy old container volumes
                     $old_volumes_left = PVE::LXC::destroy_lxc_container(
                         $storage_cfg,
@@ -718,7 +717,7 @@ __PACKAGE__->register_method({
                     # container and nothing of it is left, its firewall config gets removed like
                     # its config. In all other cases, the previous firewall config is put back.
                     my $firewall_config =
-                        $same_container_exists && !@left ? undef : $old_firewall_config;
+                        $reservation->{existed} && !@left ? undef : $old_firewall_config;
                     eval { PVE::GuestHelpers::set_firewall_config_raw($vmid, $firewall_config) };
                     if (my $firewall_err = $@) {
                         warn "unable to reset the firewall config - $firewall_err";

@@ -579,6 +579,33 @@ subtest 'restore over a container keeps it if replacing it fails early' => sub {
     );
 };
 
+subtest 'only a restore over an existing container destroys the old one' => sub {
+    my $destroyed = 0;
+    my $mocked_destroy = PVE::LXC->can('destroy_lxc_container');
+    my $count = {
+        destroy_lxc_container => sub {
+            $destroyed++;
+            return $mocked_destroy->(@_);
+        },
+    };
+
+    reset_state();
+    my $err = with_mock($lxc_module, $count, sub { restore_ct(200) });
+    is($err, '', 'restore to an unused VMID succeeds') or diag($task_log);
+    is($destroyed, 0, 'it does not destroy anything');
+
+    reset_state();
+    $err = with_mock($lxc_module, $count, sub { create_ct(200) });
+    is($err, '', 'create succeeds') or diag($task_log);
+    is($destroyed, 0, 'create does not destroy anything');
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $err = with_mock($lxc_module, $count, sub { restore_ct(200, { force => 1 }) });
+    is($err, '', 'restore over an existing container succeeds') or diag($task_log);
+    is($destroyed, 1, 'it destroys the old container');
+};
+
 subtest 'create and restore do not change a container that the checks were not done for' => sub {
     my $other_raw = existing_config() =~ s/^hostname: existing$/hostname: other/mr;
     # the guest list of the reservation is the one of the start of the API call
@@ -1237,6 +1264,33 @@ subtest 'post-stop hook only changes the config under its lock' => sub {
     $lxc_module->unmock('get_staging_tempfs', 'vm_stop_cleanup');
     $lxc_module->mock(update_lxc_config => sub { });
     $restenv_module->unmock('setup_default_cli_env');
+};
+
+subtest 'restore treats a container that got removed before the reservation as new' => sub {
+    my $removed_in_between = sub($raw) {
+        reset_state();
+        write_raw_config(200, $raw);
+        $in_between = sub { PVE::LXC::Config->destroy_config(200) };
+    };
+
+    $removed_in_between->(existing_config());
+    $backup_read_error = "unable to read backup\n";
+    like(restore_ct(200, { force => 1 }), qr/unable to read backup/, 'early failure: fails');
+    ok(!defined(read_raw_config(200)), 'early failure: the VMID is released');
+
+    # overwriting a privileged container with a privileged one needs no 'Sys.Modify', creating
+    # one does
+    my $privileged = sub($raw) { return $raw =~ s/^unprivileged: 1\n//mr };
+    $removed_in_between->($privileged->(existing_config()));
+    $backup_raw_config = $privileged->(backup_config());
+    my $deny = { '/' => { 'Sys.Modify' => 1 } };
+    my $err = as_user('user@pve', $deny, sub { restore_ct(200, { force => 1 }) });
+    like(
+        $err,
+        qr/permission check failed \(\/, Sys\.Modify\)/,
+        'privileged: restore is refused',
+    );
+    ok(!defined(read_raw_config(200)), 'privileged: the VMID is released');
 };
 
 remove_tree($WORKDIR);
