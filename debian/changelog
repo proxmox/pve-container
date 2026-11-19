@@ -1,3 +1,55 @@
+pve-container (6.1.25) trixie; urgency=medium
+
+  * fix #7846: give every container a guest identity: a random 'uid' and the
+    time the container was registered in the cluster. Backup software and other
+    tools can use it to recognize a container, also after its VMID got reused or
+    changed. Containers get the read-only 'meta' property for this, which VMs
+    already have, also with the creation time. New containers and clones get an
+    identity when they get created, existing containers with their next config
+    change.
+    - restore: a restore to an unused VMID adopts the uid of the backup if no
+      other guest in the cluster has it. Restoring a backup with another uid
+      over an existing container is refused unless the new
+      'allow-identity-mismatch' option is set. 'force' alone is not enough
+      anymore. A restore from standard input over a container with an identity
+      always needs the option.
+    - remote migration: the container keeps its uid in the target cluster. If
+      another guest there already has the uid, the migration is refused unless
+      the new 'allow-new-uid' option is set. The tunnel version got bumped, so a
+      migration to a cluster without guest identities is refused.
+    - migration and clone: refuse target nodes whose version would drop the
+      identity.
+    - api: return the uid in the status of a container.
+    - vzdump: pass the uid and the ID of the cluster to backup providers, as
+      'guest-uid' and 'cluster-id' in the info hash of the backup calls.
+
+  * post-stop hook: only change the config while holding the config lock. The
+    hook wrote back the config it had loaded before on every stop, so a config
+    change made at the same time, for example through 'pct set', could get lost
+    when a container shut down or rebooted from the inside. Pending changes are
+    now applied under the lock, by the hook or by the task that stops the
+    container.
+
+  * create, restore: fixes for failed operations:
+    - keep the firewall config of an unused VMID if a create or restore to it
+      fails. The cleanup removed it before, also one that was prepared by hand.
+    - keep the VMID with a locked config if the cleanup of a failed create or
+      restore could not remove all volumes or the firewall config. The leftovers
+      had no config referencing them before, and the next guest with that VMID
+      could take them over.
+    - release an unused VMID again if the worker of a create or restore did not
+      get to start, for example because of a lock timeout.
+    - do not create a container if the user may only overwrite an existing one
+      and that container got removed in the meantime.
+    - only apply network options, which can register addresses in the IPAM of
+      SDN, once the worker replaces the container. A restore that failed early
+      could remove the IPAM entries of the container it kept before.
+    - a restore from a backup file no longer fails if a prune job removes the
+      file in the meantime. Such a restore failed after it had already removed
+      the old container.
+
+ -- Proxmox Support Team <support@proxmox.com>  Thu, 19 Nov 2026 23:35:52 +0100
+
 pve-container (6.1.24) trixie; urgency=medium
 
   * migration: check that the target node can parse the container config
