@@ -1089,6 +1089,59 @@ subtest 'network options are only applied once the worker replaces the container
     like(PVE::LXC::Config->load_config(200)->{net0}, qr/hwaddr=$mac/, 'and is in the config');
 };
 
+subtest 'migration tunnel waits for a volume transfer before it cleans up' => sub {
+    # the volume of a transfer is only known once the transfer is done
+    my $import_cmd = {
+        cmd => 'disk-import',
+        volname => 'vm-300-disk-0',
+        format => 'raw',
+        export_formats => 'raw+size',
+        storage => 'local',
+    };
+
+    reset_state();
+    my $no_format =
+        { volume_import_start => sub { die "no matching import/export format found\n" } };
+    my ($err, $replies) =
+        with_mock($storage_module, $no_format, sub { [run_mtunnel(300, $import_cmd)] })->@*;
+    ok(!$replies->[0]->{success}, 'volume transfer that fails to start')
+        or diag(explain($replies));
+    unlike($task_log, qr/still running/, 'it is not taken as running');
+    ok(!defined(read_raw_config(300)), 'reserved config is removed after it');
+
+    # the clock advances with each wait for the transfer
+    my ($now, $queries) = (0, 0);
+    my $time_module = Test::MockModule->new('Time::HiRes');
+    $time_module->mock(
+        time => sub { return $now },
+        usleep => sub {
+            $now += $_[0] / 1_000_000;
+            die "the wait does not end\n" if $now > 120;
+        },
+    );
+    my $storage_tunnel_module = Test::MockModule->new('PVE::StorageTunnel');
+    $storage_tunnel_module->mock(
+        handle_disk_import => sub {
+            my ($state) = @_;
+            $state->{disk_import} = { pid => 1 };
+            return {};
+        },
+        handle_query_disk_import => sub {
+            $queries++;
+            return { status => 'pending' };
+        },
+    );
+    reset_state();
+    ($err, $replies) = run_mtunnel(300, $import_cmd);
+    like(
+        $task_log,
+        qr/^WARN: cleanup failed - a volume transfer is still running$/m,
+        'transfer that does not end is reported',
+    );
+    ok($queries > 0, 'the transfer got queried');
+    ok(defined(read_raw_config(300)), 'reserved config is kept while a transfer still runs');
+};
+
 remove_tree($WORKDIR);
 
 done_testing();
