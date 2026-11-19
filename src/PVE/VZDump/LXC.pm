@@ -9,6 +9,7 @@ use POSIX qw(strftime);
 
 use PVE::Cluster qw(cfs_read_file);
 use PVE::GuestHelpers;
+use PVE::GuestIdentity;
 use PVE::INotify;
 use PVE::LXC::Config;
 use PVE::LXC::Namespaces;
@@ -429,6 +430,11 @@ sub archive {
         $info->{'firewall-config'} = PVE::Tools::file_get_contents($firewall_file)
             if -e $firewall_file;
         $info->{'bandwidth-limit'} = $opts->{bwlimit} * 1024 if $opts->{bwlimit};
+        # the uid from the config that the provider gets, so that both name the same one
+        my $identity = PVE::GuestIdentity::parse_identity_from_raw_config($guest_config);
+        $info->{'guest-uid'} = $identity->{uid} if $identity;
+        my $cluster_id = PVE::Cluster::get_cluster_id();
+        $info->{'cluster-id'} = $cluster_id if defined($cluster_id);
 
         $backup_provider->backup_container_prepare($vmid, $info);
 
