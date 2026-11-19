@@ -11,7 +11,7 @@ use base qw(PVE::LXC::Setup::Debian);
 sub new {
     my ($class, $conf, $rootdir) = @_;
 
-    my $version = PVE::Tools::file_read_firstline("$rootdir/etc/devuan_version");
+    my $version = $class->ct_file_read_firstline_in_root($rootdir, '/etc/devuan_version');
 
     die "unable to read version info\n" if !defined($version);
     $version = lc($version);

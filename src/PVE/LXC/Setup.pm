@@ -50,7 +50,7 @@ my $plugin_alias = {
 };
 
 my $autodetect_type = sub {
-    my ($self, $rootdir, $os_release) = @_;
+    my ($self, $os_release) = @_;
 
     if (my $id = $os_release->{ID}) {
         return $id if $plugins->{$id};
@@ -59,42 +59,48 @@ my $autodetect_type = sub {
     }
 
     # fallback compatibility checks
-
-    my $lsb_fn = "$rootdir/etc/lsb-release";
-    if (-f $lsb_fn) {
-        my $data = PVE::Tools::file_get_contents($lsb_fn);
-        if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
-            return 'ubuntu';
+    my $type = $self->protected_call(sub {
+        my $lsb_fn = "/etc/lsb-release";
+        if (-f $lsb_fn) {
+            my $data = PVE::Tools::file_get_contents($lsb_fn);
+            if ($data =~ m/^DISTRIB_ID=Ubuntu$/im) {
+                return 'ubuntu';
+            }
         }
-    }
 
-    if (-f "$rootdir/etc/debian_version") {
-        return "debian";
-    } elsif (-f "$rootdir/etc/devuan_version") {
-        return "devuan";
-    } elsif (-f "$rootdir/etc/SuSE-brand" || -f "$rootdir/etc/SuSE-release") {
-        return "opensuse";
-    } elsif (-f "$rootdir/etc/fedora-release") {
-        return "fedora";
-    } elsif (-f "$rootdir/etc/centos-release" || -f "$rootdir/etc/redhat-release") {
-        return "centos";
-    } elsif (-f "$rootdir/etc/arch-release") {
-        return "archlinux";
-    } elsif (-f "$rootdir/etc/alpine-release") {
-        return "alpine";
-    } elsif (-f "$rootdir/etc/gentoo-release") {
-        return "gentoo";
-    } elsif (-d "$rootdir/nix/store") {
-        return "nixos";
-    } elsif (-f "$rootdir/etc/openEuler-release") {
-        return "openeuler";
-    } elsif (-f "$rootdir/etc/os-release") {
-        die "unable to detect OS distribution\n";
-    } else {
-        warn
-            "/etc/os-release file not found and autodetection failed, falling back to 'unmanaged'\n";
-        return "unmanaged";
-    }
+        if (-f "/etc/debian_version") {
+            return "debian";
+        } elsif (-f "/etc/devuan_version") {
+            return "devuan";
+        } elsif (-f "/etc/SuSE-brand" || -f "/etc/SuSE-release") {
+            return "opensuse";
+        } elsif (-f "/etc/fedora-release") {
+            return "fedora";
+        } elsif (-f "/etc/centos-release" || -f "/etc/redhat-release") {
+            return "centos";
+        } elsif (-f "/etc/arch-release") {
+            return "archlinux";
+        } elsif (-f "/etc/alpine-release") {
+            return "alpine";
+        } elsif (-f "/etc/gentoo-release") {
+            return "gentoo";
+        } elsif (-d "/nix/store") {
+            return "nixos";
+        } elsif (-f "/etc/openEuler-release") {
+            return "openeuler";
+        } elsif (-f "/etc/os-release") {
+            return "unknown";
+        } else {
+            return "unmanaged";
+        }
+    });
+
+    die "unable to detect OS distribution\n" if $type eq "unknown";
+    warn
+        "/etc/os-release file not found and autodetection failed, falling back to 'unmanaged'\n"
+        if $type eq "unmanaged";
+
+    return $type;
 };
 
 sub new {
@@ -112,7 +118,7 @@ sub new {
         $type = 'unmanaged';
     } elsif (!defined($type)) {
         # try to autodetect type
-        $type = &$autodetect_type($self, $rootdir, $os_release);
+        $type = &$autodetect_type($self, $os_release);
         my $expected_type = $conf->{ostype} || $type;
 
         if ($type ne $expected_type) {

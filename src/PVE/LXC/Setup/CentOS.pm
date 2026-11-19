@@ -17,7 +17,7 @@ use base qw(PVE::LXC::Setup::Base);
 sub new {
     my ($class, $conf, $rootdir) = @_;
 
-    my $release = PVE::Tools::file_read_firstline("$rootdir/etc/redhat-release");
+    my $release = $class->ct_file_read_firstline_in_root($rootdir, '/etc/redhat-release');
     die "unable to read version info\n" if !defined($release);
 
     my $version = get_centos_version($release);

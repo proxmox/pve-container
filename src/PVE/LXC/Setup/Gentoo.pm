@@ -12,7 +12,7 @@ use base qw(PVE::LXC::Setup::Base);
 sub new {
     my ($class, $conf, $rootdir) = @_;
 
-    my $version = PVE::Tools::file_read_firstline("$rootdir/etc/gentoo-release");
+    my $version = $class->ct_file_read_firstline_in_root($rootdir, '/etc/gentoo-release');
     die "unable to read version info\n" if !defined($version);
     if ($version =~ /^gentoo base system release (.*)$/i) {
         $version = $1;

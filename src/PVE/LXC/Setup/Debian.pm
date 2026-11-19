@@ -21,7 +21,7 @@ use constant {
 sub new {
     my ($class, $conf, $rootdir, $os_release, $log_warn) = @_;
 
-    my $version = PVE::Tools::file_read_firstline("$rootdir/etc/debian_version");
+    my $version = $class->ct_file_read_firstline_in_root($rootdir, '/etc/debian_version');
 
     die "unable to read version info\n" if !defined($version);
 

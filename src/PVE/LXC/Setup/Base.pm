@@ -878,6 +878,40 @@ sub ct_file_read_firstline {
     return PVE::Tools::file_read_firstline($file);
 }
 
+# Safely read the first line of $path resolved inside $rootdir without following symlinks out of
+# $rootdir. Intended for plugin constructors running before protected_call() is active.
+# Returns undef on ENOENT or an empty file, matching PVE::Tools::file_read_firstline().
+sub ct_file_read_firstline_in_root {
+    my ($class, $rootdir, $path) = @_;
+
+    # O_NONBLOCK prevents hanging indefinitely if the container placed a FIFO at $path.
+    my $fh = eval { PVE::Tools::open_in_root($rootdir, $path, O_RDONLY | O_NONBLOCK) };
+    if (my $err = $@) {
+        return undef if $! == POSIX::ENOENT && $err =~ /^failed to open file /;
+        die $err;
+    }
+    die "file '$path' is not a regular file\n" if !-f $fh;
+
+    my $max = 4096;
+    my $buf = '';
+    while (1) {
+        my $remaining = $max + 1 - length($buf);
+        my $n = sysread($fh, $buf, $remaining, length($buf));
+        if (!defined($n)) {
+            next if $! == POSIX::EINTR;
+            die "unable to read file '$path' - $!\n";
+        }
+        if ((my $nl = index($buf, "\n")) >= 0) {
+            return substr($buf, 0, $nl);
+        }
+        last if $n == 0;
+        die "file '$path' first line too long - aborting\n" if length($buf) > $max;
+    }
+
+    return undef if $buf eq '';
+    return $buf;
+}
+
 sub ct_file_get_contents {
     my ($self, $file) = @_;
     return PVE::Tools::file_get_contents($file);
