@@ -484,7 +484,9 @@ __PACKAGE__->register_method({
         # check/activate default storage
         &$check_and_activate_storage($storage) if !defined($mp_param->{rootfs});
 
-        PVE::LXC::Config->update_pct_config($vmid, $conf, 0, $no_disk_param);
+        # applying network options can allocate addresses in the IPAM of SDN, so only check and
+        # queue the options here, the worker applies them
+        PVE::LXC::Config->queue_pct_config_changes($vmid, $conf, $no_disk_param, [], []);
 
         $conf->{unprivileged} = 1 if $unprivileged;
 
@@ -632,6 +634,9 @@ __PACKAGE__->register_method({
                 }
                 # up until here the old container is intact, besides its lock
                 $destroy_config_on_error = 1;
+
+                # registers addresses in the IPAM of SDN, so only once the old container is gone
+                PVE::LXC::Config->vmconfig_apply_pending($vmid, $conf, $storage_cfg);
 
                 eval {
                     my $rootdir = PVE::LXC::mount_all($vmid, $storage_cfg, $conf, 1);

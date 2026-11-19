@@ -1018,6 +1018,77 @@ subtest 'restore does not create a container if the user may only overwrite it' 
         or diag($task_log);
 };
 
+subtest 'network options are only applied once the worker replaces the container' => sub {
+    # an option with the MAC address that the existing container has
+    my $mac = 'BC:24:11:00:00:01';
+    my $net = "name=eth0,bridge=vnet0,hwaddr=$mac,ip=dhcp";
+    my $existing_raw = existing_config() . "net0: $net,type=veth\n";
+
+    my (@sdn_calls, $ipam); # $ipam: bridge => MAC => hostname
+    my $vnets_module = Test::MockModule->new('PVE::Network::SDN::Vnets');
+    $vnets_module->mock(
+        add_next_free_cidr => sub {
+            my ($bridge, $hostname, $mac) = @_;
+            push @sdn_calls, 'add';
+            $ipam->{$bridge}->{$mac} = $hostname;
+        },
+        del_ips_from_mac => sub {
+            my ($bridge, $mac) = @_;
+            push @sdn_calls, 'del';
+            delete $ipam->{$bridge}->{$mac};
+        },
+    );
+    my $mocked_destroy = PVE::LXC->can('destroy_lxc_container');
+    my $with_ipam = {
+        delete_ifaces_ipams_ips => $lxc_module->original('delete_ifaces_ipams_ips'),
+        destroy_lxc_container => sub {
+            my ($storecfg, $vmid, $conf) = @_;
+            # like the real function, which removes the addresses of the old container
+            PVE::LXC::delete_ifaces_ipams_ips($conf, $vmid);
+            return $mocked_destroy->(@_);
+        },
+    };
+    my $run = sub($setup, $call) {
+        reset_state();
+        $setup->();
+        (@sdn_calls, $ipam) = ();
+        $ipam = { vnet0 => { $mac => 'existing' } } if defined(read_raw_config(200));
+        return with_mock($lxc_module, $with_ipam, $call);
+    };
+    my $existing = sub { write_raw_config(200, $existing_raw) };
+    my $restore = sub { restore_ct(200, { force => 1, net0 => $net }) };
+
+    my $err =
+        $run->(sub { $existing->(); $backup_read_error = "unable to read backup\n"; }, $restore);
+    like($err, qr/unable to read backup/, 'restore fails before it replaces the container');
+    is_deeply(\@sdn_calls, [], 'IPAM is not touched');
+    ok(exists($ipam->{vnet0}->{$mac}), 'the container keeps its IPAM mapping');
+
+    is($run->($existing, $restore), '', 'restore succeeds') or diag($task_log);
+    is_deeply(
+        \@sdn_calls,
+        ['del', 'add'],
+        'the option is applied once the old container is removed',
+    );
+    ok(exists($ipam->{vnet0}->{$mac}), 'the restored interface has an IPAM mapping');
+
+    $err = $run->(
+        sub { $in_between = $existing },
+        sub {
+            my $stale_guest_list = { check_vmid_unused => sub { return 1 } };
+            my $create = sub { create_ct(200, { net0 => $net }) };
+            return with_mock($cluster_module, $stale_guest_list, $create);
+        },
+    );
+    like($err, qr/CT 200 already exists/, 'create does not get the VMID');
+    is_deeply(\@sdn_calls, [], 'IPAM is not touched');
+
+    is($run->(sub { }, sub { create_ct(200, { net0 => $net }) }), '', 'create succeeds')
+        or diag($task_log);
+    is_deeply(\@sdn_calls, ['add'], 'the option is applied');
+    like(PVE::LXC::Config->load_config(200)->{net0}, qr/hwaddr=$mac/, 'and is in the config');
+};
+
 remove_tree($WORKDIR);
 
 done_testing();
