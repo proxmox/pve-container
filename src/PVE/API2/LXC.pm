@@ -326,8 +326,9 @@ __PACKAGE__->register_method({
         $param->{cpuunits} = PVE::CGroup::clamp_cpu_shares($param->{cpuunits})
             if defined($param->{cpuunits}); # clamp value depending on cgroup version
 
-        # used to skip firewall config restore if user lacks permission
-        my $skip_fw_config_restore = 0;
+        # whether the permissions only allow overwriting the existing container, without its
+        # firewall config
+        my $overwrite_only = 0;
 
         if ($restore) {
             # fixme: limit allowed parameters
@@ -379,7 +380,7 @@ __PACKAGE__->register_method({
 
             # we don't want to restore a container-provided FW conf in this case
             # since the user is lacking permission to configure the container's FW
-            $skip_fw_config_restore = 1;
+            $overwrite_only = 1;
 
             # error out if a user tries to change from unprivileged to privileged without required privileges
             # explicit change is checked here, implicit is checked down below or happening in root-only paths
@@ -489,9 +490,13 @@ __PACKAGE__->register_method({
 
         my $emsg = $restore ? "unable to restore CT $vmid -" : "unable to create CT $vmid -";
 
-        # only overwrite a container that the checks above were done for
+        # Only overwrite a container that the checks above were done for. The permission to only
+        # overwrite a container does not cover creating it anew, should it be gone by now.
         eval {
-            PVE::LXC::Config->create_and_lock_config($vmid, $force && $same_container_exists);
+            PVE::LXC::Config->create_and_lock_config(
+                $vmid,
+                $overwrite_only ? 'require' : $force && $same_container_exists,
+            );
         };
         die "$emsg $@" if $@;
 
@@ -664,7 +669,7 @@ __PACKAGE__->register_method({
                             $conf,
                             !$is_root,
                             $unique,
-                            $skip_fw_config_restore,
+                            $overwrite_only,
                         );
                         PVE::LXC::create_ifaces_ipams_ips($conf, $vmid) if $unique;
                         my $lxc_setup = PVE::LXC::Setup->new($conf, $rootdir);

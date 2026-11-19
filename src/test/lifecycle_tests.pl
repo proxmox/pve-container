@@ -989,6 +989,35 @@ subtest 'create or restore that does not get the config lock releases an unused 
     ok(!defined($conf->{lock}), 'existing container: its lock is removed');
 };
 
+subtest 'restore does not create a container if the user may only overwrite it' => sub {
+    # 'VM.Backup' allows overwriting the container, but not creating one
+    my $deny = { '/vms/200' => { 'VM.Allocate' => 1 } };
+    my $restore = sub { restore_ct(200, { force => 1 }) };
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $in_between = sub { PVE::LXC::Config->destroy_config(200) };
+    my $err = as_user('user@pve', $deny, $restore);
+    my $missing = qr/Configuration file 'nodes\/[^\/]+\/lxc\/200\.conf' does not exist/;
+    like(
+        $err,
+        qr/^unable to restore CT 200 - $missing$/,
+        'removed in between: restore is refused',
+    );
+    ok(!$written->{200}, 'removed in between: no config is written for the VMID');
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    is(as_user('user@pve', $deny, $restore), '', 'restore over the container succeeds')
+        or diag($task_log);
+
+    reset_state();
+    write_raw_config(200, existing_config());
+    $in_between = sub { PVE::LXC::Config->destroy_config(200) };
+    is($restore->(), '', 'removed in between: a user who may create it gets a new container')
+        or diag($task_log);
+};
+
 remove_tree($WORKDIR);
 
 done_testing();
