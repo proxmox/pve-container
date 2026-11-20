@@ -153,6 +153,21 @@ subtest 'parsing drops keys outside of the schema' => sub {
     is($conf->{memory}, 'invalid', 'invalid value of a known key is kept');
 };
 
+subtest 'a value with a null character is not written' => sub {
+    my $conf;
+    {
+        local $SIG{__WARN__} = sub { };
+        $conf = PVE::LXC::Config::parse_pct_config(
+            '/lxc/100.conf',
+            "hostname: bad\0name\nmemory: 512\n",
+        );
+    }
+    is($conf->{hostname}, "bad\0name", 'parsing keeps the value');
+
+    eval { PVE::LXC::Config::write_pct_config('/lxc/100.conf', $conf) };
+    like($@, qr/^detected invalid null character inside property 'hostname'$/, 'writing fails');
+};
+
 subtest 'restore does not take over pending changes of the backup' => sub {
     my $rpcenv = PVE::RPCEnvironment->init('cli');
 

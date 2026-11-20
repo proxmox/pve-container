@@ -1263,6 +1263,8 @@ sub write_pct_config {
             my $value = $conf->{$key};
             die "detected invalid newline or carriage return inside property '$key'\n"
                 if $value =~ m/[\r\n]/;
+            # pmxcfs reads single properties as C strings and would see a shorter value
+            die "detected invalid null character inside property '$key'\n" if $value =~ m/\0/;
             $raw .= "$key: $value\n";
         }
 
