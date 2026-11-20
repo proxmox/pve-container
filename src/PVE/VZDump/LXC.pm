@@ -433,6 +433,7 @@ sub archive {
         # the uid from the config that the provider gets, so that both name the same one
         my $identity = PVE::GuestIdentity::parse_identity_from_raw_config($guest_config);
         $info->{'guest-uid'} = $identity->{uid} if $identity;
+        $info->{'guest-rtime'} = $identity->{rtime} if $identity && defined($identity->{rtime});
         my $cluster_id = PVE::Cluster::get_cluster_id();
         $info->{'cluster-id'} = $cluster_id if defined($cluster_id);
 
