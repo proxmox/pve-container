@@ -1,3 +1,17 @@
+pve-container (6.1.26) trixie; urgency=medium
+
+  * d/control: require pve-cluster 9.1.13, which ships the helper that backups
+    to a backup provider use to read the cluster ID. Requiring
+    libpve-cluster-perl 9.1.13 did not ensure that, so a partial upgrade could
+    break such backups.
+
+  * vzdump: backup provider: also pass the registration time of the container
+    as 'guest-rtime', if available. A container restored to an unused VMID can
+    keep its uid but gets a new registration time, so providers can tell such
+    registrations apart without parsing the container config.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 20 Nov 2026 12:55:56 +0100
+
 pve-container (6.1.25) trixie; urgency=medium
 
   * fix #7846: give every container a guest identity: a random 'uid' and the
