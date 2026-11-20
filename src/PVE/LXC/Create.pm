@@ -216,8 +216,6 @@ sub restore_tar_archive {
             sysopen($archive_fh, $archive, O_RDONLY)
                 or die "failed to open '$archive': $!\n";
         }
-        $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
-        $archive_fh->fcntl(Fcntl::F_SETFD(), $flags & ~(Fcntl::FD_CLOEXEC()));
         $tar_input = '<&' . fileno($archive_fh);
     }
 
@@ -232,6 +230,11 @@ sub restore_tar_archive {
         print "extracting archive from STDIN\n";
     } else {
         print "extracting archive '$archive'\n";
+    }
+    if (defined($archive_fh)) {
+        # only after building the command, so that cleanup after a failure does not inherit it
+        $flags = $archive_fh->fcntl(Fcntl::F_GETFD(), 0);
+        $archive_fh->fcntl(Fcntl::F_SETFD(), $flags & ~(Fcntl::FD_CLOEXEC()));
     }
     eval { PVE::Tools::run_command($cmd, input => $tar_input); };
     my $err = $@;

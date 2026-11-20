@@ -2254,6 +2254,11 @@ subtest 'an archive file is extracted through the handle that its config was rea
     );
     ok(!$inherited->($opened->{fh}), 'the handle is not inherited then either');
     $tools_module->unmock_all();
+
+    my $bad_map = { parse_id_maps => sub { die "invalid id map\n" } };
+    my $err = with_mock($lxc_module, $bad_map, sub { $extract->($link, $opened) });
+    like($err, qr/invalid id map/, 'extraction fails if the tar command cannot be built');
+    ok(!$inherited->($opened->{fh}), 'the handle stays close-on-exec after an invalid ID map');
     close($opened->{fh});
 
     like(
