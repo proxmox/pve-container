@@ -1441,6 +1441,7 @@ sub update_pct_config {
     return $errors;
 }
 
+# FIXME: MAJOR VERSION: use JSONSchema::check_prop() on the returned value to check 'pattern', etc.
 sub check_type {
     my ($class, $key, $value) = @_;
 
