@@ -532,4 +532,126 @@ subtest 'remote migration prepare rejects restricted and malformed env early' =>
     is($tunnel_opened, 0, 'remote migration aborts before opening websocket tunnel');
 };
 
+subtest 'restore filters restricted env variables for non-root users' => sub {
+    my $rpcenv = eval { PVE::RPCEnvironment->init('cli') } || PVE::RPCEnvironment->get();
+    my @warnings;
+    my $rest_mock = Test::MockModule->new('PVE::RESTEnvironment');
+    $rest_mock->mock(warn => sub { my ($self, $msg) = @_; push @warnings, $msg; });
+
+    my $backup = {
+        env => "SAFE=1\0LD_PRELOAD=SECRET_VAL_1\0LD_PRELOAD=SECRET_VAL_DUP\0"
+            . " LD_AUDIT=SECRET_VAL_2\0SECRET_MALFORMED_3\0OK=yes",
+    };
+
+    $rpcenv->set_user('user@pve');
+    my $conf = {};
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $backup, 1, 0);
+    is($conf->{env}, "SAFE=1\0OK=yes", 'restricted user keeps only safe env vars');
+    is(scalar(@warnings), 1, 'restricted user receives warning for skipped env vars');
+    like(
+        $warnings[0],
+        qr/^skipping disallowed runtime environment entries \(restricted variables: LD_PRELOAD; 2 malformed entries\), configure manually as root$/,
+        'warning reports only restricted names and malformed entry count',
+    );
+    unlike(
+        $warnings[0],
+        qr/SECRET_VAL_1|SECRET_VAL_DUP|SECRET_VAL_2|SECRET_MALFORMED_3|LD_AUDIT/,
+        'warning does not leak env values or malformed entries',
+    );
+
+    @warnings = ();
+    my $malformed_only = { env => 'SECRET_ONLY_MALFORMED' };
+    $conf = {};
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $malformed_only, 1, 0);
+    ok(!exists($conf->{env}), 'env is omitted when all backup entries were malformed');
+    is(scalar(@warnings), 1, 'warning emitted when all entries were malformed');
+    like(
+        $warnings[0],
+        qr/^skipping disallowed runtime environment entries \(1 malformed entry\), configure manually as root$/,
+        'malformed-only warning reports count without restricted variable list',
+    );
+    unlike(
+        $warnings[0],
+        qr/SECRET_ONLY_MALFORMED|restricted variables/,
+        'malformed value not leaked',
+    );
+
+    @warnings = ();
+    my $all_bad = { env => 'LD_PRELOAD=SECRET_VAL_ALL' };
+    $conf = {};
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $all_bad, 1, 0);
+    ok(!exists($conf->{env}), 'env is omitted if all backup entries were restricted');
+    is(scalar(@warnings), 1, 'warning emitted when all env vars were skipped');
+    unlike($warnings[0], qr/SECRET_VAL_ALL/, 'all-restricted warning does not leak value');
+
+    @warnings = ();
+    $conf = { env => 'CUSTOM=1' };
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $backup, 1, 0);
+    is($conf->{env}, 'CUSTOM=1', 'explicitly provided env overrides backup without filtering');
+    is(scalar(@warnings), 0, 'no warning when backup env is overridden');
+
+    @warnings = ();
+    $rpcenv->set_user('root@pam');
+    $conf = {};
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $backup, 0, 0);
+    is($conf->{env}, $backup->{env}, 'root@pam preserves all env vars from backup');
+    is(scalar(@warnings), 0, 'no warning emitted for root@pam');
+};
+
+subtest 'OCI restore filters restricted env for non-root users and aborts on control characters' =>
+    sub {
+        my @warnings;
+        my $oci_env = [];
+
+        my $storage_mock = Test::MockModule->new('PVE::Storage');
+        $storage_mock->mock(abs_filesystem_path => sub { return '/fake/oci.tar'; });
+
+        my $ns_mock = Test::MockModule->new('PVE::LXC::Namespaces');
+        $ns_mock->mock(run_in_userns => sub { return { Env => $oci_env }; });
+
+        my $create_mock = Test::MockModule->new('PVE::LXC::Create');
+        $create_mock->mock(log_warn => sub { my ($msg) = @_; push @warnings, $msg; });
+
+        $oci_env =
+        ['SAFE=1', 'LD_PRELOAD=SECRET_OCI_1', ' LD_AUDIT=SECRET_OCI_2', 'SECRET_OCI_NOEQ',
+            'OK=yes'];
+        @warnings = ();
+        my $conf = { unprivileged => 1, lxc => [] };
+        PVE::LXC::Create::restore_oci_archive({}, 'local:vztmpl/app.tar', '/fake/root', $conf, 1);
+        is($conf->{env}, "SAFE=1\0OK=yes", 'restricted OCI import keeps only safe env vars');
+        is(scalar(@warnings), 1, 'restricted OCI import emits one warning');
+        like(
+            $warnings[0],
+        qr/^skipping disallowed OCI environment entries \(restricted variables: LD_PRELOAD; 2 malformed entries\), configure manually as root$/,
+            'OCI warning reports only restricted names and malformed entry count',
+        );
+        unlike(
+            $warnings[0],
+            qr/SECRET_OCI_1|SECRET_OCI_2|SECRET_OCI_NOEQ|LD_AUDIT/,
+            'OCI warning does not leak env values or malformed entries',
+        );
+
+        @warnings = ();
+        $conf = { unprivileged => 1, lxc => [] };
+        PVE::LXC::Create::restore_oci_archive({}, 'local:vztmpl/app.tar', '/fake/root', $conf, 0);
+        is($conf->{env}, join("\0", @$oci_env),
+            'unrestricted OCI import preserves all env entries');
+        is(scalar(@warnings), 0, 'unrestricted OCI import emits no warning');
+
+        $oci_env = ['SAFE=1', "BAD=line1\nline2"];
+        for my $restricted (1, 0) {
+            $conf = { unprivileged => 1, lxc => [] };
+            eval {
+                PVE::LXC::Create::restore_oci_archive(
+                    {}, 'local:vztmpl/app.tar', '/fake/root', $conf, $restricted,
+                );
+            };
+            like(
+                $@,
+                qr/forbidden control characters/,
+                "OCI import with control characters aborts (restricted=$restricted)",
+            );
+        }
+    };
+
 done_testing();

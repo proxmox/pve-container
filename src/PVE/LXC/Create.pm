@@ -551,6 +551,42 @@ sub restore_configuration_from_external_backup {
     return;
 }
 
+my sub filter_restricted_env_vars {
+    my ($vars) = @_;
+
+    my (@allowed, @skipped_names, %seen_skipped);
+    my $malformed = 0;
+    for my $var ($vars->@*) {
+        my ($status, $name) = PVE::LXC::Config::classify_lxc_env_entry($var);
+        if ($status eq 'ok') {
+            push @allowed, $var;
+        } elsif ($status eq 'forbidden') {
+            push @skipped_names, $name if !$seen_skipped{$name}++;
+        } else {
+            $malformed++;
+        }
+    }
+
+    return (\@allowed, \@skipped_names, $malformed);
+}
+
+my sub format_skipped_env_warning {
+    my ($what, $skipped_names, $malformed) = @_;
+
+    return undef if !$skipped_names->@* && !$malformed;
+
+    my @parts;
+    if ($skipped_names->@*) {
+        push @parts, "restricted variables: " . join(', ', $skipped_names->@*);
+    }
+    if ($malformed) {
+        my $noun = $malformed == 1 ? 'entry' : 'entries';
+        push @parts, "$malformed malformed $noun";
+    }
+
+    return "skipping $what (" . join('; ', @parts) . "), configure manually as root";
+}
+
 sub sanitize_and_merge_config {
     my ($conf, $oldconf, $restricted, $unique) = @_;
 
@@ -591,6 +627,22 @@ sub sanitize_and_merge_config {
 
             $rpcenv->warn($msg);
 
+            next;
+        }
+
+        if ($key eq 'env' && $restricted && !defined($conf->{env})) {
+            my @vars = split(/\0/, $oldconf->{env}, -1);
+            my ($allowed, $skipped_names, $malformed) = filter_restricted_env_vars(\@vars);
+            if (
+                my $msg = format_skipped_env_warning(
+                    'disallowed runtime environment entries',
+                    $skipped_names,
+                    $malformed,
+                )
+            ) {
+                $rpcenv->warn($msg);
+            }
+            $conf->{env} = join("\0", $allowed->@*) if $allowed->@*;
             next;
         }
 
@@ -689,7 +741,7 @@ sub archive_is_oci_format {
 # There is still room for improvements, e.g. potentially detecting "Volumes" or how to pass in some
 # config/snippet or the like (snipptes or maybe better the new Mapping infra?).
 sub restore_oci_archive {
-    my ($storage_cfg, $archive, $rootdir, $conf) = @_;
+    my ($storage_cfg, $archive, $rootdir, $conf, $restricted) = @_;
 
     die "cannot restore OCI from stdin archive!\n" if $archive eq '-';
 
@@ -797,7 +849,20 @@ sub restore_oci_archive {
     }
 
     if (my $envs = $oci_config_get_checked_array->('Env')) {
-        $conf->{env} = join("\0", $envs->@*);
+        if ($restricted) {
+            my ($allowed, $skipped_names, $malformed) = filter_restricted_env_vars($envs);
+            if (
+                my $msg = format_skipped_env_warning(
+                    'disallowed OCI environment entries',
+                    $skipped_names,
+                    $malformed,
+                )
+            ) {
+                log_warn($msg);
+            }
+            $envs = $allowed;
+        }
+        $conf->{env} = join("\0", $envs->@*) if $envs->@*;
     }
 
     my $stop_signal = $oci_config_get_checked_scalar->('StopSignal') // "SIGTERM";

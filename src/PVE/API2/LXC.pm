@@ -676,7 +676,7 @@ __PACKAGE__->register_method({
                     ) {
                         print "Detected OCI archive\n";
                         PVE::LXC::Create::restore_oci_archive(
-                            $storage_cfg, $archive, $rootdir, $conf,
+                            $storage_cfg, $archive, $rootdir, $conf, !$is_root,
                         );
                     } else {
                         print "restoring '$archive' now..\n" if $restore && $archive ne '-';
