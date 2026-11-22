@@ -122,8 +122,9 @@ sub new {
         my $expected_type = $conf->{ostype} || $type;
 
         if ($type ne $expected_type) {
+            my $has_etc = $self->protected_call(sub { -e '/etc' ? 1 : 0 });
             warn "WARNING: /etc not present in CT, is the rootfs mounted?\n"
-                if !-e "$rootdir/etc";
+                if !$has_etc;
             warn "got unexpected ostype ($type != $expected_type)\n";
         }
     }
@@ -279,7 +280,8 @@ sub rewrite_ssh_host_keys {
 
     my $keynames = $plugin->ssh_host_key_types_to_generate();
 
-    return if !-d "$self->{rootdir}/etc/ssh" || !$keynames || !scalar(keys $keynames->%*);
+    return if !$keynames || !scalar(keys $keynames->%*);
+    return if !$self->protected_call(sub { -d '/etc/ssh' ? 1 : 0 });
 
     my $hostname = $self->{conf}->{hostname} || 'localhost';
     $hostname =~ s/\..*$//;
