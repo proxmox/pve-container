@@ -1,3 +1,16 @@
+pve-container (6.1.27) trixie; urgency=medium
+
+  * api: migrate: only refuse a target node that would drop the guest
+    identity, one with pve-manager before 9.2.33, if the container has an
+    identity. Containers without one, which are common during a rolling
+    upgrade, can be migrated to such a node again, for example to put an
+    upgraded node into maintenance mode. A running container with pending
+    changes is still refused, as stopping it for the migration applies them
+    and assigns an identity. Bulk migration still refuses such a node for
+    all guests.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 24 Nov 2026 10:20:05 +0100
+
 pve-container (6.1.26) trixie; urgency=medium
 
   * d/control: require pve-cluster 9.1.13, which ships the helper that backups
