@@ -212,7 +212,11 @@ sub prepare {
 
         $self->log('info', "shutdown CT $vmid\n");
 
-        eval { PVE::LXC::vm_stop($vmid, 0, $timeout) };
+        eval {
+            PVE::LXC::vm_stop($vmid, 0, $timeout);
+            # stopping applied the pending changes and wrote the config
+            $self->{vmconf} = PVE::LXC::Config->load_config($vmid);
+        };
         if (my $err = $@) {
             # the target of a remote migration already reserved the VMID with a locked config
             if (my $tunnel = delete $self->{tunnel}) {
@@ -241,6 +245,10 @@ sub phase1 {
     my $conf = $self->{vmconf};
     $conf->{lock} = 'migrate';
     PVE::LXC::Config->write_config($vmid, $conf);
+
+    # prepare checked the config from before stopping the container, which can apply pending
+    # mount points
+    $check_mountpoints->($self, $conf, 0) if $self->{opts}->{restart} && $self->{was_running};
 
     if ($self->{running}) {
         $self->log('info', "container is running - using online migration");
