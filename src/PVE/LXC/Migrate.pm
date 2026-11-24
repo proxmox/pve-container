@@ -49,33 +49,13 @@ sub lock_vm {
     return PVE::LXC::Config->lock_config($vmid, $code, @param);
 }
 
-sub prepare {
-    my ($self, $vmid) = @_;
+# Checks that the mount points of $conf can be migrated and that the target node can use their
+# storages, and returns the storages that the volumes get on the target.
+my $check_mountpoints = sub {
+    my ($self, $conf, $running) = @_;
 
-    my $online = $self->{opts}->{online};
     my $restart = $self->{opts}->{restart};
     my $remote = $self->{opts}->{remote};
-
-    $self->{storecfg} = PVE::Storage::config();
-
-    # test if CT exists
-    my $conf = $self->{vmconf} = PVE::LXC::Config->load_config($vmid);
-
-    PVE::LXC::Config->check_lock($conf);
-
-    my $running = 0;
-    if (PVE::LXC::check_running($vmid)) {
-        die "lxc live migration is currently not implemented\n" if $online;
-        die "running container can only be migrated in restart mode" if !$restart;
-        $running = 1;
-    }
-    $self->{was_running} = $running;
-
-    # The API checked the target before the lock was taken, and the container may have gotten an
-    # identity since then.
-    if (!$remote && PVE::LXC::Config->migration_needs_identity_support($vmid, $conf, $running)) {
-        PVE::GuestIdentity::assert_node_supports_identity($self->{node});
-    }
 
     my $storages = {};
     PVE::LXC::Config->foreach_volume_full(
@@ -132,6 +112,39 @@ sub prepare {
             $storages->{$targetsid} = 1;
         },
     );
+
+    return $storages;
+};
+
+sub prepare {
+    my ($self, $vmid) = @_;
+
+    my $online = $self->{opts}->{online};
+    my $restart = $self->{opts}->{restart};
+    my $remote = $self->{opts}->{remote};
+
+    $self->{storecfg} = PVE::Storage::config();
+
+    # test if CT exists
+    my $conf = $self->{vmconf} = PVE::LXC::Config->load_config($vmid);
+
+    PVE::LXC::Config->check_lock($conf);
+
+    my $running = 0;
+    if (PVE::LXC::check_running($vmid)) {
+        die "lxc live migration is currently not implemented\n" if $online;
+        die "running container can only be migrated in restart mode" if !$restart;
+        $running = 1;
+    }
+    $self->{was_running} = $running;
+
+    # The API checked the target before the lock was taken, and the container may have gotten an
+    # identity since then.
+    if (!$remote && PVE::LXC::Config->migration_needs_identity_support($vmid, $conf, $running)) {
+        PVE::GuestIdentity::assert_node_supports_identity($self->{node});
+    }
+
+    my $storages = $check_mountpoints->($self, $conf, $running);
 
     # todo: test if VM uses local resources
 
