@@ -7,6 +7,7 @@ use File::Basename;
 use File::Copy; # fixme: remove
 
 use PVE::Cluster;
+use PVE::GuestIdentity;
 use PVE::GuestID;
 use PVE::INotify;
 use PVE::JSONSchema;
@@ -69,6 +70,12 @@ sub prepare {
         $running = 1;
     }
     $self->{was_running} = $running;
+
+    # The API checked the target before the lock was taken, and the container may have gotten an
+    # identity since then.
+    if (!$remote && PVE::LXC::Config->migration_needs_identity_support($vmid, $conf, $running)) {
+        PVE::GuestIdentity::assert_node_supports_identity($self->{node});
+    }
 
     my $storages = {};
     PVE::LXC::Config->foreach_volume_full(

@@ -2254,4 +2254,14 @@ sub foreach_passthrough_device {
     }
 }
 
+# Whether a migration of the container needs a target node that keeps guest identities: it has one
+# stored, or it runs and has pending changes, which stopping it for the migration applies with a
+# config write that assigns one.
+sub migration_needs_identity_support {
+    my ($class, $vmid, $conf, $running) = @_;
+
+    return 1 if $running && scalar(keys(($conf->{pending} // {})->%*));
+    return $class->has_stored_identity($vmid);
+}
+
 1;

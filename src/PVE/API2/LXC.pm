@@ -1785,6 +1785,9 @@ __PACKAGE__->register_method({
             $res->{'dependent-ha-resources'} = $dependent_ha_resource // [];
         }
 
+        my $needs_identity_support =
+            PVE::LXC::Config->migration_needs_identity_support($vmid, $vmconf, $res->{running});
+
         my $nodelist = PVE::Cluster::get_nodelist();
         for my $node ($nodelist->@*) {
             next if $node eq $localnode;
@@ -1795,8 +1798,10 @@ __PACKAGE__->register_method({
                     $blocking_ha_resources;
             }
 
-            # the migration refuses nodes that would drop the guest identity
-            if (my $unsupported = PVE::GuestIdentity::node_identity_unsupported($node)) {
+            # the migration refuses nodes that would drop the identity the container has or gets
+            my $unsupported =
+                $needs_identity_support && PVE::GuestIdentity::node_identity_unsupported($node);
+            if ($unsupported) {
                 $res->{'not-allowed-nodes'}->{$node}->{'guest-identity-unsupported'} =
                     $unsupported;
             }
@@ -1844,18 +1849,21 @@ __PACKAGE__->register_method({
         PVE::Cluster::check_cfs_quorum();
 
         PVE::Cluster::check_node_exists($target);
-        # an older node drops the guest identity on its next write of the config
-        PVE::GuestIdentity::assert_node_supports_identity($target);
 
         my $targetip = PVE::Cluster::remote_node_ip($target);
 
         my $vmid = extract_param($param, 'vmid');
 
         # test if VM exists
-        PVE::LXC::Config->load_config($vmid);
+        my $conf = PVE::LXC::Config->load_config($vmid);
+        my $running = PVE::LXC::check_running($vmid);
+
+        # an older node drops the guest identity on its next write of the config
+        PVE::GuestIdentity::assert_node_supports_identity($target)
+            if PVE::LXC::Config->migration_needs_identity_support($vmid, $conf, $running);
 
         # try to detect errors early
-        if (PVE::LXC::check_running($vmid)) {
+        if ($running) {
             die "can't migrate running container without --online or --restart\n"
                 if !$param->{online} && !$param->{restart};
         }

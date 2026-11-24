@@ -1759,6 +1759,27 @@ subtest 'migration is refused to nodes that drop the guest identity' => sub {
     $err = $migrate->('unknown-node');
     is($err, '', 'migration to a node without version starts');
     is($migrated_to, 'unknown-node', 'migration goes to the node without version');
+
+    # stopping it for the migration applies the pending changes, which assigns an identity
+    write_raw_config(200, existing_config() . "\n[pve:pending]\nmemory: 1024\n");
+    undef $migrated_to;
+    $err = with_mock(
+        $lxc_module,
+        { check_running => sub { return 1 } },
+        sub { $migrate->('old-node', { restart => 1 }) },
+    );
+    like(
+        $err,
+        qr/node 'old-node' runs Proxmox VE 9\.2\.0/,
+        'running container with pending changes is refused',
+    );
+    ok(!defined($migrated_to), 'before the migration starts');
+
+    # a container without identity loses nothing on an older node
+    write_raw_config(200, existing_config());
+    $err = $migrate->('old-node');
+    is($err, '', 'migration of a container without identity to an older node starts');
+    is($migrated_to, 'old-node', 'migration goes to the older node');
 };
 
 subtest 'migration preconditions list nodes that drop the guest identity' => sub {
@@ -1804,6 +1825,89 @@ subtest 'migration preconditions list nodes that drop the guest identity' => sub
     my $reasons = $res->{'not-allowed-nodes'}->{'old-node'};
     eval { PVE::JSONSchema::validate($reasons, $reasons_schema) };
     is($@, '', 'reason for old-node is documented in the schema');
+
+    my $precondition = sub {
+        return with_mock(
+            $cluster_module,
+            {
+                get_nodelist =>
+                    sub { return [$NODENAME, 'new-node', 'old-node', 'unknown-node'] },
+            },
+            sub { PVE::API2::LXC->migrate_vm_precondition({ node => $NODENAME, vmid => 200 }) },
+        );
+    };
+
+    write_raw_config(200, existing_config());
+    $res = $precondition->();
+    is_deeply(
+        $res->{'allowed-nodes'},
+        ['new-node', 'old-node', 'unknown-node'],
+        'a container without identity can go to every node',
+    );
+    is_deeply($res->{'not-allowed-nodes'}, {}, 'no node is refused for it');
+
+    # stopping it for the migration applies the pending changes, which assigns an identity
+    write_raw_config(200, existing_config() . "\n[pve:pending]\nmemory: 1024\n");
+    $res = with_mock($lxc_module, { check_running => sub { return 1 } }, $precondition);
+    ok(
+        $res->{'not-allowed-nodes'}->{'old-node'}->{'guest-identity-unsupported'},
+        'running container with pending changes cannot go to an older node',
+    );
+};
+
+subtest 'migration checks the target again with the lock held' => sub {
+    reset_configs();
+    my $cluster_checks = 0;
+    my $abstract_migrate_module = Test::MockModule->new('PVE::AbstractMigrate');
+    $abstract_migrate_module->mock(
+        prepare_local_cluster_checks => sub { $cluster_checks++ },
+        log => sub { },
+    );
+    my ($stopped, $running) = (0, 0);
+
+    my $prepare = sub {
+        my ($target, $is_running) = @_;
+        ($cluster_checks, $running) = (0, $is_running);
+        my $self = bless { opts => { restart => 1 }, node => $target, vmid => 200 },
+            'PVE::LXC::Migrate';
+        eval { $self->prepare(200) };
+        return $@;
+    };
+
+    my $mocks = { vm_stop => sub { $stopped = 1 }, check_running => sub { return $running } };
+    with_mock(
+        $lxc_module,
+        $mocks,
+        sub {
+            write_raw_config(200, existing_config());
+            is(
+                $prepare->('old-node', 0),
+                '',
+                'container without identity can go to an older node',
+            );
+            is($prepare->('old-node', 1), '', 'also in restart mode');
+            ok($stopped, 'which stops it');
+
+            $stopped = 0;
+            write_raw_config(200, existing_config() . "\n[pve:pending]\nmemory: 1024\n");
+            like(
+                $prepare->('old-node', 1),
+                qr/keeping the guest identity requires/,
+                'pending changes that the stop applies would assign an identity, so restart mode'
+                    . ' refuses',
+            );
+            ok(!$stopped, 'before stopping the container');
+            is($cluster_checks, 0, 'and before the checks that reach the target');
+            is($prepare->('new-node', 1), '', 'an upgraded node is fine');
+
+            write_raw_config(200, existing_config($EXISTING_META));
+            like(
+                $prepare->('old-node', 0),
+                qr/keeping the guest identity requires/,
+                'container with identity is refused',
+            );
+        },
+    );
 };
 
 subtest 'clone feature only lists nodes that keep the guest identity' => sub {
