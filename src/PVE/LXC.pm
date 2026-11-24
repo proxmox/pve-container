@@ -3185,6 +3185,11 @@ sub vm_start {
         $conf = PVE::LXC::Config->load_config($vmid); # update/reload
     }
 
+    # without a persisted MAC address, every user of the config would see a different random one
+    if (PVE::LXC::Config->add_missing_hwaddrs($conf)) {
+        PVE::LXC::Config->write_config($vmid, $conf);
+    }
+
     update_lxc_config($vmid, $conf);
 
     eval {

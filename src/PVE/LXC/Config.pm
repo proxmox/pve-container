@@ -1631,6 +1631,27 @@ sub parse_lxc_network {
     return $res;
 }
 
+# Returns whether a MAC address was added to a network device.
+sub add_missing_hwaddrs {
+    my ($class, $conf) = @_;
+
+    local $@;
+    my $added;
+    for my $opt (sort keys %$conf) {
+        next if $opt !~ m/^net\d+$/;
+        # a device that does not parse fails where it gets used, so keep it as it is
+        my $net = eval { $class->parse_lxc_network($conf->{$opt}, 1) } or next;
+        next if !%$net || $net->{hwaddr};
+
+        my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
+        $net->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
+        $conf->{$opt} = $class->print_lxc_network($net);
+        $added = 1;
+    }
+
+    return $added;
+}
+
 sub parse_features {
     my ($class, $data) = @_;
     return {} if !$data;

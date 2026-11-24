@@ -5,6 +5,7 @@ use warnings;
 
 use lib qw(..);
 
+use Test::MockModule;
 use Test::More;
 
 use PVE::LXC::Config;
@@ -210,6 +211,47 @@ subtest 'meta property' => sub {
     like($@, qr/unable to parse value of 'meta'/, 'unknown member fails strict parsing');
 
     ok(!exists(PVE::LXC::Config->json_config_properties({})->{meta}), 'meta cannot be set');
+};
+
+subtest 'missing MAC addresses of network devices are added' => sub {
+    my $cluster_module = Test::MockModule->new('PVE::Cluster');
+    $cluster_module->mock(
+        cfs_read_file => sub {
+            my ($filename) = @_;
+            die "unexpected read of $filename\n" if $filename ne 'datacenter.cfg';
+            return { mac_prefix => 'BC:24:11' };
+        },
+    );
+
+    my $with_hwaddr = 'name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:01,type=veth';
+    my $conf = {
+        hostname => 'ct100',
+        net0 => $with_hwaddr,
+        net1 => 'name=eth1,bridge=vmbr0,type=veth',
+    };
+
+    ok(PVE::LXC::Config->add_missing_hwaddrs($conf), 'reports the added MAC address');
+    is($conf->{net0}, $with_hwaddr, 'existing MAC address is kept');
+    my $net1 = PVE::LXC::Config->parse_lxc_network($conf->{net1}, 1);
+    like($net1->{hwaddr}, qr/^BC:24:11(?::[0-9A-F]{2}){3}$/i, 'MAC address uses the prefix');
+    is($net1->{name}, 'eth1', 'other properties are kept');
+    is($conf->{hostname}, 'ct100', 'other options are kept');
+
+    my $net1_string = $conf->{net1};
+    ok(!PVE::LXC::Config->add_missing_hwaddrs($conf), 'reports nothing if all are set');
+    is($conf->{net1}, $net1_string, 'added MAC address stays');
+
+    $conf->{net2} = 'name=eth2,bridge=vmbr0,unknown-property=1';
+    $conf->{net3} = '0';
+    $conf->{net4} = 'name=eth4,bridge=vmbr0';
+    ok(
+        PVE::LXC::Config->add_missing_hwaddrs($conf),
+        'reports the MAC address after invalid ones',
+    );
+    is($conf->{net2}, 'name=eth2,bridge=vmbr0,unknown-property=1', 'invalid device is kept');
+    is($conf->{net3}, '0', 'empty device is kept');
+    ok(PVE::LXC::Config->parse_lxc_network($conf->{net4}, 1)->{hwaddr},
+        'valid device gets one');
 };
 
 done_testing();
