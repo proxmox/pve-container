@@ -257,7 +257,7 @@ sub setup_systemd_networkd {
 
     foreach my $k (keys %$conf) {
         next if $k !~ m/^net(\d+)$/;
-        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k}, 1);
         next if !$d->{name};
 
         my $filename = "/etc/systemd/network/$d->{name}.network";

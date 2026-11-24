@@ -1616,14 +1616,14 @@ sub print_lxc_network {
 }
 
 sub parse_lxc_network {
-    my ($class, $data) = @_;
+    my ($class, $data, $disable_mac_autogen) = @_;
 
     return {} if !$data;
 
     my $res = PVE::JSONSchema::parse_property_string($netconf_desc, $data);
 
     $res->{type} = 'veth';
-    if (!$res->{hwaddr}) {
+    if (!$res->{hwaddr} && !$disable_mac_autogen) {
         my $dc = PVE::Cluster::cfs_read_file('datacenter.cfg');
         $res->{hwaddr} = PVE::Tools::random_ether_addr($dc->{mac_prefix});
     }

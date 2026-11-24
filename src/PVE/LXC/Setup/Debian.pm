@@ -254,7 +254,7 @@ sub setup_network {
     foreach my $k (keys %$conf) {
         next if $k !~ m/^net(\d+)$/;
         my $ind = $1;
-        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k}, 1);
         if ($d->{name}) {
             my $net = {};
             my $cidr;

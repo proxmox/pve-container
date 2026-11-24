@@ -960,7 +960,7 @@ sub get_primary_ips {
     # return data from net0
 
     return undef if !defined($conf->{net0});
-    my $net = PVE::LXC::Config->parse_lxc_network($conf->{net0});
+    my $net = PVE::LXC::Config->parse_lxc_network($conf->{net0}, 1);
 
     my $ipv4 = $net->{ip};
     if ($ipv4) {

@@ -91,7 +91,7 @@ sub setup_network {
 
         my $netstring = $value;
         # check for dhcp6:
-        my $d = PVE::LXC::Config->parse_lxc_network($netstring);
+        my $d = PVE::LXC::Config->parse_lxc_network($netstring, 1);
         if (defined($d->{ip6}) && ($d->{ip6} eq 'dhcp' || $d->{ip6} eq 'auto')) {
             $d->{ip6} = 'manual';
             $netstring = PVE::LXC::Config->print_lxc_network($d);

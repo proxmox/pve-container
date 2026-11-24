@@ -208,7 +208,7 @@ sub setup_network_with_networkmanager {
 
     foreach my $k (keys %$conf) {
         next if $k !~ m/^net(\d+)$/;
-        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k}, 1);
         next if !$d->{name};
 
         my $filename = "/etc/NetworkManager/system-connections/$d->{name}.nmconnection";
@@ -295,7 +295,7 @@ sub setup_network_with_network_scripts {
 
     foreach my $k (keys %$conf) {
         next if $k !~ m/^net(\d+)$/;
-        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k});
+        my $d = PVE::LXC::Config->parse_lxc_network($conf->{$k}, 1);
         next if !$d->{name};
         $has_ipv4 = 1 if defined($d->{ip});
         $has_ipv6 = 1 if defined($d->{ip6});
