@@ -191,6 +191,29 @@ subtest 'restore does not take over pending changes of the backup' => sub {
     }
 };
 
+subtest 'restore adds missing MAC addresses of the backup' => sub {
+    PVE::RPCEnvironment::get()->set_user('root@pam');
+
+    my $cluster_module = Test::MockModule->new('PVE::Cluster');
+    $cluster_module->mock(
+        cfs_read_file => sub {
+            my ($filename) = @_;
+            die "unexpected read of $filename\n" if $filename ne 'datacenter.cfg';
+            return { mac_prefix => 'BC:24:11' };
+        },
+    );
+
+    my $with_hwaddr = 'name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:01,type=veth';
+    my $raw = "hostname: ct100\nnet0: $with_hwaddr\nnet1: name=eth1,bridge=vmbr0,type=veth\n";
+    my $backup = PVE::LXC::Config::parse_pct_config('/lxc/100.conf', $raw);
+
+    my $conf = {};
+    PVE::LXC::Create::sanitize_and_merge_config($conf, $backup, 0, 0);
+    is($conf->{net0}, $with_hwaddr, 'MAC address of the backup is kept');
+    my $net1 = PVE::LXC::Config->parse_lxc_network($conf->{net1}, 1);
+    like($net1->{hwaddr}, qr/^BC:24:11(?::[0-9A-F]{2}){3}$/i, 'missing MAC address is added');
+};
+
 subtest 'meta property' => sub {
     like(PVE::LXC::Config->new_meta_info_string(), qr/^ctime=\d+$/, 'creation time is set');
 

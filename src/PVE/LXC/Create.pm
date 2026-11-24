@@ -607,6 +607,9 @@ sub sanitize_and_merge_config {
         }
         $conf->{$key} = $oldconf->{$key} if !defined($conf->{$key});
     }
+
+    # a backup can have network devices without a MAC address
+    PVE::LXC::Config->add_missing_hwaddrs($conf);
 }
 
 sub restore_configuration_from_etc_vzdump {
