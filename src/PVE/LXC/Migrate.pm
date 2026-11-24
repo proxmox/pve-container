@@ -570,7 +570,8 @@ sub final_cleanup {
         if ($self->{opts}->{restart} && $self->{was_running}) {
             $self->log('info', "start container on source node");
             my $skiplock = 1;
-            PVE::LXC::vm_start($vmid, $self->{vmconf}, $skiplock);
+            # the config loaded for the migration still has the migrate lock removed above
+            PVE::LXC::vm_start($vmid, PVE::LXC::Config->load_config($vmid), $skiplock);
         }
     } elsif ($self->{opts}->{remote}) {
         eval { PVE::Tunnel::write_tunnel($self->{tunnel}, 10, 'unlock') };
