@@ -1737,8 +1737,6 @@ subtest 'migration is refused to nodes that drop the guest identity' => sub {
 
     my $err = $migrate->('old-node');
     like($err, qr/node 'old-node' runs Proxmox VE 9\.2\.0/, 'node too old is refused');
-    $err = $migrate->('unknown-node');
-    like($err, qr/does not report its Proxmox VE version/, 'node without version is refused');
 
     my $stopped = 0;
     $lxc_module->mock(
@@ -1757,6 +1755,10 @@ subtest 'migration is refused to nodes that drop the guest identity' => sub {
     $err = $migrate->('new-node');
     is($err, '', 'migration to an upgraded node starts');
     is($migrated_to, 'new-node', 'migration goes to the target');
+
+    $err = $migrate->('unknown-node');
+    is($err, '', 'migration to a node without version starts');
+    is($migrated_to, 'unknown-node', 'migration goes to the node without version');
 };
 
 subtest 'migration preconditions list nodes that drop the guest identity' => sub {
@@ -1774,7 +1776,11 @@ subtest 'migration preconditions list nodes that drop the guest identity' => sub
     $cluster_module->unmock('get_nodelist');
 
     my $required = PVE::GuestIdentity::MIN_PVE_MANAGER_VERSION;
-    is_deeply($res->{'allowed-nodes'}, ['new-node'], 'only the upgraded node is allowed');
+    is_deeply(
+        $res->{'allowed-nodes'},
+        ['new-node', 'unknown-node'],
+        'upgraded node and node without version are allowed',
+    );
     is_deeply(
         $res->{'not-allowed-nodes'},
         {
@@ -1784,11 +1790,8 @@ subtest 'migration preconditions list nodes that drop the guest identity' => sub
                     'required-version' => $required,
                 },
             },
-            'unknown-node' => {
-                'guest-identity-unsupported' => { 'required-version' => $required },
-            },
         },
-        'nodes that drop the identity are not allowed',
+        'node that drops the identity is not allowed',
     );
 
     my $returns = PVE::API2::LXC->map_method_by_name('migrate_vm_precondition')->{returns};
@@ -1798,11 +1801,9 @@ subtest 'migration preconditions list nodes that drop the guest identity' => sub
         $returns->{properties}->{'not-allowed-nodes'}->{additionalProperties}->%*,
         additionalProperties => 0,
     };
-    for my $node ('old-node', 'unknown-node') {
-        my $reasons = $res->{'not-allowed-nodes'}->{$node};
-        eval { PVE::JSONSchema::validate($reasons, $reasons_schema) };
-        is($@, '', "reason for $node is documented in the schema");
-    }
+    my $reasons = $res->{'not-allowed-nodes'}->{'old-node'};
+    eval { PVE::JSONSchema::validate($reasons, $reasons_schema) };
+    is($@, '', 'reason for old-node is documented in the schema');
 };
 
 subtest 'clone feature only lists nodes that keep the guest identity' => sub {
@@ -1814,16 +1815,17 @@ subtest 'clone feature only lists nodes that keep the guest identity' => sub {
     $cluster_module->mock(
         get_nodelist => sub { return [$NODENAME, 'new-node', 'old-node', 'unknown-node'] },
     );
+    # a clone on the same node needs no version check
+    local $node_versions->{$NODENAME} = '9.2.0';
 
     my $res =
         PVE::API2::LXC->vm_feature({ node => $NODENAME, vmid => 200, feature => 'clone' });
     $cluster_module->unmock('get_nodelist');
 
-    # the local node reports no version here, a clone on the same node needs no check
     is_deeply(
         $res->{nodes},
-        [$NODENAME, 'new-node'],
-        'nodes that drop the identity are left out',
+        [$NODENAME, 'new-node', 'unknown-node'],
+        'node that drops the identity is left out',
     );
 
     my $returns = PVE::API2::LXC->map_method_by_name('vm_feature')->{returns};
