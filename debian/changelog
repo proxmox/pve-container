@@ -1,3 +1,32 @@
+pve-container (6.1.28) trixie; urgency=medium
+
+  * fix starting a container that has a network device without a MAC
+    address, for example after a manual edit of its config or the restore of
+    an older backup. Since pve-cluster 9.1.11, the start failed with
+    'Transport endpoint is not connected' in the pre-start hook.
+
+  * persist a generated MAC address for network devices without one when
+    starting a container, or when restoring a backup without 'unique'.
+    Before, every user of the config got another random address, for example
+    the lxc config and the SDN DHCP mapping. Starting such a container thus
+    changes its config once.
+
+  * migrate: in restart mode, keep the pending changes that stopping the
+    container applied. Before, the migration wrote them back as pending, so
+    a migration within the cluster applied them a second time on the target.
+    A replaced mount point with a new volume thus left that volume behind on
+    the source, without a reference. Also check the mount points that such a
+    change added, as the checks before the stop did not see them. For example,
+    refuse a local bind mount or a volume on a storage that the target node
+    cannot use.
+
+  * migrate: after a failed migration in restart mode, start the container
+    again with its current config. Before, starting it could put the migrate
+    lock back into the config, so the container ran locked until
+    'pct unlock'.
+
+ -- Proxmox Support Team <support@proxmox.com>  Tue, 24 Nov 2026 22:34:16 +0100
+
 pve-container (6.1.27) trixie; urgency=medium
 
   * api: migrate: only refuse a target node that would drop the guest
