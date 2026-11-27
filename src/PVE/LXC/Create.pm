@@ -554,20 +554,20 @@ sub restore_configuration_from_external_backup {
 my sub filter_restricted_env_vars {
     my ($vars) = @_;
 
-    my (@allowed, %skipped_names);
+    my (@allowed, @skipped_names, %seen_skipped);
     my $malformed = 0;
     for my $var ($vars->@*) {
         my ($status, $name) = PVE::LXC::Config::classify_lxc_env_entry($var);
         if ($status eq 'ok') {
             push @allowed, $var;
         } elsif ($status eq 'forbidden') {
-            $skipped_names{$name} = 1;
+            push @skipped_names, $name if !$seen_skipped{$name}++;
         } else {
             $malformed++;
         }
     }
 
-    return (\@allowed, [ keys %skipped_names ], $malformed);
+    return (\@allowed, \@skipped_names, $malformed);
 }
 
 my sub format_skipped_env_warning {
