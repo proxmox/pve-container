@@ -149,18 +149,6 @@ sub prepare {
     # todo: test if VM uses local resources
 
     if ($remote) {
-        if (defined($conf->{env})) {
-            eval {
-                PVE::LXC::Config::verify_lxc_env($conf->{env});
-                if (defined(
-                    my $name = PVE::LXC::Config::find_forbidden_lxc_env_var($conf->{env})
-                )) {
-                    die "restricted variable '$name' inside property 'env'\n";
-                }
-            };
-            die "cannot migrate CT $vmid to a remote cluster - $@" if $@;
-        }
-
         # test & establish websocket connection
         my $bridges = map_bridges($conf, $self->{opts}->{bridgemap}, 1);
 

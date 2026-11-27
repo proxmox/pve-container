@@ -78,14 +78,6 @@ __PACKAGE__->register_method({
                     . " creation time.",
                 optional => 1,
             },
-            # without format/pattern, as existing configs or snapshots can contain restricted or
-            # manually added entries
-            env => {
-                type => 'string',
-                description => 'The container runtime environment as NUL-separated list.'
-                    . ' Replaces any lxc.environment.runtime entries in the config.',
-                optional => 1,
-            },
         }),
     },
     code => sub {
