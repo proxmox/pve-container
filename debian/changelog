@@ -1,3 +1,14 @@
+pve-container (6.1.29) trixie; urgency=medium
+
+  * networking: don't apply container environment variables when attaching
+    only to a container's network namespace.
+
+  * setup: OS detection now resolves files such as `os-release` strictly
+    within the container's root file system. A template's `/etc` (or paths
+    inside) should now work correctly even as symlinks.
+
+ -- Proxmox Support Team <support@proxmox.com>  Fri, 27 Nov 2026 10:16:33 +0100
+
 pve-container (6.1.28) trixie; urgency=medium
 
   * fix starting a container that has a network device without a MAC
